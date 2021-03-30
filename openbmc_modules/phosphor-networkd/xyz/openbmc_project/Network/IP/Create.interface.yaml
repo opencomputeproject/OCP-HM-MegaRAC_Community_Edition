@@ -1,0 +1,29 @@
+description: >
+methods:
+    - name: IP
+      description: >
+          Create ipaddress object.
+      parameters:
+        - name: ProtocolType
+          type: enum[xyz.openbmc_project.Network.IP.Protocol]
+          description: >
+              protocol type can be IPv4 or IPv6 etc.
+        - name: Address
+          type: string
+          description: >
+              IP Address.
+        - name: PrefixLength
+          type: byte
+          description: >
+              Prefix Length.
+        - name: Gateway
+          type: string
+          description: >
+              Gateway Address.
+      returns:
+        - name: Path
+          type: path
+          description: >
+            The path for the created ipaddress object.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
