@@ -1,0 +1,85 @@
+<div class="uib-modal__content  modal__local-users-settings">
+  <div class="modal-header">
+    <h2 class="modal-title" id="dialog_label">Account policy settings</h2>
+    <button type="button" class="btn  btn--close  float-right" ng-click="$dismiss()" aria-label="Close">
+      <icon file="icon-close.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+  <form name="form">
+    <div class="modal-body">
+      <div class="row">
+        <div class="column medium-6">
+            <!-- Max login attempts -->
+            <div class="field-group-container">
+              <label for="maxLogin">Max failed login attempts</label>
+              <p class="label__helper-text">Value must be between <span class="nowrap">0 – 65535</span></p>
+              <input id="maxLogin"
+                     name="maxLogin"
+                     type="number"
+                     required
+                     min="0"
+                     max="65535"
+                     ng-model="modalCtrl.settings.maxLogin" />
+              <div ng-if="form.maxLogin.$invalid && form.maxLogin.$dirty" class="form__validation-message">
+                <span ng-show="form.maxLogin.$error.required">
+                  Field is required</span>
+                <span ng-show="form.maxLogin.$error.min || form.maxLogin.$error.max">
+                  Value must be between <span class="nowrap">1 - 65535</span></span>
+              </div>
+            </div>
+        </div>
+        <div class="column medium-6">
+          <!-- User unlock method -->
+          <fieldset class="field-group-container">
+            <legend>User unlock method</legend>
+            <!-- Automatic radio option -->
+            <label class="radio-label">
+              <input name="lockoutMethod"
+                     type="radio"
+                     ng-value="1"
+                     ng-model="modalCtrl.settings.lockoutMethod">
+              Automatic after timeout
+            </label>
+            <!-- Automatic timeout value -->
+            <div class="field-group-container  radio-option__input-field-group">
+              <label for="lockoutMethod1">Timeout duration (seconds)</label>
+              <p class="label__helper-text" id="lockoutMethod1Helper">Must be at least 1</p>
+              <input id="lockoutMethod1"
+                     name="timeoutDuration"
+                     type="number"
+                     aria-describedby="lockoutMethod1Helper"
+                     ng-min="modalCtrl.settings.lockoutMethod ? 1 : null"
+                     ng-disabled="!modalCtrl.settings.lockoutMethod"
+                     ng-required="modalCtrl.settings.lockoutMethod"
+                     ng-model="modalCtrl.settings.timeoutDuration"/>
+              <div ng-if="form.timeoutDuration.$invalid && form.timeoutDuration.$touched" class="form__validation-message">
+                <span ng-show="form.timeoutDuration.$error.required">
+                  Field is required</span>
+                <span ng-show="form.timeoutDuration.$error.min">
+                  Value must be at least 1</span>
+              </div>
+            </div>
+            <!-- Manual radio option -->
+            <label class="radio-label">
+              <input name="lockoutMethod"
+                     type="radio"
+                     ng-value="0"
+                     ng-model="modalCtrl.settings.lockoutMethod">
+              Manual
+            </label>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" ng-click="$dismiss()" type="button">Cancel</button>
+      <button class="btn btn-primary"
+              type="submit"
+              ng-click="$close(form)"
+              ng-disabled="form.$invalid || form.$pristine"
+              ng-class="{'disabled': form.$invalid}">
+        Save
+      </button>
+    </div>
+  </form>
+</div>

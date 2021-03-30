@@ -1,0 +1,337 @@
+#! /bin/bash
+
+help=$"
+        dreport creates an archive(xz compressed) consisting of the following:
+                * Configuration information
+                * Debug information
+                * A summary report
+        The type parameter controls the content of the data. The generated
+        archive is stored in the user specified location.
+
+usage: dreport [OPTION]
+
+Options:
+        -n, —-name <name>     Name to be used for the archive.
+                              Default name format obmcdump_<id>_<epochtime>
+        -d, —-dir <directory> Archive directory to copy the compressed report.
+                              Default output directory is /tmp
+        -i, —-id <id>         Dump identifier to associate with the archive.
+                              Identifiers include numeric characters.
+                              Default dump identifier is 0
+        -t, —-type <type>     Data collection type. Valid types are
+                              "user", "core", "elog".
+                              Default type is "user" initiated.
+        -p, —-path <path>     Optional contents to be included in the archive.
+                              Valid paths are absolute file path or d-bus path
+                              based on type parameter.
+                                 -Absolute file path for "core" type.
+                                 -elog d-bus object for "elog" type.
+        -s, --size <size>     Maximum allowed size(in KB) of the archive.
+                              Report will be truncated in case size exceeds
+                              this limit. Default size is unlimited.
+        -v, —-verbose         Increase logging verbosity.
+        -V, --version         Output version information.
+        -q, —-quiet           Only log fatal errors to stderr
+        -h, —-help            Display this help and exit.
+"
+
+#CONSTANTS
+declare -rx TRUE=1
+declare -rx FALSE=0
+declare -rx UNLIMITED="unlimited"
+declare -rx SUMMARY_DUMP="summary"
+declare -rx TYPE_USER="user"
+declare -rx TYPE_CORE="core"
+declare -rx TYPE_ELOG="elog"
+declare -rx TYPE_CHECKSTOP="checkstop"
+declare -rx SUMMARY_LOG="summary.log"
+declare -rx DREPORT_LOG="dreport.log"
+declare -rx TMP_DIR="/tmp"
+declare -rx EPOCHTIME=$(date +"%s")
+declare -rx TIME_STAMP="date -u"
+declare -rx PLUGIN="pl_"
+declare -rx DREPORT_SOURCE="/usr/share/dreport.d"
+declare -rx DREPORT_INCLUDE="$DREPORT_SOURCE/include.d"
+declare -rx ZERO="0"
+declare -rx JOURNAL_LINE_LIMIT="500"
+
+#Error Codes
+declare -rx SUCCESS="0"
+declare -rx INTERNAL_FAILURE="1"
+declare -rx RESOURCE_UNAVAILABLE="2"
+
+#VARIABLES
+declare -x name=""
+declare -x dump_dir="/tmp"
+declare -x dump_id="00000000"
+declare -x dump_type=$TYPE_USER
+declare -x verbose=$FALSE
+declare -x quiet=$FALSE
+declare -x dump_size="unlimited"
+declare -x name_dir=""
+declare -x optional_path=""
+declare -x dreport_log=""
+declare -x summary_log=""
+declare -x cur_dump_size=0
+declare -x pid=$ZERO
+declare -x elog_id=""
+
+#Source dreport common functions
+. $DREPORT_INCLUDE/functions
+
+# @brief Initiate data collection based on the type.
+# @return 0 on success, error code otherwise
+function collect_data()
+{
+    case $dump_type in
+        $TYPE_USER)
+            ;;
+        $TYPE_CORE)
+            log_summary "Core: $optional_path"
+            set_core_pid
+            ;;
+        $TYPE_ELOG)
+            log_summary "ELOG: $optional_path"
+            elog_id=$(basename "$optional_path")
+            set_elog_pid
+            ;;
+        $TYPE_CHECKSTOP)
+            log_summary "CHECKSTOP: $optional_path"
+            elog_id=$(basename "$optional_path")
+            set_elog_pid
+            ;;
+
+        $SUMMARY_DUMP)
+            #No data collection is required.
+            return
+            ;;
+        *) # unknown option
+            log_error "Skipping: Unknown dump type: $dump_type"
+            return
+            ;;
+    esac
+
+    plugin_path=$DREPORT_SOURCE/$PLUGIN$dump_type.d
+
+    # check plugin directory for this dump type?
+    if [ ! -d $plugin_path ]; then
+        log_error "$plugin_path does not exist, skipping dump collection"
+        return 0
+    fi
+
+    #Executes plugins based on the type.
+    for i in $plugin_path/* ; do
+       $i
+    done
+}
+
+# @brief set pid by reading information from the optional path.
+#        dreport "core" type user provides core file as optional path parameter.
+#        As per coredump source code systemd-coredump uses below format
+#        https://github.com/systemd/systemd/blob/master/src/coredump/coredump.c
+#        /var/lib/systemd/coredump/core.%s.%s." SD_ID128_FORMAT_STR “.
+#        <process ID>.%s000000"
+function set_core_pid()
+{
+    #Escape bash characters in file name
+    file=$(printf %q "$optional_path")
+
+    #matching systemd-coredump core file format.
+    pid=$(echo $file | awk -F . '{ print $5}')
+}
+
+# @brief set elog pid by reading _PID information from the elog d-bus object.
+#        _PID information is stored  elog Additional data field
+#        Data format  "_PID=<pid>"
+function set_elog_pid()
+{
+    additional_data=$(busctl get-property xyz.openbmc_project.Logging \
+                             $optional_path \
+                             xyz.openbmc_project.Logging.Entry \
+                             AdditionalData)
+
+    #read _PID data.
+    if [ ! -z "$additional_data" ]; then
+        pid=$(echo $additional_data | \
+                   awk -F _PID= '{ print ($2+0)}')
+    fi
+}
+
+# @brief Initial version of the summary log
+init_summary()
+{
+   log_summary "Name:          $name.tar.xz"
+   log_summary "Epochtime:     $EPOCHTIME"
+   log_summary "ID:            $dump_id"
+   log_summary "Type:          $dump_type"
+}
+
+# @brief Check the validity of user inputs and initialize global
+#        variables. Create directory for temporary data collection
+# @return 0 on success, error code otherwise
+
+function initialize()
+{
+    #Dump file name
+    if [ -z $name ]; then
+        name=$"obmcdump_"$dump_id"_$EPOCHTIME"
+    fi
+
+    #Create temporary data directory.
+    mkdir -p "$TMP_DIR/$name"
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create the temporary directory."
+        return $RESOURCE_UNAVAILABLE;
+    fi
+
+    #name directory
+    name_dir="$TMP_DIR/$name"
+
+    #dreport log file
+    dreport_log="$name_dir/$DREPORT_LOG"
+
+    #summary log file
+    summary_log="$name_dir/$SUMMARY_LOG"
+
+    #Type
+    if [[ !($dump_type = $TYPE_USER || \
+            $dump_type = $TYPE_CORE || \
+            $dump_type = $TYPE_ELOG || \
+            $dump_type = $TYPE_CHECKSTOP) ]]; then
+       log_error "Invalid -type, Only summary log is available"
+       dump_type=$SUMMARY_DUMP
+    fi
+
+    #Size
+    #Check the input is integer.
+    if [ "$dump_size" -eq "$dump_size" ] 2>/dev/null; then
+       #Converts in to bytes.
+       dump_size="$((dump_size * 1024))"
+    else
+       dump_size=$UNLIMITED
+    fi
+
+    return $SUCCESS
+}
+
+# @brief Packaging the dump and transferring to dump location.
+function package()
+{
+    mkdir -p "$dump_dir"
+    if [ $? -ne 0 ]; then
+        log_error "Could not create the destination directory $dump_dir"
+        dest_dir=$TMP_DIR
+    fi
+
+    #tar and compress the files.
+    tar -Jcf "$name_dir.tar.xz" -C \
+             $(dirname "$name_dir") $(basename "$name_dir")
+
+    if [ $? -ne 0 ]; then
+        echo $($TIME_STAMP) "Could not create the compressed tar file"
+        rm -r "$name_dir"
+        return $INTERNAL_FAILURE
+    fi
+
+    #remove the temporary name specific directory
+    rm -r "$name_dir"
+
+    echo $($TIME_STAMP) "Report is available in $dump_dir"
+
+    if [ "$TMP_DIR" == "$dump_dir" ] || [ "$TMP_DIR/" == "$dump_dir" ]; then
+       return $SUCCESS
+    fi
+
+    #copy the compressed tar file into the destination
+    cp "$name_dir.tar.xz" "$dump_dir"
+    if [ $? -ne 0 ]; then
+        echo "Failed to copy the $name_dir.tar.xz to $dump_dir"
+        rm "$name_dir.tar.xz"
+        return $INTERNAL_FAILURE
+    fi
+
+    #Remove the temporary copy of the file
+    rm "$name_dir.tar.xz"
+}
+
+# @brief Main function
+function main()
+{
+    #initialize the global variables and
+    #create temporary storage locations
+    initialize
+    result=$?
+    if [[ ${result} -ne $SUCCESS ]]; then
+        echo $($TIME_STAMP) "Error: Failed to initialize, Exiting"
+        exit;
+    fi
+
+    #Initialize the summary log
+    init_summary
+
+    #collect data based on the type.
+    collect_data
+
+    package  #package the dump
+    result=$?
+    if [[ ${result} -ne $SUCCESS ]]; then
+        echo $($TIME_STAMP) "Error: Failed to package, Exiting"
+    else
+        echo $($TIME_STAMP) "Successfully completed"
+        exit;
+    fi
+}
+
+TEMP=`getopt -o n:d:i:t:s:p:vVqh \
+      --long name:,dir:,dumpid:,type:,size:,path:,verbose,version,quiet,help \
+      -- "$@"`
+
+if [ $? -ne 0 ]
+then
+    echo "Error: Invalid options"
+    exit 1
+fi
+
+eval set -- "$TEMP"
+
+while [[ $# -gt 1 ]]; do
+    key="$1"
+    case $key in
+        -n|--name)
+            name=$2
+            shift 2;;
+        -d|--dir)
+            dump_dir=$2
+            shift 2;;
+        -i|--dumpid)
+            dump_id=$2
+            shift 2;;
+        -t|--type)
+            dump_type=$2
+            shift 2;;
+        -s|--size)
+            dump_size=$2
+            shift 2;;
+        -p|--path)
+            optional_path=$2
+            shift 2;;
+        -v|—-verbose)
+            verbose=$TRUE
+            shift;;
+        -V|--version)
+            shift;;
+        -q|—-quiet)
+            quiet=$TRUE
+            shift;;
+        -h|--help)
+            echo "$help"
+            exit;;
+        *) # unknown option
+            log_error "Unknown argument: $1"
+            log_info "$help"
+            exit 1;;
+    esac
+done
+
+main #main program
+exit $?

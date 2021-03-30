@@ -1,0 +1,18 @@
+description: >
+    Implement to retrieve the Certificate Signing Request(CSR).
+
+methods:
+    - name: CSR
+      description: >
+          Method to get the CSR string.
+
+          Object which implements this interface should implement
+          xyz.openbmc_project.Object.Delete to allow the deletion of CSR objects.
+
+      returns:
+        - name: CSRString
+          type: string
+          description: >
+              CSR string in the Base-64 encoded PEM format.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure

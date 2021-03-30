@@ -1,0 +1,78 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2020-05-08 17:38:13.250588064 +0530
++++ b/src/main.cpp	2020-05-08 17:38:54.731076695 +0530
+@@ -328,6 +328,47 @@
+         return false;
+     }
+ 
++    static bool isKvmActive(void)
++    {
++        std::ifstream fileWriter;
++        fileWriter.open("/var/kvm_instance");
++        std::string temp_buf;
++        bool flag = false;
++        if(fileWriter)
++        {
++             while(std::getline(fileWriter,temp_buf))
++             {
++                if(temp_buf.find("1") != std::string::npos)
++                {
++                        flag = true;
++                        break;
++                }
++             }
++             fileWriter.close();
++        }
++        return flag;
++    }
++
++    static bool setKvmInstance(const bool& instance)
++    {
++        std::ofstream fileWriter;
++        fileWriter.open("/var/kvm_instance", std::ios::out | std::ios::trunc);
++        if(fileWriter)
++        {
++              if(instance == true)
++              {
++                 fileWriter << "1";
++              }
++              else
++              {
++                 fileWriter << "0";
++              }
++              fileWriter.close();
++              return true;
++        }
++        return false;
++    }
++
+   private:
+     boost::asio::io_context& ioc;
+     boost::process::child child;
+@@ -617,6 +658,7 @@
+ 
+             paramMgr.addMountPoint(entry.first);
+         }
++	addKVMProcessInterface("kvm0");
+         devMonitor.run([this](const std::string& device, StateChange change) {
+             configureUsbGadget(device, change);
+         });
+@@ -1086,6 +1128,18 @@
+         iface->initialize();
+     }
+ 
++    void addKVMProcessInterface(const std::string& name)
++    {
++        auto iface = objServer->add_interface(
++            "/xyz/openbmc_project/VirtualMedia/Kvm/" + name,
++            "xyz.openbmc_project.Kvm.Process");
++        iface->register_property(
++            "Active", bool(false),
++            [](const bool& req, bool& property) { return Process::setKvmInstance(req); },
++            [](const bool& property) { return Process::isKvmActive(); });
++        iface->initialize();
++    }
++
+     boost::asio::io_context& ioc;
+     DeviceMonitor devMonitor;
+     std::shared_ptr<sdbusplus::asio::connection> bus;

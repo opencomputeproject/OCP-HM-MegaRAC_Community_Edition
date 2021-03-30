@@ -1,0 +1,34 @@
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+index 5e3f4965c..52f87442b 100755
+--- a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
++++ b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+@@ -152,7 +152,7 @@
+ 					};
+ 					u-boot@0 {
+ 						label = "u-boot";
+-						reg = <0x0000000 0xC0000>;
++						reg = <0x0000000 0xC0000>;
+ 						read-only;
+ 					};
+ 					u-boot-env@100000{
+@@ -161,15 +161,15 @@
+ 					};
+ 					kernel@200000 {
+ 						label = "kernel";
+-						reg = <0x0200000 0x600000>;
++						reg = <0x0200000 0x580000>;
+ 					};
+-					rofs@800000 {
++					rofs@780000 {
+ 						label = "rofs";
+-						reg = <0x800000 0x1500000>;
++						reg = <0x780000 0x1680000>;
+ 					};
+-					rwfs@1d00000 {
++					rwfs@1e00000 {
+ 						label = "rwfs";
+-						reg = <0x1d00000 0x300000>;
++						reg = <0x1e00000 0x200000>;
+ 					};
+ 				};
+ 			};

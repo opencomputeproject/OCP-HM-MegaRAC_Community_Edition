@@ -1,0 +1,14 @@
+[Unit]
+Description=Phosphor PLDM Daemon
+Wants=mctp-demux.service
+After=mctp-demux.service
+Wants=mapper-wait@-xyz-openbmc_project-inventory.service
+After=mapper-wait@-xyz-openbmc_project-inventory.service
+
+[Service]
+Restart=always
+EnvironmentFile=/etc/default/pldmd
+ExecStart=/usr/bin/pldmd --verbose $VERBOSE
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+diff -Naur a/xyz/openbmc_project/State/Watchdog.interface.yaml b/xyz/openbmc_project/State/Watchdog.interface.yaml
+--- a/xyz/openbmc_project/State/Watchdog.interface.yaml	2020-11-30 09:05:35.324712173 -0500
++++ b/xyz/openbmc_project/State/Watchdog.interface.yaml	2020-11-30 09:09:09.659836571 -0500
+@@ -54,6 +54,16 @@
+       description: >
+           The timer user at the time of expiration.
+       default: 'Reserved'
++    - name: PreTimeoutInterval 
++      type: byte 
++      description: >
++          PreTimeoutInterval in seconds.
++      default: 0
++    - name: PreTimeoutInterrupt 
++      type: byte 
++      description: >
++          Pretimeout Interrupt.
++      default: 0
+ 
+ enumerations:
+    - name: Action

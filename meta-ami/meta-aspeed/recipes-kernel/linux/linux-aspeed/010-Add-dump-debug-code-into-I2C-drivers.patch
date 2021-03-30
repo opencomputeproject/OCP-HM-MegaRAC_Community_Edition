@@ -1,0 +1,70 @@
+From b96daf358a2764c7a93e349813675494cabe7f57 Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Thu, 25 Feb 2021 13:33:51 +0000
+Subject: [PATCH 11/11] Add-dump-debug-code-into-I2C-drivers
+
+---
+ drivers/i2c/busses/i2c-aspeed.c | 26 ++++++++++++++++++++++++++
+ 1 files changed, 26 insertions(+)
+
+diff --git a/drivers/i2c/busses/i2c-aspeed.c b/drivers/i2c/busses/i2c-aspeed.c
+index 1f17957d7..5f3c0b674 100644
+--- a/drivers/i2c/busses/i2c-aspeed.c
++++ b/drivers/i2c/busses/i2c-aspeed.c
+@@ -382,6 +382,21 @@ struct aspeed_i2c_bus {
+ #endif /* CONFIG_I2C_SLAVE */
+ };
+ 
++static bool dump_debug __read_mostly;
++static int dump_debug_bus_id __read_mostly;
++
++#define I2C_HEX_DUMP(bus, addr, flags, buf, len) \
++	do { \
++		if (dump_debug && (bus)->adap.nr == dump_debug_bus_id) { \
++			char dump_info[100] = {0,}; \
++			snprintf(dump_info, sizeof(dump_info), \
++				 "bus_id:%d, addr:0x%02x, flags:0x%02x: ", \
++				 (bus)->adap.nr, addr, flags); \
++			print_hex_dump(KERN_ERR, dump_info, DUMP_PREFIX_NONE, \
++				       16, 1, buf, len, true); \
++		} \
++	} while (0)
++
+ #if IS_ENABLED(CONFIG_AMII2C)
+ void i2c_init_hardware_(struct aspeed_i2c_bus *i2c_bus);
+ 
+@@ -897,6 +912,7 @@ static int aspeed_i2c_master_xfer(struct i2c_adapter *adap,
+ {
+ 	struct aspeed_i2c_bus *bus = i2c_get_adapdata(adap);
+ 	unsigned long time_left, flags;
++	int i;
+ 
+ 	spin_lock_irqsave(&bus->lock, flags);
+ 	bus->cmd_err = 0;
+@@ -948,6 +964,11 @@ static int aspeed_i2c_master_xfer(struct i2c_adapter *adap,
+ 		return -ETIMEDOUT;
+ 	}
+ 
++	for (i = 0; i < num; i++) {
++		I2C_HEX_DUMP(bus, msgs[i].addr, msgs[i].flags,
++			     msgs[i].buf, msgs[i].len);
++	}
++	
+ 	return bus->master_xfer_result;
+ }
+ 
+@@ -1642,6 +1663,11 @@ static struct platform_driver aspeed_i2c_bus_driver = {
+ };
+ module_platform_driver(aspeed_i2c_bus_driver);
+ 
++module_param_named(dump_debug, dump_debug, bool, 0644);
++MODULE_PARM_DESC(dump_debug, "debug flag for dump printing");
++module_param_named(dump_debug_bus_id, dump_debug_bus_id, int, 0644);
++MODULE_PARM_DESC(dump_debug_bus_id, "bus id for dump debug printing");
++
+ MODULE_AUTHOR("Brendan Higgins <brendanhiggins@google.com>");
+ MODULE_DESCRIPTION("Aspeed I2C Bus Driver");
+ MODULE_LICENSE("GPL v2");
+-- 
+2.17.1
+

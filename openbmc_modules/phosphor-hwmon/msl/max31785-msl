@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# Copyright © 2017 IBM Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Check a max31785 firmware revision and set the MSL property
+# on the specified inventory items.
+
+set -e
+
+main()
+{
+    usage="Usage: $(basename $0) -p PATH... -b BUS_NUMBER -r REVISION"
+    while getopts p:b:r:h key; do
+        case $key in
+            p)
+                paths=$OPTARG
+                ;;
+            b)
+                bus=$OPTARG
+                ;;
+            r)
+                revision=$OPTARG
+                ;;
+            h)
+                echo "$usage" >&2
+                exit
+                ;;
+            \?)
+                echo -e \\n"Unrecognized option"
+                echo "$usage" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$paths" ] || [ -z "$bus" ] || [ -z "$revision" ]; then
+        echo "Missing option" >&2
+        echo "$usage" >&2
+        exit 1
+    fi
+
+    local state="false"
+    local actual
+    local dbus
+
+    dbus=$(mapper get-service /xyz/openbmc_project/inventory)
+    actual=$(i2cget -f -y $bus 0x52 0x9b w)
+
+    if (( actual >= revision )); then
+        state="true"
+    fi
+
+    for path in $paths; do
+        busctl call $dbus /xyz/openbmc_project/inventory \
+            xyz.openbmc_project.Inventory.Manager Notify 'a{oa{sa{sv}}}' 1 \
+            $path 1 \
+            xyz.openbmc_project.Inventory.Decorator.MeetsMinimumShipLevel \
+            1 MeetsMinimumShipLevel b $state
+    done
+}
+
+main "$@"

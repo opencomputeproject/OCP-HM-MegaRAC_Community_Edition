@@ -1,0 +1,26 @@
+description: >
+    Settings to clear or reset the security keys.
+
+properties:
+    - name: ClearHostSecurityKeys
+      type: byte
+      description: >
+          This is a bit mask used to specify clearing different security keys
+          or resetting those values back to default by the host. Setting this
+          property does not guarantee a successful operation as additional
+          conditions will be checked by the host to clear/reset the sensitive
+          data. This property will be mapped to a new IPMI sensor.
+
+          The new property is having an integer value and the default value
+          will be zero. The end operation is determined by the bit value set
+          and some of the customer use cases which maps to bit value are
+
+          Bit 0 - Clear All : Clear/reset all the sensitive data controlled by
+                  platform firmware from the system. System can generate new
+                  data to re-enable the affected functions if required
+          Bit 1 - Clear OS PK : This directs OPAL to clear the OS platform key
+          Bit 2 - Clear PEF SSO : This directs OPAL/PEF to clear the
+                  System Security Officer certificate
+          Bit 3 - Clear PowerVM System Key : This directs PowerVM to reset the
+                  system key back to the default state
+          Bit 4-6 - Reserved

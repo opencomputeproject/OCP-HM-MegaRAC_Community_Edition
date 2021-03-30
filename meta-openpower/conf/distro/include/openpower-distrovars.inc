@@ -1,0 +1,6 @@
+DISTRO_FEATURES += "openpower"
+DISTRO_FEATURES_FILTER_NATIVE += "openpower"
+DISTRO_FEATURES_FILTER_NATIVESDK += "openpower"
+DISTROOVERRIDES .= ":df-openpower"
+
+OBMC_ORG_YAML_SUBDIRS += " org/open_power"

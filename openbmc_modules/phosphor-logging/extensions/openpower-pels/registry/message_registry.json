@@ -1,0 +1,666 @@
+{
+    "PELs":
+    [
+        {
+            "Name": "xyz.openbmc_project.Common.Error.Timeout",
+            "Subsystem": "bmc_firmware",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1001",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "Timeout in ms",
+                        "AdditionalDataPropSource": "TIMEOUT_IN_MSEC"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "This is a generic timeout error",
+                "Message": "An operation timed out",
+                "Notes": [
+                    "The journal should contain more information"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Error.InternalFailure",
+            "Subsystem": "bmc_firmware",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1002",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "BMC code had a generic internal failure",
+                "Message": "An application had an internal failure",
+                "Notes": [
+                    "The journal should contain more information"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Error.InvalidArgument",
+            "Subsystem": "user_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1003",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "BMC code was given an invalid argument",
+                "Message": "Code was given an invalid argument",
+                "Notes": [
+                    "The journal should contain more information"
+                ]
+            }
+        },
+        {
+            "Name": "xyz.openbmc_project.Common.Error.InsufficientPermission",
+            "Subsystem": "user_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1004",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "An operation failed due to insufficient permission",
+                "Message": "An operation failed due to unsufficient permission",
+                "Notes": [
+                    "The journal should contain more information"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Error.NotAllowed",
+            "Subsystem": "user_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1005",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "An operation failed because it isn't allowed",
+                "Message": "An operation failed becuase it isn't allowed",
+                "Notes": [
+                    "The journal should contain more information"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Error.NoCACertificate",
+            "Subsystem": "user_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1006",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "The server's CA certificate has not been provided",
+                "Message": "The server's CA certificate has not been provided"
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Sensor.Device.Error.ReadFailure",
+            "Subsystem": "cec_chip_iface",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1007",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "errno of the failure",
+                        "AdditionalDataPropSource": "CALLOUT_ERRNO"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Sensor device read failure",
+                "Message": "There was a failure when reading a sensor device",
+                "Notes": [
+                    "The severity is set by the creator.",
+                    "The action flags are set automatically by the code.",
+                    "Callouts added based on CALLOUT_DEVICE_PATH."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Device.Error.ReadFailure",
+            "Subsystem": "cec_chip_iface",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1008",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "errno of the failure",
+                        "AdditionalDataPropSource": "CALLOUT_ERRNO"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Device read failure",
+                "Message": "There was a failure when reading a hardware device",
+                "Notes": [
+                    "The severity is set by the creator.",
+                    "The action flags are set automatically by the code.",
+                    "Callouts added based on CALLOUT_DEVICE_PATH."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Control.Device.Error.WriteFailure",
+            "Subsystem": "cec_chip_iface",
+
+            "SRC":
+            {
+                "ReasonCode": "0x1009",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "errno of the failure",
+                        "AdditionalDataPropSource": "CALLOUT_ERRNO"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Device write failure",
+                "Message": "There was a failure when writing to a hardware device",
+                "Notes": [
+                    "The severity is set by the creator.",
+                    "The action flags are set automatically by the code.",
+                    "Callouts added based on CALLOUT_DEVICE_PATH"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Common.Device.Error.WriteFailure",
+            "Subsystem": "cec_chip_iface",
+
+            "SRC":
+            {
+                "ReasonCode": "0x100A",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "errno of the failure",
+                        "AdditionalDataPropSource": "CALLOUT_ERRNO"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Device write failure",
+                "Message": "There was a failure when writing to a hardware device",
+                "Notes": [
+                    "The severity is set by the creator.",
+                    "The action flags are set automatically by the code.",
+                    "Callouts added based on CALLOUT_DEVICE_PATH"
+                ]
+            }
+        },
+        {
+            "Name": "org.open_power.Logging.Error.SentBadPELToHost",
+            "Subsystem": "bmc_firmware",
+            "Severity": "non_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0x2001",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "The bad PEL ID",
+                        "AdditionalDataPropSource": "BAD_ID"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "The BMC sent the host a malformed PEL",
+                "Message": "The BMC sent the host a malformed PEL",
+                "Notes": [
+                    "The host firmware rejected that PEL."
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.Logging.Error.BadHostPEL",
+            "Subsystem": "platform_firmware",
+            "Severity": "unrecoverable",
+
+            "SRC":
+            {
+                "ReasonCode": "0x2002",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "The PLID of the invalid PEL",
+                        "AdditionalDataPropSource": "PLID"
+                    },
+                    "7":
+                    {
+                        "Description": "The corresponding OpenBMC event log ID",
+                        "AdditionalDataPropSource": "OBMC_LOG_ID"
+                    },
+                    "8":
+                    {
+                        "Description": "The size of the invalid PEL",
+                        "AdditionalDataPropSource": "PEL_SIZE"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "The host sent the BMC an invalid PEL",
+                "Message": "The host sent the BMC an invalid PEL",
+                "Notes": [
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.Logging.Error.TestError1",
+            "Subsystem": "platform_firmware",
+            "Severity": "unrecoverable",
+
+            "SRC":
+            {
+                "ReasonCode": "0x2003",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Callouts": [
+                {
+                    "CalloutList": [
+                        {"Priority": "high", "Procedure": "bmc_code"},
+                        {"Priority": "medium", "SymbolicFRU": "service_docs"}
+                    ]
+                }
+            ],
+
+            "Documentation":
+            {
+                "Description": "An error for testing",
+                "Message": "This is a test error"
+            }
+        },
+
+        {
+            "Name": "org.open_power.PHAL.Error.Boot",
+            "Subsystem": "cec_hardware",
+            "Severity": "unrecoverable",
+
+            "SRC":
+            {
+                "ReasonCode": "0x3000",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Failure occured during boot process",
+                "Message": "Failure occured during boot process",
+                "Notes": [
+                    "Debug traces will be captured in AdditionalData section"
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.Attn.Error.Terminate",
+            "Subsystem": "other_na",
+            "Severity": "critical_system_term",
+
+            "SRC":
+            {
+                "ReasonCode": "0xD138",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Status shows TI special attention active",
+                "Message": "TI special attention detected",
+                "Notes": [
+                    "This entry is for any TI special attention event ",
+                    "reported by the attention handler component"
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.Attn.Error.Fail",
+            "Subsystem": "bmc_firmware",
+            "Severity": "unrecoverable_loss_of_function",
+
+            "SRC":
+            {
+                "ReasonCode": "0xD13E",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "Error code from attention handler",
+                        "AdditionalDataPropSource": "ERROR_CODE"
+                    }
+                }
+            },
+            "Documentation":
+            {
+                "Description": "The attention handler encountered an error",
+                "MessageArgSources" : ["SRCWord6"],
+                "Message": "Attention handler error %1",
+                "Notes": [
+                    "Attention handler will provide error code"
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.Attn.Error.Vital",
+            "Subsystem": "processor_chip",
+            "Severity": "critical",
+
+            "SRC":
+            {
+                "ReasonCode": "0xD16D",
+                "Words6To9":
+                {
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "Status shows SBE vital attention active",
+                "Message": "SBE vital attention detected",
+                "Notes": [
+                    "This entry is for any SBE vital attention event ",
+                    "reported by the attention handler component"
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.HwDiags.Error.Checkstop",
+            "Subsystem": "cec_hardware",
+            "Severity": "critical",
+
+            "SRC":
+            {
+                "ReasonCode": "0xE504",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "Chip ID",
+                        "AdditionalDataPropSource": "CHIP_ID"
+                    },
+                    "8":
+                    {
+                        "Description": "Error Signature",
+                        "AdditionalDataPropSource": "SIGNATURE"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "A checkstop condition has been detected",
+                "MessageArgSources" : ["SRCWord6", "SRCWord8"],
+                "Message": "Checkstop: Chip %1, Signature %2",
+                "Notes": [
+                    "This entry is for any checkstop event reported by ",
+                    "the hardware diagnostics component."
+                ]
+            }
+        },
+
+        {
+            "Name": "org.open_power.HwDiags.Error.Fail",
+            "Subsystem": "bmc_firmware",
+            "Severity": "diagnostic_error",
+
+            "SRC":
+            {
+                "ReasonCode": "0xE580",
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "Error code from hardware diagnostics",
+                        "AdditionalDataPropSource": "ERROR_CODE"
+                    }
+                }
+            },
+            "Documentation":
+            {
+                "Description": "Hardware diagnostics encountered an error",
+                "MessageArgSources" : ["SRCWord6"],
+                "Message": "Hardware diagnostics error %1",
+                "Notes": [
+                    "Hardware diagnostics will provide error code"
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Regulators.Error.WriteVerification",
+            "Subsystem": "power",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0x2900",
+                "Words6To9": {}
+            },
+
+            "Documentation": {
+                "Description": "A write verification error occurred on a device",
+                "Message": "A write verification error occurred on a device",
+                "Notes": [
+                    "This error occurs when a device register is written, ",
+                    "read back, and the two values do not match.  This is ",
+                    "also called a read-back error.  The device should be ",
+                    "identified using the CALLOUT_DEVICE_PATH or ",
+                    "CALLOUT_IIC_BUS/CALLOUT_IIC_ADDR keywords in the ",
+                    "AdditionalData property of the event log.  This will ",
+                    "cause the device and the hardware in the communication ",
+                    "path to be called out."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Regulators.Error.ConfigFile",
+            "Subsystem": "power",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0xA013",
+                "Words6To9": {}
+            },
+
+            "Callouts": [
+                {
+                    "CalloutList": [
+                        { "Priority": "high", "Procedure": "bmc_code" }
+                    ]
+                }
+            ],
+
+            "Documentation": {
+                "Description": "A regulators configuration file error occurred",
+                "Message": "A regulators configuration file error occurred",
+                "Notes": [
+                    "The regulators configuration file could not be found, ",
+                    "could not be read, or had invalid contents."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Error.Internal",
+            "Subsystem": "power",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0xE000",
+                "Words6To9": {}
+            },
+
+            "Callouts": [
+                {
+                    "CalloutList": [
+                        { "Priority": "high", "Procedure": "bmc_code" }
+                    ]
+                }
+            ],
+
+            "Documentation": {
+                "Description": "An internal firmware error occurred",
+                "Message": "An internal firmware error occurred",
+                "Notes": [
+                    "The error details must be provided in the AdditionalData ",
+                    "property of the event log."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Error.I2C",
+            "Subsystem": "cec_i2c",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0xE100",
+                "Words6To9": {}
+            },
+
+            "Documentation": {
+                "Description": "An I2C error occurred communicating with a device",
+                "Message": "An I2C error occurred communicating with a device",
+                "Notes": [
+                    "The device should be identified using the ",
+                    "CALLOUT_DEVICE_PATH or CALLOUT_IIC_BUS/CALLOUT_IIC_ADDR ",
+                    "keywords in the AdditionalData property of the event ",
+                    "log.  This will cause the device and the hardware in the ",
+                    "communication path to be called out."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Error.PMBus",
+            "Subsystem": "power",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0xE200",
+                "Words6To9": {}
+            },
+
+            "Documentation": {
+                "Description": "A PMBus error occurred on a device",
+                "Message": "A PMBus error occurred on a device",
+                "Notes": [
+                    "This error occurs when the I2C communication was ",
+                    "successful, but the PMBus value read is invalid or ",
+                    "unsupported.  CALLOUT_INVENTORY_PATH should be specified ",
+                    "in the AdditionalData property of the event log so that ",
+                    "the device is called out but not the communication path."
+                ]
+            }
+        },
+
+        {
+            "Name": "xyz.openbmc_project.Power.Error.DBus",
+            "Subsystem": "power",
+            "ComponentID": "0x2700",
+
+            "SRC": {
+                "Type": "11",
+                "ReasonCode": "0xE300",
+                "Words6To9": {}
+            },
+
+            "Callouts": [
+                {
+                    "CalloutList": [
+                        { "Priority": "high", "Procedure": "bmc_code" }
+                    ]
+                }
+            ],
+
+            "Documentation": {
+                "Description": "A firmware inter-process communication (D-Bus) error occurred",
+                "Message": "A firmware inter-process communication (D-Bus) error occurred"
+            }
+        }
+    ]
+}

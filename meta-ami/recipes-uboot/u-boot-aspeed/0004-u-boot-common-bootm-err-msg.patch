@@ -1,0 +1,30 @@
+diff -Naur bootm1/common/bootm.c bootm2/common/bootm.c
+--- bootm1/common/bootm.c	2020-04-16 15:29:06.991609490 -0400
++++ bootm2/common/bootm.c	2020-04-16 15:35:56.013238749 -0400
+@@ -92,7 +92,7 @@
+ 	os_hdr = boot_get_kernel(cmdtp, flag, argc, argv,
+ 			&images, &images.os.image_start, &images.os.image_len);
+ 	if (images.os.image_len == 0) {
+-		puts("ERROR: can't get kernel image!\n");
++		puts("ERROR: Kernel image is corrupted or invalid hash value!\n");
+ 		return 1;
+ 	}
+ 
+@@ -246,7 +246,7 @@
+ 	ret = boot_get_ramdisk(argc, argv, &images, IH_INITRD_ARCH,
+ 			       &images.rd_start, &images.rd_end);
+ 	if (ret) {
+-		puts("Ramdisk image is corrupt or invalid\n");
++		puts("ERROR: Ramdisk image is corrupted or invalid hash value! \n");
+ 		return 1;
+ 	}
+ 
+@@ -255,7 +255,7 @@
+ 	ret = boot_get_fdt(flag, argc, argv, IH_ARCH_DEFAULT, &images,
+ 			   &images.ft_addr, &images.ft_len);
+ 	if (ret) {
+-		puts("Could not find a valid device tree\n");
++		puts("ERROR: FDT is corrupted or invalid hash value!\n");
+ 		return 1;
+ 	}
+ 	if (CONFIG_IS_ENABLED(CMD_FDT))

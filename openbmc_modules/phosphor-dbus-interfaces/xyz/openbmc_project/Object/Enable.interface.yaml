@@ -1,0 +1,25 @@
+description: >
+    Implement to enable an object.
+
+    A d-bus object under certain circumstances may have the need to be denoted
+    as "disabled". So the object exists, but it's current state (described by
+    the object properties) can't be relied upon, until the object is "enabled"
+    again. What causes the object to be enabled or disabled - whether it's via
+    an external interface or internal logic - depends on a specific
+    implementation and use-case.
+
+    An example could be a d-bus object that denotes boot settings. However let's
+    say there's a permanent settings object versus a one-time (the next boot)
+    settings object. In this case, one of these objects, typically the one which
+    is not supposed to be used as a default, can implement the Enable interface
+    so that a user can indicate whether this setting object is to be used or
+    not, by setting the Enabled property.
+properties:
+    - name: Enabled
+      type: boolean
+      description: >
+        Whether the object is enabled or not. Implementation may throw error
+        "NotAllowed" depends on the context how it is used.
+      default: false
+      errors:
+        - xyz.openbmc_project.Common.Error.NotAllowed

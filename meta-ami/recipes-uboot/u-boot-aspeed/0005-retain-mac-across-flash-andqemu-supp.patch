@@ -1,0 +1,68 @@
+diff -Naur a/drivers/net/ftgmac100.c b/drivers/net/ftgmac100.c
+--- a/drivers/net/ftgmac100.c	2020-05-05 19:07:48.401811878 +0530
++++ b/drivers/net/ftgmac100.c	2020-05-05 18:54:23.528075587 +0530
+@@ -273,6 +273,28 @@
+ }
+ 
+ /*
++ * Get MAC address
++ */
++static int ftgmac100_get_mac(struct ftgmac100_data *priv,
++                             	unsigned char *mac)
++{
++        struct ftgmac100 *ftgmac100 = priv->iobase;
++        unsigned int maddr = readl(&ftgmac100->mac_madr);
++        unsigned int laddr = readl(&ftgmac100->mac_ladr);
++
++        debug("%s(%x %x)\n", __func__, maddr, laddr);
++
++	mac[0] = (maddr >> 8) & 0xff;
++	mac[1] =  maddr & 0xff;
++	mac[2] = (laddr >> 24) & 0xff;
++	mac[3] = (laddr >> 16) & 0xff;
++	mac[4] = (laddr >> 8) & 0xff;
++	mac[5] =  laddr & 0xff;
++
++        return 0;
++}
++
++/*
+  * disable transmitter, receiver
+  */
+ static void ftgmac100_stop(struct udevice *dev)
+@@ -513,6 +535,14 @@
+ 	return ftgmac100_set_mac(priv, pdata->enetaddr);
+ }
+ 
++static int ftgmac_read_hwaddr(struct udevice *dev)
++{
++	struct eth_pdata *pdata = dev_get_platdata(dev);
++        struct ftgmac100_data *priv = dev_get_priv(dev);
++
++	return ftgmac100_get_mac(priv, pdata->enetaddr);
++}
++
+ static int ftgmac100_ofdata_to_platdata(struct udevice *dev)
+ {
+ 	struct eth_pdata *pdata = dev_get_platdata(dev);
+@@ -575,6 +605,8 @@
+ 		goto out;
+ 	}
+ 
++	ftgmac_read_hwaddr(dev);
++
+ out:
+ 	if (ret)
+ 		clk_release_bulk(&priv->clks);
+diff -Naur a/net/eth-uclass.c b/net/eth-uclass.c
+--- a/net/eth-uclass.c	2020-05-05 19:07:29.881655323 +0530
++++ b/net/eth-uclass.c	2020-05-05 19:08:51.314337944 +0530
+@@ -514,7 +514,7 @@
+ 		memcpy(pdata->enetaddr, env_enetaddr, ARP_HLEN);
+ 	} else if (is_valid_ethaddr(pdata->enetaddr)) {
+ 		eth_env_set_enetaddr_by_index("eth", dev->seq, pdata->enetaddr);
+-		printf("\nWarning: %s using MAC address from ROM\n",
++		printf("\nWarning: %s using MAC address from ROM/MAC Reg\n",
+ 		       dev->name);
+ 	} else if (is_zero_ethaddr(pdata->enetaddr) ||
+ 		   !is_valid_ethaddr(pdata->enetaddr)) {

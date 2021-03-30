@@ -1,0 +1,146 @@
+.firmware__ready {
+  font-weight: 300;
+}
+
+.firmware__table {
+  margin-top: 2.5em;
+  margin-bottom: 2.5em;
+
+  .table__cell {
+    a {
+      display: inline-block;
+      margin-right: 1.7em;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .icon {
+      color: $primary-accent;
+      fill: $primary-accent;
+      &.disabled {
+        color: $base-02--05;
+        &:hover {
+          cursor: default;
+        }
+      }
+      &:hover {
+        cursor: pointer;
+      }
+    }
+    .icon.icon-as-spacer {
+      text-indent: 0;
+      &:hover {
+        cursor: default;
+      }
+    }
+  }
+
+  .table-header {
+    font-weight: 700;
+    p {
+      margin-bottom: 0em;
+    }
+  }
+
+  .table__row.disabled {
+    .firmware__action-link {
+      color: $primary-accent;
+      opacity: 1;
+      &:hover {
+        cursor: pointer;
+      }
+    }
+  }
+  .firmware__primary {
+    background-color: $accent-02--02;
+  }
+}
+
+.firmware__version {
+  flex: 30%;
+}
+
+.firmware__action {
+  flex: 8%;
+}
+
+.firmware__active-version {
+  color: $text-02;
+  font-size: .8em;
+  float: right;
+  font-weight: 400;
+}
+
+.firmware__action-link {
+  color: $primary-action;
+  padding: 5px;
+  min-width: 90px;
+  text-align: left;
+}
+
+.firmware__version {
+  position: relative;
+  svg {
+    position: absolute;
+    top: 20%;
+  }
+  .icon {
+    margin-left: 20px;
+  }
+}
+
+
+.icon__more-dropdown {
+  width: 100%;
+  top: 68%;
+  right: 0;
+  @include mediaQuery(medium){
+    width: 30%;
+    right: 18%;
+    top: 74%;
+  }
+}
+
+// Upload firmware
+.firmware__upload-form {
+  label {
+    font-weight: 700;
+  }
+}
+.firmware__upload-file-name {
+  text-transform: none;
+}
+.firmware__upload-chooser {
+    display: inline-block;
+    width: 100%;
+    background: $background-02;
+    padding-left: 1em;
+    padding-right: 1em;
+    margin-bottom: 1em;
+  .btn {
+    margin: 1em .5em 1em 0;
+    min-width: 3em;
+  }
+  &.uploading {
+    @include indeterminate-bar;
+  }
+  @include mediaQuery(medium) {
+     width: 70%;
+  }
+}
+.firmware__upload-station {
+  padding-bottom: 2em;
+  border-bottom: 1px solid $border-color-01;
+  padding-left: 1em;
+  margin-top: 2em;
+}
+.firmware__upload-tftp {
+  padding-top: 2em;
+  padding-left: 1em;
+  padding-bottom: 50px;
+  padding-right: 0;
+  .btn {
+    margin-top: 15px;
+  }
+}
+
+

@@ -1,0 +1,43 @@
+description: >
+    Implement to notify the creation of new dump.
+    Use this interface when the dump is already created and ready
+    to be offloaded. This interface will add a new dump object with the
+    properties provided. The existing internal create interface should
+    be used when the data is collected and the dump needs to be packaged.
+
+    Any OpenBMC implementation must provide exactly one implementation of
+    xyz.openbmc_project.Dump.NewDump on /xyz/openbmc_project/dump.
+
+methods:
+    - name: Notify
+      description: >
+         Create a dump entry based on the parameters.
+      parameters:
+       - name: DumpType
+         type: enum[self.DumpType]
+         description: >
+            Type of the dump
+       - name: SourceDumpId
+         type: uint32
+         description: >
+             The dump id provided by the source of the dump.
+             There are dumps which get generated outside the BMC, like a
+             system dump which gets generated and stored in the host memory.
+             All dumps will have a  unique id  but when communicating
+             to the source of the dump the SourceDumpId will be used.
+       - name: Size
+         type: uint64
+         description: >
+            Size of the dump in bytes
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Dump.Create.Error.Disabled
+
+enumerations:
+    - name: DumpType
+      description:
+          Type of the dump
+      values:
+        - name: System
+          description: >
+              A dump created during a critical failure in the host.

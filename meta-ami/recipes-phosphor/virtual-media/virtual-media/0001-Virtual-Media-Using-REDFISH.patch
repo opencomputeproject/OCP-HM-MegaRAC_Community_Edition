@@ -1,0 +1,111 @@
+From bad71392f54c2ad6a0e21bd317b0ce1e6077af78 Mon Sep 17 00:00:00 2001
+From: tejaspp <tejaspp@amiindia.co.in>
+Date: Tue, 21 Jan 2020 17:53:54 +0530
+Subject: [PATCH] Virtual Media Using REDFISH
+
+---
+ virtual-media/CMakeLists.txt |  1 +
+ virtual-media/src/main.cpp   | 45 +++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 41 insertions(+), 5 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 60af112..c477ef9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -126,6 +126,7 @@ target_link_libraries(virtual-media -lsdbusplus)
+ target_link_libraries(virtual-media -ludev)
+ target_link_libraries(virtual-media -lboost_coroutine)
+ target_link_libraries(virtual-media -lboost_context)
++target_link_libraries(virtual-media -lstdc++fs)
+ install(TARGETS virtual-media DESTINATION sbin)
+ 
+ # Options based compile definitions
+diff --git a/src/main.cpp b/src/main.cpp
+index 6d5ffb6..f536d8e 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -114,7 +114,8 @@ class DeviceMonitor
+                 std::unique_ptr<udev::udev_device, udev::deviceDeleter> device =
+                     std::unique_ptr<udev::udev_device, udev::deviceDeleter>(
+                         udev::udev_monitor_receive_device(monitor.get()));
+-                if (device)
++//                if (device)
++                if (0)
+                 {
+                     const char* devAction =
+                         udev_device_get_action(device.get());
+@@ -904,6 +905,26 @@ class App
+         }
+     }
+ 
++
++    std::string getUserNameorPassWord(const std::string& reqname)
++    {
++        std::ifstream fileWriter;
++	fileWriter.open("/etc/vmedia_user_credentials");
++	static std::string temp_buf;
++
++	if(fileWriter)
++	{
++	     while(std::getline(fileWriter,temp_buf))
++	     {
++	     	if(temp_buf.find(reqname) != std::string::npos)
++	        {
++	           return temp_buf;
++	        }
++	     }
++	}
++        return std::string("");
++    }
++
+     int mountCifsUrlForLegcyMode(const std::string& name,
+                                  const std::string& imageUrl,
+                                  ParametersManager::Parameters* parameters)
+@@ -912,6 +933,15 @@ class App
+         fs::path imageUrlPath = getImagePath(imageUrl);
+         const std::string imageUrlParentPath =
+             "/" + imageUrlPath.parent_path().string();
++	const std::string userName = getUserNameorPassWord("username");
++	const std::string passWord = getUserNameorPassWord("password");
++	if(userName.empty() || passWord.empty())
++	{
++            std::cerr << "Failed to get username or password\n";
++            return -1;
++	}
++	const std::string credentials = userName + std::string(",") + passWord +
++					std::string(",") + std::string("vers=1.0");;
+         std::string mountDirectoryPath;
+         result = prepareTempDirForLegacyMode(mountDirectoryPath);
+         if (result != 0)
+@@ -919,11 +949,15 @@ class App
+             std::cerr << "Failed to create tmp directory\n";
+             return result;
+         }
+-
++#if 0
++        result = mount(imageUrlParentPath.c_str(), mountDirectoryPath.c_str(),
++                       "cifs", 0,
++                       "username=root,password=ubuntu,"
++                       "vers=1.0");
++#endif
+         result = mount(imageUrlParentPath.c_str(), mountDirectoryPath.c_str(),
+                        "cifs", 0,
+-                       "username=,password=,nolock,sec="
+-                       "ntlmsspi,seal,vers=3.0");
++                       credentials.c_str());
+         if (result != 0)
+         {
+             std::cerr << "Failed to mount the url\n";
+@@ -960,7 +994,8 @@ class App
+             return result;
+         }
+ 
+-        umount(parameters->mountDirectoryPath.c_str());
++        umount2(parameters->mountDirectoryPath.c_str(), MNT_FORCE);
++        //umount(parameters->mountDirectoryPath.c_str());
+         fs::remove_all(fs::path(parameters->mountDirectoryPath));
+         parameters->mountDirectoryPath.clear();
+ 
+-- 
+2.7.4
+

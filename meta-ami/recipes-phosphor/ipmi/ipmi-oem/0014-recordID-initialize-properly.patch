@@ -1,0 +1,24 @@
+--- a/src/ipmi_to_redfish_hooks.cpp	2020-09-01 14:57:40.714842148 +0530
++++ b/src/ipmi_to_redfish_hooks.cpp	2020-09-01 15:05:59.179427157 +0530
+@@ -889,7 +889,7 @@
+ 
+     return !selLogFiles.empty();
+ }
+-static unsigned int initializeRecordId(void)
++static uint16_t initializeRecordId(void)
+ {
+     std::vector<std::filesystem::path> selLogFiles;
+     if (!getSELLogFiles(selLogFiles))
+@@ -916,10 +916,10 @@
+         return selInvalidRecID;
+     }
+ 
+-    return std::stoul(newestEntryFields[1]);
++    return std::stoul(newestEntryFields[1],nullptr,16);
+ }
+ 
+-static unsigned int getNewRecordId(void)
++static uint16_t getNewRecordId(void)
+ {
+     static unsigned int recordId = initializeRecordId();
+ 

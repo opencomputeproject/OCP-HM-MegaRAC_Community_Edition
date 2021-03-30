@@ -1,0 +1,25 @@
+diff -Naur a/NodeManagerProxy.hpp b/NodeManagerProxy.hpp
+--- a/NodeManagerProxy.hpp	2020-12-14 20:10:29.813823237 +0530
++++ b/NodeManagerProxy.hpp	2020-12-14 21:33:45.026285009 +0530
+@@ -633,9 +633,11 @@
+ 
+         iface->register_property("MaxValue", static_cast<double>(maxValue));
+         iface->register_property("MinValue", static_cast<double>(minValue));
+-        iface->register_property("Value", static_cast<double>(0));
++        iface->register_property("Value", static_cast<int64_t>(0));
+         iface->register_property(
+             "Unit", std::string("xyz.openbmc_project.Sensor.Value.Unit.Watts"));
++	iface->register_property(
++            "Scale", static_cast<int64_t>(0));
+ 
+         iface->initialize();
+     }
+@@ -674,7 +676,7 @@
+                 dataReceived.data());
+ 
+         iface->set_property(
+-            "Value", static_cast<double>(getNmStatistics->data.stats.cur));
++            "Value", static_cast<int64_t>((int64_t)getNmStatistics->data.stats.cur));
+     }
+ 
+     void prepareRequest(uint8_t &netFn, uint8_t &lun, uint8_t &cmd,

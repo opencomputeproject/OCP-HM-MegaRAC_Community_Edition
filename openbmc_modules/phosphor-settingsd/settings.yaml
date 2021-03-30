@@ -1,0 +1,79 @@
+---
+# Settings Config File
+org.openbmc.settings.Host:
+    settings:
+        powercap:
+            name: power_cap
+            type: i
+            default: 0
+            min: 0
+            max: 1000
+            unit: watts
+            validation: range
+        bootflags:
+            name: boot_flags
+            type: s
+            default: "Default"
+            validation: list
+            allowed: ["Network", "Disk", "Safe", "CDROM", "Setup", "Default"]
+        sysstate:
+            name: system_state
+            type: s
+            default: ""
+            validation: None
+        powerpolicy:
+            name: power_policy
+            type: s
+            default: "RESTORE_LAST_STATE"
+            validation: list
+            allowed: ["ALWAYS_POWER_ON", "RESTORE_LAST_STATE", "LEAVE_OFF"]
+        restrictedmode:
+            name: restricted_mode
+            type: b
+            default: false
+            min: 0
+            max: 1
+            validation: range
+        bootpolicy:
+            name: boot_policy
+            type: s
+            default: "ONETIME"
+            validation: list
+            allowed: ["ONETIME", "PERMANENT"]
+        networkconfig:
+            name: network_config
+            type: s
+            default: "ipaddress=,prefix=,gateway=,mac=,addr_type="
+            validation: custom
+            method: validate_net_config
+        TimeMode:
+            name: time_mode
+            type: s
+            default: "NTP"
+            validation: list
+            allowed: ["NTP", "MANUAL"]
+        UseDhcpNtp:
+            name: use_dhcp_ntp
+            type: s
+            default: "yes"
+            validation: list
+            allowed: ["yes", "no"]
+        AutoReboot:
+            name: auto_reboot
+            type: s
+            default: "yes"
+            validation: list
+            allowed: ["yes", "no"]
+    query:
+        type: instance_query
+        keyregex: "host"
+        subtree: "/org/openbmc/control"
+        matchregex: "control/(host\\d*)$"
+
+# Example of using regex
+#    macaddress:
+#        name: mac_address
+#        type: s
+#        default: "aa:bb:cc:dd:ee:ff"
+#        validation: regex
+#        regex: '([a-fA-F0-9]{2}[:|\-]?){6}'

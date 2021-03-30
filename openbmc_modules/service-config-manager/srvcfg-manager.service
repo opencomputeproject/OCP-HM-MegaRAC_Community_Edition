@@ -1,0 +1,12 @@
+[Unit]
+Description=Daemon to control service configuration
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/phosphor-srvcfg-manager
+SyslogIdentifier=srvcfg-manager
+Type=dbus
+BusName=xyz.openbmc_project.Control.Service.Manager
+
+[Install]
+WantedBy=multi-user.target

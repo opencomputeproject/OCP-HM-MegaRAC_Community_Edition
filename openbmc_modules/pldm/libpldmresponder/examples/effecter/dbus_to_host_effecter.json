@@ -1,0 +1,115 @@
+{
+    "entries": [
+        {
+            #mctp eid is needed for communicating with the host
+            "mctp_eid": 9,
+            "effecter_info": {
+                #a 0xFFFF means effecter id is not hard coded and will be
+                #fetched from the PDR
+                "effecterID": 0xFFFF,
+                "containerID": 1,
+                "entityType": 67,
+                "entityInstance": 1,
+                "compositeEffecterCount": 3
+            },
+            "effecters": [
+                {
+                # Following are the D-Bus information under each effecter 
+                #which are monitored for a property change signal
+
+                #if there is a property change, the corresponding
+                #state value is picked up to set the host effecter
+
+                    "dbus_info": {
+                        "object_path": "/xyz/abc/def",
+                        "interface": "xyz.openbmc_project.example1.value",
+                        "property_name": "value1",
+                        "property_type": "string",
+                        "property_values": [
+                            "xyz.openbmc_project.State.On",
+                            "xyz.openbmc_project.State.Off"
+                        ]
+                    },
+                    "state" : {
+                        "id" : 197,
+                        # This should be of same size and order as
+                        # property_values
+                        "state_values": [
+                            0,
+                            1
+                        ]
+                    }
+                },
+                {
+                    "dbus_info": {
+                        "object_path": "/xyz/abc/def",
+                        "interface": "xyz.openbmc_project.example1.value",
+                        "property_name": "value2",
+                        "property_type": "uint8_t",
+                        "property_values": [
+                            9,
+                            10
+                        ]
+                    },
+                    "state" : {
+                        "id" : 12,
+                        "state_values": [
+                            2,
+                            3
+                        ]
+                    }
+                },
+                {
+                    "dbus_info": {
+                        "object_path": "/abc/def/xyz",
+                        "interface": "xyz.openbmc_project.example3.value",
+                        "property_name": "value3",
+                        "property_type": "bool",
+                        "property_values": [
+                            false,
+                            true
+                        ]
+                    },
+                    "state" : {
+                        "id" : 12,
+                        "state_values": [
+                            0,
+                            1
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "mctp_eid": 10,
+            "effecter_info": {
+                "effecterID": 10,
+                "containerID": 0,
+                "entityType": 33,
+                "entityInstance": 0,
+                "compositeEffecterCount": 1
+            },
+            "effecters": [
+                {
+                    "dbus_info": {
+                        "object_path": "/def/abc/xyz",
+                        "interface": "xyz.openbmc_project.example4.value",
+                        "property_name": "value4",
+                        "property_type": "string",
+                        "property_values": [
+                            "xyz.openbmc_project.State.Enabled",
+                            "xyz.openbmc_project.State.Disabled"
+                        ]
+                    },
+                    "state" : {
+                        "id" : 15,
+                        "state_values": [
+                            3,
+                            4
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}

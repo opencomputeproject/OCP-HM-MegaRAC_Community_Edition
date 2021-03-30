@@ -1,0 +1,89 @@
+diff -Naur a/redfish-core/lib/sensors.hpp b/redfish-core/lib/sensors.hpp
+--- a/redfish-core/lib/sensors.hpp	2020-10-01 10:24:08.597904528 +0530
++++ b/redfish-core/lib/sensors.hpp	2020-10-01 10:56:14.873525680 +0530
+@@ -3094,7 +3094,9 @@
+         }
+ 
+         const std::string& chassisId = params[0];
+-        std::shared_ptr<SensorsAsyncResp> asyncResp =
++
++/*
++	std::shared_ptr<SensorsAsyncResp> asyncResp =
+             std::make_shared<SensorsAsyncResp>(
+                 res, chassisId, sensors::dbus::types.at(sensors::node::sensors),
+                 sensors::node::sensors);
+@@ -3137,6 +3139,74 @@
+                       redfish::Header::GetAllowHeaders("SensorCollection_v1.xml"));
+ 	
+         BMCWEB_LOG_DEBUG << "SensorCollection doGet exit";
++
++*/
++
++            std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++            crow::connections::systemBus->async_method_call(
++                            [aResp{std::move(aResp)},chassisId](
++                                            const boost::system::error_code ec,
++                                            const std::vector<std::pair<
++                                            std::string,
++                                            std::vector<std::pair<std::string, std::vector<std::string>>>>>
++                                            &subtree) {
++
++                            if (ec)
++                            {
++                            // do not add err msg in redfish response, becaues this is not
++                            //     mandatory property
++                            BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++                            return;
++                            }
++
++                        aResp->res.jsonValue["@odata.type"] = "#SensorCollection.v1_0_0.ResourceCollection";
++                        aResp->res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/"+chassisId+"/Sensors";
++                        aResp->res.jsonValue["@odata.context"] =
++                                "/redfish/v1/$metadata#SensorCollection.SensorCollection";
++                        aResp->res.jsonValue["Description"] = "Resource Collection of Sensor instances";
++                        aResp->res.jsonValue["Name"] = "Sensor Collection";
++
++
++                            nlohmann::json& entriesArray =
++                                    aResp->res.jsonValue["Members"];
++
++                            for (auto& sensorobject : subtree)
++
++                            {
++
++                                    std::string sensor = sensorobject.first;
++                                    std::size_t lastPos = sensor.rfind("/");
++
++                                if (lastPos == std::string::npos ||
++                                    lastPos + 1 >= sensor.size())
++                                {
++                                    BMCWEB_LOG_ERROR << "Invalid sensor path: " << sensor;
++                                    messages::internalError(aResp->res);
++                                    return;
++                                }
++
++                                    std::string sensorName = sensor.substr(lastPos + 1);
++
++                                    entriesArray.push_back(
++                                                    {{"@odata.id",
++                                                    "/redfish/v1/Chassis/" + chassisId + "/" +
++                                                    "Sensors" + "/" + sensorName}});
++
++                            }
++
++                            aResp->res.jsonValue["Members@odata.count"] =
++                                    entriesArray.size();
++
++                            },
++                    "xyz.openbmc_project.ObjectMapper",
++                    "/xyz/openbmc_project/object_mapper",
++                    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++                    "/xyz/openbmc_project/sensors", 2,
++                    std::array<const char *, 1>{"xyz.openbmc_project.Sensor.Value"});
++
++	    BMCWEB_LOG_DEBUG << "SensorCollection doGet exit";
++
+     }
+ };
+ 

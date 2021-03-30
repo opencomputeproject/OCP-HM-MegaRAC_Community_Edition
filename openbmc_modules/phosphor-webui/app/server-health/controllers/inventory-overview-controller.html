@@ -1,0 +1,57 @@
+<loader loading="loading"></loader>
+<div class="inventory__container">
+  <div class="row column">
+    <h1>Hardware status</h1>
+  </div>
+  <div class="row column">
+    <div class="page-header">
+      <h2 class="inline">All hardware in the system</h2>
+      <a ng-href="data:text/json;charset=utf-8,{{originalData}}" class="btn  btn-tertiary float-right"  download="export_inventory.json" ng-show="hardwares.length"><icon file="icon-export.svg"></icon>Export</a>
+    </div>
+  </div>
+  <div class="row column">
+    <p class="content-label" aria-label="hardware filter">Filter hardware components</p>
+    <div class="content__search">
+      <label for="content__search-input">Search</label>
+      <input id="content__search-input" type="text" ng-model="customSearch" ng-keydown="doSearchOnEnter($event)"/>
+      <div class="search-submit__wrapper">
+        <button class="btn" type="button" aria-label="clear filter" ng-click="clear()">
+            <icon file="icon-close.svg" aria-hidden="true"></icon>
+        </button>
+        <input id="content__search-submit" type="submit" class="btn btn-primary content__search-submit" value="Filter" ng-click="doSearchOnClick()"/>
+      </div>
+    </div>
+  </div>
+  <div class="row column inventory__table">
+    <h3 class="small-12 hardware__header">
+      Hardware
+    </h3>
+    <div class="small-12 harware__details" ng-repeat="inventory in hardwares|filter:filterBySearchTerms">
+      <div class="hardware__title row column" ng-class="{'expanded': inventory.expanded}" ng-click="inventory.expanded = ! inventory.expanded">
+        <h4>{{inventory.title}}</h4>
+        <button class="accord-trigger float-right" ng-class="{'active': inventory.expanded}" aria-expanded="{{inventory.expanded ? 'true' : 'false'}}" aria-expanded="{{inventory.expanded ? 'true' : 'false'}}" aria-label="{{inventory.expanded ? 'collapse' : 'expand'}}"></button>
+      </div>
+      <div class="hardware__items" ng-hide="!inventory.expanded" ng-class="{'expanded': inventory.expanded}">
+        <div class="row column">
+          <div class="items small-12 show-scroll" ng-class="{'large-9': inventory.sub_components.length}">
+            <div class="row column">
+              <div ng-repeat="item in inventory.items" class="small-4">
+                <h5 class="content-label">{{item.key}}</h5>
+                <p class="courier-bold">{{item.value}}</p>
+              </div>
+            </div>
+          </div>
+          <div class="subcomponents show-scroll small-12 large-3" ng-show="inventory.sub_components.length">
+            <div class="row column">
+              <h5 class="small-12 content-label">Subcomponents</h5>
+              <p ng-repeat="sub_component in inventory.sub_components" class="large-6 small-3 courier-bold" ng-if="sub_component.Present">
+                <icon file="icon-warning.svg" aria-hidden="true" ng-if="!sub_component.Functional"></icon>
+                {{sub_component.title}}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

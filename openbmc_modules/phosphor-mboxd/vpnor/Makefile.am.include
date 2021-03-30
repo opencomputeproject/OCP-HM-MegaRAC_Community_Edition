@@ -1,0 +1,11 @@
+mboxd_SOURCES += %reldir%/pnor_partition_table.cpp \
+	%reldir%/mboxd_pnor_partition_table.cpp \
+	%reldir%/mboxd_flash.cpp \
+	%reldir%/pnor_partition.cpp \
+	%reldir%/mboxd_lpc_reset.cpp \
+	%reldir%/mboxd_msg.cpp
+
+mboxd_LDFLAGS += -lstdc++fs \
+	$(SDBUSPLUS_LIBS) \
+	$(PHOSPHOR_LOGGING_LIBS) \
+	$(PHOSPHOR_DBUS_INTERFACES_LIBS)

@@ -1,0 +1,23 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-11-17 15:23:16.281257695 +0530
++++ b/src/sensorcommands.cpp	2020-11-17 15:24:32.270048707 +0530
+@@ -973,11 +973,17 @@
+         sensorMap.find("xyz.openbmc_project.Sensor.Threshold.Warning");
+     auto criticalInterface =
+         sensorMap.find("xyz.openbmc_project.Sensor.Threshold.Critical");
++    enabled = static_cast<uint8_t>(
++            IPMISensorEventEnableByte2::sensorScanningEnable);
++    enabled |=
++        static_cast<uint8_t>(IPMISensorReadingByte2::eventMessagesEnable);
++
++
+     if ((warningInterface != sensorMap.end()) ||
+         (criticalInterface != sensorMap.end()))
+     {
+-        enabled = static_cast<uint8_t>(
+-            IPMISensorEventEnableByte2::sensorScanningEnable);
++    //    enabled = static_cast<uint8_t>(
++      //      IPMISensorEventEnableByte2::sensorScanningEnable);
+         if (warningInterface != sensorMap.end())
+         {
+             auto& warningMap = warningInterface->second;

@@ -1,0 +1,24 @@
+/**
+ * Used for any key value pair
+ * Markup
+   <dl class="list-pair">
+     <dt>Term</dt>
+     <dd>Definition associated with the term</dd>
+   </dl>
+ */
+
+.list-pair {
+  margin-bottom: 0;
+
+  dt {
+    @include label;
+  }
+  dd {
+    @include fontCourierBold;
+    margin-bottom: 0;
+  }
+
+  + .list-pair {
+    margin-top: 1.5rem;
+  }
+}

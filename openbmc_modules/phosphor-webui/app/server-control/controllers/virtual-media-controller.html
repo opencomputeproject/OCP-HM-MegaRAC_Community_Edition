@@ -1,0 +1,38 @@
+<primary>
+  <h1>Virtual media</h1>
+  <p class="vm__page-description"  ng-if="devices.length >= 1">Specify image file location to start session.</p>
+  <p ng-if="devices.length < 1">
+    There are no Virtual Media devices available.
+  </primary>
+  <div ng-repeat="device in devices track by $index" class="vm__upload">
+    <h2 class="h3">{{device.deviceName}}</h2>
+    <div class="vm__upload-chooser">
+      <!-- name and error message -->
+      <div class="vm__upload-content">
+        <div class="vm__upload-controls">
+          <!-- Button -->
+          <label class="vm__upload-choose-label">
+            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive"/>
+            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:device.isActive}">Choose file</span>
+          </label>
+          <div class="vm__upload-name">
+            <span ng-if="!device.file">No file selected</span>
+            <span ng-if="device.file.name !== undefined">{{device.file.name}}</span>
+            <span class="icon__exit" ng-if="device.file && !device.isActive" ng-click="resetFile($index);">
+              <icon file="icon-close.svg"></icon>
+            </span>
+          </div>
+        </div>
+        <div class="vm__active-text vm__active-border" ng-if="device.isActive">
+          <span>Active Session</span>
+        </div>
+        <div class="vm__active-text vm__error-border" ng-if="device.hasError">
+          <span>Error in connecting to the selected file</span>
+        </div>
+      </div>
+      <div class="vm__upload-start">
+        <input type="button" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM($index) : startVM($index)"/>
+      </div>
+    </div>
+  </div>
+</div>

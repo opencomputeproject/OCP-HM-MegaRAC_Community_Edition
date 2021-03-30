@@ -1,0 +1,39 @@
+--- a/arch/arm/boot/dts/openbmc-flash-layout.dtsi	2021-03-26 01:58:50.298956787 +0530
++++ b/arch/arm/boot/dts/openbmc-flash-layout.dtsi	2021-03-26 02:09:25.162576163 +0530
+@@ -6,27 +6,27 @@
+ 	#size-cells = <1>;
+ 
+ 	u-boot@0 {
+-		reg = <0x0 0x80000>;
++		reg = <0x0 0xe0000>;
+ 		label = "u-boot";
+ 	};
+ 
+-	u-boot-env@80000 {
+-		reg = <0x80000 0x20000>;
++	u-boot-env@e0000 {
++		reg = <0xe0000 0x20000>;
+ 		label = "u-boot-env";
+ 	};
+ 
+-	kernel@a0000 {
+-		reg = <0xa0000 0x550000>;
++	kernel@100000 {
++		reg = <0x100000 0x500000>;
+ 		label = "kernel";
+ 	};
+ 
+-	rofs@5f0000 {
+-		reg = <0x5f0000 0x1840000>;
++	rofs@600000 {
++		reg = <0x600000 0x1700000>;
+ 		label = "rofs";
+ 	};
+ 
+-	rwfs@1e30000 {
+-		reg = <0x1e30000 0x1d0000>;
++	rwfs@1D00000 {
++		reg = <0x1D00000 0x2F0000>;
+ 		label = "rwfs";
+ 	};
+ };

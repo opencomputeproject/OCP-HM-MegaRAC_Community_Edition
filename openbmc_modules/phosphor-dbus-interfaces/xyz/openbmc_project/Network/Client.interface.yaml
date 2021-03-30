@@ -1,0 +1,19 @@
+description: >
+    This defines the network endpoint.
+    Application which wants to keep the network endpoint info
+    can use this interface.
+    e.g: Network endpoint could be SNMP mangers or LDAP servers etc.
+properties:
+    - name: Address
+      type: string
+      description: >
+          The value of this property can be IP/hostname of the network endpoint.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: Port
+      type: uint16
+      description: >
+          The value of this property is the network port number.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure

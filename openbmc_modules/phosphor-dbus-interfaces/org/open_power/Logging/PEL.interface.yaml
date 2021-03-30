@@ -1,0 +1,74 @@
+description: >
+  Provides D-Bus access to OpenPower Platform Event Logs
+methods:
+  - name: GetPEL
+    description: >
+      Returns a file desciptor to a PEL.
+    parameters:
+      - name: pelID
+        type: uint32
+        description: >
+          The PEL log ID of the PEL to retrieve.
+    returns:
+      - name: data
+        type: unixfd
+        description: >
+          A file descriptor for a file that contains the PEL.
+    errors:
+       - xyz.openbmc_project.Common.Error.InternalFailure
+       - xyz.openbmc_project.Common.Error.InvalidArgument
+
+  - name: GetPELFromOBMCID
+    description: >
+      Returns PEL data based on the OpenBMC event log ID.
+    parameters:
+      - name: obmcLogID
+        type: uint32
+        description: >
+          The OpenBMC event log ID of the PEL to retrieve.
+    returns:
+      - name: data
+        type: array[byte]
+        description: >
+          The PEL data
+    errors:
+       - xyz.openbmc_project.Common.Error.InvalidArgument
+
+  - name: HostAck
+    description: >
+      Notifies the PEL handler that the host (usually the OS) acked a PEL.
+    parameters:
+      - name: pelID
+        type: uint32
+        description: >
+          The PEL log ID
+    errors:
+       - xyz.openbmc_project.Common.Error.InvalidArgument
+
+  - name: HostReject
+    description: >
+      Notifies the PEL handler that the host could not process a PEL.
+    parameters:
+      - name: pelID
+        type: uint32
+        description: >
+          The PEL log ID
+      - name: reason
+        type: enum[self.RejectionReason]
+        description: >
+          The reason the PEL was rejected
+    errors:
+       - xyz.openbmc_project.Common.Error.InvalidArgument
+
+enumerations:
+  - name: RejectionReason
+    description: >
+      The reason the PEL was rejected
+    values:
+      - name: BadPEL
+        description: >
+          The PEL was malformed.
+      - name: HostFull
+        description: >
+          The host does not have room for more PELs at this time.
+

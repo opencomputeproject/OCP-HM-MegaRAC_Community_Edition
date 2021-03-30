@@ -1,0 +1,38 @@
+diff -Naur a/watchdog.cpp b/watchdog.cpp
+--- a/watchdog.cpp	2020-10-01 18:17:02.807067832 +0530
++++ b/watchdog.cpp	2020-10-01 18:40:08.664542036 +0530
+@@ -266,7 +266,8 @@
+     static constexpr auto SEN_WATCHDOG_INTERFACE =
+         "xyz.openbmc_project.Sensor.Discrete.State";
+     static constexpr auto SEN_SET_INTERFACE = "org.freedesktop.DBus.Properties";
+-    static constexpr auto SEN_WATCHDOG_PROP = "ActiveAlarmState";
++    static constexpr auto SEN_WATCHDOG_STATPROP = "ActiveAlarmState";
++    static constexpr auto SEN_WATCHDOG_DATAPROP = "EventData";
+     static constexpr const uint16_t ipmiBMCSlaveAddr = 0x20;
+ 
+     uint8_t eventData1=0xff;
+@@ -309,7 +310,8 @@
+             break;
+     }
+ 
+-    std::vector<std::uint8_t> al = {eventData1, eventData2, 0xFF };
++    std::vector<std::uint8_t> d = {eventData1, eventData2, 0xFF };
++    uint8_t al = (0x01 << eventData1);
+ 
+ 	std::cerr << "Set status call \n";
+ 
+@@ -318,7 +320,13 @@
+         auto method =
+             bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
+                                 SEN_SET_INTERFACE, "Set");
+-        method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_PROP,std::variant<std::vector<std::uint8_t>>{al});
++        method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_DATAPROP,std::variant<std::vector<std::uint8_t>>{d});
++        bus.call_noreply(method);
++
++	method =
++            bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_STATPROP,std::variant<uint8_t>{al});
+         bus.call_noreply(method);
+     }
+     catch (const SdBusError& e)

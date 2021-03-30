@@ -1,0 +1,107 @@
+#login {
+  @include mediaQuery(medium) {
+    background: linear-gradient(to right, $background-01 49.999%, $background-02 50%);
+    @include fastTransition-all;
+  }
+}
+
+.login__wrapper {
+  position: relative;
+  padding-top: 1em;
+  color: $primary-dark;
+  .row {
+    max-width: 1080px;
+  }
+  @include mediaQuery(small) {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  @include mediaQuery(medium) {
+    left: 0;
+    margin-left: 0;
+  }
+  .login__logo {
+    max-width: 200px;
+    display: block;
+    margin: 0 auto 2em;
+    @include mediaQuery(small) {
+      margin: 0 auto;
+    }
+  }
+
+  // Must be applied to the <main> element in the app
+  // Required to create an elegant page transition
+  @include page-transition;
+  &.ng-leave-active,
+  &.ng-enter {
+    @include page-transition-visibility;
+  }
+}
+
+#login__form {
+  color: $primary-dark;
+  background: transparent;
+  padding: 1em 0;
+  display: block;
+  overflow: hidden;
+  @include mediaQuery(small) {
+    max-width: 50%;
+    margin: 0 auto;
+  }
+  @include mediaQuery(medium) {
+    padding: 0 3em;
+    max-width: 100%;
+  }
+  @include mediaQuery(large) {
+    padding: 0 0 0 6em;
+  }
+  @include fastTransition-all;
+
+  input:disabled,
+  input:disabled:hover {
+    background-color: $background-03;
+    cursor: default;
+  }
+}
+
+.login__desc {
+  text-align: center;
+  font-size: 2em;
+  margin: 0.5em 0 2em;
+  font-weight: bold;
+}
+
+.login__server-info {
+  margin-top: 2em;
+  margin-left: 0;
+  padding-left: 0;
+  list-style-type: none;
+  @include mediaQuery(small) {
+    max-width: 50%;
+  }
+  @include mediaQuery(medium) {
+    max-width: 90%;
+  }
+  li {
+    padding: 1em 0;
+    border-top: 1px solid $border-color-01;
+  }
+  p {
+    margin-bottom: 0;
+    display: inline-block;
+    font-family: "Courier New", helvetica, arial, sans-serif;
+    font-weight: 700;
+  }
+  .login__info-label {
+    display: inline-block;
+    min-width: 200px;
+    @include fontFamily;
+  }
+}
+
+.login__status {
+  color: $status-ok;
+  &.error {
+    color: $status-error;
+  }
+}

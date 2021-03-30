@@ -1,0 +1,7 @@
+[Unit]
+Description=Removes the guard that blocks BMC reboot
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/bin/obmc-flash-bmc rebootguarddisable

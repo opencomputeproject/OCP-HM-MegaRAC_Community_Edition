@@ -1,0 +1,32 @@
+build-ast2600evb:
+   before_script:
+       - sudo apt-get install -y git build-essential libsdl1.2-dev texinfo gawk chrpath diffstat
+   tags:
+       - osp
+   stage: build
+   artifacts:
+       paths:
+       - build/tmp/deploy/images/evb-ast2600
+   script:
+   - git clone --single-branch -b 'master' https://$GUSER:$GPASS@git.ami.com/core/OSP/firmware/osp --depth 1
+   - cd osp
+   - git submodule add -b master https://$GUSER:$GPASS@git.ami.com/core/OSP/firmware/openbmc-machines/evb-ast2600 meta-ami/meta-evb-ast2600 --depth 1
+   - git submodule add -b stable https://$GUSER:$GPASS@git.ami.com/core/lts/spx-13/core/bootloader.git bootloader --depth 1
+   - TEMPLATECONF=meta-ami/meta-evb-ast2600/conf . openbmc-env
+   - bitbake obmc-phosphor-image
+
+build-olympus-nuvoton:
+   tags:
+       - osp
+   stage: build
+   artifacts:
+       paths:
+       - build/tmp/deploy/images/olympus-nuvoton
+   script:
+   - git clone --single-branch -b 'master' https://$GUSER:$GPASS@git.ami.com/core/OSP/firmware/osp --depth 1
+   - cd osp
+   - git submodule add -b master https://$GUSER:$GPASS@git.ami.com/core/OSP/firmware/openbmc-machines/olympus-nuvoton meta-ami/meta-olympus-nuvoton --depth 1
+   - git submodule add -b stable https://$GUSER:$GPASS@git.ami.com/core/lts/spx-13/core/bootloader.git bootloader --depth 1
+   - TEMPLATECONF=meta-ami/meta-olympus-nuvoton/conf . openbmc-env
+   - bitbake obmc-phosphor-image
+

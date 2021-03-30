@@ -1,0 +1,119 @@
+<nav class="nav__wrapper">
+  <ul id="nav__top-level" ng-style="navStyle">
+    <li>
+      <button ng-click="change('overview')">
+        <icon class="nav-icon" file="icon-overview.svg" aria-hidden="true"></icon>
+        <span class="nav-link">Overview</span>
+      </button>
+    </li>
+    <li ng-class="{opened: showHealthMenu}">
+      <button class="btn-health" ng-click="change('server-health')">
+        <icon class="nav-icon" file="icon-health.svg" aria-hidden="true"></icon>
+        <span class="nav-link">Health</span>
+      </button>
+      <ul class="nav__second-level btn-health" ng-style="navStyle" ng-class="{opened: (showHealthMenu)}">
+        <li ng-class="{'active': (path == '/server-health/sys-log')}">
+          <a href="#/server-health/sys-log" tabindex="{{(showHealthMenu) ? 0 : -1}}">
+            <span>Event log</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-health/inventory-overview' || path == '/server-health/inventory')}">
+          <a href="#/server-health/inventory-overview" tabindex="{{(showHealthMenu) ? 0 : -1}}">
+            <span>Hardware status</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-health/sensors-overview' || path == '/server-health/sensors')}">
+          <a href="#/server-health/sensors-overview" tabindex="{{(showHealthMenu) ? 0 : -1}}">
+            <span>Sensors</span>
+          </a>
+        </li>
+      </ul>
+    </li>
+    <li ng-class="{opened: showControlMenu}">
+      <button ng-click="change('server-control')">
+        <icon class="nav-icon" file="icon-control.svg" aria-hidden="true"></icon>
+        <span class="nav-link">Control</span>
+      </button>
+      <ul class="nav__second-level btn-control" ng-class="{opened: (showControlMenu)}">
+        <li ng-class="{'active': (path == '/server-control' || path == '/server-control/power-operations')}">
+          <a href="#/server-control/power-operations" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Server power operations</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-control/power-usage')}">
+          <a href="#/server-control/power-usage" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Manage power usage</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-control/server-led')}">
+          <a href="#/server-control/server-led" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Server LED</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-control/bmc-reboot')}">
+          <a href="#/server-control/bmc-reboot" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Reboot BMC</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-control/remote-console')}">
+          <a href="#/server-control/remote-console" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Serial over LAN console</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/server-control/kvm')}">
+          <a href="#/server-control/kvm" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>KVM</span>
+          </a>
+        </li>
+        <li ng-class="{'active': (path == '/configuration' || path == '/configuration/virtual-media')}">
+          <a href="#/server-control/virtual-media" tabindex="{{(showControlMenu) ? 0 : -1}}">
+            <span>Virtual Media</span>
+          </a>
+        </li>
+      </ul>
+    </li>
+    <li ng-class="{opened: showConfigMenu}">
+      <button ng-click="change('configuration')">
+        <icon class="nav-icon" file="icon-config.svg" aria-hidden="true"></icon>
+        <span class="nav-link">Configuration</span>
+      </button>
+      <ul class="nav__second-level btn-firmware" ng-class="{opened: (showConfigMenu)}">
+        <li ng-class="{'active': (path == '/configuration' || path == '/configuration/network')}">
+          <a href="#/configuration/network" tabindex="{{(showConfigMenu) ? 0 : -1}}"><span>Network
+              settings</span></a>
+        </li>
+        <li ng-class="{'active': (path == '/configuration' || path == '/configuration/snmp')}">
+          <a href="#/configuration/snmp" tabindex="{{(showConfigMenu) ? 0 : -1}}"><span>SNMP
+              settings</span></a>
+        </li>
+        <li ng-class="{'active': (path == '/configuration' || path == '/configuration/firmware')}">
+          <a href="#/configuration/firmware" tabindex="{{(showConfigMenu) ? 0 : -1}}"><span>Firmware</span></a>
+        </li>
+        <li ng-class="{'active': (path == '/configuration' || path == '/configuration/date-time')}">
+          <a href="#/configuration/date-time" tabindex="{{(showConfigMenu) ? 0 : -1}}"><span>Date and
+              time
+              settings</span></a>
+        </li>
+      </ul>
+    </li>
+    <li ng-class="{opened: showAccessMenu}">
+      <button ng-click="change('access-control')">
+        <icon class="nav-icon" file="icon-user.svg" aria-hidden="true"></icon>
+        <span class="nav-link">Access</span>
+      </button>
+      <ul class="nav__second-level btn-users" ng-style="navStyle" ng-class="{opened: (showAccessMenu)}">
+        <li ng-class="{'active': (path == '/access-control' || path == '/access-control/ldap')}">
+          <a href="#/access-control/ldap" tabindex="{{ (showAccessMenu) ? 0 : -1}}"><span>LDAP</span></a>
+        </li>
+        <li ng-class="{'active': (path == '/access-control' || path == '/access-control/local-users')}">
+          <a href="#/access-control/local-users" tabindex="{{ (showAccessMenu) ? 0 : -1}}"><span>Local
+              users</span></a>
+        </li>
+        <li ng-class="{'active': (path == '/access-control' || path == '/access-control/ssl-certificates')}">
+          <a href="#/access-control/ssl-certificates" tabindex="{{ (showAccessMenu) ? 0 : -1}}"><span>SSL
+              certificates</span></a>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</nav>

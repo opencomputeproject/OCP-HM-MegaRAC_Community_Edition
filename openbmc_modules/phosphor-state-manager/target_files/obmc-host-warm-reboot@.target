@@ -1,0 +1,7 @@
+[Unit]
+# This will perform a graceful restart of the host while keeping the chassis
+# power on
+Description=Graceful Warm Reboot Host%i
+After=multi-user.target
+Conflicts=obmc-host-startmin@%i.target
+RefuseManualStop=yes

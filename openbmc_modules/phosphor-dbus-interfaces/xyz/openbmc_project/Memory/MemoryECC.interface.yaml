@@ -1,0 +1,38 @@
+description: >
+    Implement to provide memory ECC attributes.
+properties:
+    - name: isLoggingLimitReached
+      type: boolean
+      description: >
+          ECC logging limit reached.
+    - name: ceCount
+      type: int64
+      description: >
+          A correctable ECC event has been detected on a read operation.
+    - name: ueCount
+      type: int64
+      description: >
+          An uncorrectable ECC event has been detected on a read operation.
+    - name: state
+      type: enum[self.ECCStatus]
+      default: ok
+      description: >
+          The state is described in ECC status.
+
+enumerations:
+   - name: ECCStatus
+     description: >
+       The operating system statuses.
+     values:
+       - name: ok
+         description: >
+           There is no ECC error occurred.
+       - name: CE
+         description: >
+           correctable ECC detected.
+       - name: UE
+         description: >
+           uncorrectable ECC detected.
+       - name: LogFull
+         description: >
+           ECC logging reach limits.

@@ -1,0 +1,23 @@
+description: >
+    The priority, for redundancy purposes, of the associated
+    xyz.openbmc_project.Software.Version.
+properties:
+    - name: Priority
+      type: byte
+      description: >
+        The priority order specified for the associated Software.Version,
+        represented as a value between 0 (High) and 127 (Low).  Any value
+        above 127 has implementation-specific purpose.
+
+        Only one Software.Version, per associated device, may be at any
+        particular priority.  A requested priority change may cause other
+        Software.Versions to change priority.
+
+        A dual-sided redundancy model could be represented by two
+        Software.Version associations, one of which is at priority 0 and the
+        other at priority 1.  When a new image is Activated, the old
+        priority-1 association is deleted, the old priority-0 association
+        becomes priority-1, and the new image is assigned priority-0.
+# TODO: Specify "EAGAIN" type error when priority is unable to be modified
+#       due to current system state.  Currently, sdbusplus does not support
+#       errors on properties.

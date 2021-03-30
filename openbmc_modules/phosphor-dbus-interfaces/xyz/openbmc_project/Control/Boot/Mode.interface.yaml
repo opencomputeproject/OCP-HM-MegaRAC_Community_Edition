@@ -1,0 +1,24 @@
+description: >
+    Implement to set boot mode. The mode typically identifies
+    the end target of the boot process.
+
+properties:
+    - name: BootMode
+      type: enum[self.Modes]
+      description: >
+          The desired boot mode.
+
+enumerations:
+    - name: Modes
+      description: >
+        Possible boot modes.
+      values:
+        - name: Regular
+          description: >
+            The regular/default mode, such as boot to an OS.
+        - name: Safe
+          description: >
+            Boot to a diagnostic/trouble-shooting mode.
+        - name: Setup
+          description: >
+            Boot to BIOS setup.

@@ -1,0 +1,134 @@
+diff -Naur a/watchdog.cpp b/watchdog.cpp
+--- a/watchdog.cpp	2020-09-23 08:36:11.941699139 -0400
++++ b/watchdog.cpp	2020-09-23 15:03:00.446198314 -0400
+@@ -4,6 +4,7 @@
+ #include <chrono>
+ #include <phosphor-logging/elog.hpp>
+ #include <phosphor-logging/log.hpp>
++#include <phosphor-logging/elog-errors.hpp>
+ #include <sdbusplus/exception.hpp>
+ #include <xyz/openbmc_project/Common/error.hpp>
+ #include <iostream>
+@@ -104,6 +105,69 @@
+ {
+     return WatchdogInherits::interval(std::max(value, minInterval));
+ }
++std::string getService(sdbusplus::bus::bus& bus, const std::string& intf,
++                       const std::string& path)
++{
++	auto mapperCall = bus.new_method_call("xyz.openbmc_project.ObjectMapper",
++                            "/xyz/openbmc_project/object_mapper",
++                            "xyz.openbmc_project.ObjectMapper", "GetObject");
++    mapperCall.append(path); 
++    mapperCall.append(std::vector<std::string>({intf}));
++    auto mapperResponseMsg = bus.call(mapperCall);
++	if (mapperResponseMsg.is_method_error())
++    {
++        throw std::runtime_error("ERROR in mapper call");
++    }
++    std::map<std::string, std::vector<std::string>> mapperResponse;
++    mapperResponseMsg.read(mapperResponse);
++	if (mapperResponse.begin() == mapperResponse.end())
++    {
++        throw std::runtime_error("ERROR in reading the mapper response");
++    }
++    return mapperResponse.begin()->first;
++}
++constexpr auto PROP_INTF = "org.freedesktop.DBus.Properties";
++constexpr auto METHOD_SET = "Set";
++using Value = std::variant<bool, uint8_t, int16_t, uint16_t, int32_t, uint32_t,
++                           int64_t, uint64_t, double, std::string>;
++void setDbusProperty(sdbusplus::bus::bus& bus, const std::string& service,
++                     const std::string& objPath, const std::string& interface,
++                     const std::string& property, const Value& value, std::chrono::microseconds timeout = DBUS_TIMEOUT)
++{
++    auto method = bus.new_method_call(service.c_str(), objPath.c_str(),
++                                      PROP_INTF, METHOD_SET);
++    method.append(interface, property, value);
++	if (!bus.call(method, timeout.count()))
++    {
++        log<level::ERR>("Failed to set property",
++                        entry("PROPERTY=%s", property.c_str()),
++                        entry("PATH=%s", objPath.c_str()),
++                        entry("INTERFACE=%s", interface.c_str()));
++        elog<InternalFailure>();
++}
++}
++int Watchdog::initiateChassisStateTransition(State::Chassis::Transition transition)
++{
++    constexpr auto chassisStatePath = "/xyz/openbmc_project/state/chassis0";
++    constexpr auto chassisStateIntf = "xyz.openbmc_project.State.Chassis";
++    auto service =
++			getService(bus, chassisStateIntf, chassisStatePath);
++    auto request = State::convertForMessage(transition);
++    try
++    {
++        setDbusProperty(bus, service, chassisStatePath,
++                              chassisStateIntf, "RequestedPowerTransition",
++                              request);
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>(
++            "Failed to initiate transition",
++            entry("EXCEPTION=%s, REQUEST=%s", e.what(), request.c_str()));
++        return -1;
++    }
++    return 0;
++}
+ 
+ // Optional callback function on timer expiration
+ void Watchdog::timeOutHandler()
+@@ -134,12 +198,27 @@
+ 
+         try
+         {
++        #if 0
+             auto method = bus.new_method_call(SYSTEMD_SERVICE, SYSTEMD_ROOT,
+                                               SYSTEMD_INTERFACE, "StartUnit");
+             method.append(target->second);
+             method.append("replace");
+ 
+             bus.call_noreply(method);
++		#endif
++			int rc = 0;
++			if (target->second == "obmc-chassis-powerreset@0.target")
++			{
++				rc = initiateChassisStateTransition(State::Chassis::Transition::Reset);
++			}
++			else if (target->second == "obmc-chassis-poweroff@0.target")
++			{
++				rc = initiateChassisStateTransition(State::Chassis::Transition::Off);
++			}
++			else if (target->second == "obmc-chassis-powercycle@0.target")
++			{
++				rc = initiateChassisStateTransition(State::Chassis::Transition::PowerCycle);
++			}
+         }
+         catch (const SdBusError& e)
+         {
+diff -Naur a/watchdog.hpp b/watchdog.hpp
+--- a/watchdog.hpp	2020-09-23 08:36:11.941699139 -0400
++++ b/watchdog.hpp	2020-09-23 08:44:51.088744260 -0400
+@@ -9,6 +9,11 @@
+ #include <unordered_map>
+ #include <utility>
+ #include <xyz/openbmc_project/State/Watchdog/server.hpp>
++#include <xyz/openbmc_project/State/Chassis/server.hpp>
++#include <chrono>
++namespace State = sdbusplus::xyz::openbmc_project::State::server;
++using namespace std::literals::chrono_literals;
++constexpr std::chrono::microseconds DBUS_TIMEOUT = 25s;
+ 
+ namespace phosphor
+ {
+@@ -173,6 +178,9 @@
+ 
+     /** @brief Add a watchdog SEL to SEL list  */
+     void addWatchdogSEL(Base::Watchdog::Action action,Base::Watchdog::TimerUse timeUse);
++
++	/** @brief For watchdog timer expires action -- doing chassis control */
++	int initiateChassisStateTransition(State::Chassis::Transition transition);
+ };
+ 
+ } // namespace watchdog

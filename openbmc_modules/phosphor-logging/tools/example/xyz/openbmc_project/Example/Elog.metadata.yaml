@@ -1,0 +1,36 @@
+- name: TestErrorOne
+  level: INFO
+  meta:
+    - str: "ERRNUM=0x%.4X"
+      type: uint16
+    - str: FILE_PATH=%s
+      type: string
+    - str: FILE_NAME=%s
+      type: string
+  inherits:
+    - example.xyz.openbmc_project.Example.Elog.TestErrorTwo
+
+- name: TestErrorTwo
+  level: ERR
+  meta:
+        - str: DEV_ADDR=0x%.8X
+          type: uint32
+        - str: DEV_ID=%u
+          type: uint32
+          process: true
+        - str: DEV_NAME=%s
+          type: string
+
+- name: AutoTestSimple
+  level: ERR
+  meta:
+    - str: STRING=%s
+      type: string
+
+- name: TestCallout
+  level: ERR
+  meta:
+        - str: DEV_ADDR=0x%.8X
+          type: uint32
+  inherits:
+    - example.xyz.openbmc_project.Example.Device.Callout

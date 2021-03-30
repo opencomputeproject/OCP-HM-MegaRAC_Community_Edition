@@ -1,0 +1,171 @@
+description: >
+    Provides Remote BIOS Configuration management functionality.
+    As communication to this service is done through authenticated
+    & authorized session, there won't be any validation for both.
+    https://gerrit.openbmc-project.xyz/c/openbmc/docs/+/29320
+
+methods:
+    - name: SetAttribute
+      description: >
+          To set the new value on existing attribute name.
+          It will create or add the pending attributes.
+      parameters:
+         - name: AttributeName
+           type: string
+           description: >
+               AttributeName which has to be changed.
+         - name: AttributeValue
+           type: variant[int64,string]
+           description: >
+               New attribute value
+
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.BIOSConfig.Common.Error.AttributeReadOnly
+        - xyz.openbmc_project.BIOSConfig.Common.Error.AttributeNotFound
+
+    - name: GetAttribute
+      description: >
+          To get the attribute value of existing attributes.
+      parameters:
+         - name: AttributeName
+           type: string
+           description: >
+               To get the bios attribute current values and
+               pending values if previously set by setAttribute or
+               SetPendingAttributes.
+
+      returns:
+        - name: AttributeValueType
+          type: enum[self.AttributeType]
+          description: >
+              PLDM attribute Type present in PLDM spec
+        - name: CurrentValue
+          type: variant[int64,string]
+          description: >
+              The attribute current value.
+        - name: PendingValue
+          type: variant[int64,string]
+          description: >
+              The pending attribute value if its available.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.BIOSConfig.Common.Error.AttributeNotFound
+
+properties:
+
+    - name: ResetBIOSSettings
+      type: enum[self.ResetFlag]
+      default: NoAction
+      description: >
+          Contain reset BIOS setting type:
+          Interface have to set NoAction this property.
+          when Reset BIOS settings are informed to the BIOS.
+
+    - name: BaseBIOSTable
+      type: dict[string,struct[enum[self.AttributeType],boolean,string,string,string,variant[int64,string],variant[int64,string],array[struct[enum[self.BoundType], variant[int64, string]]]]]
+      description: >
+              map{attributeName,struct{attributeType,readonlyStatus,displayname,
+              description,menuPath,current,default,
+              array{struct{optionstring,optionvalue}}}}
+              Example 1:
+              {"DdrFreqLimit",
+              {xyz.openbmc_project.BIOSConfig.Manager.AttributeType.String,
+               false,
+               "Memory Operating Speed Selection",
+               "Force specific Memory Operating Speed or use Auto setting.",
+               "Advanced/Memory Configuration/Memory Operating Speed Selection",
+               "0x00",
+               "0x0B",
+               { {"OneOf", "auto"},
+                 {"OneOf", "2133"},
+                 {"OneOf", "2400"},
+                 {"OneOf", "2664"},
+                 {"OneOf", "2933"}
+               }
+              }
+              }
+               Example 2:
+              {"BIOSSerialDebugLevel",
+              {xyz.openbmc_project.BIOSConfig.Manager.AttributeType.Integer,
+               false,
+               "BIOS Serial Debug level",
+               "BIOS Serial Debug level during system boot.",
+               "Advanced/Debug Feature Selection",
+               0x00,
+               0x01,
+               { {"MinBound", 0},
+                 {"MaxBound", 4},
+                 {"ScalarIncrement",1}
+               }
+              }
+              }
+
+
+    - name: PendingAttributes
+      type: dict[string,struct[enum[self.AttributeType],variant[int64,string]]]
+      description: >
+              The Pending attribute name and new value.
+              ex- { {"QuietBoot",Type.Integer, 0x1},
+                    { "DdrFreqLimit",Type.String,"2933"}
+                  }
+
+
+enumerations:
+    - name: AttributeType
+      description: >
+        Attribute Type.
+      values:
+        - name: Enumeration
+          description: >
+            Enumeration value Type.
+        - name: String
+          description: >
+             string value Type.
+        - name: Password
+          description: >
+             Encoded string value Type
+        - name: Integer
+          description: >
+            Integer value Type.
+        - name: Boolean
+          description: >
+            Boolean value Type
+
+    - name: ResetFlag
+      description: >
+        Reset BIOS setting type requested by user.
+      values:
+        - name: NoAction
+          description: >
+            Default value, In order to cancel the reset BIOS settings.
+        - name: FactoryDefaults
+          description: >
+            Used to set factory default settings.
+        - name: FailSafeDefaults
+          description: >
+            Used to set the fail safe settings.
+
+    - name: BoundType
+      description: >
+        Contain BoundType value for string and integer
+      values:
+        - name: LowerBound
+          description: >
+            Used to define the lower bound value.
+        - name: UpperBound
+          description: >
+            Used to define the upper bound value.
+        - name: ScalarIncrement
+          description: >
+            Used to define scalar value of integer.
+        - name: MinStringLength
+          description: >
+            Used to define minimum string length.
+        - name: MaxStringLength
+          description: >
+            Used to define maximum string length.
+        - name: OneOf
+          description: >
+            Used to define the enumeration options.
+

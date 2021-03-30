@@ -1,0 +1,216 @@
+// TODO: replace cert table with table component
+.certificate__table {
+  border-left: 1px solid $border-color-01;
+  border-right: 1px solid $border-color-01;
+  .table__row-header {
+    width: 100%;
+    border-bottom: 1px solid $border-color-01;
+    background-color: $primary-dark;
+    color: $primary-light;
+    font-weight: 700;
+  }
+  .table__row-value {
+    width: 100%;
+    border-bottom: 1px solid $border-color-01;
+  }
+  .certificate__type-header {
+    @include mediaQuery(small) {
+      width: 18%;
+      background: transparent;
+    }
+    width: 100%;
+    padding: 0.8em;
+    padding-left: 1.5em;
+  }
+  .certificate__issue-header {
+    display: none;
+    padding: 0.8em;
+    @include mediaQuery(small) {
+      width: 18%;
+      display: block;
+    }
+  }
+  .certificate__date-header {
+    padding: 0.8em;
+    @include mediaQuery(small) {
+      width: 11%;
+      display: block;
+    }
+    display: none;
+  }
+  .certificate__status-header {
+    padding: 0.8em;
+    @include mediaQuery(small) {
+      width: 5%;
+      display: block;
+    }
+    display: none;
+  }
+  .certificate__actions-header {
+    padding: 0.8em;
+    @include mediaQuery(small) {
+      width: auto;
+      padding-left: 30px;
+      display: block;
+    }
+    display: none;
+  }
+  .certificate__type-cell {
+    width: 100%;
+    padding: 0.8em 0.8em 0.8em 1.5em;
+    word-wrap: break-word;
+    background: $background-02;
+    @include mediaQuery(small) {
+      width: 18%;
+      background: transparent;
+    }
+  }
+  .certificate__issue-cell {
+    padding: 0.8em;
+    word-wrap: break-word;
+    @include mediaQuery(small) {
+      width: 18%;
+    }
+    width: 70%;
+  }
+  .certificate__date-cell {
+    width: 70%;
+    padding: 0.8em;
+    word-wrap: break-word;
+    @include mediaQuery(small) {
+      width: 11%;
+    }
+  }
+  .certificate__status-cell {
+    padding: 0.8em;
+    @include mediaQuery(small) {
+      display: block;
+      width: 5%;
+    }
+    display: none;
+  }
+  .certificate__status-icon {
+    width: 1.2em;
+    svg {
+      margin-bottom: .2em;
+    }
+  }
+  .certificate__buttons-cell {
+    @include mediaQuery(small) {
+      padding: 0.2em 0 0 2em;
+      .btn {
+        padding-left: 40px;
+        padding-right: 5px;
+      }
+    }
+    display:  block;
+    text-align: right;
+    padding: 0.3em 0.8em 0.8em 1.0em;
+    .btn {
+      padding-left: 5px;
+      padding-right: 5px;
+    }
+  }
+  .certificate__title-inline {
+    @include mediaQuery(small) {
+      display: none;
+    }
+    width: 30%;
+    display: block;
+    padding: 0.8em 0.8em 0.8em 1.5em;
+  }
+  .upload__certificate {
+    width: 100%;
+    background: $background-02;
+    padding: 0.8em 1.8em 0.8em 0.8em;
+    height: 4rem;
+    display: flex;
+  }
+  .replace-btn {
+    margin-left: auto;
+  }
+}
+
+.cert-dropdown{
+  margin-bottom: 0;
+}
+
+// TODO: Update CSR modal with global form-field styles
+.add-csr__section:first-of-type {
+  padding-left: 0;
+}
+
+.add-csr__section:last-of-type {
+  margin-top: 2rem;
+  padding-right: 0;
+
+  @media (min-width: 640px) {
+    margin-top: 0;
+  }
+}
+
+.add-csr__section--border {
+  @media (min-width: 640px) {
+    padding-left: 2rem;
+    border-left: 1px solid $base-02--04;
+  }
+}
+
+.add-csr__text-helper {
+  color: $base-02--02;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.2;
+  margin-bottom: .5em;
+}
+
+input.add-csr__input,
+select.add-csr__select {
+  width: 100%;
+  margin-bottom: 0;
+  max-height: none;
+  height: auto;
+}
+
+.select.add-csr__select  {
+  line-height: 1.15;
+}
+
+input.add-csr__input-no-validation {
+  margin-bottom: 1.7rem;
+}
+
+.add-csr__additional-alt-names {
+  display: flex;
+}
+
+.add-csr__alt-name-add-btn {
+  padding: 0;
+  @media (min-width: 640px) {
+    margin: 1.9rem 0;
+  }
+}
+
+.add-csr__alt-name-delete-btn {
+  height: 34px;
+  padding: 0 0 0 1rem;
+  icon {
+    margin-right: 0;
+  }
+}
+
+.add-csr-code__header {
+  margin-top: 1em;
+}
+
+.add-csr__container-csr-code {
+  white-space: pre-wrap;
+}
+
+.add-csr__text-download {
+  color: $base-02--08;
+}
+
+select.add-csr__multiselect {
+  height: 14rem;
+}

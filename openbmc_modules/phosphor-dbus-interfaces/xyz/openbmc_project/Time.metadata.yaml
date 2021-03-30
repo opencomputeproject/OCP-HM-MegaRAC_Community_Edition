@@ -1,0 +1,14 @@
+- name: NotAllowed
+  inherits:
+    - xyz.openbmc_project.Common.NotAllowed
+  meta:
+    - str: "OWNER=%s"
+      type: string
+    - str: "SYNC_METHOD=%s"
+      type: string
+- name: Failed
+  inherits:
+    - xyz.openbmc_project.Common.InternalFailure
+  meta:
+    - str: "REASON=%s"
+      type: string

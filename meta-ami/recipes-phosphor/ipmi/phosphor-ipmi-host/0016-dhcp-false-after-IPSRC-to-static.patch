@@ -1,0 +1,13 @@
+diff -Naur a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2020-11-25 14:15:07.022563467 -0500
++++ b/transporthandler.cpp	2020-11-25 14:17:37.864660427 -0500
+@@ -503,7 +503,8 @@
+     {
+         if (currentDhcp == EthernetInterface::DHCPConf::both)
+         {
+-            nextDhcp = EthernetInterface::DHCPConf::v6;
++           // nextDhcp = EthernetInterface::DHCPConf::v6;        
++           nextDhcp = EthernetInterface::DHCPConf::none;
+         }
+         else if (currentDhcp == EthernetInterface::DHCPConf::v4)
+         {

@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# config: 2 50
+# @brief: Print variables from Alt flash U-Boot environment.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Alt-Flash: U-Boot environment variables"
+env_config="/etc/alt_fw_env.config"
+
+if [ ! -f $env_config ]; then
+    log_error "$env_config does not exist"
+    exit
+fi
+
+
+file_name="alt-fw-printenv.log"
+command="fw_printenv -c $env_config"
+
+add_cmd_output "$command" "$file_name" "$desc"

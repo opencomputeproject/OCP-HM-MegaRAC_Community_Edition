@@ -1,0 +1,97 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-08-12 11:55:30.933206451 +0530
++++ b/app/common/services/api-utils.js	2020-08-12 18:56:30.709798572 +0530
+@@ -1857,6 +1857,26 @@
+             data: JSON.stringify({'data': instance})
+           })
+         },
++        getKVMInstance: function() {
++          var deferred = $q.defer();
++          $http({
++            method: 'GET',
++            url: DataService.getHost() +
++                '/xyz/openbmc_project/VirtualMedia/Kvm/kvm0',
++            withCredentials: true
++          })
++              .then(
++                  function(response) {
++                    var json = JSON.stringify(response.data);
++                    var content = JSON.parse(json);
++                    deferred.resolve(content.data.Active);
++                  },
++                  function(error) {
++                    console.log(error);
++                    deferred.reject(error);
++                  });
++          return deferred.promise;
++        },
+       };
+       return SERVICE;
+     }
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2020-08-12 11:55:30.941206693 +0530
++++ b/app/server-control/directives/kvm-console.js	2020-08-12 18:54:07.729578410 +0530
+@@ -12,8 +12,8 @@
+   'use strict';
+ 
+   angular.module('app.serverControl').directive('kvmConsole', [
+-    '$log', '$cookies', '$location',
+-    function($log, $cookies, $location) {
++    '$log', '$cookies', '$location', 'APIUtils', '$timeout',
++    function($log, $cookies, $location, APIUtils, $timeout) {
+       return {
+         restrict: 'E', template: require('./kvm-console.html'),
+             scope: {newWindowBtn: '=?'}, link: function(scope, element) {
+@@ -38,16 +38,48 @@
+                 $log.debug('RFB disconnected');
+               }
+ 
+-              var host = $location.host();
+-              var port = $location.port();
+-              var target = element[0].firstElementChild;
+-              try {
++	      function ConnectKvm() {
+                 var token = $cookies.get('XSRF-TOKEN');
+                 rfb = new RFB(
+                     target, 'wss://' + host + '/kvm/0',
+                     {'wsProtocols': [token]});
+                 rfb.addEventListener('connect', connected);
+                 rfb.addEventListener('disconnect', disconnected);
++              }
++	
++	      function checkKvmInstance() {
++                return APIUtils
++                  .getKVMInstance()
++                  .then(
++                        function(instance) {
++                          if(instance == true)
++                          {
++                             alert('WARNING: Already Master KVM Session is Running!\n'
++                              + 'Please try after some time.');
++                             return;
++                          }
++                          else
++                          {
++                             ConnectKvm();
++                          }
++                        },
++                        function(error) {
++                          $log.error(JSON.stringify(error));
++                          return $q.reject();
++                        });
++              }
++
++	      scope.StartKVM = function () {
++                                 checkKvmInstance();
++                               }
++
++              var host = $location.host();
++              var port = $location.port();
++              var target = element[0].firstElementChild;
++              try {
++                $timeout( function(){
++                            scope.StartKVM();
++                          },1000);
+               } catch (exc) {
+                 $log.error(exc);
+                 updateState(

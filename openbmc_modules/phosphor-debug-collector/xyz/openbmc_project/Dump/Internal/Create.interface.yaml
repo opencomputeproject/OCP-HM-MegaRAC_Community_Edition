@@ -1,0 +1,41 @@
+description: >
+    Implement to capture BMC Dump based on type.
+
+methods:
+    - name: Create
+      description: >
+          Create BMC Dump based on the Dump type.
+      parameters:
+       - name: Type
+         type: enum[self.Type]
+         description: >
+            Type of the Dump.
+       - name: FullPaths
+         type: array[string]
+         description: >
+            A list of paths (file paths or d-bus object paths) that must be
+            processed to derive the dump content.
+      errors:
+        - xyz.openbmc_project.Common.File.Error.Write
+        - xyz.openbmc_project.Dump.Create.Error.Disabled
+        - xyz.openbmc_project.Dump.Create.Error.QuotaExceeded
+
+enumerations:
+    - name: Type
+      description: >
+          Possible types of BMC Dump.
+      values:
+        - name: ApplicationCored
+          description: >
+              Dump triggered due to application core.
+        - name: UserRequested
+          description: >
+              Dump triggered by the user.
+        - name: InternalFailure
+          description: >
+              Dump triggered due to InternalFailure type error commit.
+        - name: Checkstop
+          description: >
+              Dump triggered due to Checkstop type error commit.
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

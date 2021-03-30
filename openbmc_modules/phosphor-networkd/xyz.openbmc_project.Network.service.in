@@ -1,0 +1,16 @@
+[Unit]
+Description=Phosphor Network Manager
+After=obmc-mapper.target
+
+[Service]
+ExecStart=/usr/bin/env phosphor-network-manager
+SyslogIdentifier=phosphor-network-manager
+Restart=always
+Type=dbus
+BusName=@DEFAULT_BUSNAME@
+RuntimeDirectory = network
+RuntimeDirectoryPreserve = yes
+StateDirectory = network
+
+[Install]
+WantedBy=@SYSTEMD_TARGET@

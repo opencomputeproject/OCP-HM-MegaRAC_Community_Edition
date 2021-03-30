@@ -1,0 +1,25 @@
+diff -Naur a/app/common/directives/firmware-list.html b/app/common/directives/firmware-list.html
+--- a/app/common/directives/firmware-list.html	2020-09-17 19:09:17.186167620 +0530
++++ b/app/common/directives/firmware-list.html	2020-09-17 19:00:14.229970540 +0530
+@@ -52,7 +52,7 @@
+         <div class="table__cell firmware__action">
+             <span class="table__cell-label">Action:</span>
+             <button class="firmware__action-link" ng-show="firmware.activationStatus == 'Ready' || firmware.activationStatus == 'Failed'" ng-click="activate(firmware.imageId, firmware.Version, firmware.imageType)">Activate</button>
+-            <button class="firmware__action-link" ng-show="firmware.activationStatus != 'Functional'" ng-click="delete(firmware.imageId, firmware.Version)">Delete</button>
++	    <button class="firmware__action-link" ng-show="firmware.activationStatus == 'Ready'" ng-click="delete(firmware.imageId, firmware.Version)" ng-hide="firmware.activationStatus == 'Active' || firmware.activationStatus == 'Functional'">Delete</button>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-09-17 19:09:28.606169245 +0530
++++ b/app/common/services/api-utils.js	2020-09-17 18:59:43.981949487 +0530
+@@ -1249,6 +1249,9 @@
+                             imageType == 'BMC') {
+                           bmcActiveVersion = content.data[key].Version;
+                         }
++			else if(imageType == 'BMC') {
++			  bmcActiveVersion = content.data[key].Functionalversion;
++			}
+ 
+                         if (activationStatus == 'Functional' &&
+                             imageType == 'Host') {

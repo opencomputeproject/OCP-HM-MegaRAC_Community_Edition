@@ -1,0 +1,352 @@
+
+// Table Header
+.table-header {
+  width: 100%;
+  color: $primary-dark;
+  line-height: 30px;
+  padding: .8em 0 0;
+  margin-bottom: .8em;
+  border-bottom: 1px solid $border-color-01;
+  font-size: 1.25em;
+  @include mediaQuery(medium) {
+    margin: 1.8em 0;
+  }
+}
+
+// Table
+.table {
+  width: 100%;
+}
+
+.table__body {
+  width: 100%;
+}
+
+.table__row {
+  display: flex;
+  width: 100%;
+  max-width: calc(100vw - 10px);
+  flex-wrap: wrap;
+  font-weight: 400;
+  position: relative;
+  &.disabled {
+    background-color: $background-03;
+    color: $text-02;
+  }
+}
+
+.table__row-save {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height:100%;
+  background: $background-04;
+  z-index:200;
+  color: $primary-light;
+  padding: .8em 1em;
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.table__cell {
+  flex: 0 0 100%;
+  line-height: 2.8em;
+  padding: .5em 1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid $border-color-01;
+  @include mediaQuery(small) {
+    flex: 1;
+  }
+  //
+  //@include mediaQuery(large) {
+  //  padding: 15px 30px;
+  //}
+}
+
+.table__cell-label {
+  display: inline-block;
+  font-weight: 700;
+  min-width: 50%;
+  padding-right: 15px;
+
+  @include mediaQuery(small) {
+    display: none;
+  }
+}
+
+// Table Head
+.table__head {
+   width: 100%;
+  .table__row {
+    display: none;
+    font-weight: 700;
+    border-bottom: 1px solid $border-color-01;
+    background-color: $background-05;
+    color: $primary-light;
+
+    @include mediaQuery(small) {
+      display: flex;
+    }
+
+    .table__cell {
+      @include fastTransition-all();
+      position: relative;
+      border: 0;
+      &:last-child {
+        border: 0;
+      }
+    }
+  }
+}
+
+.table__row-uploading {
+  color: $text-02;
+  font-weight: 700;
+  @include indeterminate-bar;
+}
+
+// sensor fixed table header on scroll
+.fixed-table-header{
+  position: sticky;
+  top: 130px;
+  z-index: 1;
+}
+
+//sortable heading
+.sort-heading {
+  position: relative;
+  color: $text-03;
+  &::after {
+    content: '\025be';
+    position: absolute;
+    right: -20px;
+    top: -1px;
+    font-size: 1.3em;
+  }
+  &::before {
+    content: '\025be';
+    position: absolute;
+    right: -20px;
+    top: -10px;
+    font-size: 1.3em;
+    transform: rotate(180deg);
+  }
+  &.sort-up {
+    &::before {
+      color: $primary-accent;
+    }
+  }
+  &.sort-down {
+    &::after {
+      color: $primary-accent;
+    }
+  }
+}
+
+.bmc-table__container {
+  position: relative;
+}
+
+.bmc-table {
+  width: 100%;
+  &.small {
+    font-size: 90%;
+  }
+}
+
+.bmc-table__head {
+  .sort-icon {
+    padding: 0;
+    position: absolute;
+    .icon {
+      margin: 0;
+      & + .icon {
+        margin-left: -18px;
+      }
+      svg {
+        height: 1em;
+      }
+    }
+  }
+  .sort-icon--descending {
+    transform: rotate(180deg);
+  }
+  .sort-icon--inactive {
+    opacity: 0.5;
+  }
+}
+
+.bmc-table__row {
+  border-bottom: 1px solid $border-color-01;
+  .btn {
+    padding-top: 0;
+    padding-bottom: 0;
+    .icon {
+      margin: 0;
+    }
+  }
+  .btn--expand {
+    padding: 0;
+    .icon {
+      transition: transform $duration--moderate-01;
+      transform: rotate(90deg);
+    }
+  }
+}
+
+.bmc-table__row--expanded {
+  border-style: none;
+  .btn--expand .icon {
+    transform: rotate(0deg);
+  }
+}
+
+.bmc-table__expansion-row {
+  border-bottom: 1px solid $border-color-01;
+}
+
+.bmc-table__column-header {
+  padding: 10px 16px;
+  background-color: $background-03;
+  position: relative;
+}
+
+.bmc-table__column-header--sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.bmc-table__cell {
+  padding: 10px 16px;
+  background-color: $base-02--07;
+}
+
+.bmc-table__row-actions {
+  text-align: right;
+}
+
+.bmc-table__checkbox-container {
+  position: relative;
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.bmc-table__checkbox {
+  margin: 0;
+  line-height: 1;
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  top: 0;
+  right: 0;
+  cursor: pointer;
+  &::before {
+    // checkbox border
+    box-sizing: border-box;
+    content: "";
+    width: 1rem;
+    height: 1rem;
+    position: absolute;
+    left: 0;
+    top: 0.15rem;
+    background-color: transparent;
+    border: 2px solid $border-color-02;
+    border-radius: 1px;
+  }
+  &::after {
+    // checkbox check mark
+    content: "";
+    position: absolute;
+    left: 0.2rem;
+    top: 0.15rem;
+    width: 0.6rem;
+    height: 0.3rem;
+    background: none;
+    border-left: 2px solid $primary-light;
+    border-bottom: 2px solid $primary-light;
+    transform: scale(0) rotate(-45deg);
+    transform-origin: bottom right;
+  }
+  &.checked::before ,
+  &.indeterminate::before {
+      background: $primary-accent;
+      border-color: $primary-accent;
+  }
+  &.checked::after {
+    transform: scale(1) rotate(-45deg);
+  }
+  &.indeterminate::after {
+    transform: scale(1) rotate(0deg);
+    border-left: 0 solid $primary-light;
+    border-bottom: 2px solid $primary-light;
+    top: 0.4rem;
+  }
+}
+
+.bmc-table__checkbox-input {
+  position: absolute;
+  opacity: 0;
+  height: 0;
+  width: 0;
+  margin: 0;
+}
+
+.bmc-table__toolbar {
+  position: absolute;
+  left: 0;
+  right: 1px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  color: $text-03;
+  background-color: $primary-accent;
+  max-height: 40px;
+  padding-left: 1em;
+  padding-top: 0.5em;
+  padding-right: 0;
+  padding-bottom: 0.5em;
+  transform: translateY(-40px);
+  &.ng-animate {
+    transition: transform $duration--moderate-02 $standard-easing--productive;
+  }
+  &.ng-enter {
+    transform: translateY(0);
+  }
+  &.ng-enter.ng-enter-active {
+    transform: translateY(-40px);
+  }
+  &.ng-leave {
+    transform: translateY(-40px);
+  }
+  &.ng-leave.ng-leave-active {
+    transform: translateY(0);
+  }
+  .btn-tertiary {
+    color: $text-03;
+    padding-top:0;
+    padding-bottom:0;
+    position: relative;
+    .icon {
+      fill: $text-03;
+      margin: 0;
+    }
+  }
+}
+
+.toolbar__batch-actions {
+  .btn-close {
+    border-top: none;
+    border-bottom: none;
+    border-left: 2px solid $primary-light;
+    margin-left: 0.5em;
+  }
+}
+
+.toolbar__selection-count {
+  margin: 0;
+}

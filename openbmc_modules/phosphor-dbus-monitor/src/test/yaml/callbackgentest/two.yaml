@@ -1,0 +1,27 @@
+# Validate the same callback name works in different config files.
+
+- name: test path group 1
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst6
+
+- name: test property group 1
+  class: group
+  group: property
+  type: string
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface3
+      meta: PROPERTY
+      property: Value2
+
+- name: test journal callback 1
+  class: callback
+  callback: journal
+  paths: test path group 1
+  properties: test property group 1
+  severity: INFO
+  message: Hello world from PDM!

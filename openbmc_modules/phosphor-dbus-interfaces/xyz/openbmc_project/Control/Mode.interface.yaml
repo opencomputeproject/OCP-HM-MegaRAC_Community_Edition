@@ -1,0 +1,17 @@
+description: >
+    Implement to provide manual control for an object.  Also provides
+    for the notion of a fail-safe mode.
+
+    Control.Mode.Manual is read/write.
+    Control.Mode.FailSafe is read/write, however not all implementations
+    may respect having this property set externally.
+
+properties:
+    - name: Manual
+      type: boolean
+      description: >
+          Whether the object should be in manual or automatic mode.
+    - name: FailSafe
+      type: boolean
+      description: >
+          Whether the object is in fail-safe mode or not.

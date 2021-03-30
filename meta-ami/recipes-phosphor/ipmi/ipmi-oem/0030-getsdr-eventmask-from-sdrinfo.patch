@@ -1,0 +1,79 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-12-07 19:52:28.811104813 +0530
++++ b/src/sensorcommands.cpp	2020-12-08 19:24:23.613302437 +0530
+@@ -1548,6 +1548,19 @@
+         NormalMin = std::visit(VariantToUnsignedIntVisitor(), NormalMinobj->second);
+     }
+ 
++    auto AssertMaskobj = sensorObject->second.find("AssertEventMask");
++    uint16_t AssertMask;
++    if (AssertMaskobj != sensorObject->second.end())
++    {
++        AssertMask = std::visit(VariantToUnsignedIntVisitor(), AssertMaskobj->second);
++    }
++
++    auto DeassertMaskobj = sensorObject->second.find("DeassertEventMask");
++    uint16_t DeassertMask ;
++    if (DeassertMaskobj != sensorObject->second.end())
++    {
++        DeassertMask = std::visit(VariantToUnsignedIntVisitor(), DeassertMaskobj->second);
++    }
+ 
+     uint8_t sensornumber = (recordID & 0xFF);
+     get_sdr::SensorDataFullRecord record = {0};
+@@ -1574,6 +1587,11 @@
+     record.body.normal_max = NormalMax;
+     record.body.normal_min = NormalMin;
+ 
++    record.body.supported_assertions[0] = AssertMask;
++    record.body.supported_assertions[1] = AssertMask >> 8;
++    record.body.supported_deassertions[0] = DeassertMask;
++    record.body.supported_deassertions[1] = DeassertMask >> 8;
++
+     auto typeCstr = type.c_str();
+         //Digital Sensor
+         auto SensorDTypeObj = sensorObject->second.find("DType");
+@@ -1727,10 +1745,6 @@
+         record.body.upper_critical_threshold = *thresholdData.criticalHigh;
+         record.body.supported_deassertions[1] |= static_cast<uint8_t>(
+             IPMISensorEventEnableThresholds::criticalThreshold);
+-        record.body.supported_deassertions[1] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::upperCriticalGoingHigh);
+-        record.body.supported_assertions[1] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::upperCriticalGoingHigh);
+         record.body.discrete_reading_setting_mask[0] |=
+             static_cast<uint8_t>(IPMISensorReadingByte3::upperCritical);
+     }
+@@ -1739,10 +1753,6 @@
+         record.body.upper_noncritical_threshold = *thresholdData.warningHigh;
+         record.body.supported_deassertions[1] |= static_cast<uint8_t>(
+             IPMISensorEventEnableThresholds::nonCriticalThreshold);
+-        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::upperNonCriticalGoingHigh);
+-        record.body.supported_assertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::upperNonCriticalGoingHigh);
+         record.body.discrete_reading_setting_mask[0] |=
+             static_cast<uint8_t>(IPMISensorReadingByte3::upperNonCritical);
+     }
+@@ -1751,10 +1761,6 @@
+         record.body.lower_critical_threshold = *thresholdData.criticalLow;
+         record.body.supported_assertions[1] |= static_cast<uint8_t>(
+             IPMISensorEventEnableThresholds::criticalThreshold);
+-        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::lowerCriticalGoingLow);
+-        record.body.supported_assertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::lowerCriticalGoingLow);
+         record.body.discrete_reading_setting_mask[0] |=
+             static_cast<uint8_t>(IPMISensorReadingByte3::lowerCritical);
+     }
+@@ -1763,10 +1769,6 @@
+         record.body.lower_noncritical_threshold = *thresholdData.warningLow;
+         record.body.supported_assertions[1] |= static_cast<uint8_t>(
+             IPMISensorEventEnableThresholds::nonCriticalThreshold);
+-        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::lowerNonCriticalGoingLow);
+-        record.body.supported_assertions[0] |= static_cast<uint8_t>(
+-            IPMISensorEventEnableThresholds::lowerNonCriticalGoingLow);
+         record.body.discrete_reading_setting_mask[0] |=
+             static_cast<uint8_t>(IPMISensorReadingByte3::lowerNonCritical);
+     }

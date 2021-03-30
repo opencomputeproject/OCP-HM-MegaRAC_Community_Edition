@@ -1,0 +1,338 @@
+diff -Naur b/app/access-control/controllers/user-accounts-modal-user.html a/app/access-control/controllers/user-accounts-modal-user.html
+--- b/app/access-control/controllers/user-accounts-modal-user.html	2020-09-04 05:31:06.986492239 -0400
++++ a/app/access-control/controllers/user-accounts-modal-user.html	2020-09-04 05:32:31.452408550 -0400
+@@ -43,7 +43,7 @@
+                        name="accountStatus"
+                        ng-value="true"
+                        ng-model="modalCtrl.user.accountStatus"
+-                       ng-disabled="modalCtrl.user.isRoot">
++                       ng-disabled="modalCtrl.user.isRoot || modalCtrl.user.isSame">
+                 Enabled
+               </label>
+               <label class="radio-label">
+@@ -51,7 +51,7 @@
+                        name="accountStatus1"
+                        ng-value="false"
+                        ng-model="modalCtrl.user.accountStatus"
+-                       ng-disabled="modalCtrl.user.isRoot">
++                       ng-disabled="modalCtrl.user.isRoot || modalCtrl.user.isSame">
+                 Disabled
+               </label>
+             </fieldset>
+@@ -67,7 +67,7 @@
+                      minlength="1"
+                      maxlength="16"
+                      ng-pattern="'^([a-zA-Z_][a-zA-Z0-9_]*)'"
+-                     ng-readonly="modalCtrl.user.isRoot"
++                     ng-readonly="modalCtrl.user.isRoot || modalCtrl.user.isSame"
+                      ng-model="modalCtrl.user.username"
+                      username-validator
+                      existing-usernames="modalCtrl.existingUsernames"/>
+@@ -88,7 +88,7 @@
+               <select id="privilege"
+                       name="privilege"
+                       required
+-                      ng-disabled="modalCtrl.user.isRoot"
++                      ng-disabled="modalCtrl.user.isRoot || modalCtrl.user.isSame"
+                       ng-model="modalCtrl.user.privilege">
+                 <option ng-if="modalCtrl.user.new"
+                         ng-selected="modalCtrl.user.new"
+diff -Naur b/app/access-control/controllers/user-controller.html a/app/access-control/controllers/user-controller.html
+--- b/app/access-control/controllers/user-controller.html	2020-09-04 05:31:06.986492239 -0400
++++ a/app/access-control/controllers/user-controller.html	2020-09-04 05:32:47.800006311 -0400
+@@ -8,13 +8,13 @@
+   <div class="row column">
+     <div class="column small-12 medium-10">
+       <div class="local-users__actions">
+-        <button ng-disabled="accountSettings === null"
++        <button ng-disabled="accountSettings === null || dataService.getLoggedUserRole() == 'User' || dataService.getLoggedUserRole() == 'Operator'"
+                 ng-click="onClickAccountSettingsPolicy()"
+                 class="btn btn-tertiary">
+           <icon file="icon-config.svg"></icon>
+           Account policy settings
+         </button>
+-        <button ng-disabled="userRoles === null || localUsers.length >= 15"
++        <button ng-disabled="userRoles === null || localUsers.length >= 15 || dataService.getLoggedUserRole() == 'User' || dataService.getLoggedUserRole() == 'Operator'"
+                 ng-click="onClickAddUser()"
+                 class="btn btn-primary">
+           <icon file="icon-plus.svg"></icon>
+@@ -40,4 +40,4 @@
+       <role-table></role-table>
+     </div>
+   </div>
+-</div>
+\ No newline at end of file
++</div>
+diff -Naur b/app/access-control/controllers/user-controller.js a/app/access-control/controllers/user-controller.js
+--- b/app/access-control/controllers/user-controller.js	2020-09-04 05:31:06.986492239 -0400
++++ a/app/access-control/controllers/user-controller.js	2020-09-04 05:33:46.178440012 -0400
+@@ -10,8 +10,8 @@
+   'use strict';
+ 
+   angular.module('app.accessControl').controller('userController', [
+-    '$scope', 'APIUtils', 'toastService', '$uibModal', '$q',
+-    function($scope, APIUtils, toastService, $uibModal, $q) {
++    '$scope', 'APIUtils', 'dataService', 'toastService', '$uibModal', '$q',
++    function($scope, APIUtils, dataService , toastService, $uibModal, $q) {
+       $scope.loading;
+       $scope.accountSettings;
+       $scope.userRoles;
+@@ -32,9 +32,35 @@
+        * @param {*} user
+        */
+       function checkIfRoot(user) {
+-        return user.UserName === 'root' ? true : false;
++        return user.UserName === 'root' || user.UserName == dataService.getUser() ? true : false;
+       }
+ 
++      function checkIfSame(user) {
++        return user.UserName === dataService.getUser() ? true : false;
++      }
++
++      function optionsbypriv(user, type){
++        var loggeduserRole = dataService.getLoggedUserRole();
++        var loggeduserName = dataService.getUser();
++        switch (type){
++          case "edit":
++            if(loggeduserRole === 'Operator' || loggeduserRole === 'User'){
++              return true;
++            }else{
++              return false;
++            }
++          break;
++          case "delete":
++            if(user.UserName === 'root' || loggeduserRole === 'Operator' || loggeduserRole === 'User' || user.UserName == loggeduserName){
++              return true;
++            }else{
++              return false;
++            }
++          break;
++          default:
++            return true;
++        }
++      }
+       /**
+        * Data table mapper
+        * @param {*} user
+@@ -43,13 +69,17 @@
+       function mapTableData(user) {
+         const accountStatus =
+             user.Locked ? 'Locked' : user.Enabled ? 'Enabled' : 'Disabled';
+-        const editAction = {type: 'Edit', enabled: true, file: 'icon-edit.svg'};
++        const editAction = {
++          type: 'Edit',
++          enabled: optionsbypriv(user, "edit") ? false : true,
++          file: 'icon-edit.svg'
++        };
+         const deleteAction = {
+           type: 'Delete',
+-          enabled: checkIfRoot(user) ? false : true,
++          enabled: optionsbypriv(user, "delete") ? false : true,
+           file: 'icon-trashcan.svg'
+         };
+-        user.selectable = checkIfRoot(user) ? false : true;
++        user.selectable = optionsbypriv(user, "delete") ? false : true;
+         user.actions = [editAction, deleteAction];
+         user.uiData = [user.UserName, user.RoleId, accountStatus];
+         return user;
+@@ -182,7 +212,7 @@
+               if (users.length > 1) {
+                 message = 'Failed to remove users.'
+               } else {
+-                message = `Failed to remove user '${users[0].UserName}' with status ` + errorStatus.statusText;
++                message = `Failed to remove user '${users[0].UserName}'. ` + dataService.getErrorMsg(errorStatus.data.error.message);
+               }
+               toastService.error(message);
+             })
+@@ -326,6 +356,8 @@
+                 // edit enabled status, edit username, edit role
+                 const isRoot =
+                     newUser ? false : checkIfRoot(user) ? true : false;
++                const isSame =
++                    newUser ? false : checkIfSame(user) ? true : false;
+                 // Array of existing usernames (excluding current user instance)
+                 const existingUsernames =
+                     $scope.localUsers.reduce((acc, val) => {
+@@ -338,6 +370,7 @@
+ 
+                 this.user = {};
+                 this.user.isRoot = isRoot;
++		this.user.isSame = isSame;
+                 this.user.new = newUser;
+                 this.user.accountStatus = status;
+                 this.user.username = newUser ? '' : user.UserName;
+diff -Naur b/app/common/services/dataService.js a/app/common/services/dataService.js
+--- b/app/common/services/dataService.js	2020-09-04 05:31:06.990492140 -0400
++++ a/app/common/services/dataService.js	2020-09-04 05:34:18.503784213 -0400
+@@ -31,9 +31,16 @@
+ 
+       this.ignoreHttpError = false;
+       this.systemName = '';
++      this.userErrors = {
++        "The request failed due to an internal service error.  The service is still operational.": "which is currently logged-in from other browser"
++      }
+ 
+       this.configJson = require('../../../config.json');
+ 
++      this.getErrorMsg = function(msg){
++        return this.userErrors[msg];
++      }
++
+       this.getServerId = function() {
+         return this.host.replace(/^https?\:\/\//ig, '');
+       };
+@@ -126,6 +133,19 @@
+       this.setSystemName = function(sysName) {
+         this.systemName = sysName;
+       };
++  
++      this.isNotAdmin = function(){
++        if(sessionStorage.getItem('ROLE') != "Administrator"){
++          return true;
++        }else {
++          return false
++        }
++      }
++
++      this.getLoggedUserRole = function(){
++        return sessionStorage.getItem('ROLE');
++      }
++
+       this.getLoggedOutVM = function(){
+ 	var vmDevice = {};
+ 	this.devices = [];
+diff -Naur b/app/configuration/controllers/date-time-controller.html a/app/configuration/controllers/date-time-controller.html
+--- b/app/configuration/controllers/date-time-controller.html	2020-09-04 05:31:06.990492140 -0400
++++ a/app/configuration/controllers/date-time-controller.html	2020-09-04 05:34:54.196969820 -0400
+@@ -4,7 +4,7 @@
+   <div class="column small-12 page-header">
+     <h2>Set date and time manually or configure a Network Time Protocol (NTP) Server</h2>
+   </div>
+-  <form class="time__form" role="form" action="">
++  <form name="date_time_form" class="time__form" role="form" action="">
+     <fieldset>
+       <div class="column large-8">
+         <div class="row column">
+@@ -14,16 +14,17 @@
+           </label>
+         </div>
+         <div class="row column date-time__ntp-servers-wrap">
+-          <fieldset class="date-time__ntp-servers" ng-repeat="server in ntp.servers track by $index">
+-            <label for="ntp-server{{$index+1}}">NTP Server Address {{$index+1}} <span ng-if="$first">(Primary)</span></label>
++          <fieldset class="date-time__ntp-servers" ng-repeat="server in ntp.servers track by $index" ng-if="$index < 2">
++            <label for="ntp-server{{$index+1}}">NTP Server Address {{$index+1}} <span ng-if="$first">(Primary)</span><span ng-if="!$first">(Secondary)</span></label>
+             <div class="inline">
+-              <input id="ntp-server{{$index+1}}" type="text" ng-readonly="time.mode != 'NTP'" ng-model="server" ng-blur="ntp.servers[$index] = server" set-focus-on-new-input/>
++              <input id="ntp-server{{$index+1}}" name="ntpserver{{$index+1}}" type="text" ng-readonly="time.mode != 'NTP'" ng-model="server" ng-pattern="validateNTPField" ng-blur="ntp.servers[$index] = server" required set-focus-on-new-input/>
++              <span class="modal__error" ng-show="date_time_form.ntpserver{{$index+1}}.$error.pattern">Invalid format.</span>
+             </div>
+-            <button class="btn  date-time__dns-remove btn-tertiary" ng-click="removeNTPField($index)">Remove</button>
++            <button type="button" class="btn  date-time__dns-remove btn-tertiary" ng-click="removeNTPField($index)">Remove</button>
+           </fieldset>
+         </div>
+         <div class="row column date-time__ntp-servers-wrap">
+-          <button type="button" class="btn btn-primary" ng-click="addNTPField()">Add new NTP server</button>
++          <button type="button" class="btn btn-primary" ng-click="addNTPField()" ng-disabled="ntp.servers.length >= 2">Add new NTP server</button>
+         </div>
+         <div class="row column">
+           <label class="control-radio" for="manual-time">Manually set date and time
+@@ -59,7 +60,7 @@
+       </div>
+     </fieldset>
+     <div class="time__submit-wrapper">
+-      <button type="button" class="btn  btn-primary" ng-click="saveDateTimeSettings()">Save settings</button>
++      <button type="button" class="btn  btn-primary" ng-disabled="date_time_form.$invalid" ng-click="saveDateTimeSettings()">Save settings</button>
+       <button type="button" class="btn  btn-secondary" ng-click="refresh()">Cancel</button>
+     </div>
+   </form>
+diff -Naur b/app/configuration/controllers/date-time-controller.js a/app/configuration/controllers/date-time-controller.js
+--- b/app/configuration/controllers/date-time-controller.js	2020-09-04 05:31:06.990492140 -0400
++++ a/app/configuration/controllers/date-time-controller.js	2020-09-04 05:35:29.950266874 -0400
+@@ -60,6 +60,10 @@
+                                      .TimeSyncMethod.split('.')
+                                      .pop();
+             }
++            $scope.oldBmcDate = $scope.bmc.date.toString();
++            $scope.oldTimeMode = $scope.time.mode.toString();
++            $scope.oldTimeOwner = $scope.time.owner.toString();
++            $scope.oldNTPServer = "";
+           },
+           function(error) {
+             console.log(JSON.stringify(error));
+@@ -68,6 +72,7 @@
+       var getNTPPromise = APIUtils.getNTPServers().then(
+           function(data) {
+             $scope.ntp.servers = data.data;
++            $scope.oldNTPServer = $scope.ntp.servers.toString();
+           },
+           function(error) {
+             console.log(JSON.stringify(error));
+@@ -79,6 +84,36 @@
+         $scope.loading = false;
+       });
+ 
++      $scope.checkChanges = function(){
++        if($scope.time.mode == 'Manual' || $scope.time.owner == 'Split'){
++          if($scope.time.mode.toString() == $scope.oldTimeMode &&
++              $scope.time.owner.toString() == $scope.oldTimeOwner &&
++                $scope.ntp.servers.toString() == $scope.oldNTPServer &&
++                  $scope.bmc.date.toString() == $scope.oldBmcDate
++            ){
++              return true;
++          }else {
++            $scope.oldTimeMode = $scope.time.mode.toString();
++            $scope.oldTimeOwner = $scope.time.owner.toString();
++            $scope.oldNTPServer = $scope.ntp.servers.toString();
++            $scope.oldBmcDate = $scope.bmc.date.toString();
++            return false;
++          }
++        }else{
++          if($scope.time.owner.toString() == $scope.oldTimeOwner &&
++              $scope.ntp.servers.toString() == $scope.oldNTPServer &&
++                $scope.time.mode.toString() == $scope.oldTimeMode
++            ){
++            return true;
++          }else{
++            $scope.oldTimeOwner = $scope.time.owner.toString();
++            $scope.oldNTPServer = $scope.ntp.servers.toString();
++            $scope.oldTimeMode = $scope.time.mode.toString();
++            return false;
++          }
++        }
++      }
++
+       /**
+        * https://github.com/openbmc/phosphor-time-manager/blob/master/README.md#special-note-on-changing-ntp-setting
+        * When time mode is initially set to Manual from NTP,
+@@ -90,6 +125,10 @@
+        * https://github.com/openbmc/openbmc/issues/3459
+        */
+       $scope.saveDateTimeSettings = function() {
++        if($scope.checkChanges()){
++          toastService.info('No Changes happened to Save!');
++          return;
++        }
+         $scope.loading = true;
+         if ($scope.time.mode == 'Manual' || $scope.time.owner == 'Split') {
+           setTimeMode()
+@@ -163,6 +202,20 @@
+         $scope.ntp.servers.splice(index, 1);
+       };
+ 
++      $scope.validateNTPField = (function(){
++        var ntp_reg_check1 = /^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|([a-zA-Z0-9][a-zA-Z0-9-_]{1,61}[a-zA-Z0-9]))(.*\.)?.*\.([a-zA-Z]{2,6}|[a-zA-Z0-9-]{2,30}\.[a-zA-Z]{2,3})$/;
++        var ntp_reg_check2 = /((^\s*((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\s*$)|(^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$))/;
++        return {
++          test: function(value){
++            if (!((ntp_reg_check1.test(value)) || (ntp_reg_check2.test(value) )) || !(value != "")){
++              return false;
++            }else{
++              return true;
++            }
++          }
++        }
++      })();
++
+       function setNTPServers() {
+         // Remove any empty strings from the array. If the
+         // user doesn't fill out the field, we don't want to add.

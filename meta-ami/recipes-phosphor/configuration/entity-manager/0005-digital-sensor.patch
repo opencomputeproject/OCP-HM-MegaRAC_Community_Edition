@@ -1,0 +1,73 @@
+--- "a/configurations/WFT Baseboard.json"	2020-08-11 16:23:59.512289116 +0530
++++ "b/configurations/WFT Baseboard.json"	2020-08-11 16:31:21.072740801 +0530
+@@ -1661,7 +1661,46 @@
+                 }
+             ],
+             "Type": "XeonCPU"
+-        }
++        },
++	{
++            "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Digital",
++            "EvStat": 231,
++            "Direction": "Input",
++            "Index": 10,
++            "Name": "CPU Missing",
++            "Polarity": "Low",
++            "DType": "0x07",
++            "EventType": "0x03",
++            "EventOffset": "0",
++            "Type": "Digitalgpio"
++        },
++       {
++            "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Discrete",
++            "EvStat": 231,
++            "Name": "WATCHDOG2",
++            "DType": "0x23",
++            "EventType": "0x6f",
++            "EventOffset": "0",
++            "Type": "Discevent"
++        },
++         {
++            "BindGpioIntrusion": "Chassis Intrusion GPIO",
++            "Class": "Gpio",
++            "Name": "Chassis Intrusion Sensor",
++            "Type": "ChassisIntrusionSensor"
++        },
++        {
++            "Direction": "Input",
++            "Index": 11,
++            "Name": "Chassis Intrusion GPIO",
++            "Polarity": "Low",
++            "DType": "0x05",
++            "EventType": "0x6f",
++            "EventOffset": "0",
++            "EvStat": 231,
++            "Type": "Gpio"
++         }
++
+     ],
+     "Name": "WFP Baseboard",
+     "Probe": "xyz.openbmc_project.FruDevice({'PRODUCT_PRODUCT_NAME': '.*WFT'})",
+--- a/src/EntityManager.cpp	2020-08-11 16:52:10.253061092 +0530
++++ b/src/EntityManager.cpp	2020-08-11 16:53:08.857272032 +0530
+@@ -75,8 +75,8 @@
+                  {"FOUND", probe_type_codes::FOUND},
+                  {"MATCH_ONE", probe_type_codes::MATCH_ONE}}};
+ 
+-static constexpr std::array<const char*, 6> settableInterfaces = {
+-    "FanProfile", "Pid", "Pid.Zone", "Stepwise", "Thresholds", "Polling"};
++static constexpr std::array<const char*, 7> settableInterfaces = {
++    "FanProfile", "Pid", "Pid.Zone", "Stepwise", "Thresholds", "Polling", "Discrete"};
+ using JsonVariantType =
+     std::variant<std::vector<std::string>, std::vector<double>, std::string,
+                  int64_t, uint64_t, double, int32_t, uint32_t, int16_t,
+--- a/include/devices.hpp	2020-08-11 16:33:04.384829681 +0530
++++ b/include/devices.hpp	2020-08-11 16:34:44.681735517 +0530
+@@ -51,6 +51,7 @@
+           ExportTemplate("emc1413 $Address",
+                          "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"Gpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
++	 {"Digitalgpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
+          {"INA230", ExportTemplate("ina230 $Address",
+                                    "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"ISL68137",

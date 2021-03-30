@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# config: 134 1
+# @brief: Collect user initialized PID specific journal log information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Journal pid:$pid log"
+
+if [ $pid -eq $ZERO ]; then
+    log_warning "Missing PID, Collecting last 500 journal entries"
+    file_name="journal.log"
+    command="journalctl -o verbose -n $JOURNAL_LINE_LIMIT"
+else
+    file_name="journal-pid-$pid.log"
+    command="journalctl -o verbose _PID=$pid"
+fi
+
+add_cmd_output "$command" "$file_name" "$desc"

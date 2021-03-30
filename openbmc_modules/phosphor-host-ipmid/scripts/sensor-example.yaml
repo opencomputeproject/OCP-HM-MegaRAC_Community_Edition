@@ -1,0 +1,194 @@
+# Sensor id is the key
+0x60:
+  sensorType: 0x07
+  sensorReadingType: 0x6F
+  # A "set" operation on this sensor should update this d-bus path.
+  # If the path is not specified, an MRW parser will try to determine the path
+  # based on the sensor id, on MRW based systems.  This typically happens for
+  # inventory items.
+  path: /org/open_power/control/occ0
+  # The interface that exposes method(s) to update the path above.
+  serviceInterface: org.freedesktop.DBus.Properties
+  # Where the sensor value is represented - assertion bits/reading/event data
+  readingType: assertion
+  # indicate if a sensor is READ/WRITE/RW.
+  # This particular sensor read and write operation is allowed
+  mutability: Mutability::Write|Mutability::Read
+  # Sensor name would be occ0
+  sensorNamePattern: nameLeaf
+  eventType: 0x6F
+  # All the d-bus interfaces : properties that must be updated for this path
+  interfaces:
+    # One or more interface dict entries
+    org.open_power.OCC.Status:
+      OccActive:
+        Offsets:
+          # Sensor type specific offset
+          0x06:
+            # OccActive is a boolean
+            type: "bool"
+            # If offset 0x06 is asserted, set OccActive as false.
+            assert: "false"
+            deassert: "true"
+
+0x61:
+  sensorType: 0x04
+  sensorReadingType: 0x6F
+  # Inventory paths intentionally leave out the inventory root,
+  # /xyz/openbmc_project/inventory, because phosphor-inventory-manager
+  # adds that.
+  path: /system/chassis/motherboard/dimm1
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        #Offsets contain the offsets in the sensor data.
+        Offsets:
+          0x06:
+            assert: true
+            deassert: false
+            type: bool
+        #Prereqs are pre-requisites for this property value to be true.
+        Prereqs:
+          0x04:
+            assert: false
+            deassert: true
+            type: bool
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x04:
+            assert: false
+            deassert: true
+            type: bool
+
+0x63:
+  interfaces:
+    xyz.openbmc_project.Control.Boot.RebootAttempts:
+      AttemptsLeft:
+        Offsets:
+          0xFF:
+            type: uint32_t
+  path: /xyz/openbmc_project/state/host0
+  # A special case of assertion, where the entire assert bitfield
+  # serves as the value, or reading. Hence, the offset above is intentionally
+  # 0xFF, to indicate not to check any specific bits in the assertion.
+  readingType: readingAssertion
+  # Sensor name would be AttemptsLeft
+  sensorNamePattern: nameProperty
+  sensorReadingType: 0x6F
+  mutability: Mutability::Write|Mutability::Read
+  sensorType: 0xC3
+  serviceInterface: org.freedesktop.DBus.Properties
+
+0x62:
+  interfaces:
+    xyz.openbmc_project.Control.Boot.RebootAttempts:
+      AttemptsLeft:
+        Offsets:
+          0xFF:
+            type: uint32_t
+  path: /xyz/openbmc_project/state/host1
+  readingType: readingAssertion
+  sensorNamePattern: nameProperty
+  sensorReadingType: 0x6F
+  mutability: Mutability::Write|Mutability::Read
+  sensorType: 0xC3
+  serviceInterface: org.freedesktop.DBus.Properties
+
+0xD0:
+  sensorType: 0x01
+  path: /xyz/openbmc_project/sensors/temperature/fleeting0
+  sensorReadingType: 0x01
+  multiplierM: 511
+  offsetB: 0
+  bExp: 0
+  # Result exponent field in Type 1 SDR(2's complement, signed)
+  rExp: 0
+  # Applies for analog sensors, the actual reading value for the sensor is
+  # Value * 10^N
+  scale: -3
+  mutability: Mutability::Write|Mutability::Read
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+
+0x54:
+  sensorType: 0x07
+  path: /system/chassis/motherboard/cpu0/core22
+  sensorReadingType: 0x6F
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  # Sensor name would be cpu0_core22
+  sensorNamePattern: nameParentLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          0x08:
+            assert: false
+            deassert: true
+            type: bool
+        Prereqs:
+          0x07:
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x07:
+            assert: true
+            deassert: false
+            #The update will be skipped based on the value of skipOn
+            #in this case if offset 0x07 is deasserted
+            #the update will be skipped.
+            skipOn: deassert
+            type: bool
+
+0xC5:
+  sensorType: 0x17
+  path: /system/chassis/motherboard/gv100card0
+  sensorReadingType: 1
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Replaceable:
+      FieldReplaceable:
+        Offsets:
+          7:
+            assert: true
+            deassert: true
+            type: bool
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          7:
+            assert: true
+            deassert: false
+            type: bool
+    # Example of an interface with no attached properties
+    xyz.openbmc_project.Inventory.Item.Accelerator:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          8:
+            assert: false
+            deassert: true
+            type: bool
+        Prereqs:
+          7:
+            assert: true
+            deassert: false
+            type: bool

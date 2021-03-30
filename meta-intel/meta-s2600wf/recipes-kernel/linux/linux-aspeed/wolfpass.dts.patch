@@ -1,0 +1,46 @@
+--- a/arch/arm/boot/dts/aspeed-bmc-intel-s2600wf.dts	2020-11-07 13:52:31.375308371 -0500
++++ b/arch/arm/boot/dts/aspeed-bmc-intel-s2600wf.dts	2020-11-07 14:06:04.352905242 -0500
+@@ -38,6 +38,10 @@
+ 
+ };
+ 
++&adc {
++        status = "okay";
++};
++
+ &fmc {
+ 	status = "okay";
+ 	flash@0 {
+@@ -130,3 +134,32 @@
+ 			 &pinctrl_pwm4_default &pinctrl_pwm5_default
+ 			 &pinctrl_pwm6_default &pinctrl_pwm7_default>;
+ };
++
++&espi {
++        status = "okay";
++};
++
++&kcs1{
++    status = "okay";
++    kcs_addr = <0xCA0>;
++};
++
++&kcs2{
++    status = "okay";
++    kcs_addr = <0xCA8>;
++};
++
++&kcs3{
++    status = "okay";
++    kcs_addr = <0xCA2>;
++};
++
++&lpc_ctrl {
++        status = "okay";
++};
++
++&lpc_snoop{
++    status = "okay";
++    snoop-ports = <0x80>;
++};
++

@@ -1,0 +1,28 @@
+diff -Naur a/app/watchdog.cpp b/app/watchdog.cpp
+--- a/app/watchdog.cpp	2020-12-07 17:06:25.909571583 -0500
++++ b/app/watchdog.cpp	2020-12-07 17:12:41.069578047 -0500
+@@ -41,9 +41,24 @@
+ 
+ ipmi::RspType<> ipmiAppResetWatchdogTimer()
+ {
++	uint16_t presentCountdown = 0;
++	uint8_t  pretimeout = 0;
+     try
+     {
+         WatchdogService wd_service;
++		WatchdogService::Properties wd_prop = wd_service.getProperties();
++
++		presentCountdown = htole16(wd_prop.timeRemaining / 100);
++		pretimeout = wd_prop.preTimeoutInterval; 
++
++		if (presentCountdown != 0)
++		{
++			if (presentCountdown < pretimeout)
++			{
++				return ipmi::responseCommandNotAvailable();
++
++			}
++		}
+ 
+         // Notify the caller if we haven't initialized our timer yet
+         // so it can configure actions and timeouts

@@ -1,0 +1,65 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ${deploy_name}
+  namespace: openbmc
+  labels:
+    app: ${deploy_name}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${deploy_name}
+  template:
+    metadata:
+      labels:
+        app: ${deploy_name}
+    spec:
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: ${h_claim}
+      containers:
+      - env:
+        - name: JAVA_OPTS
+          value: ${java_options}
+        - name: JENKINS_OPTS
+          value: ${jenkins_options}
+        name: ${pod_name}
+        image: ${img_name}
+        ports:
+        - containerPort: ${http_port}
+          protocol: TCP
+          name: ui
+        - containerPort: ${agent_port}
+          protocol: TCP
+          name: slave-listener
+        resources: {}
+        volumeMounts:
+        - name: config
+          mountPath: ${j_home}
+      nodeSelector:
+        beta.kubernetes.io/arch: ${ARCH}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: jenkins-master
+  name: jenkins-master
+  namespace: openbmc
+spec:
+  clusterIP: ${cluster_ip}
+  ports:
+  - name: ui
+    port: ${http_port}
+    nodePort: ${http_nodeport}
+    protocol: TCP
+  - name: slave-listener
+    port: ${agent_port}
+    nodePort: ${agent_nodeport}
+    protocol: TCP
+  selector:
+    app: jenkins-master
+  sessionAffinity: None
+  type: NodePort

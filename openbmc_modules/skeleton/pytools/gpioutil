@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import getopt
+from glob import glob
+from os.path import join
+import obmc_system_config as System
+
+
+def printUsage():
+	print '\nUsage:'
+	print 'gpioutil -n GPIO_NAME  [-v value]'
+	print 'gpioutil -i GPIO_NUM  -d <DIRECTION = in,out,falling,rising,both> [-v value]'
+	print 'gpioutil -p PIN_NAME  -d <DIRECTION = in,out,falling,rising,both> [-v value]'
+	print 'gpioutil -l PIN_NAME     (lookup pin name only)'
+	exit(1)
+
+
+
+if (len(sys.argv) < 2):
+	printUsage()
+
+# Pop the command name and point to the args
+sys.argv.pop(0)
+
+GPIO_SYSFS = '/sys/class/gpio/'
+
+
+def find_gpio_base(path="/sys/class/gpio/"):
+	pattern = "gpiochip*"
+	for gc in glob(join(path, pattern)):
+		with open(join(gc, "label")) as f:
+			label = f.readline().strip()
+		if label == "1e780000.gpio":
+			with open(join(gc, "base")) as f:
+				return int(f.readline().strip())
+	# trigger a file not found exception
+	open(join(path, "gpiochip"))
+
+
+GPIO_BASE = find_gpio_base()
+
+
+def convertGpio(name):
+	offset = int(''.join(list(filter(str.isdigit, name))))
+	port = list(filter(str.isalpha, name.upper()))
+	a = ord(port[-1]) - ord('A')
+	if len(port) > 1:
+		a += 26
+	base = a * 8 + GPIO_BASE
+	return base + offset
+
+
+class Gpio:
+	def __init__(self,gpio_num):
+		self.gpio_num = str(gpio_num)
+		self.direction = ''
+		self.interrupt = ''
+		self.exported = False
+
+	def getPath(self,name):
+		return GPIO_SYSFS+'gpio'+self.gpio_num+'/'+name
+	
+	def export(self):
+		if (os.path.exists(GPIO_SYSFS+'export') == False):
+			raise Exception("ERROR - GPIO_SYSFS path does not exist.  Does this platform support GPIOS?")
+		if (os.path.exists(GPIO_SYSFS+'gpio'+self.gpio_num) == False):
+			self.write(GPIO_SYSFS+'export',self.gpio_num)
+			
+		self.exported = True
+
+	def setDirection(self,dir):
+		if (self.exported == False):
+			raise Exception("ERROR - Not exported: "+self.getPath())
+
+		self.direction = ''
+		self.interrupt = ''
+		if (dir == 'in' or dir == 'out'):
+			self.direction = dir
+		elif (dir == 'rising' or 
+		      dir == 'falling' or
+		      dir == 'both'):
+			self.direction = 'in'
+			self.interrupt = dir
+			self.write(self.getPath('edge'),self.interrupt)
+		else:
+			raise Exception("ERROR - Invalid Direction: "+dir)
+
+		current_direction = self.read(self.getPath('direction'))
+		if current_direction != self.direction:
+			self.write(self.getPath('direction'),self.direction)
+
+	def setValue(self,value):
+		if (value == '0'):
+			self.write(self.getPath('value'),'0')
+		elif (value == '1'):
+			self.write(self.getPath('value'),'1')
+		else:
+			raise Exception("ERROR - Invalid value: "+value)
+	
+	def getValue(self):
+		return self.read(self.getPath('value'))
+
+	def write(self,path,data):
+		f = open(path,'w')
+		f.write(data)
+		f.close()
+
+
+	def read(self,path):
+		f = open(path,'r')
+		data = f.readline().strip()
+		f.close()
+		return data
+
+
+
+if __name__ == '__main__':
+
+	try:
+		opts, args = getopt.getopt(sys.argv,"hn:i:d:v:p:l:")
+ 	except getopt.GetoptError:
+ 		printUsage()
+
+
+
+	lookup = False
+	gpio_name = ""
+	value = ""
+	direction = ""
+	for opt, arg in opts:
+ 		if opt == '-h':
+			printUsage()
+
+ 		elif opt in ("-n"):
+ 			gpio_name = arg
+			lookup = True
+ 		elif opt in ("-i"):
+ 			gpio_name = arg
+ 		elif opt in ("-d"):
+			direction = arg
+ 		elif opt in ("-v"):
+			value = arg
+		elif opt in ("-p"):
+			gpio_name = convertGpio(arg)
+		elif opt in ("-l"):
+			gpio_name = convertGpio(arg)
+			print gpio_name
+			exit(0) 
+
+	gpio_info = {}
+	if (lookup == True):
+		if (System.GPIO_CONFIG.has_key(gpio_name) == False):
+			print "ERROR - GPIO Name doesn't exist"
+			print "Valid names: "
+			for n in System.GPIO_CONFIG:
+				print "\t"+n
+			exit(0)
+		gpio_info = System.GPIO_CONFIG[gpio_name]
+		direction = gpio_info['direction']
+		if (gpio_info.has_key('gpio_num')):
+			gpio_name = str(gpio_info['gpio_num'])
+		else:
+			gpio_name = str(convertGpio(gpio_info['gpio_pin']))
+		print "GPIO ID: "+gpio_name+"; DIRECTION: "+direction
+
+
+	## Rules
+	if (gpio_name == ""):
+		print "ERROR - Gpio not specified"
+		printUsage()
+
+	if (direction == "in" and value != ""):
+		print "ERROR - Value cannot be specified when direction = in"
+		printUsage()
+
+	gpio = Gpio(gpio_name)
+	try:
+		gpio.export()
+		if (direction != ""):
+			gpio.setDirection(direction)
+
+		if (value == ""):
+			print gpio.getValue()
+		else:
+			gpio.setValue(value)
+
+	except Exception as e:
+		print e
+		

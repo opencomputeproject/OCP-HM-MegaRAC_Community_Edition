@@ -1,0 +1,212 @@
+diff -Naur k2/arch/arm/mach-npcm750/include/mach/cpu.h l2/arch/arm/mach-npcm750/include/mach/cpu.h
+--- k2/arch/arm/mach-npcm750/include/mach/cpu.h	2020-08-28 18:01:03.824614556 -0400
++++ l2/arch/arm/mach-npcm750/include/mach/cpu.h	2020-08-28 18:14:08.421607754 -0400
+@@ -25,6 +25,7 @@
+ 
+ #define NPCM750_GCR_BA			0xF0800000
+ #define NPCM750_CLK_BA			0xF0801000
++#define NPCM750_GPIO_BA			0xF0010000
+ 
+ #ifndef __ASSEMBLY__
+ 
+@@ -37,6 +38,7 @@
+ 
+ NPCM750_BASE(gcr, GCR_BA)
+ NPCM750_BASE(clk, CLK_BA)
++NPCM750_BASE(gpio, GPIO_BA)
+ 
+ #endif
+ 
+diff -Naur k2/arch/arm/mach-npcm750/include/mach/gcr.h l2/arch/arm/mach-npcm750/include/mach/gcr.h
+--- k2/arch/arm/mach-npcm750/include/mach/gcr.h	2020-08-28 18:01:18.040789123 -0400
++++ l2/arch/arm/mach-npcm750/include/mach/gcr.h	2020-08-28 18:13:52.977469449 -0400
+@@ -42,7 +42,9 @@
+ 	unsigned int  intsr;
+ 	unsigned char res3[0xc];
+ 	unsigned int  hifcr;
+-	unsigned char res4[0xc];
++	unsigned int  sd1irv1;
++	unsigned int  sd1irv2;
++	unsigned char res4[0x4];
+ 	unsigned int  intcr2;
+ 	unsigned int  mfsel3;
+ 	unsigned int  srcnt;
+@@ -57,7 +59,9 @@
+ 	unsigned char res6[0xc];
+ 	unsigned int  vsintr;
+ 	unsigned int  mfsel4;
+-	unsigned char res7[0x10];
++	unsigned int  sd2irv1;
++	unsigned int  sd2irv2;
++	unsigned char res7[0x8];
+ 	unsigned int  cpbpntr;
+ 	unsigned char res8[0x8];
+ 	unsigned int  cpctl;
+diff -Naur k2/arch/arm/mach-npcm750/include/mach/poleg_clock.h l2/arch/arm/mach-npcm750/include/mach/poleg_clock.h
+--- k2/arch/arm/mach-npcm750/include/mach/poleg_clock.h	2020-08-28 18:01:34.672975442 -0400
++++ l2/arch/arm/mach-npcm750/include/mach/poleg_clock.h	2020-08-28 18:13:37.209329325 -0400
+@@ -144,4 +144,13 @@
+ #define IPSRST3_USBDEV7             5
+ #define IPSRST3_USBDEV0             4
+ 
++/* Watchdog 0 Reset Control Regoster, offset 0x38 */
++#define WDORCR_GPIO_M0 16
++#define WDORCR_GPIO_M1 17
++#define WDORCR_GPIO_M2 18
++#define WDORCR_GPIO_M3 19
++#define WDORCR_GPIO_M4 20
++#define WDORCR_GPIO_M5 21
++#define WDORCR_GPIO_M6 22
++#define WDORCR_GPIO_M7 23
+ #endif
+diff -Naur k2/arch/arm/mach-npcm750/include/mach/poleg_gcr.h l2/arch/arm/mach-npcm750/include/mach/poleg_gcr.h
+--- k2/arch/arm/mach-npcm750/include/mach/poleg_gcr.h	2020-08-28 18:01:47.988997528 -0400
++++ l2/arch/arm/mach-npcm750/include/mach/poleg_gcr.h	2020-08-28 18:12:53.316945434 -0400
+@@ -26,6 +26,9 @@
+ /* On-Chip POLEG NPCM750 VERSIONS */
+ #define POLEG_Z1                    0x00A92750
+ #define POLEG_A1                    0x04A92750
++#define POLEG_NPCM750				0x00000000
++#define POLEG_NPCM730				0x00300395
++#define POLEG_NPCM710				0x00200380
+ 
+ /* Multiple Function Pin Select Register 1 (MFSEL1) */
+ #define MFSEL1_SIRQSE               31
+@@ -131,8 +134,6 @@
+ #define  INTCR_GFXINT               12
+ #define  INTCR_DACOSOVR             10
+ #define  INTCR_GFXIFDIS             8
+-#define  INTCR_H2RQDIS              9
+-#define  INTCR_H2DISPOFF            8
+ #define  INTCR_GFXINT2              7
+ #define  INTCR_VGAIOEN              6
+ #define  INTCR_R1EN                 5
+@@ -142,6 +143,37 @@
+ #define  INTCR_MFTFEN               1
+ #define  INTCR_KCSRST_MODE          0
+ 
++/* Integration Control Register 3 (INTCR3) */
++#define  INTCR3_PCIRREL             30
++#define  INTCR3_GFXRSTDLY           26
++#define  INTCR3_GFXRDEN             25
++#define  INTCR3_DACSBYOFF           23
++#define  INTCR3_RCCORER             22
++#define  INTCR3_GFX_ORL0            20
++#define  INTCR3_PECIVSEL            19
++#define  INTCR3_PCIEDEM             17
++#define  INTCR3_USBPHYSW            12
++#define  INTCR3_GMMAP               8
++#define  INTCR3_FIU_FIX             6
++#define  INTCR3_GFXACCDIS           4
++#define  INTCR3_HSRDIS              2
++#define  INTCR3_BIOSEN              1
++#define  INTCR3_HHRDIS              0
++
++/* Serial Ports (SPSWC) */
++#define SPSWC_RTSS  7
++#define SPSWC_DTRS  6
++#define SPSWC_DCDI  5
++#define SPSWC_SPMOD 0
++#define SPMOD_MASK 7
++#define SPMOD_MODE1 0
++#define SPMOD_MODE2 1
++#define SPMOD_MODE3 2
++#define SPMOD_MODE4 3
++#define SPMOD_MODE5 4
++#define SPMOD_MODE6 5
++#define SPMOD_MODE7 6
++
+ /* I2C Segment Pin Select Register (I2CSEGSEL) */
+ #define I2CSEGSEL_S0DECFG			3
+ #define I2CSEGSEL_S4DECFG			17
+diff -Naur k2/arch/arm/mach-npcm750/include/mach/poleg_rst.h l2/arch/arm/mach-npcm750/include/mach/poleg_rst.h
+--- k2/arch/arm/mach-npcm750/include/mach/poleg_rst.h	1969-12-31 19:00:00.000000000 -0500
++++ l2/arch/arm/mach-npcm750/include/mach/poleg_rst.h	2020-08-28 16:25:06.949952489 -0400
+@@ -0,0 +1,31 @@
++#ifndef _POLEG_RST_H_
++#define _POLEG_RST_H_
++
++enum reset_type {
++    PORST    = 0x01,
++    CORST    = 0x02,
++    WD0RST   = 0x03,
++    SWR1ST   = 0x04,
++    SWR2ST   = 0x05,
++    SWR3ST   = 0x06,
++    SWR4ST   = 0x07,
++    WD1RST   = 0x08,
++    WD2RST   = 0x09,
++    UNKNOWN  = 0x10,
++};
++
++#define PORST 0x80000000
++#define CORST 0x40000000
++#define WD0RST 0x20000000
++#define SWR1ST 0x10000000
++#define SWR2ST 0x08000000
++#define SWR3ST 0x04000000
++#define SWR4ST 0x02000000
++#define WD1RST 0x01000000
++#define WD2RST 0x00800000
++#define RESSR_MASK 0xff800000
++
++enum reset_type npcm7xx_reset_reason(void);
++
++#endif
++
+diff -Naur k2/arch/arm/mach-npcm750/Kconfig l2/arch/arm/mach-npcm750/Kconfig
+--- k2/arch/arm/mach-npcm750/Kconfig	2020-08-28 18:00:17.120041438 -0400
++++ l2/arch/arm/mach-npcm750/Kconfig	2020-08-28 18:14:25.749764168 -0400
+@@ -12,6 +12,9 @@
+ config SYS_SOC
+ 	default "npcm750"
+ 
++config SYS_MEM_TOP_HIDE
++	hex "Reserved TOP memory"
++	default 0x03000000
+ 
+ source "board/nuvoton/poleg/Kconfig"
+ 
+diff -Naur k2/arch/arm/mach-npcm750/reset.c l2/arch/arm/mach-npcm750/reset.c
+--- k2/arch/arm/mach-npcm750/reset.c	2020-08-28 15:42:09.116994668 -0400
++++ l2/arch/arm/mach-npcm750/reset.c	2020-08-28 20:38:07.634127640 -0400
+@@ -22,6 +22,10 @@
+ 
+ #include <common.h>
+ #include <asm/io.h>
++#include <asm/arch/poleg_rst.h>
++#include <asm/arch/gcr.h>
++#include <asm/arch/poleg_info.h>
++#include <asm/arch/cpu.h>
+ 
+ void reset_cpu(ulong ignored)
+ {
+@@ -34,3 +38,28 @@
+ 	printf("clear WDC\n");
+ 	writel(readl(0xf0800060) & ~(1 << 21), 0xf0800060);
+ }
++
++enum reset_type npcm7xx_reset_reason(void)
++{
++	struct npcm750_gcr *gcr = (struct npcm750_gcr *)npcm750_get_base_gcr();
++	enum reset_type type = UNKNOWN;
++    u32 value = readl(&gcr->ressr);
++
++	if (value == 0)
++		value = ~readl(&gcr->intcr2);
++
++	value &= RESSR_MASK;
++
++	if (value & CORST)
++		type = CORST;
++	if (value & WD0RST)
++		type = WD0RST;
++	if (value & WD1RST)
++		type = WD1RST;
++	if (value & WD2RST)
++		type = WD2RST;
++	if (value & PORST)
++		type = PORST;
++
++	return type;
++}

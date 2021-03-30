@@ -1,0 +1,3475 @@
+diff -Naur c/include/authorization.hpp d/include/authorization.hpp
+--- c/include/authorization.hpp	2020-10-22 12:28:42.522715439 +0530
++++ d/include/authorization.hpp	2020-10-22 13:29:40.724738224 +0530
+@@ -38,54 +38,72 @@
+ }
+ 
+ static const std::shared_ptr<crow::persistent_data::UserSession>
+-    performBasicAuth(std::string_view auth_header)
++    performBasicAuth(std::string_view auth_header ,int oem_uri = 0)
+ {
+-    BMCWEB_LOG_DEBUG << "[AuthMiddleware] Basic authentication";
++	BMCWEB_LOG_DEBUG << "[AuthMiddleware] Basic authentication";
+ 
+-    std::string authData;
+-    std::string_view param = auth_header.substr(strlen("Basic "));
+-    if (!crow::utility::base64Decode(param, authData))
+-    {
+-	BadRequest=true;
+-        return nullptr;
+-    }
+-    std::size_t separator = authData.find(':');
+-    if (separator == std::string::npos)
+-    {
+-	BadRequest=true;
+-        return nullptr;
+-    }
++	if(oem_uri != 1)
++	{
+ 
+-    std::string user = authData.substr(0, separator);
+-    separator += 1;
+-    if (separator > authData.size())
+-    {
+-	BadRequest=true;
+-        return nullptr;
+-    }
+-    std::string pass = authData.substr(separator);
++		std::string authData;
++		std::string_view param = auth_header.substr(strlen("Basic "));
++		if (!crow::utility::base64Decode(param, authData))
++		{
++			BadRequest=true;
++			return nullptr;
++		}
++		std::size_t separator = authData.find(':');
++		if (separator == std::string::npos)
++		{
++			BadRequest=true;
++			return nullptr;
++		}
++
++		std::string user = authData.substr(0, separator);
++		separator += 1;
++		if (separator > authData.size())
++		{
++			BadRequest=true;
++			return nullptr;
++		}
++		std::string pass = authData.substr(separator);
++
++		if( user.empty() || pass.empty() )
++			BadRequest=true;
++
++		BMCWEB_LOG_DEBUG << "[AuthMiddleware] Authenticating user: " << user;
++
++		int pamrc = pamAuthenticateUser(user, pass);
++		bool isConfigureSelfOnly = pamrc == PAM_NEW_AUTHTOK_REQD;
++		if ((pamrc != PAM_SUCCESS) && !isConfigureSelfOnly)
++		{
++			return nullptr;
++		}
++
++		// TODO(ed) generateUserSession is a little expensive for basic
++		// auth, as it generates some random identifiers that will never be
++		// used.  This should have a "fast" path for when user tokens aren't
++		// needed.
++		// This whole flow needs to be revisited anyway, as we can't be
++		// calling directly into pam for every request
++		return persistent_data::SessionStore::getInstance().generateUserSession(
++				user, crow::persistent_data::PersistenceType::SINGLE_REQUEST,
++				isConfigureSelfOnly);
++
++	}
++
++	else
++
++	{
++
++
++		return persistent_data::SessionStore::getInstance().generateUserSession(
++				"root", crow::persistent_data::PersistenceType::SINGLE_REQUEST,
++				false);
+ 
+-    if( user.empty() || pass.empty() )
+-    BadRequest=true;
++	}
+ 
+-    BMCWEB_LOG_DEBUG << "[AuthMiddleware] Authenticating user: " << user;
+ 
+-    int pamrc = pamAuthenticateUser(user, pass);
+-    bool isConfigureSelfOnly = pamrc == PAM_NEW_AUTHTOK_REQD;
+-    if ((pamrc != PAM_SUCCESS) && !isConfigureSelfOnly)
+-    {
+-        return nullptr;
+-    }
+-
+-    // TODO(ed) generateUserSession is a little expensive for basic
+-    // auth, as it generates some random identifiers that will never be
+-    // used.  This should have a "fast" path for when user tokens aren't
+-    // needed.
+-    // This whole flow needs to be revisited anyway, as we can't be
+-    // calling directly into pam for every request
+-    return persistent_data::SessionStore::getInstance().generateUserSession(
+-        user, crow::persistent_data::PersistenceType::SINGLE_REQUEST,
+-        isConfigureSelfOnly);
+ }
+ 
+ static const std::shared_ptr<crow::persistent_data::UserSession>
+@@ -226,21 +244,27 @@
+     }
+     if (req.session == nullptr)
+     {
+-        std::string_view authHeader = req.getHeaderValue("Authorization");
+-        if (!authHeader.empty())
+-        {
+-            // Reject any kind of auth other than basic or token
+-            if (boost::starts_with(authHeader, "Token ") &&
+-                authMethodsConfig.sessionToken)
+-            {
+-                req.session = performTokenAuth(authHeader);
+-            }
+-            else if (boost::starts_with(authHeader, "Basic ") &&
+-                     authMethodsConfig.basic)
+-            {
+-                req.session = performBasicAuth(authHeader);
+-            }
+-        }
++	    std::string_view authHeader = req.getHeaderValue("Authorization");
++	    if (!authHeader.empty())
++	    {
++		    // Reject any kind of auth other than basic or token
++		    if (boost::starts_with(authHeader, "Token ") &&
++				    authMethodsConfig.sessionToken)
++		    {
++			    req.session = performTokenAuth(authHeader);
++		    }
++		    else if (boost::starts_with(authHeader, "Basic ") &&
++				    authMethodsConfig.basic)
++		    {
++			    req.session = performBasicAuth(authHeader);
++		    }
++	    }
++	    if(req.url == "/redfish/v1/Oem/Ami/InventoryData")
++	    {
++
++		    req.session = performBasicAuth(authHeader,1);
++	    }
++
+     }
+ 
+     if (req.session == nullptr)
+diff -Naur c/redfish-core/include/redfish.hpp d/redfish-core/include/redfish.hpp
+--- c/redfish-core/include/redfish.hpp	2020-10-22 12:28:42.522715439 +0530
++++ d/redfish-core/include/redfish.hpp	2020-10-22 13:12:06.481001840 +0530
+@@ -32,7 +32,7 @@
+ #include "../lib/roles.hpp"
+ #include "../lib/sensors.hpp"
+ #include "../lib/service_root.hpp"
+-#include "../lib/storage.hpp"
++//#include "../lib/storage.hpp"
+ #include "../lib/systems.hpp"
+ #include "../lib/task.hpp"
+ #include "../lib/thermal.hpp"
+@@ -40,6 +40,7 @@
+ #include "../lib/virtual_media.hpp"
+ #include "../lib/serial_interface.hpp"
+ #include "../lib/hypervisor_ethernet.hpp"
++#include "../lib/inventory.hpp"
+ #include "webserver_common.hpp"
+ 
+ namespace redfish
+@@ -84,9 +85,7 @@
+         nodes.emplace_back(std::make_unique<UpdateService>(app));
+         nodes.emplace_back(std::make_unique<SerialInterfaceCollection>(app));
+         nodes.emplace_back(std::make_unique<SerialInterfaceInstance>(app));
+-        nodes.emplace_back(std::make_unique<StorageCollection>(app));
+-        nodes.emplace_back(std::make_unique<Storage>(app));
+-        nodes.emplace_back(std::make_unique<Drive>(app));
++
+ #ifdef BMCWEB_INSECURE_ENABLE_REDFISH_FW_TFTP_UPDATE
+         nodes.emplace_back(
+             std::make_unique<UpdateServiceActionsSimpleUpdate>(app));
+@@ -140,6 +139,24 @@
+ #endif // BMCWEB_ENABLE_REDFISH_RAW_PECI
+ #endif // BMCWEB_ENABLE_REDFISH_CPU_LOG
+ 
++//added here
++        nodes.emplace_back(std::make_unique<SystemEthernetCollection>(app));
++        nodes.emplace_back(std::make_unique<SystemEthernet>(app));
++        nodes.emplace_back(std::make_unique<SystemNetworkCollection>(app));
++        nodes.emplace_back(std::make_unique<SystemNetwork>(app));
++        nodes.emplace_back(std::make_unique<SecureBoot>(app));
++        nodes.emplace_back(std::make_unique<BootOptionsCollection>(app));
++        nodes.emplace_back(std::make_unique<BootOptions>(app));
++        nodes.emplace_back(std::make_unique<StorageCollection>(app));
++        nodes.emplace_back(std::make_unique<Storage>(app));
++        nodes.emplace_back(std::make_unique<StorageDrive>(app));
++        nodes.emplace_back(std::make_unique<SubProcessorCollection>(app));
++        nodes.emplace_back(std::make_unique<SubProcessor>(app));
++        nodes.emplace_back(std::make_unique<ProcessorSummary>(app));
++	nodes.emplace_back(std::make_unique<InventoryData>(app));
++//ends here
++
++
+         nodes.emplace_back(std::make_unique<ProcessorCollection>(app));
+         nodes.emplace_back(std::make_unique<Processor>(app));
+         nodes.emplace_back(std::make_unique<MemoryCollection>(app));
+diff -Naur c/redfish-core/lib/cpudimm.hpp d/redfish-core/lib/cpudimm.hpp
+--- c/redfish-core/lib/cpudimm.hpp	2020-10-22 12:28:42.526715532 +0530
++++ d/redfish-core/lib/cpudimm.hpp	2020-10-22 12:40:08.144758861 +0530
+@@ -21,719 +21,962 @@
+ #include <boost/container/flat_map.hpp>
+ #include <node.hpp>
+ #include <utils/json_utils.hpp>
++#include <filesystem>
++#include <fstream>
++
++
++using namespace std;
++
+ 
+ namespace redfish
+ {
+ 
+-using InterfacesProperties = boost::container::flat_map<
+-    std::string,
+-    boost::container::flat_map<std::string, dbus::utility::DbusVariantType>>;
+-
+-void getResourceList(std::shared_ptr<AsyncResp> aResp,
+-                     const std::string& subclass,
+-                     const std::vector<const char*>& collectionName)
+-{
+-    BMCWEB_LOG_DEBUG << "Get available system cpu/mem resources.";
+-    crow::connections::systemBus->async_method_call(
+-        [subclass, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, boost::container::flat_map<
+-                                 std::string, std::vector<std::string>>>&
+-                subtree) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-            nlohmann::json& members = aResp->res.jsonValue["Members"];
+-            members = nlohmann::json::array();
+-
+-            for (const auto& object : subtree)
+-            {
+-                auto iter = object.first.rfind("/");
+-                if ((iter != std::string::npos) && (iter < object.first.size()))
+-                {
+-                    members.push_back(
+-                        {{"@odata.id", "/redfish/v1/Systems/system/" +
+-                                           subclass + "/" +
+-                                           object.first.substr(iter + 1)}});
+-                }
+-            }
+-            aResp->res.jsonValue["Members@odata.count"] = members.size();
+-        },
+-        "xyz.openbmc_project.ObjectMapper",
+-        "/xyz/openbmc_project/object_mapper",
+-        "xyz.openbmc_project.ObjectMapper", "GetSubTree",
+-        "/xyz/openbmc_project/inventory", 0, collectionName);
+-}
+ 
+-void getCpuDataByInterface(std::shared_ptr<AsyncResp> aResp,
+-                           const InterfacesProperties& cpuInterfacesProperties)
++using GetSubTreeType = std::vector<
++		std::pair<std::string,
++		std::vector<std::pair<std::string, std::vector<std::string>>>>>;
++
++class ProcessorCollection : public Node
+ {
+-    BMCWEB_LOG_DEBUG << "Get CPU resources by interface.";
++	public:
++		/*
++		 * Default Constructor
++		 */
++		ProcessorCollection(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Processors/")
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++
++	private:
++		/**
++		 * Functions triggers appropriate requests on DBus
++		 */
++		void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++		{
++
++			res.jsonValue["@odata.type"] =
++				"#ProcessorCollection.ProcessorCollection";
++			res.jsonValue["Name"] = "Processor Collection";
++			res.jsonValue["@odata.context"] =
++				"/redfish/v1/$metadata#ProcessorCollection.ProcessorCollection";
++
++			res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Processors/";
++
++			//added new code
++
++			res.jsonValue["Members@odata.count"] = 0;
++			std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++			crow::connections::systemBus->async_method_call(
++					[aResp{std::move(aResp)}](
++							const boost::system::error_code ec,
++							const std::vector<std::pair<
++							std::string,
++							std::vector<std::pair<std::string, std::vector<std::string>>>>>
++							&subtree) {
++					if (ec)
++					{
++					// do not add err msg in redfish response, becaues this is not
++					//     mandatory property
++					BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++					aResp->res.jsonValue["Members"] = nlohmann::json::array();
++					return;
++					}
++
++					nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++					for (const auto& processorobject : subtree)
++					{
++
++					std::string processor = processorobject.first;
++					std::size_t lastPos = processor.rfind("/");
++
++					if (lastPos == std::string::npos || lastPos + 1 >= processor.size())
++					{
++						BMCWEB_LOG_ERROR << "Invalid fru object path: " << processor;
++						messages::internalError(aResp->res);
++						return;
++					}
++
++					std::string processorName =processor.substr(lastPos + 1);
++					entriesArray.push_back(
++							{{"@odata.id",
++							"/redfish/v1/Systems/system/Processors/" +  processorName}});
++
++					}  // object path loop
++
++
++					aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++					},
++				"xyz.openbmc_project.ObjectMapper",
++				"/xyz/openbmc_project/object_mapper",
++				"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				"/xyz/openbmc_project/HostInventory/Processors", 1,
++				std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.Processor"});
+ 
+-    const bool* present = nullptr;
+-    const bool* functional = nullptr;
+-    for (const auto& interface : cpuInterfacesProperties)
+-    {
+-        for (const auto& property : interface.second)
+-        {
+-            if (property.first == "ProcessorCoreCount")
+-            {
+-                const uint16_t* coresCount =
+-                    std::get_if<uint16_t>(&property.second);
+-                if (coresCount == nullptr)
+-                {
+-                    // Important property not in desired type
+-                    messages::internalError(aResp->res);
+-                    return;
+-                }
+-                if (*coresCount == 0)
+-                {
+-                    // Slot is not populated, set status end return
+-                    aResp->res.jsonValue["Status"]["State"] = "Absent";
+-                    aResp->res.jsonValue["Status"]["Health"] = "OK";
+-                    // HTTP Code will be set up automatically, just return
+-                    return;
+-                }
+-
+-                aResp->res.jsonValue["TotalCores"] = *coresCount;
+-            }
+-            else if (property.first == "ProcessorType")
+-            {
+-                aResp->res.jsonValue["Name"] = property.second;
+-            }
+-            else if (property.first == "Manufacturer")
+-            {
+-                const std::string* value =
+-                    std::get_if<std::string>(&property.second);
+-                if (value != nullptr)
+-                {
+-                    aResp->res.jsonValue["Manufacturer"] = property.second;
+-                    // Otherwise would be unexpected.
+-                    if (value->find("Intel") != std::string::npos)
+-                    {
+-                        aResp->res.jsonValue["ProcessorArchitecture"] = "x86";
+-                        aResp->res.jsonValue["InstructionSet"] = "x86-64";
+-                    }
+-                    else if (value->find("IBM") != std::string::npos)
+-                    {
+-                        aResp->res.jsonValue["ProcessorArchitecture"] = "Power";
+-                        aResp->res.jsonValue["InstructionSet"] = "PowerISA";
+-                    }
+-                }
+-            }
+-            else if (property.first == "ProcessorMaxSpeed")
+-            {
+-                aResp->res.jsonValue["MaxSpeedMHz"] = property.second;
+-            }
+-            else if (property.first == "ProcessorThreadCount")
+-            {
+-                aResp->res.jsonValue["TotalThreads"] = property.second;
+-            }
+-            else if (property.first == "Model")
+-            {
+-                const std::string* value =
+-                    std::get_if<std::string>(&property.second);
+-                if (value != nullptr)
+-                {
+-                    aResp->res.jsonValue["Model"] = *value;
+-                }
+-            }
+-            else if (property.first == "PartNumber")
+-            {
+-                aResp->res.jsonValue["PartNumber"] = property.second;
+-            }
+-            else if (property.first == "SerialNumber")
+-            {
+-                aResp->res.jsonValue["SerialNumber"] = property.second;
+-            }
+-            else if (property.first == "Version")
+-            {
+-                aResp->res.jsonValue["Version"] = property.second;
+-            }
+-            else if (property.first == "Present")
+-            {
+-                present = std::get_if<bool>(&property.second);
+-            }
+-            else if (property.first == "Functional")
+-            {
+-                functional = std::get_if<bool>(&property.second);
+-            }
+-        }
+-    }
+-
+-    if ((present == nullptr) || (functional == nullptr))
+-    {
+-        // Important property not in desired type
+-        messages::internalError(aResp->res);
+-        return;
+-    }
+-
+-    if (*present == false)
+-    {
+-        aResp->res.jsonValue["Status"]["State"] = "Absent";
+-        aResp->res.jsonValue["Status"]["Health"] = "OK";
+-    }
+-    else
+-    {
+-        aResp->res.jsonValue["Status"]["State"] = "Enabled";
+-        if (*functional == true)
+-        {
+-            aResp->res.jsonValue["Status"]["Health"] = "OK";
+-        }
+-        else
+-        {
+-            aResp->res.jsonValue["Status"]["Health"] = "Critical";
+-        }
+-    }
++			return;
+ 
+-    return;
+-}
+ 
+-void getCpuDataByService(std::shared_ptr<AsyncResp> aResp,
+-                         const std::string& cpuId, const std::string& service,
+-                         const std::string& objPath)
++		}
++};
++
++class Processor : public Node
+ {
+-    BMCWEB_LOG_DEBUG << "Get available system cpu resources by service.";
++	public:
++	/*
++	* Default Constructor
++	*/
++	Processor(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Processors/<str>/", std::string())
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++	private:
++	/**
++	* Functions triggers appropriate requests on DBus
++	*/
++
++	void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++	{
++		// Check if there is required param, truly entering this shall be
++		// impossible
++		if (params.size() != 1)
++		{
++			messages::internalError(res);
++			res.end();
++			return;
++		}
++
++
++		const std::string &processorName = params[0];
++		res.jsonValue["@odata.type"] = "#Processor.v1_3_1.Processor";
++		res.jsonValue["@odata.context"] =
++			"/redfish/v1/$metadata#Processor.Processor";
++		res.jsonValue["@odata.id"] =
++			"/redfish/v1/Systems/system/Processors/" + processorName;
++
++
++		//added new code
++
++		res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Processors/"  + processorName;
++		res.jsonValue["Name"] = processorName;
++	        res.jsonValue["Id"] = processorName;
++
++		std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++
++
++
++		crow::connections::systemBus->async_method_call(
++				[aResp, processorName](const boost::system::error_code ec,
++					const GetSubTreeType& subtree) {
++
++				BMCWEB_LOG_DEBUG << "respHandler1 enter";
++
++				if (ec)
++				{
++				messages::internalError(aResp->res);
++				BMCWEB_LOG_ERROR << "processor get resp_handler: "
++				<< "Dbus error " << ec;
++				return;
++
++				}
++
++				GetSubTreeType::const_iterator it = std::find_if(
++						subtree.begin(), subtree.end(),
++						[processorName](
++							const std::pair<
++							std::string,
++							std::vector<std::pair<std::string,
++							std::vector<std::string>>>>&
++							object)
++						{
++						std::string_view processor = object.first;
++						std::size_t lastPos = processor.rfind("/");
++						if (lastPos == std::string::npos || lastPos + 1 >= processor.size())
++						{
++						BMCWEB_LOG_ERROR << "Invalid processor: "
++						<< processor;
++						return false;
++						}
++
++						std::string_view name = processor.substr(lastPos + 1);
++
++						return name == processorName;
++						});
++
++
++				if (it == subtree.end())
++				{
++					BMCWEB_LOG_ERROR << "Could not find object path for processor: "
++						<< processorName;
++					messages::resourceNotFound(aResp->res, "processor",
++							processorName);
++					return;
++				}
++
++				const std::string processorpath = (*it).first;
++
++				BMCWEB_LOG_DEBUG << "Found object path for processor"
++					<< processorName << "': " << processorpath;
++
++
++
++				//getting dbus processor object properties
++				crow::connections::systemBus->async_method_call(
++						[aResp]( const boost::system::error_code error_code,
++							PropertiesType &properties) {
++
++						if (error_code)
++						{
++						BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++						messages::internalError(aResp->res);
++
++						return;
++						}
++
++
++						for ( const auto &property : properties)
++						{
++
++							std::string res = "";
++							if (property.first == "Manufacturer")
++							{
++								const std::string *manufacturer = std::get_if<std::string>(&property.second);
++								aResp->res.jsonValue["Manufacturer"] = *manufacturer;
++
++							}
++
++							else if (property.first == "TotalCores")
++							{
++								const uint64_t *cores = std::get_if<uint64_t>(&property.second);
++								aResp->res.jsonValue["TotalCores"] = *cores;
++							}
++							else if ((property.first == "TotalThreads") )
++							{
++								const uint64_t *threads = std::get_if<uint64_t>(&property.second);
++								aResp->res.jsonValue["TotalThreads"] = *threads;
++
++							}
++							else if ((property.first == "ProcessorArchitecture") )
++							{
++								const std::string *architecture = std::get_if<std::string>(&property.second);
++								aResp->res.jsonValue["ProcessorArchitecture"] = *architecture;
++
++							}
++
++						} // property loop end
++
++
++						},
++							"xyz.openbmc_project.HostInventoryservice",
++							processorpath,
++							"org.freedesktop.DBus.Properties", "GetAll",
++							"xyz.openbmc_project.HostInventory.Item.Processor");
++
++
++				//added new section
++
++				//getting subprocessors dbus objects to add in processor connected prcoessor links
++				crow::connections::systemBus->async_method_call(
++						[aResp{std::move(aResp)},processorName](
++								const boost::system::error_code ec,
++								const std::vector<std::pair<
++								std::string,
++								std::vector<std::pair<std::string, std::vector<std::string>>>>>
++								&subtree) {
++						if (ec)
++						{
++						BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++						return;
++						}
++
++
++						for (const auto& subprocessorobject : subtree)
++						{
++
++						std::string subprocessor = subprocessorobject.first;
++						std::size_t lastPos = subprocessor.rfind("/");
++
++						if (lastPos == std::string::npos || lastPos + 1 >= subprocessor.size())
++						{
++							BMCWEB_LOG_ERROR << "Invalid subprocessor object path: " << subprocessor;
++							messages::internalError(aResp->res);
++							return;
++						}
++
++						std::string subprocessorName = subprocessor.substr(lastPos + 1);
++
++						size_t found = subprocessorName.find(processorName);
++						if (found != std::string::npos)
++						{
++
++
++							crow::connections::systemBus->async_method_call(
++									[aResp,subprocessorName,processorName](const boost::system::error_code ec1 ,const std::variant<std::string>& property ) {
++									if (ec1)
++									{
++									BMCWEB_LOG_DEBUG
++									<< "PrcoessorType  Get: Dbus error: " << ec1;
++									messages::internalError(aResp->res);
++									return;
++									}
++									const std::string *processortype = std::get_if<std::string>(&property);
++									if ( processortype == nullptr)
++									{
++									messages::internalError(aResp->res);
++									BMCWEB_LOG_ERROR
++									<< "Fail to get PrcoessorType";
++									return;
++									}
++
++									nlohmann::json& entriesArray = aResp->res.jsonValue["ConnectedProcessors"];
++
++									std::string  core_type = "Core";
++									if((core_type.compare(*processortype)) == 0)
++									{
++										entriesArray.push_back({{"Link","/redfish/v1/Systems/system/Processors/" + processorName + "/SubProcessors/" + subprocessorName}});
++									}
++
++
++									},
++								"xyz.openbmc_project.HostInventoryservice",
++								subprocessor,
++								"org.freedesktop.DBus.Properties", "Get",
++								"xyz.openbmc_project.HostInventory.Item.SubProcessor", "ProcessorType");
++
++
++						}
++
++						}  // object path loop
++
++
++
++						},
++					"xyz.openbmc_project.ObjectMapper",
++					"/xyz/openbmc_project/object_mapper",
++					"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++					"/xyz/openbmc_project/HostInventory/SubProcessors", 2,
++					std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.SubProcessor"});
++
++
++				},
++					"xyz.openbmc_project.ObjectMapper",
++					"/xyz/openbmc_project/object_mapper",
++					"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++					"/xyz/openbmc_project/HostInventory/Processors", 2,
++					std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.Processor"});
+ 
+-    crow::connections::systemBus->async_method_call(
+-        [cpuId, service, objPath, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const dbus::utility::ManagedObjectType& dbusData) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-            aResp->res.jsonValue["Id"] = cpuId;
+-            aResp->res.jsonValue["Name"] = "Processor";
+-            aResp->res.jsonValue["ProcessorType"] = "CPU";
+-
+-            std::string corePath = objPath + "/core";
+-            size_t totalCores = 0;
+-            for (const auto& object : dbusData)
+-            {
+-                if (object.first.str == objPath)
+-                {
+-                    getCpuDataByInterface(aResp, object.second);
+-                }
+-                else if (boost::starts_with(object.first.str, corePath))
+-                {
+-                    for (const auto& interface : object.second)
+-                    {
+-                        if (interface.first ==
+-                            "xyz.openbmc_project.Inventory.Item")
+-                        {
+-                            for (const auto& property : interface.second)
+-                            {
+-                                if (property.first == "Present")
+-                                {
+-                                    const bool* present =
+-                                        std::get_if<bool>(&property.second);
+-                                    if (present != nullptr)
+-                                    {
+-                                        if (*present == true)
+-                                        {
+-                                            totalCores++;
+-                                        }
+-                                    }
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-            }
+-            // In getCpuDataByInterface(), state and health are set
+-            // based on the present and functional status. If core
+-            // count is zero, then it has a higher precedence.
+-            if (totalCores == 0)
+-            {
+-                // Slot is not populated, set status end return
+-                aResp->res.jsonValue["Status"]["State"] = "Absent";
+-                aResp->res.jsonValue["Status"]["Health"] = "OK";
+-            }
+-            aResp->res.jsonValue["TotalCores"] = totalCores;
+-            return;
+-        },
+-        service, "/xyz/openbmc_project/inventory",
+-        "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+-}
++		return;
+ 
+-void getCpuAssetData(std::shared_ptr<AsyncResp> aResp,
+-                     const std::string& service, const std::string& objPath)
+-{
+-    BMCWEB_LOG_DEBUG << "Get Cpu Asset Data";
+-    crow::connections::systemBus->async_method_call(
+-        [objPath, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, std::variant<std::string, uint32_t, uint16_t,
+-                                          bool>>& properties) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-
+-            for (const auto& property : properties)
+-            {
+-                if (property.first == "SerialNumber")
+-                {
+-                    const std::string* sn =
+-                        std::get_if<std::string>(&property.second);
+-                    if (sn != nullptr)
+-                    {
+-                        aResp->res.jsonValue["SerialNumber"] = *sn;
+-                    }
+-                }
+-                else if (property.first == "Model")
+-                {
+-                    const std::string* model =
+-                        std::get_if<std::string>(&property.second);
+-                    if (model != nullptr)
+-                    {
+-                        aResp->res.jsonValue["Model"] = *model;
+-                    }
+-                }
+-            }
+-        },
+-        service, objPath, "org.freedesktop.DBus.Properties", "GetAll",
+-        "xyz.openbmc_project.Inventory.Decorator.Asset");
+-}
++		res.end();
+ 
+-void getAcceleratorDataByService(std::shared_ptr<AsyncResp> aResp,
+-                                 const std::string& acclrtrId,
+-                                 const std::string& service,
+-                                 const std::string& objPath)
+-{
+-    BMCWEB_LOG_DEBUG
+-        << "Get available system Accelerator resources by service.";
+-    crow::connections::systemBus->async_method_call(
+-        [acclrtrId, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, std::variant<std::string, uint32_t, uint16_t,
+-                                          bool>>& properties) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-            aResp->res.jsonValue["Id"] = acclrtrId;
+-            aResp->res.jsonValue["Name"] = "Processor";
+-            const bool* accPresent = nullptr;
+-            const bool* accFunctional = nullptr;
+-            std::string state = "";
+-
+-            for (const auto& property : properties)
+-            {
+-                if (property.first == "Functional")
+-                {
+-                    accFunctional = std::get_if<bool>(&property.second);
+-                }
+-                else if (property.first == "Present")
+-                {
+-                    accPresent = std::get_if<bool>(&property.second);
+-                }
+-            }
+-
+-            if (!accPresent || !accFunctional)
+-            {
+-                BMCWEB_LOG_DEBUG << "Required properties missing in DBUS "
+-                                    "response";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-
+-            if (*accPresent && *accFunctional)
+-            {
+-                state = "Enabled";
+-            }
+-            else if (*accPresent)
+-            {
+-                state = "UnavailableOffline";
+-            }
+-            else
+-            {
+-                state = "Absent";
+-            }
+-            aResp->res.jsonValue["Status"]["State"] = state;
+-            aResp->res.jsonValue["Status"]["Health"] = "OK";
+-            aResp->res.jsonValue["ProcessorType"] = "Accelerator";
+-        },
+-        service, objPath, "org.freedesktop.DBus.Properties", "GetAll", "");
+-}
++	}
++};
+ 
+-void getCpuData(std::shared_ptr<AsyncResp> aResp, const std::string& cpuId,
+-                const std::vector<const char*> inventoryItems)
++class MemoryCollection : public Node
+ {
+-    BMCWEB_LOG_DEBUG << "Get available system cpu resources.";
++public:
++/* Default Constructor*/
++MemoryCollection(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Memory/")
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++private:
++/*Functions triggers appropriate requests on DBus*/
++void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++{
++	res.jsonValue["@odata.type"] = "#MemoryCollection.MemoryCollection";
++	res.jsonValue["Name"] = "Memory Module Collection";
++	res.jsonValue["@odata.context"] =
++		"/redfish/v1/$metadata#MemoryCollection.MemoryCollection";
++	res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Memory/";
++	//newly added code
++	res.jsonValue["Members@odata.count"] = 0;
++
++	std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	crow::connections::systemBus->async_method_call(
++			[aResp{std::move(aResp)}](
++					const boost::system::error_code ec,
++					const std::vector<std::pair<
++					std::string,
++					std::vector<std::pair<std::string, std::vector<std::string>>>>>
++					&subtree) {
++			if (ec)
++			{
++			// do not add err msg in redfish response, becaues this is not
++			//     mandatory property
++			BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++			aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			return;
++			}
++
++			nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++			for (const auto& dimmobject : subtree)
++			{
++
++			std::string dimm = dimmobject.first;
++			std::size_t lastPos = dimm.rfind("/");
++
++			if (lastPos == std::string::npos || lastPos + 1 >= dimm.size())
++			{
++				BMCWEB_LOG_ERROR << "Invalid dimm object path: " << dimm;
++				messages::internalError(aResp->res);
++				return;
++			}
++
++			std::string dimmName = dimm.substr(lastPos + 1);
++			entriesArray.push_back(
++					{{"@odata.id",
++					"/redfish/v1/Systems/system/Memory/" + dimmName}});
++
++			}  // object path loop
++
++
++			aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++			},
++		"xyz.openbmc_project.ObjectMapper",
++		"/xyz/openbmc_project/object_mapper",
++		"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++		"/xyz/openbmc_project/HostInventory/Dimms", 1,
++		std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.MemoryDimm"});
+ 
+-    crow::connections::systemBus->async_method_call(
+-        [cpuId, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, boost::container::flat_map<
+-                                 std::string, std::vector<std::string>>>&
+-                subtree) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-                return;
+-            }
+-            for (const auto& object : subtree)
+-            {
+-                if (boost::ends_with(object.first, cpuId))
+-                {
+-                    for (const auto& service : object.second)
+-                    {
+-                        for (const auto& inventory : service.second)
+-                        {
+-                            if (inventory == "xyz.openbmc_project."
+-                                             "Inventory.Decorator.Asset")
+-                            {
+-                                getCpuAssetData(aResp, service.first,
+-                                                object.first);
+-                            }
+-                            else if (inventory ==
+-                                     "xyz.openbmc_project.Inventory.Item.Cpu")
+-                            {
+-                                getCpuDataByService(aResp, cpuId, service.first,
+-                                                    object.first);
+-                            }
+-                            else if (inventory == "xyz.openbmc_project."
+-                                                  "Inventory.Item.Accelerator")
+-                            {
+-                                getAcceleratorDataByService(
+-                                    aResp, cpuId, service.first, object.first);
+-                            }
+-                        }
+-                    }
+-                    return;
+-                }
+-            }
+-            // Object not found
+-            messages::resourceNotFound(aResp->res, "Processor", cpuId);
+-            return;
+-        },
+-        "xyz.openbmc_project.ObjectMapper",
+-        "/xyz/openbmc_project/object_mapper",
+-        "xyz.openbmc_project.ObjectMapper", "GetSubTree",
+-        "/xyz/openbmc_project/inventory", 0, inventoryItems);
+-}
++	return;
+ 
+-void getDimmDataByService(std::shared_ptr<AsyncResp> aResp,
+-                          const std::string& dimmId, const std::string& service,
+-                          const std::string& objPath)
+-{
+-    auto health = std::make_shared<HealthPopulate>(aResp);
+-    health->selfPath = objPath;
+-    health->populate();
+-
+-    BMCWEB_LOG_DEBUG << "Get available system components.";
+-    crow::connections::systemBus->async_method_call(
+-        [dimmId, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, std::variant<std::string, uint32_t, uint16_t>>&
+-                properties) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-
+-                return;
+-            }
+-            aResp->res.jsonValue["Id"] = dimmId;
+-            aResp->res.jsonValue["Name"] = "DIMM Slot";
+-
+-            const auto memorySizeProperty = properties.find("MemorySizeInKB");
+-            if (memorySizeProperty != properties.end())
+-            {
+-                const uint32_t* memorySize =
+-                    std::get_if<uint32_t>(&memorySizeProperty->second);
+-                if (memorySize == nullptr)
+-                {
+-                    // Important property not in desired type
+-                    messages::internalError(aResp->res);
+-
+-                    return;
+-                }
+-                if (*memorySize == 0)
+-                {
+-                    // Slot is not populated, set status end return
+-                    aResp->res.jsonValue["Status"]["State"] = "Absent";
+-                    aResp->res.jsonValue["Status"]["Health"] = "OK";
+-                    // HTTP Code will be set up automatically, just return
+-                    return;
+-                }
+-                aResp->res.jsonValue["CapacityMiB"] = (*memorySize >> 10);
+-            }
+-            aResp->res.jsonValue["Status"]["State"] = "Enabled";
+-            aResp->res.jsonValue["Status"]["Health"] = "OK";
+-
+-            for (const auto& property : properties)
+-            {
+-                if (property.first == "MemoryDataWidth")
+-                {
+-                    aResp->res.jsonValue["DataWidthBits"] = property.second;
+-                }
+-                else if (property.first == "PartNumber")
+-                {
+-                    aResp->res.jsonValue["PartNumber"] = property.second;
+-                }
+-                else if (property.first == "SerialNumber")
+-                {
+-                    aResp->res.jsonValue["SerialNumber"] = property.second;
+-                }
+-                else if (property.first == "Manufacturer")
+-                {
+-                    aResp->res.jsonValue["Manufacturer"] = property.second;
+-                }
+-                else if (property.first == "MemoryType")
+-                {
+-                    const auto* value =
+-                        std::get_if<std::string>(&property.second);
+-                    if (value != nullptr)
+-                    {
+-                        aResp->res.jsonValue["MemoryDeviceType"] = *value;
+-                        if (boost::starts_with(*value, "DDR"))
+-                        {
+-                            aResp->res.jsonValue["MemoryType"] = "DRAM";
+-                        }
+-                    }
+-                }
+-            }
+-        },
+-        service, objPath, "org.freedesktop.DBus.Properties", "GetAll", "");
+-}
++	res.end();
+ 
+-void getDimmData(std::shared_ptr<AsyncResp> aResp, const std::string& dimmId)
+-{
+-    BMCWEB_LOG_DEBUG << "Get available system dimm resources.";
+-    crow::connections::systemBus->async_method_call(
+-        [dimmId, aResp{std::move(aResp)}](
+-            const boost::system::error_code ec,
+-            const boost::container::flat_map<
+-                std::string, boost::container::flat_map<
+-                                 std::string, std::vector<std::string>>>&
+-                subtree) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                messages::internalError(aResp->res);
+-
+-                return;
+-            }
+-            for (const auto& object : subtree)
+-            {
+-                if (boost::ends_with(object.first, dimmId))
+-                {
+-                    for (const auto& service : object.second)
+-                    {
+-                        getDimmDataByService(aResp, dimmId, service.first,
+-                                             object.first);
+-                        return;
+-                    }
+-                }
+-            }
+-            // Object not found
+-            messages::resourceNotFound(aResp->res, "Memory", dimmId);
+-            return;
+-        },
+-        "xyz.openbmc_project.ObjectMapper",
+-        "/xyz/openbmc_project/object_mapper",
+-        "xyz.openbmc_project.ObjectMapper", "GetSubTree",
+-        "/xyz/openbmc_project/inventory", 0,
+-        std::array<const char*, 1>{"xyz.openbmc_project.Inventory.Item.Dimm"});
+ }
+-
+-class ProcessorCollection : public Node
+-{
+-  public:
+-    /*
+-     * Default Constructor
+-     */
+-    ProcessorCollection(CrowApp& app) :
+-        Node(app, "/redfish/v1/Systems/system/Processors/")
+-    {
+-        entityPrivileges = {
+-            {boost::beast::http::verb::get, {{"Login"}}},
+-            {boost::beast::http::verb::head, {{"Login"}}},
+-            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
+-    }
+-
+-  private:
+-    /**
+-     * Functions triggers appropriate requests on DBus
+-     */
+-    void doGet(crow::Response& res, const crow::Request& req,
+-               const std::vector<std::string>& params) override
+-    {
+-        res.jsonValue["@odata.type"] =
+-            "#ProcessorCollection.ProcessorCollection";
+-        res.jsonValue["@odata.context"] =
+-	   "/redfish/v1/$metadata#ProcessorCollection.ProcessorCollection";
+-        res.jsonValue["Name"] = "Processor Collection";
+-
+-        res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Processors/";
+-        auto asyncResp = std::make_shared<AsyncResp>(res);
+-
+-        getResourceList(asyncResp, "Processors",
+-                        {"xyz.openbmc_project.Inventory.Item.Cpu",
+-                         "xyz.openbmc_project.Inventory.Item.Accelerator"});
+-	asyncResp->res.addHeader(boost::beast::http::field::allow,
+-                              redfish::Header::GetAllowHeaders("ProcessorCollection_v1.xml"));
+-    }
+ };
+ 
+-class Processor : public Node
++class Memory : public Node
+ {
+-  public:
+-    /*
+-     * Default Constructor
+-     */
+-    Processor(CrowApp& app) :
+-        Node(app, "/redfish/v1/Systems/system/Processors/<str>/", std::string())
+-    {
+-        entityPrivileges = {
+-            {boost::beast::http::verb::get, {{"Login"}}},
+-            {boost::beast::http::verb::head, {{"Login"}}},
+-            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
+-    }
+-
+-  private:
+-    /**
+-     * Functions triggers appropriate requests on DBus
+-     */
+-    void doGet(crow::Response& res, const crow::Request& req,
+-               const std::vector<std::string>& params) override
+-    {
+-        // Check if there is required param, truly entering this shall be
+-        // impossible
+-        if (params.size() != 1)
+-        {
+-            messages::internalError(res);
+-
+-            res.end();
+-            return;
+-        }
+-        const std::string& processorId = params[0];
+-        res.jsonValue["@odata.type"] = "#Processor.v1_7_0.Processor";
+-        res.jsonValue["@odata.context"] =
+-	   "/redfish/v1/$metadata#Processor.Processor";
+-        res.jsonValue["@odata.id"] =
+-            "/redfish/v1/Systems/system/Processors/" + processorId;
+-
+-        auto asyncResp = std::make_shared<AsyncResp>(res);
+-
+-        getCpuData(asyncResp, processorId,
+-                   {"xyz.openbmc_project.Inventory.Item.Cpu",
+-                    "xyz.openbmc_project.Inventory.Decorator.Asset",
+-                    "xyz.openbmc_project.Inventory.Item.Accelerator"});
+-	asyncResp->res.addHeader(boost::beast::http::field::allow,
+-                              redfish::Header::GetAllowHeaders("Processor_v1.xml"));
+-    }
++public:
++/*
++* Default Constructor
++*/
++Memory(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Memory/<str>/", std::string())
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++private:
++/*
++* Functions triggers appropriate requests on DBus
++*/
++void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++{
++	// Check if there is required param, truly entering this shall be
++	// impossible
++	if (params.size() != 1)
++	{
++		messages::internalError(res);
++		res.end();
++		return;
++	}
++	const std::string &dimmName = params[0];
++
++	res.jsonValue["@odata.type"] = "#Memory.v1_6_0.Memory";
++	res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#Memory.Memory";
++	res.jsonValue["@odata.id"] =
++		"/redfish/v1/Systems/system/Memory/" + dimmName;
++	//getDimmData(asyncResp, dimmId);
++	//added new code
++
++	res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Memory/"  + dimmName;
++	res.jsonValue["Name"] = dimmName;
++        res.jsonValue["Id"] = dimmName;
++
++	std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	crow::connections::systemBus->async_method_call(
++			[aResp, dimmName](const boost::system::error_code ec,
++				const GetSubTreeType& subtree) {
++
++			BMCWEB_LOG_DEBUG << "respHandler1 enter";
++			if (ec)
++			{
++			messages::internalError(aResp->res);
++			BMCWEB_LOG_ERROR << "BootOption get resp_handler: "
++			<< "Dbus error " << ec;
++			return;
++			}
++
++
++			GetSubTreeType::const_iterator it = std::find_if(
++					subtree.begin(), subtree.end(),
++					[dimmName](
++						const std::pair<
++						std::string,
++						std::vector<std::pair<std::string,
++						std::vector<std::string>>>>&
++						object)
++					{
++					std::string_view dimm = object.first;
++					std::size_t lastPos = dimm.rfind("/");
++					if (lastPos == std::string::npos ||
++							lastPos + 1 >= dimm.size())
++					{
++					BMCWEB_LOG_ERROR << "Invalid dimm: "
++					<< dimm;
++					return false;
++					}
++					std::string_view name = dimm.substr(lastPos + 1);
++
++					return name == dimmName;
++					});
++
++
++			if (it == subtree.end())
++			{
++				BMCWEB_LOG_ERROR << "Could not find object path for dimm: "
++					<< dimmName;
++				messages::resourceNotFound(aResp->res, "dimm",
++						dimmName);
++				return;
++			}
++
++			const std::string dimmpath = (*it).first;
++
++			BMCWEB_LOG_DEBUG << "Found object path for dimm"
++				<< dimmName << "': " << dimmpath;
++
++
++			crow::connections::systemBus->async_method_call(
++					[aResp]( const boost::system::error_code error_code,
++						const PropertiesType &dbus_data) {
++
++					if (error_code)
++					{
++					BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++					messages::internalError(aResp->res);
++
++					return;
++					}
++
++
++					for ( const auto &property : dbus_data)
++					{
++
++						std::string res = "";
++						if (property.first == "Manufacturer")
++						{
++							const std::string *manufacturer = std::get_if<std::string>(&property.second);
++							aResp->res.jsonValue["Manufacturer"] = *manufacturer;
++
++						}
++
++						else if (property.first == "PartNumber")
++						{
++							const std::string *partnumber = std::get_if<std::string>(&property.second);
++							aResp->res.jsonValue["PartNumber"] = *partnumber;
++						}
++						else if ((property.first == "SerialNumber") )
++						{
++							const std::string *serialnumber = std::get_if<std::string>(&property.second);
++							aResp->res.jsonValue["SerialNumber"] = *serialnumber;
++
++						}
++
++
++					} // property loop end
++
++
++
++					},
++						"xyz.openbmc_project.HostInventoryservice",
++						dimmpath,
++						"org.freedesktop.DBus.Properties", "GetAll",
++						"xyz.openbmc_project.HostInventory.Item.MemoryDimm");
++
++
++			},
++				"xyz.openbmc_project.ObjectMapper",
++				"/xyz/openbmc_project/object_mapper",
++				"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				"/xyz/openbmc_project/HostInventory/Dimms", 2,
++				std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.MemoryDimm"});
++
++	return;
++
++	res.end();
++
++}
+ };
+ 
+-class MemoryCollection : public Node
++
++
++
++/// subprcoesor collection URI
++
++class SubProcessorCollection : public Node
+ {
+-  public:
+-    /*
+-     * Default Constructor
+-     */
+-    MemoryCollection(CrowApp& app) :
+-        Node(app, "/redfish/v1/Systems/system/Memory/")
+-    {
+-        entityPrivileges = {
+-            {boost::beast::http::verb::get, {{"Login"}}},
+-            {boost::beast::http::verb::head, {{"Login"}}},
+-            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
+-    }
+-
+-  private:
+-    /**
+-     * Functions triggers appropriate requests on DBus
+-     */
+-    void doGet(crow::Response& res, const crow::Request& req,
+-               const std::vector<std::string>& params) override
+-    {
+-        res.jsonValue["@odata.type"] = "#MemoryCollection.MemoryCollection";
+-        res.jsonValue["@odata.context"] =
+-	   "/redfish/v1/$metadata#MemoryCollection.MemoryCollection";
+-        res.jsonValue["Name"] = "Memory Module Collection";
+-        res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Memory/";
+-        auto asyncResp = std::make_shared<AsyncResp>(res);
+-
+-        getResourceList(asyncResp, "Memory",
+-                        {"xyz.openbmc_project.Inventory.Item.Dimm"});
+-	asyncResp->res.addHeader(boost::beast::http::field::allow,
+-                                redfish::Header::GetAllowHeaders("MemoryCollection_v1.xml"));
+-    }
++	public:
++	/*
++	* Default Constructor
++	*/
++	SubProcessorCollection(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Processors/<str>/SubProcessors/" , std::string())
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++	private:
++	/**
++	* Functions triggers appropriate requests on DBus
++	*/
++	void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++	{
++
++		if (params.size() != 1)
++		{
++			messages::internalError(res);
++			res.end();
++			return;
++		}
++
++		res.jsonValue["@odata.type"] =
++			"#ProcessorCollection.ProcessorCollection";
++		res.jsonValue["Name"] = "Processor Collection";
++		res.jsonValue["@odata.context"] =
++			"/redfish/v1/$metadata#ProcessorCollection.ProcessorCollection";
++		res.jsonValue["Members@odata.count"] = 0;
++
++		const std::string & ProcessorName = params[0];
++
++		res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Processors/"  + ProcessorName + "/SubProcessors";
++
++
++		std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++		crow::connections::systemBus->async_method_call(
++				[aResp{std::move(aResp)},ProcessorName](
++						const boost::system::error_code ec,
++						const std::vector<std::pair<
++						std::string,
++						std::vector<std::pair<std::string, std::vector<std::string>>>>>
++						&subtree) {
++				if (ec)
++				{
++				// do not add err msg in redfish response, becaues this is not
++				//     mandatory property
++				BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++				aResp->res.jsonValue["Members"] = nlohmann::json::array();
++				return;
++				}
++
++
++				for (const auto&  subprocessorobject : subtree)
++				{
++
++				std::string subprocessor =  subprocessorobject.first;
++				std::size_t lastPos = subprocessor.rfind("/");
++
++				if (lastPos == std::string::npos || lastPos + 1 >= subprocessor.size())
++				{
++					BMCWEB_LOG_ERROR << "Invalid  subprocessorobject path: " << subprocessor;
++					messages::internalError(aResp->res);
++					return;
++				}
++
++				std::string subprocessorName =subprocessor.substr(lastPos + 1);
++
++				//gettting processor type and then adding  core types
++
++				crow::connections::systemBus->async_method_call(
++						[aResp,subprocessorName,ProcessorName,subprocessor](const boost::system::error_code ec1 ,const std::variant<std::string>& property ) {
++						if (ec1)
++						{
++						BMCWEB_LOG_DEBUG
++						<< "PrcoessorType  Get: Dbus error: " << ec1;
++						messages::internalError(aResp->res);
++						return;
++						}
++						const std::string *processortype = std::get_if<std::string>(&property);
++						if ( processortype == nullptr)
++						{
++						messages::internalError(aResp->res);
++						BMCWEB_LOG_ERROR
++						<< "Fail to get PrcoessorType";
++						return;
++						}
++
++						nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++						std::string  core_type = "Core";
++						if((core_type.compare(*processortype)) == 0)
++						{
++							entriesArray.push_back({{"Link","/redfish/v1/Systems/system/Processors/" + ProcessorName + "/SubProcessors/" + subprocessorName}});
++						}
++
++						aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++						},
++					"xyz.openbmc_project.HostInventoryservice",
++					subprocessor,
++					"org.freedesktop.DBus.Properties", "Get",
++					"xyz.openbmc_project.HostInventory.Item.SubProcessor", "ProcessorType");
++
++
++				}  // object path loop
++
++
++
++				},
++			"xyz.openbmc_project.ObjectMapper",
++			"/xyz/openbmc_project/object_mapper",
++			"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++			"/xyz/openbmc_project/HostInventory/SubProcessors", 2,
++			std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.SubProcessor"});
++
++		return;
++
++		res.end();
++
++	}
+ };
+ 
+-class Memory : public Node
++class SubProcessor : public Node
+ {
+-  public:
+-    /*
+-     * Default Constructor
+-     */
+-    Memory(CrowApp& app) :
+-        Node(app, "/redfish/v1/Systems/system/Memory/<str>/", std::string())
+-    {
+-        entityPrivileges = {
+-            {boost::beast::http::verb::get, {{"Login"}}},
+-            {boost::beast::http::verb::head, {{"Login"}}},
+-            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
+-            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
+-    }
+-
+-  private:
+-    /**
+-     * Functions triggers appropriate requests on DBus
+-     */
+-    void doGet(crow::Response& res, const crow::Request& req,
+-               const std::vector<std::string>& params) override
+-    {
+-        // Check if there is required param, truly entering this shall be
+-        // impossible
+-        if (params.size() != 1)
+-        {
+-            messages::internalError(res);
+-            res.end();
+-            return;
+-        }
+-        const std::string& dimmId = params[0];
+-
+-        res.jsonValue["@odata.type"] = "#Memory.v1_6_0.Memory";
+-        res.jsonValue["@odata.context"] =
+-	   "/redfish/v1/$metadata#Memory.Memory";
+-        res.jsonValue["@odata.id"] =
+-            "/redfish/v1/Systems/system/Memory/" + dimmId;
+-        auto asyncResp = std::make_shared<AsyncResp>(res);
+-
+-        getDimmData(asyncResp, dimmId);
+-	asyncResp->res.addHeader(boost::beast::http::field::allow,
+-                                 redfish::Header::GetAllowHeaders("Memory_v1.xml"));
+-    }
++	public:
++		/*
++		 * Default Constructor
++		 */
++		SubProcessor(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Processors/<str>/SubProcessors/<str>", std::string() , std::string())
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++	private:
++		/**
++		 * Functions triggers appropriate requests on DBus
++		 */
++		void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++		{
++			// Check if there is required param, truly entering this shall be
++			// impossible
++			if (params.size() != 2)
++			{
++				messages::internalError(res);
++
++				res.end();
++				return;
++			}
++			const std::string &processorName = params[0];
++			const std::string &subprocessorName = params[1];
++
++			res.jsonValue["@odata.type"] = "#Processor.v1_3_1.Processor";
++			res.jsonValue["@odata.context"] =
++				"/redfish/v1/$metadata#Processor.Processor";
++			res.jsonValue["@odata.id"] =
++				"/redfish/v1/Systems/system/Processors/" + processorName + "/SubProcessors/" + subprocessorName;
++
++			res.jsonValue["Name"] = subprocessorName;
++
++			//####################################added from here
++
++			std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++			crow::connections::systemBus->async_method_call(
++					[aResp, subprocessorName, processorName](const boost::system::error_code ec,
++						const GetSubTreeType& subtree) {
++
++					BMCWEB_LOG_DEBUG << "respHandler1 enter";
++					if (ec)
++					{
++					messages::internalError(aResp->res);
++					BMCWEB_LOG_ERROR <<"Subprocessor get resp_handler: "
++					<< "Dbus error " << ec;
++					return;
++					}
++
++
++					GetSubTreeType::const_iterator it = std::find_if(
++							subtree.begin(), subtree.end(),
++							[subprocessorName](
++								const std::pair<
++								std::string,
++								std::vector<std::pair<std::string,
++								std::vector<std::string>>>>&
++								object)
++							{
++							std::string_view subprocessor = object.first;
++							std::size_t lastPos = subprocessor.rfind("/");
++							if (lastPos == std::string::npos ||
++									lastPos + 1 >= subprocessor.size())
++							{
++							BMCWEB_LOG_ERROR << "Invalid subprocessor: "
++							<< subprocessor;
++							return false;
++							}
++							std::string_view name = subprocessor.substr(lastPos + 1);
++
++							return name == subprocessorName;
++							});
++
++
++					if (it == subtree.end())
++					{
++						BMCWEB_LOG_ERROR << "Could not find object path for subprocessor: "
++							<< subprocessorName;
++						messages::resourceNotFound(aResp->res, "SubProcessor",
++								subprocessorName);
++						return;
++					}
++
++					const std::string subprocessorpath = (*it).first;
++
++					BMCWEB_LOG_DEBUG << "Found object path for SubProcessor"
++						<< subprocessorName << "': " << subprocessorpath;
++
++
++					crow::connections::systemBus->async_method_call(
++							[aResp,subprocessorpath]( const boost::system::error_code error_code,
++								PropertiesType &properties) {
++
++							if (error_code)
++							{
++							BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++							messages::internalError(aResp->res);
++							return;
++							}
++
++
++							for ( const auto &property : properties)
++							{
++
++							std::string res = "";
++							if (property.first == "ProcessorType")
++							{
++								const std::string *processortype = std::get_if<std::string>(&property.second);
++								aResp->res.jsonValue["ProcessorType"] = *processortype;
++
++							}
++
++							else if (property.first == "TotalThreads")
++							{
++								const uint64_t *threads = std::get_if<uint64_t>(&property.second);
++								aResp->res.jsonValue["TotalThreads"] = *threads;
++								//aResp->res.jsonValue["TotalThreads"] = 2;
++							}
++
++
++							else if (property.first == "MaxSpeedMHz")
++							{
++								const uint64_t *speed = std::get_if<uint64_t>(&property.second);
++								aResp->res.jsonValue["MaxSpeedMHz"] = *speed;
++								//aResp->res.jsonValue["MaxSpeedMHz"] = 8500;
++							}
++
++
++							} // property loop end
++
++
++							},
++								"xyz.openbmc_project.HostInventoryservice",
++								subprocessorpath,
++								"org.freedesktop.DBus.Properties", "GetAll",
++								"xyz.openbmc_project.HostInventory.Item.SubProcessor");
++
++
++					//adding threads in connected processors links
++
++					nlohmann::json& entriesArray = aResp->res.jsonValue["Links"]["ConnectedProcessors"];
++
++					for (const auto& subprocessorobject : subtree)
++					{
++
++						std::string subprocessorthread = subprocessorobject.first;
++						std::size_t lastPos = subprocessorthread.rfind("/");
++
++						if (lastPos == std::string::npos || lastPos + 1 >= subprocessorthread.size())
++						{
++							BMCWEB_LOG_ERROR << "Invalid subprocessorthread object path: " << subprocessorthread;
++							messages::internalError(aResp->res);
++							return;
++						}
++
++						std::string subprocessorthreadName = subprocessorthread.substr(lastPos + 1);
++
++						size_t found = subprocessorthreadName.find(subprocessorName);
++						if((found != std::string::npos) && ((subprocessorthreadName.compare(subprocessorName)) != 0))
++						{
++
++							entriesArray.push_back({{"@odata.id","/redfish/v1/Systems/system/Processors/" + processorName + "/SubProcessors/" + subprocessorthreadName}});
++						}
++
++					}  // object path loop
++
++
++
++					},
++						"xyz.openbmc_project.ObjectMapper",
++						"/xyz/openbmc_project/object_mapper",
++						"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++						"/xyz/openbmc_project/HostInventory/SubProcessors/", 2,
++						std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.SubProcessor"});
++
++			return;
++
++
++			//##########################################ended here
++			res.end();
++
++		}
+ };
+ 
+ } // namespace redfish
+diff -Naur c/redfish-core/lib/inventory.hpp d/redfish-core/lib/inventory.hpp
+--- c/redfish-core/lib/inventory.hpp	1970-01-01 05:30:00.000000000 +0530
++++ d/redfish-core/lib/inventory.hpp	2020-10-22 12:36:40.464799195 +0530
+@@ -0,0 +1,140 @@
++/*
++// Copyright (c) 2020 AMI
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++*/
++#pragma once
++
++#include <boost/container/flat_map.hpp>
++#include <node.hpp>
++#include <utils/json_utils.hpp>
++#include <filesystem>
++#include <syslog.h>
++#include <iostream>
++#include <fstream>
++
++
++using namespace std;
++using json = nlohmann::json;
++
++
++namespace redfish
++{
++
++std::string Redfish_Inventory_Dir = "/etc/redfish/";
++std::string Redfish_Inventory = "inventory.json";
++
++
++/** InventoryData class supports handle POST method for BIOS
++ *  inventory data collection of Host Interface feature.
++ *  The class retrieves the host bios data into redfish.json
++ *  file, which will be further read by D-Bus.
++ */
++class InventoryData : public Node
++{
++  public:
++    InventoryData(CrowApp &app) :
++        Node(app, "/redfish/v1/Oem/Ami/InventoryData/")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	    /*{boost::beast::http::verb::get, {}},
++            {boost::beast::http::verb::head, {}},
++            {boost::beast::http::verb::patch, {}},
++            {boost::beast::http::verb::put, {}},
++            {boost::beast::http::verb::delete_, {}},
++            {boost::beast::http::verb::post, {}}};*/
++
++    }
++
++  private:
++
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Oem/Ami/InventoryData";
++	    res.jsonValue["@odata.context"] = "/redfish/v1/$metadata";
++	    cout << "from doGet inv data  111";
++	    std::ifstream hinv_json_file("/etc/redfish/inventory.json");
++
++	    cout << " from doGet inv data  22222\n";
++	    //host inventory json data file, will get from host interface feature
++	    //json inven_json;
++
++	    if( !hinv_json_file.good())
++	    {
++		    cout<<"file open failed exiting from inv fn "<<endl;
++		    res.end();		    	
++		    return ;
++	    }
++	    else
++	    {
++		    cout<<"file open success"<<endl;
++		    /*inven_json["GroupCrcList"]["DIMM"];
++		      inven_json["GroupCrcList"]["CPU"];
++		      inven_json["GroupCrcList"]["PCIE"];
++		      inven_json["GroupCrcList"]["CERTIFICATE"];*/
++
++		    json inven_json;
++		    hinv_json_file >> inven_json;
++		    //hinv_json_file >> inven_json;
++		    nlohmann::json& crcArray = res.jsonValue["System"]["Oem"]["Ami"]["Bios"]["Inventory"]["Crc"]["GroupCrcList"];
++		    //crcArray.push_back({{"CERTIFICATE","1518931307"}});
++		    crcArray.push_back({{"DIMM",inven_json["GroupCrcList"]["DIMM"]}});
++		    crcArray.push_back({{"CPU",inven_json["GroupCrcList"]["CPU"]}});
++		    crcArray.push_back({{"PCIE",inven_json["GroupCrcList"]["PCIE"]}});
++		    crcArray.push_back({{"CERTIFICATE",inven_json["GroupCrcList"]["CERTIFICATE"]}});
++
++	    }
++
++	    res.end();
++	    return;
++
++    }
++    /**
++     * Function handles POST method request.
++     * 
++     */
++    void doPost(crow::Response &res, const crow::Request &req,
++                const std::vector<std::string> &params) override
++    {
++        auto asyncResp = std::make_shared<AsyncResp>(res);
++	std::ofstream RedfishFilePtr;
++	int ret;
++
++        nlohmann::json reqJson =
++                nlohmann::json::parse(req.body, nullptr, false);
++
++
++	
++	ret = mkdir(Redfish_Inventory_Dir.c_str(), 0777);
++	if (ret < 0)
++	{
++	    BMCWEB_LOG_DEBUG <<
++		    "Redfish directory already present. ";
++	}
++
++	RedfishFilePtr.open (Redfish_Inventory_Dir + Redfish_Inventory,
++			     std::ios::out | std::ios::trunc);
++        RedfishFilePtr << req.body;
++
++	RedfishFilePtr.close();
++    }
++};
++} //namespace redfish 
++
+diff -Naur c/redfish-core/lib/systems.hpp d/redfish-core/lib/systems.hpp
+--- c/redfish-core/lib/systems.hpp	2020-10-22 12:28:42.526715532 +0530
++++ d/redfish-core/lib/systems.hpp	2020-10-22 12:36:32.796649514 +0530
+@@ -1924,6 +1924,24 @@
+         res.jsonValue["Storage"] = {
+             {"@odata.id", "/redfish/v1/Systems/system/Storage"}};
+ 
++        res.jsonValue["BootOptions"] = {
++            {"@odata.id", "/redfish/v1/Systems/system/BootOptions"}};
++
++
++        res.jsonValue["SecureBoot"] = {
++            {"@odata.id", "/redfish/v1/Systems/system/SecureBoot"}};
++
++        res.jsonValue["EthernetInterfaces"] = {
++            {"@odata.id", "/redfish/v1/Systems/system/EthernetInterfaces"}};
++
++        res.jsonValue["ProcessorSummary"] = {
++             {"@odata.id", "/redfish/v1/Systems/system/ProcessorSummary"}};
++
++       res.jsonValue["NetworkInterfaces"] = {
++            {"@odata.id", "/redfish/v1/Systems/system/NetworkInterfaces"}};
++
++
++
+         res.jsonValue["Actions"]["#ComputerSystem.Reset"] = {
+             {"target",
+              "/redfish/v1/Systems/system/Actions/ComputerSystem.Reset"},
+@@ -2116,4 +2134,1434 @@
+         res.end();
+     }
+ };
++
++//New Host interface URIs from here
++
++
++class SecureBoot : public Node
++{
++
++    public:
++    SecureBoot(CrowApp &app) : Node(app, "/redfish/v1/Systems/system/SecureBoot")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] =
++		    "#SecureBoot.v1_0_6.SecureBoot";
++	    res.jsonValue["@odata.id"] = "  /redfish/v1/Systems/system/SecureBoot";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#SecureBoot.SecureBoot";
++	    res.jsonValue["@odata.context"] =
++                    "/redfish/v1/$metadata#SecureBoot.SecureBoot";
++
++	    res.jsonValue["Id"] = "SecureBoot";
++	    res.jsonValue["Name"] = "Secure Boot details";
++
++	    //added new code
++
++
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/SecureBoot";
++
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp]( const boost::system::error_code error_code,
++				    const PropertiesType &dbus_data) {
++
++			    if (error_code)
++			    {
++			    BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++
++			    return;
++			    }
++
++			    for ( const auto &property : dbus_data)
++			    {
++
++			    std::string res = "";
++			    if (property.first == "SecureBootCurrentBoot")
++			    {
++				    const std::string *securebootcurrentboot = std::get_if<std::string>(&property.second);
++				    aResp->res.jsonValue["SecureBootCurrentBoot"] = *securebootcurrentboot;
++			    }
++
++			    else if (property.first == "SecureBootMode")
++			    {
++				    const std::string *securebootmode = std::get_if<std::string>(&property.second);
++				    aResp->res.jsonValue["SecureBootMode"] = *securebootmode;
++			    }
++			    else if ((property.first == "SecureBootEnable") )
++			    {
++				    const bool *securebootenable = std::get_if<bool>(&property.second);
++				    aResp->res.jsonValue["SecureBootEnable"] = *securebootenable;
++
++			    }
++
++
++			    } // property loop end
++
++			    },
++				    "xyz.openbmc_project.HostInventoryservice",
++				    "/xyz/openbmc_project/HostInventory/SecureBoot/Secureboot",
++				    "org.freedesktop.DBus.Properties", "GetAll",
++				    "xyz.openbmc_project.HostInventory.Item.SecureBoot");
++
++	    return;
++	    res.end();
++    }//do get
++
++
++}; //class secureboot
++
++class BootOptionsCollection : public Node
++{
++  public:
++    BootOptionsCollection(CrowApp &app) : Node(app, "/redfish/v1/Systems/system/BootOptions")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] =
++		    "#BootOptionCollection.BootOptionCollection";
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/BootOptions";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#BootOptionCollection.BootOptionCollection";
++	    res.jsonValue["Name"] = "BootOption Collection";
++	    res.jsonValue["Members@odata.count"] = 0;
++
++
++
++	    //newly added code
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp{std::move(aResp)}](
++					    const boost::system::error_code ec,
++					    const std::vector<std::pair<
++					    std::string,
++					    std::vector<std::pair<std::string, std::vector<std::string>>>>>
++					    &subtree) {
++			    if (ec)
++			    {
++			    // do not add err msg in redfish response, becaues this is not
++			    //     mandatory property
++			    BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++			    aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			    return;
++			    }
++
++			    nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++			    for (const auto& bootobject : subtree)
++			    {
++
++			    std::string bootopt = bootobject.first;
++			    std::size_t lastPos = bootopt.rfind("/");
++
++			    if (lastPos == std::string::npos || lastPos + 1 >= bootopt.size())
++			    {
++				    BMCWEB_LOG_ERROR << "Invalid fru object path: " << bootopt;
++				    messages::internalError(aResp->res);
++				    return;
++			    }
++
++			    std::string bootoptName = bootopt.substr(lastPos + 1);
++			    entriesArray.push_back(
++					    {{"@odata.id",
++					    "/redfish/v1/Systems/system/BootOptions/" + bootoptName}});
++
++			    }  // object path loop
++
++
++			    aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++			    },
++		    "xyz.openbmc_project.ObjectMapper",
++		    "/xyz/openbmc_project/object_mapper",
++		    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++		    "/xyz/openbmc_project/HostInventory/BootOptions", 1,
++		    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.BootOption"});
++
++	    return;
++	    res.end();
++    }
++};
++
++class BootOptions : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    BootOptions(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/BootOptions/<str>/", std::string())
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    // Check if there is required param, truly entering this shall be
++	    // impossible
++	    if (params.size() != 1)
++	    {
++		    messages::internalError(res);
++
++		    res.end();
++		    return;
++	    }
++	    res.jsonValue["@odata.type"] = "#BootOption.v1_0_3.BootOption";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#BootOption.BootOption";
++
++	    //added new code
++
++	    const std::string& BootoptName = params[0];
++
++
++
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/BootOptions/"  + BootoptName;
++	    res.jsonValue["Name"] = BootoptName;
++
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp, BootoptName](const boost::system::error_code ec,
++				    const GetSubTreeType& subtree) {
++
++			    BMCWEB_LOG_DEBUG << "respHandler1 enter";
++			    if (ec)
++			    {
++			    messages::internalError(aResp->res);
++			    BMCWEB_LOG_ERROR << "BootOption get resp_handler: "
++			    << "Dbus error " << ec;
++			    return;
++			    }
++
++
++			    GetSubTreeType::const_iterator it = std::find_if(
++					    subtree.begin(), subtree.end(),
++					    [BootoptName](
++						    const std::pair<
++						    std::string,
++						    std::vector<std::pair<std::string,
++						    std::vector<std::string>>>>&
++						    object) 
++					    {
++					    std::string_view Bootopt = object.first;
++					    std::size_t lastPos = Bootopt.rfind("/");
++					    if (lastPos == std::string::npos ||
++							    lastPos + 1 >= Bootopt.size())
++					    {
++					    BMCWEB_LOG_ERROR << "Invalid Bootopt: "
++					    << Bootopt;
++					    return false;
++					    }
++					    std::string_view name = Bootopt.substr(lastPos + 1);
++
++					    return name == BootoptName;
++					    });
++
++
++			    if (it == subtree.end())
++			    {
++				    BMCWEB_LOG_ERROR << "Could not find object path for Bootopt: "
++					    << BootoptName;
++				    messages::resourceNotFound(aResp->res, "Bootopt",
++						    BootoptName);
++				    return;
++			    }
++
++			    const std::string Bootoptpath = (*it).first;
++
++			    BMCWEB_LOG_DEBUG << "Found object path for Bootopt"
++				    << BootoptName << "': " << Bootoptpath;
++
++
++			    crow::connections::systemBus->async_method_call(
++					    [aResp]( const boost::system::error_code error_code,
++						    const PropertiesType &dbus_data) {
++
++					    if (error_code)
++					    {
++					    BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++					    messages::internalError(aResp->res);
++					    return;
++					    }
++
++
++					    for ( const auto &property : dbus_data)
++					    {
++
++					    std::string res = "";
++					    if (property.first == "BootOptionEnabled")
++					    {
++					    const std::string *bootoptionenabled = std::get_if<std::string>(&property.second);
++					    aResp->res.jsonValue["BootOptionEnabled"] = *bootoptionenabled;
++
++					    }
++
++					    else if (property.first == "DisplayName")
++					    {
++						    const std::string *displayname = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["DisplayName"] = *displayname;
++					    }
++					    else if ((property.first == "UefiDevPath") )
++					    {
++						    const std::string *uefidevpath = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["UefiDevPath"] = *uefidevpath;
++
++					    }
++
++
++					    } // property loop end
++
++
++
++					    },
++						    "xyz.openbmc_project.HostInventoryservice",
++						    Bootoptpath,
++						    "org.freedesktop.DBus.Properties", "GetAll",
++						    "xyz.openbmc_project.HostInventory.Item.BootOption");
++
++
++			    },
++				    "xyz.openbmc_project.ObjectMapper",
++				    "/xyz/openbmc_project/object_mapper",
++				    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				    "/xyz/openbmc_project/HostInventory/BootOptions", 2,
++				    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.BootOption"});
++
++	    return;
++
++	    res.end();
++
++    }
++};
++
++
++
++//added ethernet collecton and instance uris
++
++
++class SystemEthernetCollection : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    SystemEthernetCollection(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/EthernetInterfaces/")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] = "#EthernetInterfaceCollection.EthernetInterfaceCollection";
++	    res.jsonValue["Name"] = "Ethernet Interface Collection";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#EthernetInterfaceCollection.EthernetInterfaceCollection";
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/EthernetInterfaces";
++	    res.jsonValue["Members@odata.count"] = 0;
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp{std::move(aResp)}](
++					    const boost::system::error_code ec,
++					    const std::vector<std::pair<
++					    std::string,
++					    std::vector<std::pair<std::string, std::vector<std::string>>>>>
++					    &subtree) {
++			    if (ec)
++			    {
++			    // do not add err msg in redfish response, becaues this is not
++			    //     mandatory property
++			    BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++			    aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			    return;
++			    }
++
++			    nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++			    for (const auto& ethobject : subtree)
++			    {
++
++			    std::string eth = ethobject.first;
++			    std::size_t lastPos = eth.rfind("/");
++
++			    if (lastPos == std::string::npos || lastPos + 1 >= eth.size())
++			    {
++				    BMCWEB_LOG_ERROR << "Invalid fru object path: " << eth;
++				    messages::internalError(aResp->res);
++				    return;
++			    }
++
++			    std::string ethName =eth.substr(lastPos + 1);
++			    entriesArray.push_back(
++					    {{"@odata.id",
++					    "/redfish/v1/Systems/system/EthernetInterfaces/" + ethName}});
++
++			    }  // object path loop
++
++
++			    aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++			    },
++		    "xyz.openbmc_project.ObjectMapper",
++		    "/xyz/openbmc_project/object_mapper",
++		    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++		    "/xyz/openbmc_project/HostInventory/EthernetIfaces", 1,
++		    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.EthernetIface"});
++
++	    return;
++
++	    res.end();
++
++
++    }
++};
++
++class SystemEthernet : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    SystemEthernet(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/EthernetInterfaces/<str>/", std::string())
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++        // Check if there is required param, truly entering this shall be
++        // impossible
++        if (params.size() != 1)
++        {
++            messages::internalError(res);
++            res.end();
++            return;
++        }
++        const std::string &ethName = params[0];
++
++        res.jsonValue["@odata.type"] = "#EthernetInterface.v1_5_1.EthernetInterface";
++        res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#EthernetInterface.EthernetInterface";
++        res.jsonValue["@odata.id"] =
++            "/redfish/v1/Systems/system/EthernetInterfaces/" + ethName;
++
++	    //added new code
++
++	    res.jsonValue["Name"] = ethName;
++	    res.jsonValue["Id"] = ethName;
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp, ethName](const boost::system::error_code ec,
++				    const GetSubTreeType& subtree) {
++
++			    BMCWEB_LOG_DEBUG << "respHandler1 enter";
++			    if (ec)
++			    {
++			    messages::internalError(aResp->res);
++			    BMCWEB_LOG_ERROR <<"EthIface get resp_handler: "
++			    << "Dbus error " << ec;
++			    return;
++			    }
++
++
++			    GetSubTreeType::const_iterator it = std::find_if(
++					    subtree.begin(), subtree.end(),
++					    [ethName](
++						    const std::pair<
++						    std::string,
++						    std::vector<std::pair<std::string,
++						    std::vector<std::string>>>>&
++						    object) 
++					    {
++					    std::string_view eth = object.first;
++					    std::size_t lastPos = eth.rfind("/");
++					    if (lastPos == std::string::npos ||
++							    lastPos + 1 >= eth.size())
++					    {
++					    BMCWEB_LOG_ERROR << "Invalid Bootopt: "
++					    << eth;
++					    return false;
++					    }
++					    std::string_view name = eth.substr(lastPos + 1);
++
++					    return name == ethName;
++					    });
++
++
++			    if (it == subtree.end())
++			    {
++				    BMCWEB_LOG_ERROR << "Could not find object path for eth: "
++					    << ethName;
++				    messages::resourceNotFound(aResp->res, "eth",
++						    ethName);
++				    return;
++			    }
++
++			    const std::string ethpath = (*it).first;
++
++			    BMCWEB_LOG_DEBUG << "Found object path for Bootopt"
++				    << ethName << "': " << ethpath;
++
++
++			    crow::connections::systemBus->async_method_call(
++					    [aResp]( const boost::system::error_code error_code,
++						    const PropertiesType &dbus_data) {
++
++					    if (error_code)
++					    {
++					    BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++					    messages::internalError(aResp->res);
++					    return;
++					    }
++
++
++					    for ( const auto &property : dbus_data)
++					    {
++
++					    std::string res = "";
++					    if (property.first == "LinkStatus")
++					    {
++					    const std::string *linkstatus = std::get_if<std::string>(&property.second);
++					    aResp->res.jsonValue["LinkStatus"] = *linkstatus;
++
++					    }
++
++					    else if (property.first == "IPV4Addr")
++					    {
++						    const std::string *ipv4addr = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["IPv4Addresses"] = *ipv4addr;
++					    }
++					    else if ((property.first == "IPV6Addr") )
++					    {
++						    const std::string *ipv6addr = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["IPv6Addresses"] = *ipv6addr;
++
++					    }
++
++					    /*else if ((property.first == "MTUsize") )
++                                            {
++                                                    const std::string *mtusize = std::get_if<std::string>(&property.second);
++                                                    aResp->res.jsonValue["MTUSize"] = *mtusize;
++
++                                            }*/
++
++
++					    } // property loop end
++
++
++
++					    },
++						    "xyz.openbmc_project.HostInventoryservice",
++						    ethpath,
++						    "org.freedesktop.DBus.Properties", "GetAll",
++						    "xyz.openbmc_project.HostInventory.Item.EthernetIface");
++
++
++			    },
++				    "xyz.openbmc_project.ObjectMapper",
++				    "/xyz/openbmc_project/object_mapper",
++				    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				    "/xyz/openbmc_project/HostInventory/EthernetIfaces", 2,
++				    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.EthernetIface"});
++
++	    return;
++
++        res.end();
++
++    }
++};
++
++//storage collection uri added
++
++
++class StorageCollection : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    StorageCollection(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/Storage/")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] = "#StorageCollection.StorageCollection";
++	    res.jsonValue["Name"] = "Storage units Collection";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#StorageCollection.StorageCollection";
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Storage";
++	    res.jsonValue["Members@odata.count"] = 0;
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp{std::move(aResp)}](
++					    const boost::system::error_code ec,
++					    const std::vector<std::pair<
++					    std::string,
++					    std::vector<std::pair<std::string, std::vector<std::string>>>>>
++					    &subtree) {
++			    if (ec)
++			    {
++			    // do not add err msg in redfish response, becaues this is not
++			    //     mandatory property
++			    BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++			    aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			    return;
++			    }
++
++			    nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++			    for (const auto& storageobject : subtree)
++			    {
++
++			    std::string storage = storageobject.first;
++			    std::size_t lastPos = storage.rfind("/");
++
++			    if (lastPos == std::string::npos || lastPos + 1 >= storage.size())
++			    {
++				    BMCWEB_LOG_ERROR << "Invalid storage object path: " << storage;
++				    messages::internalError(aResp->res);
++				    return;
++			    }
++
++			    std::string storageName =storage.substr(lastPos + 1);
++			    entriesArray.push_back(
++					    {{"@odata.id",
++					    "/redfish/v1/Systems/system/Storage/" + storageName}});
++
++			    }  // object path loop
++
++
++			    aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++			    },
++		    "xyz.openbmc_project.ObjectMapper",
++		    "/xyz/openbmc_project/object_mapper",
++		    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++		    "/xyz/openbmc_project/HostInventory/Storages", 1,
++		    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.Storage"});
++
++	    return;
++
++	    res.end();
++
++
++    }
++};
++
++
++
++
++
++
++class Storage : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    Storage(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/Storage/<str>/", std::string())
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    // Check if there is required param, truly entering this shall be
++	    // impossible
++	    if (params.size() != 1)
++	    {
++		    messages::internalError(res);
++		    res.end();
++		    return;
++	    }
++	    const std::string &storageName = params[0];
++
++	    res.jsonValue["@odata.type"] = "#Storage.v1_7_1.Storage";
++	    res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#Storage.Storage";
++	    res.jsonValue["@odata.id"] =
++		    "/redfish/v1/Systems/system/Storage/" + storageName;
++
++	    
++	    //added new code
++	    res.jsonValue["Members@odata.count"] = 0;
++
++	    res.jsonValue["Name"] = storageName;
++
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp, storageName](const boost::system::error_code ec,
++				    const GetSubTreeType& subtree) {
++
++			    BMCWEB_LOG_DEBUG << "respHandler1 enter";
++			    if (ec)
++			    {
++			    //messages::internalError(aResp->res);
++			    BMCWEB_LOG_ERROR <<"EthIface get resp_handler: " << "Dbus error " << ec;
++			    aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			    return;
++			    }
++
++
++			    GetSubTreeType::const_iterator it = std::find_if(
++					    subtree.begin(), subtree.end(),
++					    [storageName](
++						    const std::pair<
++						    std::string,
++						    std::vector<std::pair<std::string,
++						    std::vector<std::string>>>>&
++						    object) 
++					    {
++					    std::string_view storage = object.first;
++					    std::size_t lastPos = storage.rfind("/");
++					    if (lastPos == std::string::npos ||
++							    lastPos + 1 >= storage.size())
++					    {
++					    BMCWEB_LOG_ERROR << "Invalid storage: "
++					    <<  storage;
++					    return false;
++					    }
++					    std::string_view name = storage.substr(lastPos + 1);
++
++					    return name == storageName;
++					    });
++
++
++			    if (it == subtree.end())
++			    {
++				    BMCWEB_LOG_ERROR << "Could not find object path for storage: "
++					    << storageName;
++				    messages::resourceNotFound(aResp->res, "storage",
++						    storageName);
++				    return;
++			    }
++
++			    const std::string storagepath = (*it).first;
++
++			    BMCWEB_LOG_DEBUG << "Found object path for storage"
++				    << storageName << "': " << storagepath;
++
++
++			    crow::connections::systemBus->async_method_call(
++					    [aResp]( const boost::system::error_code error_code,
++						    const PropertiesType &dbus_data) {
++
++					    if (error_code)
++					    {
++					    BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++					    messages::internalError(aResp->res);
++					    return;
++					    }
++
++
++					    for ( const auto &property : dbus_data)
++					    {
++
++					    std::string res = "";
++					    if (property.first == "Name")
++					    {
++						    const std::string *name = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["Name"] = *name;
++
++					    }
++
++					    else if (property.first == "Id")
++					    {
++						    const std::string *id = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["Id"] = *id;
++					    }
++					    else if ((property.first == "Description") )
++					    {
++						    const std::string *description = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["Description"] = *description;
++
++					    }
++
++					    } // property loop end
++
++
++					    },
++						    "xyz.openbmc_project.HostInventoryservice",
++						    storagepath,
++						    "org.freedesktop.DBus.Properties", "GetAll",
++						    "xyz.openbmc_project.HostInventory.Item.Storage");
++
++
++
++			    //Addded new section here
++
++			    crow::connections::systemBus->async_method_call(
++					    [aResp{std::move(aResp)},storageName](
++							    const boost::system::error_code ec,
++							    const std::vector<std::pair<
++							    std::string,
++							    std::vector<std::pair<std::string, std::vector<std::string>>>>>
++							    &subtree) {
++					    if (ec)
++					    {
++					    // do not add err msg in redfish response, becaues this is not
++					    //     mandatory property
++					    BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++					    return;
++					    }
++
++					    nlohmann::json& entriesArray = aResp->res.jsonValue["Drives"];
++
++					    for (const auto& storagedriveobject : subtree)
++					    {
++
++					    std::string storagedrive = storagedriveobject.first;
++					    std::size_t lastPos = storagedrive.rfind("/");
++
++					    if (lastPos == std::string::npos || lastPos + 1 >= storagedrive.size())
++					    {
++						    BMCWEB_LOG_ERROR << "Invalid storagedrive object path: " << storagedrive;
++						    messages::internalError(aResp->res);
++						    return;
++					    }
++
++
++					   						    
++
++
++					    std::string storagedriveName = storagedrive.substr(lastPos + 1);
++
++
++
++					     size_t found = storagedriveName.find(storageName); 
++    					     if (found != std::string::npos) 
++					     {
++						     storagedriveName = storagedriveName.replace(0, storageName.length() + 1, "");
++
++						     entriesArray.push_back(
++								     {{"@odata.id",
++								     "/redfish/v1/Systems/system/Storage/" + storageName + "/Drives/" + storagedriveName}});
++					     }	
++
++					    }  // object path loop
++
++
++
++
++					    },
++				    "xyz.openbmc_project.ObjectMapper",
++				    "/xyz/openbmc_project/object_mapper",
++				    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				    "/xyz/openbmc_project/HostInventory/StorageDrives", 1,
++				    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.StorageDrive"});
++
++
++
++
++			    },
++				    "xyz.openbmc_project.ObjectMapper",
++				    "/xyz/openbmc_project/object_mapper",
++				    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				    "/xyz/openbmc_project/HostInventory/Storages", 2,
++				    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.Storage"});
++
++	    return;
++
++	    res.end();
++
++    }
++};
++
++
++//Added Storage drive instance URI
++
++
++class StorageDrive : public Node
++{
++	public:
++		/*
++		 * Default Constructor
++		 */
++		StorageDrive(CrowApp &app) :
++			Node(app, "/redfish/v1/Systems/system/Storage/<str>/Drives/<str>/", std::string() ,std::string())
++	{
++		entityPrivileges = {
++			{boost::beast::http::verb::get, {{"Login"}}},
++			{boost::beast::http::verb::head, {{"Login"}}},
++			{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++			{boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++	}
++
++	private:
++		/**
++		 * Functions triggers appropriate requests on DBus
++		 */
++		void doGet(crow::Response &res, const crow::Request &req,
++				const std::vector<std::string> &params) override
++		{
++			// Check if there is required param, truly entering this shall be
++			// impossible
++			if (params.size() != 2)
++			{
++				messages::internalError(res);
++				res.end();
++				return;
++			}
++			const std::string &StorageunitName = params[0];
++			const std::string &StorageDriveName = params[1];
++
++
++			res.jsonValue["@odata.type"] = "#Drive.v1_7_0.Drive	";
++			res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#Drive.Drive";
++			res.jsonValue["@odata.id"] =
++				"/redfish/v1/Systems/system/Storage/" + StorageunitName +  "/Drives/" + StorageDriveName ;
++
++
++			//added new code
++
++
++			res.jsonValue["Name"] = StorageDriveName;
++			res.jsonValue["Id"] = StorageDriveName;
++
++			std::string StorageDriveFullName = StorageunitName + "_" +StorageDriveName;
++
++			std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++			crow::connections::systemBus->async_method_call(
++					[aResp, StorageDriveFullName](const boost::system::error_code ec,
++						const GetSubTreeType& subtree) {
++
++					BMCWEB_LOG_DEBUG << "respHandler1 enter";
++					if (ec)
++					{
++					messages::internalError(aResp->res);
++					BMCWEB_LOG_ERROR <<"StorageDrive get resp_handler: " << "Dbus error " << ec;
++					return;
++					}
++
++
++					GetSubTreeType::const_iterator it = std::find_if(
++							subtree.begin(), subtree.end(),
++							[StorageDriveFullName](
++								const std::pair<
++								std::string,
++								std::vector<std::pair<std::string,
++								std::vector<std::string>>>>&
++								object) 
++							{
++							std::string_view StorageDrive = object.first;
++							std::size_t lastPos = StorageDrive.rfind("/");
++							if (lastPos == std::string::npos ||
++									lastPos + 1 >= StorageDrive.size())
++							{
++							BMCWEB_LOG_ERROR << "Invalid StorageDrive: "
++							<< StorageDrive;
++							return false;
++							}
++							std::string_view name = StorageDrive.substr(lastPos + 1);
++
++							return name == StorageDriveFullName;
++							});
++
++
++					if (it == subtree.end())
++					{
++						BMCWEB_LOG_ERROR << "Could not find object path for StorageDrive: "
++							<< StorageDriveFullName;
++						messages::resourceNotFound(aResp->res, "StorageDrive",
++								StorageDriveFullName);
++						return;
++					}
++
++					const std::string storagedrivepath = (*it).first;
++
++					BMCWEB_LOG_DEBUG << "Found object path for StorageDrive"
++						<< StorageDriveFullName << "': " << storagedrivepath;
++
++
++					crow::connections::systemBus->async_method_call(
++							[aResp]( const boost::system::error_code error_code,
++								const PropertiesType &dbus_data) {
++
++							if (error_code)
++							{
++							BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++							messages::internalError(aResp->res);
++							return;
++							}
++
++
++							for ( const auto &property : dbus_data)
++							{
++
++							std::string res = "";
++							if (property.first == "SerialNumber")
++							{
++								const std::string *serialnumber = std::get_if<std::string>(&property.second);
++								aResp->res.jsonValue["SerialNumber"] = *serialnumber;
++
++							}
++
++							else if (property.first == "Model")
++							{
++								const std::string *model = std::get_if<std::string>(&property.second);
++								aResp->res.jsonValue["Model"] = *model;
++							}
++
++
++
++							} // property loop end
++
++
++							},
++								"xyz.openbmc_project.HostInventoryservice",
++								storagedrivepath,
++								"org.freedesktop.DBus.Properties", "GetAll",
++								"xyz.openbmc_project.HostInventory.Item.StorageDrive");
++
++
++					},
++						"xyz.openbmc_project.ObjectMapper",
++						"/xyz/openbmc_project/object_mapper",
++						"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++						"/xyz/openbmc_project/HostInventory/StorageDrives", 2,
++						std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.StorageDrive"});
++
++			return;
++
++			res.end();
++
++		}
++};
++
++// Added prcoessSummary URI 
++
++
++class ProcessorSummary : public Node
++{
++
++    public:
++    ProcessorSummary(CrowApp &app) : Node(app, "/redfish/v1/Systems/system/ProcessorSummary")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] =
++		    "#ProcessorSummary.v1_0_6.ProcessorSummary";
++	    res.jsonValue["@odata.id"] = "  /redfish/v1/Systems/system/ProcessorSummary";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#ProcessorSummary.ProcessorSummary";
++
++	    res.jsonValue["Name"] = "ProcessorSummary";
++
++	    //added new code
++
++
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/ProcessorSummary";
++
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp]( const boost::system::error_code error_code,
++				    const PropertiesType &dbus_data) {
++
++			    if (error_code)
++			    {
++			    	BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++
++			    return;
++			    }
++
++			    for ( const auto &property : dbus_data)
++			    {
++
++			    std::string res = "";
++			    if (property.first == "Model")
++			    {
++				    const std::string *model = std::get_if<std::string>(&property.second);
++				    aResp->res.jsonValue["Model"] = *model;
++			    }
++
++			    else if (property.first == "Count")
++			    {
++				    const uint64_t *count = std::get_if<uint64_t>(&property.second);
++				    aResp->res.jsonValue["Count"] = *count;
++			    }
++	
++
++			    } // property loop end
++
++			    },
++				    "xyz.openbmc_project.HostInventoryservice",
++				    "/xyz/openbmc_project/HostInventory/ProcessorSummary/ProcessorSummary",
++				    "org.freedesktop.DBus.Properties", "GetAll",
++				    "xyz.openbmc_project.HostInventory.Item.ProcessorSummary");
++
++	    return;
++	    res.end();
++    }//do get
++
++
++}; //class ProcessSummary
++  
++
++
++class SystemNetworkCollection : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    SystemNetworkCollection(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/NetworkInterfaces/")
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++	    res.jsonValue["@odata.type"] = "#NetworkInterfaceCollection.NetworkInterfaceCollection";
++	    res.jsonValue["Name"] = "Network Interface Collection";
++	    res.jsonValue["@odata.context"] =
++		    "/redfish/v1/$metadata#NetworkInterfaceCollection.NetworkInterfaceCollection";
++	    res.jsonValue["@odata.id"] = "/redfish/v1/Systems/Self/NetworkInterfaces";
++	    res.jsonValue["Members@odata.count"] = 0;
++
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp{std::move(aResp)}](
++					    const boost::system::error_code ec,
++					    const std::vector<std::pair<
++					    std::string,
++					    std::vector<std::pair<std::string, std::vector<std::string>>>>>
++					    &subtree) {
++			    if (ec)
++			    {
++			    // do not add err msg in redfish response, becaues this is not
++			    //     mandatory property
++			    BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++			    //nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++			    aResp->res.jsonValue["Members"] = nlohmann::json::array();
++			    return;
++			    }
++
++			    nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++			    for (const auto& netobject : subtree)
++			    {
++
++			    std::string net = netobject.first;
++			    std::size_t lastPos = net.rfind("/");
++
++			    if (lastPos == std::string::npos || lastPos + 1 >= net.size())
++			    {
++				    BMCWEB_LOG_ERROR << "Invalid fru object path: " << net;
++				    messages::internalError(aResp->res);
++				    return;
++			    }
++
++			    std::string netName = net.substr(lastPos + 1);
++			    entriesArray.push_back(
++					    {{"@odata.id",
++					    "/redfish/v1/Systems/system/NetworkInterfaces/" + netName}});
++
++			    }  // object path loop
++
++
++			    aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++			    },
++		    "xyz.openbmc_project.ObjectMapper",
++		    "/xyz/openbmc_project/object_mapper",
++		    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++		    "/xyz/openbmc_project/HostInventory/NetworkIfaces", 1,
++		    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.NetworkIface"});
++
++	    return;
++
++	    res.end();
++
++
++    }
++};
++
++class SystemNetwork : public Node
++{
++  public:
++    /*
++     * Default Constructor
++     */
++    SystemNetwork(CrowApp &app) :
++        Node(app, "/redfish/v1/Systems/system/NetworkInterfaces/<str>/", std::string())
++    {
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
++    }
++
++  private:
++    /**
++     * Functions triggers appropriate requests on DBus
++     */
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
++    {
++        // Check if there is required param, truly entering this shall be
++        // impossible
++        if (params.size() != 1)
++        {
++            messages::internalError(res);
++            res.end();
++            return;
++        }
++        const std::string &netName = params[0];
++
++        res.jsonValue["@odata.type"] = "#NetworkInterface.v1_1_3.NetworkInterface";
++        res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#NetworkInterface.NetworkInterface";
++        res.jsonValue["@odata.id"] =
++            "/redfish/v1/Systems/system/NetworkInterfaces/" + netName;
++   
++
++	    //added new code
++
++	    res.jsonValue["Name"] = netName;
++	    std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++	    crow::connections::systemBus->async_method_call(
++			    [aResp, netName](const boost::system::error_code ec,
++				    const GetSubTreeType& subtree) {
++
++			    BMCWEB_LOG_DEBUG << "respHandler1 enter";
++			    if (ec)
++			    {
++			    messages::internalError(aResp->res);
++			    BMCWEB_LOG_ERROR <<"netIface get resp_handler: "
++			    << "Dbus error " << ec;
++			    return;
++			    }
++
++
++			    GetSubTreeType::const_iterator it = std::find_if(
++					    subtree.begin(), subtree.end(),
++					    [netName](
++						    const std::pair<
++						    std::string,
++						    std::vector<std::pair<std::string,
++						    std::vector<std::string>>>>&
++						    object) 
++					    {
++					    std::string_view net = object.first;
++					    std::size_t lastPos = net.rfind("/");
++					    if (lastPos == std::string::npos ||
++							    lastPos + 1 >= net.size())
++					    {
++					    BMCWEB_LOG_ERROR << "Invalid netiface: "
++					    << net;
++					    return false;
++					    }
++					    std::string_view name = net.substr(lastPos + 1);
++
++					    return name == netName;
++					    });
++
++
++			    if (it == subtree.end())
++			    {
++				    BMCWEB_LOG_ERROR << "Could not find object path for net: "
++					    << netName;
++				    messages::resourceNotFound(aResp->res, "net",
++						    netName);
++				    return;
++			    }
++
++			    const std::string netpath = (*it).first;
++
++			    BMCWEB_LOG_DEBUG << "Found object path for netiface"
++				    << netName << "': " << netpath;
++
++
++			    crow::connections::systemBus->async_method_call(
++					    [aResp]( const boost::system::error_code error_code,
++						    const PropertiesType &dbus_data) {
++
++					    if (error_code)
++					    {
++					    BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++					    messages::internalError(aResp->res);
++					    return;
++					    }
++
++
++					    for ( const auto &property : dbus_data)
++					    {
++
++					    std::string res = "";
++					    if (property.first == "LinkStatus")
++					    {
++					    const std::string *linkstatus = std::get_if<std::string>(&property.second);
++					    aResp->res.jsonValue["LinkStatus"] = *linkstatus;
++
++					    }
++
++					    else if (property.first == "Name")
++					    {
++						    const std::string *name = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["Description"] = *name;
++					    }
++					    else if ((property.first == "Id") )
++					    {
++						    const std::string *id = std::get_if<std::string>(&property.second);
++						    aResp->res.jsonValue["Id"] = *id;
++
++					    }
++
++					    } // property loop end
++
++					    },
++						    "xyz.openbmc_project.HostInventoryservice",
++						    netpath,
++						    "org.freedesktop.DBus.Properties", "GetAll",
++						    "xyz.openbmc_project.HostInventory.Item.NetworkIface");
++
++
++			    },
++				    "xyz.openbmc_project.ObjectMapper",
++				    "/xyz/openbmc_project/object_mapper",
++				    "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++				    "/xyz/openbmc_project/HostInventory/NetworkIfaces", 2,
++				    std::array<const char *, 1>{"xyz.openbmc_project.HostInventory.Item.NetworkIface"});
++
++	    return;
++
++        res.end();
++
++    }
++};
++
++//Host interface URIs ends here
++
+ } // namespace redfish

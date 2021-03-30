@@ -1,0 +1,39 @@
+From 30e4083b5df96915107528592e05ca31cdc97990 Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Tue, 2 Mar 2021 11:10:37 +0000
+Subject: [PATCH 36/36] gpio-aspeed-temporary-fix-for-gpiochip-range-setting
+
+---
+ drivers/gpio/gpio-aspeed.c  | 2 +-
+ drivers/gpio/sgpio-aspeed.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpio/gpio-aspeed.c b/drivers/gpio/gpio-aspeed.c
+index 25c8ecc43..b32ac1e32 100644
+--- a/drivers/gpio/gpio-aspeed.c
++++ b/drivers/gpio/gpio-aspeed.c
+@@ -1184,7 +1184,7 @@ static int __init aspeed_gpio_probe(struct platform_device *pdev)
+ 	gpio->chip.set = aspeed_gpio_set;
+ 	gpio->chip.set_config = aspeed_gpio_set_config;
+ 	gpio->chip.label = dev_name(&pdev->dev);
+-	gpio->chip.base = (u16) base;
++	gpio->chip.base = 0;
+ 
+ 	/* Allocate a cache of the output registers */
+ 	banks = DIV_ROUND_UP(gpio->chip.ngpio, 32);
+diff --git a/drivers/gpio/sgpio-aspeed.c b/drivers/gpio/sgpio-aspeed.c
+index 5028e9144..850539da4 100644
+--- a/drivers/gpio/sgpio-aspeed.c
++++ b/drivers/gpio/sgpio-aspeed.c
+@@ -681,7 +681,7 @@ static int __init aspeed_sgpio_probe(struct platform_device *pdev)
+ 	gpio->chip.set = aspeed_sgpio_set;
+ 	gpio->chip.set_config = aspeed_sgpio_set_config;
+ 	gpio->chip.label = dev_name(&pdev->dev);
+-	gpio->chip.base = -1;
++	gpio->chip.base = gpio->config->nr_pgpios;
+ 
+ 	rc = aspeed_sgpio_setup_irqs(gpio, pdev);
+ 	if (rc < 0)
+-- 
+2.17.1
+

@@ -1,0 +1,78 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Schemas for JSON representations of OpenBMC DBus interfaces",
+    "definitions": {
+        "xyz": {
+            "openbmc_project": {
+                "Inventory": {
+                    "Decorator": {
+                        "Asset": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "Manufacturer": {
+                                    "type": "string"
+                                },
+                                "Model": {
+                                    "type": "string"
+                                },
+                                "PartNumber": {
+                                    "type": "string"
+                                },
+                                "SerialNumber": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "Manufacturer",
+                                "Model",
+                                "PartNumber",
+                                "SerialNumber"
+                            ],
+                            "type": "object"
+                        },
+                        "AssetTag": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "AssetTag": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "AssetTag"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "Item": {
+                        "Board": {
+                            "Motherboard": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "ProductId": {
+                                        "type": "number"
+                                    }
+                                },
+                                "required": [
+                                    "ProductId"
+                                ],
+                                "type": "object"
+                            }
+                        },
+                        "Chassis": {
+                            "additionalProperties": false,
+                            "type": "object"
+                        },
+                        "Panel": {
+                            "additionalProperties": false,
+                            "type": "object"
+                        },
+                        "System": {
+                            "additionalProperties": false,
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

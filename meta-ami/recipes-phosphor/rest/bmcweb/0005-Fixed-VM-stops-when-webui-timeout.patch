@@ -1,0 +1,26 @@
+diff -Naur b/include/sessions.hpp a/include/sessions.hpp
+--- b/include/sessions.hpp	2020-08-11 12:08:58.765169201 +0530
++++ a/include/sessions.hpp	2020-08-11 15:37:26.623311580 +0530
+@@ -393,6 +393,13 @@
+                 if (timeNow - authTokensIt->second->lastUpdated >=
+                     timeoutInMinutes)
+                 {
++		 	FILE *fptr;
++			fptr = fopen("/sys/block/nbd0/pid","r");
++		  	if (fptr){
++				authTokensIt++;
++                		fclose(fptr);
++			}else {	
++
+ #ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
+                     crow::ibm_mc_lock::Lock::getInstance().releaseLock(
+                         authTokensIt->second->uniqueId);
+@@ -400,7 +407,7 @@
+                     authTokensIt = authTokens.erase(authTokensIt);
+ 
+                     needWrite = true;
+-                }
++               }}
+                 else
+                 {
+                     authTokensIt++;

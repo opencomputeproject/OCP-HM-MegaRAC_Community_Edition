@@ -1,0 +1,22 @@
+.dropdown-item {
+  padding-left: $spacer/2;
+}
+
+.b-dropdown-form {
+  padding: $spacer/2;
+  .form-group {
+    margin-bottom: $spacer/2;
+  }
+}
+
+// Adding component style to global stylesheet because
+// single-file component scoped styles aren't
+// being applied to dynamically appended elements
+// The overflow menu should be above the table
+
+.table-filter {
+  .dropdown-menu {
+    z-index: $zindex-dropdown + 1;
+    padding: 0;
+  }
+}

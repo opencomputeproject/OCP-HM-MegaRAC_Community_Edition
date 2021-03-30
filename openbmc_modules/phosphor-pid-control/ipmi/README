@@ -1,0 +1,13 @@
+This holds the source for the library we install to handle the manual control
+OEM IPMI command.
+
+The command is a simple series of bytes:
+[0] = Subcommand, Get(0) or Set(1), Get(2) for fail-safe mode.
+[1] = ZoneId
+[2] = Value if Set
+
+If Value == 1, then ManualMode is True and enabled, otherwise it's in normal
+mode.
+
+If Value == 1 (and Subcommand == 2), Failsafe mode is enabled, otherwise it's
+not.

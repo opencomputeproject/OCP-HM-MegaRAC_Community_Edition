@@ -1,0 +1,48 @@
+{
+   "entries":[
+      {
+         "attribute_name" : "HMCManagedState",
+         "possible_values" : [ "On", "Off" ],
+         "default_values" : [ "On" ],
+         "object_path" : "/xyz/abc/def",
+         "dbus":
+            {
+               "interface" : "xyz.openbmc_project.HMCManaged.State",
+               "property_name" : "State",
+               "property_type" : "string",
+               "property_values" : ["xyz.openbmc_project.State.On", "xyz.openbmc_project.State.Off"]
+            }
+      },
+      {
+         "attribute_name" : "FWBootSide",
+         "possible_values" : [ "Perm", "Temp" ],
+         "default_values" : [ "Perm" ],
+         "dbus":
+            {
+               "object_path" : "/xyz/abc/def",
+               "interface" : "xyz.openbmc.FWBoot.Side",
+               "property_name" : "Side",
+               "property_type" : "bool",
+               "property_values" : [true, false]
+            }
+      },
+      {
+         "attribute_name" : "InbandCodeUpdate",
+         "possible_values" : [ "Allowed", "NotAllowed" ],
+         "default_values" : [ "Allowed" ],
+         "dbus":
+            {
+               "object_path" : "/xyz/abc/def",
+               "interface" : "xyz.openbmc.InBandCodeUpdate",
+               "property_name" : "Policy",
+               "property_type" : "uint8_t",
+               "property_values" : [0, 1]
+            }
+      },
+      {
+         "attribute_name" : "CodeUpdatePolicy",
+         "possible_values" : [ "Concurrent", "Disruptive" ],
+         "default_values" : [ "Concurrent" ]
+      }
+    ]
+}

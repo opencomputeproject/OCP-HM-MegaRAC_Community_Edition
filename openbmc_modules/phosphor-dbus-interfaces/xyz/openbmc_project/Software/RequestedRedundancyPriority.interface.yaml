@@ -1,0 +1,20 @@
+description: >
+    The requested priority, for redundancy purposes, of the associated
+    `xyz.openbmc_project.Software.Version` prior to its activation.
+properties:
+    - name: Priority
+      type: byte
+      default: 0
+      description: >
+          Upon Activation of the software Version, the *ItemUpdater*
+          should attempt to activate the software version such that
+          the resulting `Software.RedundancyPriority.Priority` is Priority.
+
+          See `Software.RedundancyPriority.Priority` for valid values and
+          definitions.
+
+          By default, any Activation should be done to the highest priority.
+          Some *ItemUpdater* implementations may be unable to apply this
+          `RequestedRedundancyPriority.Priority`, resulting in an
+          `ActivationState` which is either `Failed` or `Active` with
+          `Priority` of `0 (High)`.

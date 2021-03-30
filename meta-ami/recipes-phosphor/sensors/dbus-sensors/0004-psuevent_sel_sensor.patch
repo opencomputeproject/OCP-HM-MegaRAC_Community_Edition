@@ -1,0 +1,1047 @@
+--- a/CMakeLists.txt	2020-08-30 09:36:04.273663893 +0530
++++ b/CMakeLists.txt	2020-08-30 09:36:26.442202738 +0530
+@@ -48,6 +48,7 @@
+ option (DISABLE_IPMB "Disable installing IPMB sensor" OFF)
+ option (DISABLE_MCUTEMP "Disable installing MCU temperature sensor" OFF)
+ option (DISABLE_PSU "Disable installing PSU sensor" OFF)
++option (DISABLE_PSU_EVENT "Disable installing PSU_EVENT sensor" OFF)
+ option (DISABLE_NVME "Disable installing NVME sensor" ON)
+ 
+ include ("cmake/HunterGate.cmake")
+@@ -82,6 +83,9 @@
+ set (PSU_SRC_FILES src/Utils.cpp src/PSUSensor.cpp src/Thresholds.cpp
+      src/PwmSensor.cpp src/PSUEvent.cpp src/SdrRecord.cpp)
+ 
++set (PSUEVENT_SRC_FILES src/Utils.cpp src/PSUSensor.cpp src/PSUEvent.cpp
++     src/PwmSensor.cpp src/Thresholds.cpp src/SdrRecord.cpp)
++
+ set (NVME_SRC_FILES src/Utils.cpp src/NVMeSensorMain.cpp src/NVMeSensor.cpp src/Thresholds.cpp)
+ 
+ set (EXTERNAL_PACKAGES Boost sdbusplus-project nlohmann-json)
+@@ -211,6 +215,10 @@
+ add_dependencies (psusensor sdbusplus-project)
+ target_link_libraries (psusensor ${SENSOR_LINK_LIBS})
+ 
++add_executable (psuevent src/PSUEventMain.cpp ${PSUEVENT_SRC_FILES})
++add_dependencies (psuevent sdbusplus-project)
++target_link_libraries (psuevent ${SENSOR_LINK_LIBS})
++
+ if (NOT DISABLE_NVME)
+     add_executable (nvmesensor ${NVME_SRC_FILES})
+     add_dependencies (nvmesensor sdbusplus-project)
+@@ -319,6 +327,13 @@
+                  DESTINATION ${SERVICE_FILE_INSTALL_DIR})
+ endif ()
+ 
++if (NOT DISABLE_PSUEVENT)
++    install (TARGETS psuevent DESTINATION bin)
++    install (FILES
++                 ${SERVICE_FILE_SRC_DIR}/xyz.openbmc_project.psuevent.service
++                 DESTINATION ${SERVICE_FILE_INSTALL_DIR})
++endif ()
++
+ if (NOT DISABLE_NVME)
+     install (TARGETS nvmesensor DESTINATION bin)
+     install (FILES
+diff -Naur a/include/ChassisIntrusionSensor.hpp b/include/ChassisIntrusionSensor.hpp
+--- a/include/ChassisIntrusionSensor.hpp	2020-08-30 09:37:48.584202412 +0530
++++ b/include/ChassisIntrusionSensor.hpp	2020-08-30 09:38:07.708668619 +0530
+@@ -58,6 +58,8 @@
+     std::string mPinName = "CHASSIS_INTRUSION";
+     gpiod::line mGpioLine;
+     boost::asio::posix::stream_descriptor mGpioFd;
++     std::vector<uint8_t> data;
++     uint8_t al;
+ 
+     // common members
+     bool mOverridenState = false;
+diff -Naur a/include/EventSensor.hpp b/include/EventSensor.hpp
+--- a/include/EventSensor.hpp	2020-08-30 09:37:48.584202412 +0530
++++ b/include/EventSensor.hpp	2020-08-30 09:38:07.708668619 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType/*,uint8_t EventType*/,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord);
++    uint8_t DType,uint8_t EventType,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord);
+ 
+     ~EventSensor();
+ 
+@@ -24,6 +24,8 @@
+     std::string path;
+     int errCount;
+     uint8_t DType;
++    std::vector<uint8_t> data;
++    uint8_t al;
+     uint8_t EventType;
+     uint8_t EventOffset;
+     void setupRead(void);
+diff -Naur a/include/GpioSensor.hpp b/include/GpioSensor.hpp
+--- a/include/GpioSensor.hpp	2020-08-30 09:37:48.584202412 +0530
++++ b/include/GpioSensor.hpp	2020-08-30 09:38:07.708668619 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType/*,uint8_t EventType*/,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
++    uint8_t DType,uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
+ 
+     ~GpioSensor();
+ 
+diff -Naur a/include/PSUEvent.hpp b/include/PSUEvent.hpp
+--- a/include/PSUEvent.hpp	2020-08-30 09:37:48.584202412 +0530
++++ b/include/PSUEvent.hpp	2020-08-30 09:38:07.712668718 +0530
+@@ -18,6 +18,7 @@
+ 
+ #include <boost/container/flat_map.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
++#include <sensor.hpp>
+ 
+ #include <memory>
+ #include <set>
+@@ -27,7 +28,7 @@
+ class PSUSubEvent : public std::enable_shared_from_this<PSUSubEvent>
+ {
+   public:
+-    PSUSubEvent(std::shared_ptr<sdbusplus::asio::dbus_interface> eventInterface,
++    PSUSubEvent(std::shared_ptr<sdbusplus::asio::dbus_interface> StateInterface,
+                 const std::string& path,
+                 std::shared_ptr<sdbusplus::asio::connection>& conn,
+                 boost::asio::io_service& io, const std::string& groupEventName,
+@@ -37,7 +38,7 @@
+                 std::shared_ptr<bool> state, const std::string& psuName);
+     ~PSUSubEvent();
+ 
+-    std::shared_ptr<sdbusplus::asio::dbus_interface> eventInterface;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> StateInterface;
+     std::shared_ptr<std::set<std::string>> asserts;
+     std::shared_ptr<std::set<std::string>> combineEvent;
+     std::shared_ptr<bool> assertState;
+@@ -74,16 +75,19 @@
+         std::shared_ptr<sdbusplus::asio::connection>& conn,
+         boost::asio::io_service& io, const std::string& psuName,
+         boost::container::flat_map<std::string, std::vector<std::string>>&
+-            eventPathList,
++            eventPathList,uint8_t DType, uint8_t EventType, uint16_t EvStat,
+         boost::container::flat_map<
+             std::string,
+             boost::container::flat_map<std::string, std::vector<std::string>>>&
+             groupEventPathList,
+-        const std::string& combineEventName);
++        const std::string& combineEventName,struct sdr::SdrRecord sdrRecord);
+     ~PSUCombineEvent();
+ 
+     sdbusplus::asio::object_server& objServer;
+-    std::shared_ptr<sdbusplus::asio::dbus_interface> eventInterface;
++    //std::shared_ptr<sdbusplus::asio::dbus_interface> eventInterface;
++     std::shared_ptr<sdbusplus::asio::dbus_interface> SenInterface;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> StateInterface;
++
+     boost::container::flat_map<std::string,
+                                std::vector<std::shared_ptr<PSUSubEvent>>>
+         events;
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2020-08-30 09:37:48.584202412 +0530
++++ b/include/sensor.hpp	2020-08-30 09:38:07.708668619 +0530
+@@ -457,8 +457,8 @@
+             overriddenState = true;
+             // check thresholds for external set
+             value = newValue;
+-           value == 0 ? discreteInterfaceState->set_property("ActiveAlarmState",std::vector<uint8_t>({0x00, 0xFF, 0xFF})) :
+-                       discreteInterfaceState->set_property("ActiveAlarmState",std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
++            value == 0 ? discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x00)) :
++                         discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x01));
+ 
+         }
+         else if (!overriddenState)
+@@ -524,9 +524,14 @@
+             // Indicate that it is internal set call
+             internalSet = true;
+             sensorInterface->set_property("Value", newValue);
+-            newValue == 0 ? discreteInterfaceState->set_property("ActiveAlarmState",std::vector<uint8_t>({0x00, 0xFF, 0xFF})) :
+-                        discreteInterfaceState->set_property("ActiveAlarmState",std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
+-//            sensorInterface->set_property("SensorStat", false);
++	    if (newValue == 0){
++               discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({0x00, 0xFF, 0xFF}));
++               discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x00));
++           }else if(newValue == 1){
++               discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
++                discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x01));
++           }
++
+             value = newValue;
+ 
+             internalSet = false;
+diff -Naur a/service_files/xyz.openbmc_project.psuevent.service b/service_files/xyz.openbmc_project.psuevent.service
+--- a/service_files/xyz.openbmc_project.psuevent.service	1970-01-01 05:30:00.000000000 +0530
++++ b/service_files/xyz.openbmc_project.psuevent.service	2020-08-30 09:42:27.322713983 +0530
+@@ -0,0 +1,13 @@
++[Unit]
++Description=IPMI Event-only Sensor
++StopWhenUnneeded=false
++After=xyz.openbmc_project.EntityManager.service
++
++[Service]
++Restart=always
++RestartSec=5
++ExecStart=/usr/bin/psuevent
++
++[Install]
++WantedBy=multi-user.target
++
+diff -Naur a/src/ChassisIntrusionSensor.cpp b/src/ChassisIntrusionSensor.cpp
+--- a/src/ChassisIntrusionSensor.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/ChassisIntrusionSensor.cpp	2020-08-30 09:39:41.238924302 +0530
+@@ -61,8 +61,13 @@
+     mIface->set_property("Status", newValue);
+     mInternalSet = false;
+ 
+-     v ? mIfaceDiscrete->set_property("ActiveAlarmState",std::vector<uint8_t>({0x00, 0xFF, 0xFF})) :
+-                        mIfaceDiscrete->set_property("ActiveAlarmState",std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++     if (v == 0){
++       mIfaceDiscrete->set_property("EventData",std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++       mIfaceDiscrete->set_property("ActiveAlarmState",static_cast<uint8_t>(0x00));
++    }else if(v == 1){
++        mIfaceDiscrete->set_property("EventData",std::vector<uint8_t>({0x00, 0xFF, 0xFF}));
++        mIfaceDiscrete->set_property("ActiveAlarmState",static_cast<uint8_t>(0x01));
++    }
+ 
+     mValue = newValue;
+ 
+@@ -298,6 +303,8 @@
+                       << ", gpioInverted = " << gpioInverted << "\n";
+         }
+     }
++    std::cerr << "enter ChassisIntrusionSensor::start, eventType = " << eventType
++                  << "\n";
+ 
+     if ((type == IntrusionSensorType::pch && busId == mBusId &&
+          slaveAddr == mSlaveAddr) ||
+@@ -338,7 +345,8 @@
+     midStringLen = idStringLen;
+ 
+     double v = 0;
+-    std::vector<uint8_t> al = {0xFF,0xFF,0xFF};
++    data = {0xFF,0xFF,0xFF};
++    al = 0x00;
+ 
+     if ((mType == IntrusionSensorType::pch && mBusId > 0 && mSlaveAddr > 0) ||
+         (mType == IntrusionSensorType::gpio))
+@@ -380,13 +388,21 @@
+ 
+             mIface->initialize();
+ 
+-	    mIfaceDiscrete->register_property("ActiveAlarmState",al,
+-                        [&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
++                mIfaceDiscrete->register_property("ActiveAlarmState",al,
++                        [&](const uint8_t& request, uint8_t& oldValue) {
+                     oldValue = request;
+                     al = request;
+                     return 1;
+                 });
+ 
++		mIfaceDiscrete->register_property("EventData",data,
++                        [&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
++                    oldValue = request;
++                    data = request;
++                    return 1;
++                });
++
++
+            mIfaceDiscrete->initialize();
+ 
+ 
+@@ -437,7 +453,7 @@
+     std::shared_ptr<sdbusplus::asio::dbus_interface> iface, std::shared_ptr<sdbusplus::asio::dbus_interface> ifacediscrete) :
+     mIface(iface),mIfaceDiscrete(ifacediscrete),
+     mType(IntrusionSensorType::gpio), mValue("unknown"), mOldValue("unknown"),
+-    mBusId(-1), mSlaveAddr(-1), mPollTimer(io), mGpioInverted(false), mdtype(0x00), meventType(0x00), mevStat(0x00),
++    mBusId(-1), mSlaveAddr(-1), mPollTimer(io), mGpioInverted(false), mdtype(0x00), mevStat(0x00),
+     mGpioFd(io)
+ {}
+ 
+diff -Naur a/src/EventMain.cpp b/src/EventMain.cpp
+--- a/src/EventMain.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/EventMain.cpp	2020-08-30 09:39:41.238924302 +0530
+@@ -185,6 +185,7 @@
+         {
+             std::cerr << "error getting sdr record for " << sensorName << std::endl;
+         }
++	 uint8_t sensorEventType = sdrRecord.EventType;
+ 
+ //        std::vector<discretes::Discrete> sensorDiscretes;
+ //        if (!parseDiscretesFromConfig(*sensorData, sensorDiscretes))
+@@ -199,7 +200,7 @@
+         sensors[sensorName] = std::make_unique<EventSensor>(
+             sensorPath, sensorType, objectServer,
+             dbusConnection, io, sensorName,
+-           *interfacePath,EvStat,sensorUnit,sensorDType,/*sensorEventType,*/sensorEventOffset,sdrRecord);
++           *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset,sdrRecord);
+     }
+ }
+ int main()
+diff -Naur a/src/EventSensor.cpp b/src/EventSensor.cpp
+--- a/src/EventSensor.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/EventSensor.cpp	2020-08-30 09:39:41.238924302 +0530
+@@ -28,7 +28,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType/*, uint8_t EventType*/,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) : EventType( sdrRecord.EventType ),
++    uint8_t DType, uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) : EventType( sdrRecord.EventType ),
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+            minReading,EvStat, sensorUnit,sdrRecord),
+@@ -44,14 +44,22 @@
+         "/xyz/openbmc_project/sensors/eventsensor/" + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+-    std::vector<uint8_t> al = {0xFF,0xFF,0xFF};
+-    discreteInterfaceState->register_property("ActiveAlarmState",al,
++    data = {0xFF,0xFF,0xFF};
++    al = 0x00;
++                      discreteInterfaceState->register_property("EventData",data,
+                        [&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
+                    oldValue = request;
+-                    al = request;
++                     data = request;
+                     return 1;
+                 });
+ 
++		   discreteInterfaceState->register_property("ActiveAlarmState",al,
++                        [&](const uint8_t& request, uint8_t& oldValue) {
++                    oldValue = request;
++                     al = request;
++                     return 1;
++                 });
++
+     association = objectServer.add_interface(
+         "/xyz/openbmc_project/sensors/eventsensor/" + name,
+         "org.openbmc.Associations");
+diff -Naur a/src/GpioMain.cpp b/src/GpioMain.cpp
+--- a/src/GpioMain.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/GpioMain.cpp	2020-08-30 09:39:41.238924302 +0530
+@@ -220,6 +220,8 @@
+               std::cerr << "error getting sdr record for " << sensorName << std::endl;
+         }
+ 
++	uint8_t sensorEventType = sdrRecord.EventType;
++
+ 
+ //        std::vector<discretes::Discrete> sensorDiscretes;
+ //        if (!parseDiscretesFromConfig(*sensorData, sensorDiscretes))
+@@ -233,7 +235,7 @@
+         sensors[sensorName] = std::make_unique<GpioSensor>(
+             sensorPath, sensorType, objectServer,
+             dbusConnection, io, sensorName,
+-            *interfacePath,EvStat,sensorUnit,sensorDType/*,sensorEventType*/,sensorEventOffset,sdrRecord);
++            *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset,sdrRecord);
+     }
+ }
+ 
+diff -Naur a/src/GpioSensor.cpp b/src/GpioSensor.cpp
+--- a/src/GpioSensor.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/GpioSensor.cpp	2020-08-30 09:39:41.238924302 +0530
+@@ -30,7 +30,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType/*, uint8_t EventType*/,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord) :
++    uint8_t DType, uint8_t EventType,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord) :
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+            minReading,EvStat, sensorUnit, sdrRecord),
+@@ -45,9 +45,8 @@
+         "/xyz/openbmc_project/sensors/gpiosensor/" + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+-    std::vector<uint8_t> al = {0xFF,0xFF,0xFF};
+-
+-    discreteInterfaceState->register_property("ActiveAlarmState",al);
++    discreteInterfaceState->register_property("ActiveAlarmState", static_cast<uint8_t>(0x00));
++    discreteInterfaceState->register_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
+ 
+     association = objectServer.add_interface(
+         "/xyz/openbmc_project/sensors/gpiosensor/" + name,
+diff -Naur a/src/IntrusionSensorMain.cpp b/src/IntrusionSensorMain.cpp
+--- a/src/IntrusionSensorMain.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/IntrusionSensorMain.cpp	2020-08-30 09:39:41.242924392 +0530
+@@ -116,13 +116,11 @@
+             auto findGpioPolarity =
+                 baseConfiguration->second.find("GpioPolarity");
+            auto findDtype =baseConfiguration->second.find("DType");
+-           auto findEventType = baseConfiguration->second.find("EventType");
+            auto findEvState = baseConfiguration->second.find("EvStat");
+ 
+ 
+             if (findGpioPolarity == baseConfiguration->second.end() ||
+ 	        findDtype == baseConfiguration->second.end() ||
+-               findEventType == baseConfiguration->second.end() ||
+                findEvState == baseConfiguration->second.end())
+             {
+                 std::cerr << "error finding gpio polarity in configuration \n";
+@@ -142,9 +140,6 @@
+ 		 *pDtype = /*sdbusplus::message::variant_ns::get<uint8_t>(
+                     findDtype->second);*/
+               std::visit(VariantToUnsignedIntVisitor(), findDtype->second);
+-               *pEventType = /*sdbusplus::message::variant_ns::get<uint8_t>(
+-                    findEventType->second);*/
+-               std::visit(VariantToUnsignedIntVisitor(), findEventType->second);
+                *pEvState = /*sdbusplus::message::variant_ns::get<uint8_t>(
+                     findEvState->second);*/
+                std::visit(VariantToUnsignedIntVisitor(), findEvState->second);
+@@ -153,6 +148,7 @@
+                *precordType = sdrRecord.RecordType;
+                *precordLen = sdrRecord.RecordLen;
+                *pownerId = sdrRecord.OwnerId;
++	       *pEventType = sdrRecord.EventType;
+                *pownerLun = sdrRecord.OwnerLun;
+                *pentityId = sdrRecord.EntityId;
+                *pentityInstance = sdrRecord.EntityInstance;
+diff -Naur a/src/PSUEvent.cpp b/src/PSUEvent.cpp
+--- a/src/PSUEvent.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/PSUEvent.cpp	2020-08-30 09:39:41.234924211 +0530
+@@ -35,23 +35,65 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& psuName,
+     boost::container::flat_map<std::string, std::vector<std::string>>&
+-        eventPathList,
++        eventPathList, uint8_t DType, uint8_t EventType, uint16_t EvStat,
+     boost::container::flat_map<
+         std::string,
+         boost::container::flat_map<std::string, std::vector<std::string>>>&
+-        groupEventPathList,
+-    const std::string& combineEventName) :
++        groupEventPathList, 
++    const std::string& combineEventName, struct sdr::SdrRecord sdrRecord) :
+     objServer(objectServer)
+ {
+-    eventInterface = objServer.add_interface(
+-        "/xyz/openbmc_project/State/Decorator/" + psuName + "_" +
+-            combineEventName,
+-        "xyz.openbmc_project.State.Decorator.OperationalStatus");
+-    eventInterface->register_property("functional", true);
++    SenInterface = objServer.add_interface(
++       "/xyz/openbmc_project/sensors/PSU/" + psuName,
++        "xyz.openbmc_project.Sensor.Value");
++
++    SenInterface->register_property("EventType",EventType);
++    SenInterface->register_property("DType", DType);
++    SenInterface->register_property("EvStat", EvStat);
++    SenInterface->register_property("SensorStat", false);
++    SenInterface->register_property("SdrVersion", sdrRecord.SdrVersion);
++    SenInterface->register_property("RecordType",sdrRecord.RecordType);
++    SenInterface->register_property("RecordLen",sdrRecord.RecordLen);
++    SenInterface->register_property("OwnerId", sdrRecord.OwnerId);
++    SenInterface->register_property("OwnerLun", sdrRecord.OwnerLun);
++    SenInterface->register_property("EntityId",sdrRecord.EntityId);
++    SenInterface->register_property("EntityInstance",sdrRecord.EntityInstance );
++    SenInterface->register_property("SensorInit",sdrRecord.SensorInit);
++    SenInterface->register_property("SensorCap",sdrRecord.SensorCap);
++    SenInterface->register_property("SensorType",sdrRecord.SensorType);
++    SenInterface->register_property("SensorUnit1", sdrRecord.SensorUnit1);
++    SenInterface->register_property("SensorUnit2", sdrRecord.SensorUnit2);
++    SenInterface->register_property("ModifierUnit", sdrRecord.ModifierUnit);
++    SenInterface->register_property("Linearization", sdrRecord.Linearization);
++    SenInterface->register_property("NominalReading", sdrRecord.NominalReading);
++    SenInterface->register_property("NormalMax", sdrRecord.NormalMax);
++    SenInterface->register_property("NormalMin", sdrRecord.NormalMin);
++    SenInterface->register_property("PositiveHysteris", sdrRecord.PositiveHysteris);
++    SenInterface->register_property("NegativeHysteresis",sdrRecord.NegativeHysteresis);
++
++    SenInterface->register_property("Value", 0);
++
++    if (!SenInterface->initialize())
++    {
++        std::cerr << "error initializing PSUSen interface\n";
++    }
++
++    StateInterface = objServer.add_interface(
++        "/xyz/openbmc_project/sensors/PSU/" + psuName,
++        "xyz.openbmc_project.Sensor.Discrete.State");
++
++    StateInterface->register_property("ActiveAlarmState", static_cast<uint8_t>(0x00));
++    StateInterface->register_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++          //     [&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
++           //         oldValue = request;
++           //         state_al = request;
++           //         return 1;
++           //     }
++       //      );
+ 
+-    if (!eventInterface->initialize())
++    if (!StateInterface->initialize())
+     {
+-        std::cerr << "error initializing event interface\n";
++       std::cerr << "error initializing PSUState interface\n";
+     }
+ 
+     std::shared_ptr<std::set<std::string>> combineEvent =
+@@ -67,7 +109,7 @@
+         for (const auto& path : pathList.second)
+         {
+             auto p = std::make_shared<PSUSubEvent>(
+-                eventInterface, path, conn, io, eventName, eventName, assert,
++                StateInterface, path, conn, io, eventName, eventName, assert,
+                 combineEvent, state, psuName);
+             p->setupRead();
+ 
+@@ -90,7 +132,7 @@
+             for (const auto& path : pathList.second)
+             {
+                 auto p = std::make_shared<PSUSubEvent>(
+-                    eventInterface, path, conn, io, groupEventName,
++                    StateInterface, path, conn, io, groupEventName,
+                     groupPathList.first, assert, combineEvent, state, psuName);
+                 p->setupRead();
+                 events[eventPSUName].emplace_back(p);
+@@ -113,7 +155,7 @@
+         }
+     }
+     events.clear();
+-    objServer.remove_interface(eventInterface);
++    objServer.remove_interface(StateInterface);
+ }
+ 
+ static boost::container::flat_map<std::string,
+@@ -135,7 +177,7 @@
+           "OpenBMC.0.1.PowerSupplyConfigurationErrorRecovered"}}};
+ 
+ PSUSubEvent::PSUSubEvent(
+-    std::shared_ptr<sdbusplus::asio::dbus_interface> eventInterface,
++    std::shared_ptr<sdbusplus::asio::dbus_interface> StateInterface,
+     const std::string& path, std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& groupEventName,
+     const std::string& eventName,
+@@ -143,7 +185,7 @@
+     std::shared_ptr<std::set<std::string>> combineEvent,
+     std::shared_ptr<bool> state, const std::string& psuName) :
+     std::enable_shared_from_this<PSUSubEvent>(),
+-    eventInterface(eventInterface), asserts(asserts),
++    StateInterface(StateInterface), asserts(asserts),
+     combineEvent(combineEvent), assertState(state), errCount(0), path(path),
+     eventName(eventName), waitTimer(io), inputDev(io), psuName(psuName),
+     groupEventName(groupEventName), systemBus(conn)
+@@ -267,6 +309,7 @@
+ {
+     // Take no action if value already equal
+     // Same semantics as Sensor::updateValue(const double&)
++    static uint8_t fst,st;
+     if (newValue == value)
+     {
+         return;
+@@ -275,9 +318,9 @@
+     if (newValue == 0)
+     {
+         // log deassert only after all asserts are gone
+-        if (!(*asserts).empty())
++  /*     if (!(*asserts).empty())
+         {
+-            auto found = (*asserts).find(path);
++           auto found = (*asserts).find(path);
+             if (found == (*asserts).end())
+             {
+                 return;
+@@ -319,13 +362,33 @@
+ 
+             if ((*combineEvent).empty())
+             {
+-                eventInterface->set_property("functional", true);
++               StateInterface->set_property("ActiveAlarmState", static_cast<std::vector<uint8_t>>(0xFF,0xFF,0xFF));
+             }
+-        }
++        }*/
++    if(eventName ==  "FanFault" && path.find("fault") != std::string::npos){
++        fst &= ~(1 << 1);
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++        StateInterface->set_property("ActiveAlarmState", st);
++    }
++    else if(eventName == "ACLost"){
++        st &= ~(1 << 4);
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++        StateInterface->set_property("ActiveAlarmState", st);
++    }
++    else if(eventName == "Failure"){
++        st &= ~(1 << 1);
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++        StateInterface->set_property("ActiveAlarmState", st);
++    }
++    else if(eventName == "PredictiveFailure"){
++        st &= ~(1 << 3);
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
++        StateInterface->set_property("ActiveAlarmState", st);
++    }
+     }
+     else
+     {
+-        if ((*assertState == false) && ((*asserts).empty()))
++    /*    if ((*assertState == false) && ((*asserts).empty()))
+         {
+             *assertState = true;
+             if (!assertMessage.empty())
+@@ -365,7 +428,38 @@
+             (*combineEvent).emplace(groupEventName);
+         }
+         (*asserts).emplace(path);
+-    }
++    }*/
++    if((eventName == "FanFault") && path.find("fault") != std::string::npos){
++       std::cerr << "eventName:" << eventName << "pathname:" << path << "\n";
++       fst |= 0x02;
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
++       StateInterface->set_property("ActiveAlarmState", st);
++       /*genEvent(const std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
++              const std::string &message, const std::string &path,
++              const uint8_t &recType, const uint8_t &evmRev,
++              const uint8_t &senType, const uint8_t &senNum, const uint8_t &eveType,
++              const std::vector<uint8_t> &selData, const bool &assert,
++              const uint16_t &genId)*/
++    }
++    else if(eventName == "ACLost"){
++       std::cerr << "eventName:" << eventName << "pathname:" << path << "\n";
++        st |= 0x08;
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0x03, 0xFF, 0xFF}));
++       StateInterface->set_property("ActiveAlarmState", st);
++    }
++    else if(eventName == "Failure"){
++       std::cerr << "eventName:" << eventName << "pathname:" << path << "\n";
++        st |=0x02;
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
++       StateInterface->set_property("ActiveAlarmState", st);
++    }
++    else if(eventName == "PredictiveFailure"){
++       std::cerr << "eventName:" << eventName << "pathname:" << path << "\n";
++       st |= 0x04;
++       StateInterface->set_property("EventData", std::vector<uint8_t>({0x02, 0xFF, 0xFF}));
++       StateInterface->set_property("ActiveAlarmState", st);
++     }
++  }
+     value = newValue;
+ }
+ 
+diff -Naur a/src/PSUEventMain.cpp b/src/PSUEventMain.cpp
+--- a/src/PSUEventMain.cpp	1970-01-01 05:30:00.000000000 +0530
++++ b/src/PSUEventMain.cpp	2020-08-30 09:39:41.242924392 +0530
+@@ -0,0 +1,404 @@
++/*
++// Copyright (c) 2019 Intel Corporation
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++*/
++
++#include <PSUEvent.hpp>
++#include <PSUSensor.hpp>
++#include <Utils.hpp>
++#include <boost/algorithm/string/predicate.hpp>
++#include <boost/algorithm/string/replace.hpp>
++#include <boost/container/flat_set.hpp>
++#include <filesystem>
++#include <fstream>
++#include <iostream>
++#include <regex>
++#include <sdbusplus/asio/connection.hpp>
++#include <sdbusplus/asio/object_server.hpp>
++
++static constexpr std::array<const char*, 1> sensorTypes = {
++    "xyz.openbmc_project.Configuration.pmbus"};
++static constexpr std::array<const char*, 1> discsensorTypes = {
++    "xyz.openbmc_project.Configuration.pmbusdisc"};
++
++static std::vector<std::string> pmbusNames = {"pmbus", "pxe1610", "ina219",
++                                              "ina230"};
++namespace fs = std::filesystem;
++
++static boost::container::flat_map<std::string, std::unique_ptr<PSUCombineEvent>>
++    combineEvents;
++static boost::container::flat_map<std::string, std::unique_ptr<PwmSensor>>
++    pwmSensors;
++static boost::container::flat_map<std::string, std::string> sensorTable;
++static boost::container::flat_map<std::string, std::string> Units;
++static boost::container::flat_map<std::string, PSUProperty> labelMatch;
++static boost::container::flat_map<std::string, std::vector<std::string>>
++    stateeventMatch;
++static boost::container::flat_map<std::string, std::vector<std::string>>
++    faneventMatch;
++
++// Function CheckEvent will check each attribute from eventMatch table in the
++// sysfs. If the attributes exists in sysfs, then store the complete path
++// of the attribute into eventPathList.
++void checkEvent(
++    const std::string& directory,
++    const boost::container::flat_map<std::string, std::vector<std::string>>&
++        eventMatch,
++    boost::container::flat_map<std::string, std::vector<std::string>>&
++        eventPathList)
++{
++    for (const auto& match : eventMatch)
++    {
++        const std::vector<std::string>& eventAttrs = match.second;
++        const std::string& eventName = match.first;
++        for (const auto& eventAttr : eventAttrs)
++        {
++            auto eventPath = directory + "/" + eventAttr;
++
++            std::ifstream eventFile(eventPath);
++            if (!eventFile.good())
++            {
++                continue;
++            }
++
++            eventPathList[eventName].push_back(eventPath);
++        }
++    }
++}
++
++void ReplaceStringInPlace(std::string& subject, const std::string& search,
++                          const std::string& replace) {
++    size_t pos = 0;
++    while ((pos = subject.find(search, pos)) != std::string::npos) {
++         subject.replace(pos, search.length(), replace);
++         pos += replace.length();
++    }
++}
++
++void createSensors(boost::asio::io_service& io,
++                   sdbusplus::asio::object_server& objectServer,
++                   std::shared_ptr<sdbusplus::asio::connection>& dbusConnection)
++{
++    std::cout << "calling createDiscSensors" << "\n";
++
++    ManagedObjectType sensorConfigs;
++    bool useCache = false;
++
++    // TODO may need only modify the ones that need to be changed.
++    //sensors.clear();
++    for (const char* type : discsensorTypes)
++    {
++	std::cout << "createDiscSensors: discsensorTypes for " << "\n";
++        if (!getSensorConfiguration(type, dbusConnection, sensorConfigs,
++                                    useCache))
++        {
++            std::cerr << "error get psudiscsensor config from entity manager\n";
++            return;
++        }
++        useCache = true;
++    }
++
++    std::vector<fs::path> pmbusPaths;
++    if (!findFiles(fs::path("/sys/class/hwmon"), "name", pmbusPaths))
++    {
++        std::cerr << "No PSU sensors in system\n";
++        return;
++    }
++
++    boost::container::flat_set<std::string> directories;
++    for (const auto& pmbusPath : pmbusPaths)
++    {
++	std::cout << "createDiscSensors: pmbusPaths for " << "\n";
++        boost::container::flat_map<std::string, std::vector<std::string>>
++            eventPathList;
++
++        std::ifstream nameFile(pmbusPath);
++        if (!nameFile.good())
++        {
++            std::cerr << "Failure reading " << pmbusPath << "\n";
++            continue;
++        }
++
++        std::string pmbusName;
++        std::getline(nameFile, pmbusName);
++        nameFile.close();
++
++        if (std::find(pmbusNames.begin(), pmbusNames.end(), pmbusName) ==
++            pmbusNames.end())
++        {
++            continue;
++        }
++
++        std::string psuName;
++	const std::string* subName;
++        auto directory = pmbusPath.parent_path();
++
++        auto ret = directories.insert(directory.string());
++        if (!ret.second)
++        {
++            continue; // check if path has already been searched
++        }
++
++        fs::path device = directory / "device";
++        std::string deviceName = fs::canonical(device).stem();
++        auto findHyphen = deviceName.find("-");
++        if (findHyphen == std::string::npos)
++        {
++            std::cerr << "found bad device" << deviceName << "\n";
++            continue;
++        }
++        std::string busStr = deviceName.substr(0, findHyphen);
++        std::string addrStr = deviceName.substr(findHyphen + 1);
++
++        size_t bus = 0;
++        size_t addr = 0;
++
++        try
++        {
++            bus = std::stoi(busStr);
++            addr = std::stoi(addrStr, 0, 16);
++        }
++        catch (std::invalid_argument&)
++        {
++            continue;
++        }
++
++        const std::pair<std::string, boost::container::flat_map<
++                                         std::string, BasicVariantType>>*
++            baseConfig = nullptr;
++        const SensorData* sensorData = nullptr;
++        const std::string* interfacePath = nullptr;
++        const char* sensorType = nullptr;
++
++        for (const std::pair<sdbusplus::message::object_path, SensorData>&
++                 sensor : sensorConfigs)
++        {
++	    std::cout << "createDiscSensors: sensorConfigs for " << "\n";
++            sensorData = &(sensor.second);
++            for (const char* type : discsensorTypes)
++            {
++		std::cout << "createDiscSensors: discsensorTypes for inside pmbusPaths for " << "\n";
++                auto sensorBase = sensorData->find(type);
++                if (sensorBase != sensorData->end())
++                {
++                    baseConfig = &(*sensorBase);
++                    sensorType = type;
++                    break;
++                }
++            }
++            if (baseConfig == nullptr)
++            {
++                std::cerr << "error finding base configuration for discsensor"
++                          << "\n";
++                continue;
++            }
++
++                        auto configBus = baseConfig->second.find("Bus");
++            auto configAddress = baseConfig->second.find("Address");
++
++            if (configBus == baseConfig->second.end() ||
++                configAddress == baseConfig->second.end())
++            {
++                std::cerr << "error finding necessary entry in configuration\n";
++                continue;
++            }
++
++            const uint64_t* confBus;
++            const uint64_t* confAddr;
++            if (!(confBus = std::get_if<uint64_t>(&(configBus->second))) ||
++                !(confAddr = std::get_if<uint64_t>(&(configAddress->second))))
++            {
++                std::cerr
++                    << "Canot get bus or address, invalid configuration\n";
++                continue;
++            }
++
++            if ((*confBus != bus) || (*confAddr != addr))
++            {
++                continue;
++            }
++
++            interfacePath = &(sensor.first.str);
++            //break;
++        //}
++        if (interfacePath == nullptr)
++        {
++            std::cerr << "failed to find match for " << "\n";
++            continue;
++        }
++
++        auto findPSUName = baseConfig->second.find("Name");
++        if (findPSUName == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration name for "
++                      << "\n";
++            continue;
++        }
++	psuName = std::get<std::string>(findPSUName->second);
++
++	//ReplaceStringInPlace(*n, " ", "_");
++	boost::replace_all(psuName, " ", "_");
++
++	auto findsubName = baseConfig->second.find("subName");
++        if (findsubName == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration subname for "
++                      << "\n";
++            continue;
++        }
++
++	if(!(subName = std::get_if<std::string>(&(findsubName->second)))){
++	    std::cerr << "could not determine configuration subname for "
++                      << "\n";
++            continue;
++
++	}
++
++	auto findEvStat = baseConfig->second.find("EvStat");
++        if (findEvStat == baseConfig->second.end())
++        {
++            std::cerr << "Base configuration missing EvStat"
++                      << baseConfig->first << "\n";
++            continue;
++        }
++
++        uint16_t EvStat =
++            std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
++        auto findSensorUnit = baseConfig->second.find("Unit");
++        if (findSensorUnit == baseConfig->second.end())
++        {
++            std::cerr << "could not determine Unit for "
++                      << "\n";
++            continue;
++        }
++        std::string sensorUnit = std::get<std::string>(findSensorUnit->second);
++
++        //Digital Type
++        auto findSensorDType = baseConfig->second.find("DType");
++        if (findSensorDType == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration DType for "
++                      << "\n";
++            continue;
++        }
++        uint8_t sensorDType =  std::visit(VariantToUnsignedIntVisitor(), findSensorDType->second);
++
++        //Digital Event Type
++        /*auto findSensorEventType = baseConfig->second.find("EventType");
++        if (findSensorEventType == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration EventType for "
++                      << "\n";
++            continue;
++        }
++        uint8_t sensorEventType = std::visit(VariantToUnsignedIntVisitor(), findSensorEventType->second);*/
++
++        //Digital Event Offset
++        auto findSensorEventOffset = baseConfig->second.find("EventOffset");
++        if (findSensorEventOffset == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration EventType for "
++                      << "\n";
++            continue;
++        }
++        uint8_t sensorEventOffset = std::visit(VariantToUnsignedIntVisitor(), findSensorEventOffset->second);
++
++	//Digital Event Offset
++        auto findSensorSubType = baseConfig->second.find("SubType");
++        if (findSensorSubType == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration SubType for "
++                      << "\n";
++            continue;
++        }
++        uint8_t sensorSubType = std::visit(VariantToUnsignedIntVisitor(), findSensorSubType->second);
++	if(sensorSubType == 0x00){
++            checkEvent(directory.string(), stateeventMatch, eventPathList);
++	}else if(sensorSubType == 0x01){
++	    checkEvent(directory.string(), faneventMatch, eventPathList);
++	}
++
++	struct sdr::SdrRecord sdrRecord;
++        if( !parseSdrRecordFromConfig(*sensorData ,sdrRecord))
++        {
++            std::cerr << "error getting sdr record" << std::endl;
++        }
++     /*   uint8_t sensorEventType = sdrRecord.EventType;
++        // OperationalStatus event
++        combineEvents[psuName] =
++            std::make_unique<PSUCombineEvent>(
++                objectServer, io, psuName, eventPathList, sensorDType, sensorEventType,
++		EvStat,"OperationalStatus",sdrRecord);*/
++	}
++    }
++    return;
++}
++
++void propertyInitialize(void)
++{
++    stateeventMatch = {
++        {"PredictiveFailure", {"power1_alarm"}},
++        {"Failure", {"in2_alarm"}},
++        {"ACLost", {"in1_alarm", "in1_lcrit_alarm"}}};
++
++    faneventMatch = {
++	{"FanFault", {"fan1_alarm", "fan2_alarm", "fan1_fault", "fan2_fault"}}};
++}
++
++int main()
++{
++    boost::asio::io_service io;
++    auto systemBus = std::make_shared<sdbusplus::asio::connection>(io);
++
++    systemBus->request_name("xyz.openbmc_project.PSUEvent");
++    sdbusplus::asio::object_server objectServer(systemBus);
++    std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
++
++    propertyInitialize();
++
++    io.post([&]() { createSensors(io, objectServer, systemBus); });
++    boost::asio::deadline_timer filterTimer(io);
++    std::function<void(sdbusplus::message::message&)> eventHandler =
++        [&](sdbusplus::message::message& message) {
++            if (message.is_method_error())
++            {
++                std::cerr << "callback method error\n";
++                return;
++            }
++            filterTimer.expires_from_now(boost::posix_time::seconds(1));
++            filterTimer.async_wait([&](const boost::system::error_code& ec) {
++                if (ec == boost::asio::error::operation_aborted)
++                {
++                    return;
++                }
++                else if (ec)
++                {
++                    std::cerr << "timer error\n";
++                }
++                createSensors(io, objectServer, systemBus);
++            });
++        };
++
++    for (const char* type : sensorTypes)
++    {
++        auto match = std::make_unique<sdbusplus::bus::match::match>(
++            static_cast<sdbusplus::bus::bus&>(*systemBus),
++            "type='signal',member='PropertiesChanged',path_namespace='" +
++                std::string(inventoryPath) + "',arg0namespace='" + type + "'",
++            eventHandler);
++        matches.emplace_back(std::move(match));
++    }
++    io.run();
++}
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2020-08-30 09:39:27.754620729 +0530
++++ b/src/PSUSensorMain.cpp	2020-08-30 09:39:41.242924392 +0530
+@@ -819,11 +819,11 @@
+         }
+ 
+         // OperationalStatus event
+-        combineEvents[*psuName + "OperationalStatus"] = nullptr;
+-        combineEvents[*psuName + "OperationalStatus"] =
++   //     combineEvents[*psuName + "OperationalStatus"] = nullptr;
++       /* combineEvents[*psuName + "OperationalStatus"] =
+             std::make_unique<PSUCombineEvent>(
+                 objectServer, dbusConnection, io, *psuName, eventPathList,
+-                groupEventPathList, "OperationalStatus");
++                groupEventPathList, "OperationalStatus");*/
+     }
+ 
+     if constexpr (DEBUG)

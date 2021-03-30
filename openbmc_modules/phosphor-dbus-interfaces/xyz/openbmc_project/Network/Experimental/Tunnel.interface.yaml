@@ -1,0 +1,82 @@
+description: >
+    This defines network tunneling parameters.
+
+# TODO Fix it through https://github.com/openbmc/openbmc/issues/1438
+# creatable: true
+
+properties:
+    - name: InterfaceName
+      type: string
+      description: >
+          Name of the interface.
+    - name: Local
+      type: string
+      description: >
+          Local endpoint of tunnel.
+    - name: Remote
+      type: string
+      description: >
+          Remote endpoint of tunnel.
+    - name: TOS
+      type: uint32
+      description: >
+          The Type Of Service byte value for a tunnel interface.
+    - name: TTL
+      type: uint32
+      description: >
+          Number of hops that a packet is permitted to travel.
+    - name: DiscoverPathMTU
+      type: boolean
+      description: >
+          When true, enables Path MTU Discovery on the tunnel.
+    - name: IPv6FlowLabel
+      type: uint32
+      description: >
+          Configures the 20-bit flow label. It can be configured to a value
+          in the range 0–0xFFFFF, or be set to "inherit", in which case the
+          original flowlabel is used.
+    - name: CopyDSCP
+      type: boolean
+      description: >
+          When true, the Differentiated Service Code Point
+          (DSCP) field will be copied to the inner header from outer header
+          during the decapsulation of an IPv6 tunnel packet.
+    - name: EncapsulationLimit
+      type: uint32
+      description: >
+          The Tunnel Encapsulation Limit option specifies how many
+          additional levels of encapsulation are permitted to be prepended
+          to the packet.
+    - name: Key
+      type: string
+      description: >
+          This parameter specifies the same key to use in both
+          directions (InputKey= and OutputKey=).
+    - name: InputKey
+      type: string
+      description: >
+          This parameter specifies the key to use for input.
+    - name: OutputKey
+      type: string
+      description: >
+          This parameter specifies the key to use for output.
+    - name: Mode
+      type: enum[self.IPv6Tunnel]
+      description: >
+          An "ip6tnl" tunnel can be in one of three modes.
+      default: any
+
+enumerations:
+    - name: IPv6Tunnel
+      description: >
+          Possible IPv6 tunnel types.
+      values:
+        - name: ip6ip6
+          description: >
+              IPv6 over IPv6.
+        - name: ipip6
+          description: >
+              IPv4 over IPv6.
+        - name: any
+          description: >
+              Either ip6ip6 or ipip6.

@@ -1,0 +1,90 @@
+#Example fan monitor definitions for phosphor-fan-monitor
+
+#List the fans that need to be monitored, along with some
+#properties that define how much slack is allowed in the actual
+#tach value as compared to the target tach value.
+
+#fans:
+# - inventory:
+#    [The system inventory location for the fan]
+#  functional_delay:
+#    [Delay (in secs) before a fan is marked functional after returning
+#     within the allowed deviation]
+#  allowed_out_of_range_time:
+#    [Time (in secs) actual speed can be outside of deviation of
+#     target speed]
+#  deviation:
+#    [Percentage that actual speed must be within target speed]
+#  num_sensors_nonfunc_for_fan_nonfunc:
+#    [How many sensors on the fan must be faulted before fan
+#     will be considered faulted]
+#  sensors: [array of speed sensors for the fan]
+#    - name [The name of the fan sensor]
+#      has_target [true|false  If this sensor has a Target property for
+#                  setting a fan speed (otherwise just for reads)]
+#      target_interface [The fan target interface used by the sensor.
+#                        Default is "xyz.openbmc_project.Control.FanSpeed"]
+#      factor [The factor to multiply with target to calculate the expected
+#              fan speed. Default is 1 for fan speed target;
+#              Customized value for pwm target]
+#      offset [The offset to add to calculate the expected fan speed.
+#              Default is 0 for fan speed target;
+#              Customized value for pwm target]
+#  condition: [optional condition function to create fan functional monitoring]
+#    name: [The name of an available condition function]
+#    properties: [The properties used in the condition function]
+#        - object: [Object path of property to use]
+#          interface: [Interface of property to use]
+#          property:
+#              name: [Property name]
+#              type: [Property data type]
+#              value: [Property value to check condition against]
+#
+#sensor_trust_groups:
+# - class: [Group class name
+#           Available classes:
+#           * NonzeroSpeed - Only trust if at least one sensor in the group
+#                            has a nonzero speed.]
+#   group:
+#     - name [The name of the fan sensor in this group]
+#       in_trust: [true|false] (optional)
+#         [Include in trust determination or not. Default = true]
+
+#The code uses these parameters as follows:
+#  After a speed reading of a sensor is outside of the allowed deviation of
+#  the target speed for the allowed out of range time, if at least
+#  num_sensors_nonfunc_for_fan_nonfunc sensors meet this condition,
+#  the fan will be set to nonfunctional in the inventory.
+#
+#  Sensor trust groups are used to specify that the speed values for the
+#  sensors in a group cannot be trusted based on some condition, where
+#  the condition is based on the class used to implement the group.  All
+#  sensors in the group go in and out of trust based on those defined
+#  to be part of determining the trust.  This section is optional.
+
+#Example entries for 1 fan system:
+#fans:
+#  - inventory: /system/chassis/motherboard/fan0
+#    functional_delay: 5
+#    allowed_out_of_range_time: 15
+#    deviation: 15
+#    num_sensors_nonfunc_for_fan_nonfunc: 1
+#    sensors:
+#      - name: fan0
+#        has_target: true
+#    # Only create fan functional properties and monitor on air cooled
+#    condition:
+#      name: propertiesMatch
+#      properties:
+#        - object: /xyz/openbmc_project/inventory/system/chassis
+#          interface: xyz.openbmc_project.Inventory.Decorator.CoolingType
+#          property:
+#            name: WaterCooled
+#            type: bool
+#            value: false
+#sensor_trust_groups:
+# - class: NonzeroSpeed
+#    group:
+#      - name: fan0_0
+#        in_trust: false
+#      - name: fan0_1

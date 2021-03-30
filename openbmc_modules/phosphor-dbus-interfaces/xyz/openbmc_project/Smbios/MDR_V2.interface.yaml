@@ -1,0 +1,158 @@
+description: >
+    SMBIOS MDR V2 service
+methods:
+    - name: GetDirectoryInformation
+      description: >
+          Get the directory with directory index.
+      parameters:
+        - name: dirIndex
+          type: byte
+          description: >
+              Directory index of SMBIOS.
+      returns:
+        - name: dir
+          type: array[byte]
+          description: >
+            Directory of agent.
+      errors:
+        - self.Error.InvalidParameter
+
+    - name: GetDataInformation
+      description: >
+          Get the data info with id index and data set ID.
+      parameters:
+        - name: idIndex
+          type: byte
+          description: >
+              Index of SMBIOS directory.
+      returns:
+        - name: dataInfo
+          type: array[byte]
+          description: >
+            Data information of SMBIOS.
+      errors:
+        - self.Error.InvalidParameter
+
+    - name: SendDirectoryInformation
+      description: >
+           Send directory information to SMBIOS directory.
+      parameters:
+        - name: dirVersion
+          type: byte
+          description: >
+            A counter which increments each time directory updated.
+        - name: dirIndex
+          type: byte
+          description: >
+            Directory index of SMBIOS.
+        - name: returnedEntries
+          type: byte
+          description: >
+            Indicates number of directory entries.
+        - name: remainingEntries
+          type: byte
+          description: >
+            Remaining entries which are higher than index in this transfer.
+        - name: dirEntry
+          type: array[byte]
+          description: >
+            Data set ID of SMBIOS table.
+      returns:
+        - name: status
+          type: boolean
+          description: >
+            Need to continue directory transmisson or not.
+      errors:
+        - self.Error.InvalidParameter
+
+    - name: GetDataOffer
+      description: >
+           Get data set ID.
+      returns:
+        - name: offer
+          type: array[byte]
+          description: >
+            Data set ID.
+      errors:
+        - self.Error.UpdateInProgress
+
+    - name: SendDataInformation
+      description: >
+           Send data information with directory index.
+      parameters:
+        - name: idIndex
+          type: byte
+          description: >
+            Index of SMBIOS directory.
+        - name: flag
+          type: byte
+          description: >
+            Valid flag to set dir entry status.
+        - name: dataLen
+          type: uint32
+          description: >
+            The length of the data in bytes.
+        - name: dataVer
+          type: uint32
+          description: >
+            The version number of this data.
+        - name: timeStamp
+          type: uint32
+          description: >
+            Timestamp determinded by the agent.
+      returns:
+        - name: status
+          type: boolean
+          description: >
+            Whether data changes.
+      errors:
+        - self.Error.InvalidParameter
+
+    - name: FindIdIndex
+      description: >
+          Find id index by data info.
+      parameters:
+        - name: dataInfo
+          type: array[byte]
+          description: >
+            Data info of data entry.
+      returns:
+        - name: idIndex
+          type: int32
+          description: >
+            Id index of data entry.
+      errors:
+        - self.Error.InvalidId
+
+    - name: AgentSynchronizeData
+      description: >
+          Synchronize SMBIOS data from file.
+      returns:
+       - name: status
+         type: boolean
+         description: >
+           Whether synchronization succeed or not.
+
+    - name: SynchronizeDirectoryCommonData
+      description: >
+          Synchronize directory common data.
+      parameters:
+        - name: idIndex
+          type: byte
+          description: >
+            Index of SMBIOS directory.
+        - name: size
+          type: uint32
+          description: >
+           Size of data that BIOS prepare to transfer.
+      returns:
+        - name: commonData
+          type: array[uint32]
+          description: >
+            Directory common data includes data size, version and timestamp.
+
+properties:
+    - name: DirectoryEntries
+      type: byte
+      description: >
+        Numbers of directory entries.

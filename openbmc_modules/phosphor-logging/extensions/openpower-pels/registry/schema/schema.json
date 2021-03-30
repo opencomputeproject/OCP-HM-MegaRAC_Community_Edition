@@ -1,0 +1,664 @@
+{
+    "title": "PEL message registry schema",
+    "$id": "http://github.com/openbmc/phosphor-logging/extensions/openpower-pels/registry/schema/schema.json",
+    "description": "This schema describes JSON used for creating PELs from OpenBMC event logs.",
+    "type": "object",
+
+    "properties":
+    {
+        "PELs":
+        {
+            "title": "This is an array of entries that specify PEL fields for event logs",
+            "$ref": "#/definitions/pels"
+        }
+    },
+
+    "additionalProperties": false,
+    "minItems": 1,
+    "uniqueItems": true,
+
+    "definitions":
+    {
+        "pels":
+        {
+            "description": "Each entry in this array is for converting an event log to a PEL",
+            "type": "array",
+            "items":
+            {
+                "description": "The schema for a single event log registry entry",
+                "type": "object",
+                "properties":
+                {
+                    "Name": {"$ref": "#/definitions/errorName" },
+
+                    "SRC": {"$ref": "#/definitions/src" },
+
+                    "Subsystem": {"$ref": "#/definitions/subsystem" },
+
+                    "Severity": {"$ref": "#/definitions/severity" },
+
+                    "MfgSeverity": {"$ref": "#/definitions/mfgSeverity" },
+
+                    "EventScope": {"$ref": "#/definitions/eventScope" },
+
+                    "EventType": {"$ref": "#/definitions/eventType" },
+
+                    "ActionFlags": {"$ref": "#/definitions/actionFlags" },
+
+                    "MfgActionFlags": {"$ref": "#/definitions/mfgActionFlags" },
+
+                    "Documentation": {"$ref": "#/definitions/documentation" },
+
+                    "ComponentID": {"$ref": "#/definitions/componentID" },
+
+                    "CalloutsUsingAD": {"$ref": "#/definitions/calloutsUsingAD"},
+
+                    "Callouts": {"$ref": "#/definitions/callouts"}
+                },
+
+                "required": ["Name", "SRC", "Subsystem", "Documentation"],
+                "additionalProperties": false,
+
+                "not":
+                {
+                    "required": ["CalloutsUsingAD", "Callouts"]
+                }
+            }
+        },
+
+        "errorName":
+        {
+            "description": "The 'Message' property of an OpenBMC event log",
+            "type": "string"
+        },
+
+        "componentID":
+        {
+            "description": "The component ID of the PEL creator, in the form 0xYY00.  For BD SRCs, this is optional and if not present the component ID will be taken from the upper byte of the reason code.",
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{2}00$"
+        },
+
+        "src":
+        {
+            "description": "Contains fields describing the primary SRC embedded in the PEL",
+            "type": "object",
+
+            "properties":
+            {
+                "Type": {"$ref": "#/definitions/srcType" },
+
+                "ReasonCode": {"$ref": "#/definitions/reasonCode" },
+
+                "SymptomIDFields": {"$ref": "#/definitions/symptomID" },
+
+                "Words6To9": {"$ref": "#/definitions/srcWords6To9" },
+
+                "PowerFault": {"$ref": "#/definitions/powerFault" }
+            },
+
+            "required": ["ReasonCode", "Words6To9"],
+            "additionalProperties": false
+        },
+
+        "documentation":
+        {
+            "description": "This contains event documentation that will be used by tools and parsers.",
+            "type": "object",
+
+            "properties":
+            {
+                "Message": {"$ref": "#/definitions/docMessage" },
+
+                "MessageArgSources": {"$ref": "#/definitions/docMessageArgSources" },
+
+                "Description": {"$ref": "#/definitions/docDescription" },
+
+                "Notes": {"$ref": "#/definitions/docNotes" }
+
+            },
+            "additionalProperties": false,
+            "required": ["Message", "Description"]
+        },
+
+        "srcType":
+        {
+            "description": "The first byte of the SRC ASCII string. Optional and defaults to BD.  The '11' SRC is only to be used for events related to power.",
+            "type": "string",
+            "enum": ["BD", "11"]
+        },
+
+        "docNotes":
+        {
+            "description": "Any notes/comments about the error. An array of strings for manual line wrapping. Optional.",
+            "type": "array",
+            "items":
+            {
+                "description": "Notes",
+                "type": "string"
+            }
+        },
+
+        "reasonCode":
+        {
+            "description": "String representation of the 2 byte reason code, like 0xABCD.  The reason code is the 2nd half of the 8 character SRC ASCII String field, such as B1FFABCD.",
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{4}$",
+
+            "examples": [
+                "0x3355"
+            ]
+        },
+
+        "subsystem":
+        {
+            "description": "PEL subsystem enumeration.  See the PEL spec for more detailed definitions.",
+            "type": "string",
+            "enum": ["processor", "processor_fru", "processor_chip",
+                     "processor_unit", "processor_bus",
+
+                     "memory", "memory_ctlr", "memory_bus", "memory_dimm",
+                     "memory_fru", "external_cache",
+
+                     "io", "io_hub", "io_bridge", "io_bus", "io_processor",
+                     "io_hub_other", "phb",
+
+                     "io_adapter", "io_adapter_comm", "io_device",
+                     "io_device_dasd", "io_external_general",
+                     "io_external_workstation", "io_storage_mezz",
+
+                     "cec_hardware", "cec_sp_a", "cec_sp_b",
+                     "cec_node_controller", "cec_vpd",
+                     "cec_i2c", "cec_chip_iface", "cec_clocks", "cec_op_panel",
+                     "cec_tod", "cec_storage_device", "cec_sp_hyp_iface",
+                     "cec_service_network", "cec_sp_hostboot_iface",
+
+                     "power", "power_supply", "power_control_hw", "power_fans",
+                     "power_sequencer",
+
+                     "others", "other_hmc", "other_test_tool", "other_media",
+                     "other_multiple_subsystems", "other_na", "other_info_src",
+
+                     "surv_hyp_lost_sp", "surv_sp_lost_hyp", "surv_sp_lost_hmc",
+                     "surv_hmc_lost_lpar", "surv_hmc_lost_bpa",
+                     "surv_hmc_lost_hmc",
+
+                     "platform_firmware", "bmc_firmware", "hyp_firmware",
+                     "partition_firmware", "slic_firmware", "spcn_firmware",
+                     "bulk_power_firmware_side_a", "hmc_code_firmware",
+                     "bulk_power_firmware_side_b", "virtual_sp", "hostboot",
+                     "occ",
+
+                     "software", "os_software", "xpf_software", "app_software",
+
+                     "ext_env", "input_power_source", "ambient_temp",
+                     "user_error", "corrosion"]
+        },
+
+        "systemAndSeverity":
+        {
+            "description": "A severity entry that has an optional system type qualifier.  Used when the severity needs to be based on the system type.",
+            "type": "object",
+            "properties":
+            {
+                "System": { "$ref": "#/definitions/system" },
+                "SevValue": { "$ref": "#/definitions/severityTypes" }
+            },
+            "additionalProperties": false,
+            "required": ["SevValue"]
+        },
+
+        "severity":
+        {
+            "description": "PEL severity field.  Optional.  If not provided, it will use the event log severity. It can either be an enum of the severity value, or an array of them that is based on system type, where an entry without a system type acts as the catch all.",
+            "oneOf":
+            [
+                {
+                    "$ref": "#/definitions/severityTypes"
+                },
+                {
+                    "type": "array",
+                    "items":
+                    {
+                        "$ref": "#/definitions/systemAndSeverity"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                }
+            ],
+
+            "examples":
+            [
+                "unrecoverable",
+
+                [
+                    {
+                        "System": "systemA",
+                        "SevValue": "predictive"
+                    },
+                    {
+                        "SevValue": "unrecoverable"
+                    }
+                ]
+            ]
+
+        },
+
+        "severityTypes":
+        {
+            "description": "PEL severity enumeration.  See the PEL spec for more detailed definitions.",
+            "type": "string",
+
+            "enum": ["non_error",
+
+                     "recovered",
+
+                     "predictive", "predictive_degraded_perf",
+                     "predictive_reboot", "predictive_reboot_degraded",
+                     "predictive_redundancy_loss",
+
+                     "unrecoverable", "unrecoverable_degraded_perf",
+                     "unrecoverable_redundancy_loss",
+                     "unrecoverable_redundancy_loss_perf",
+                     "unrecoverable_loss_of_function",
+
+                     "critical", "critical_system_term",
+                     "critical_imminent_failure",
+                     "critical_partition_term",
+                     "critical_partition_imminent_failure",
+
+                     "diagnostic_error", "diagnostic_error_incorrect_results",
+
+                     "symptom_recovered", "symptom_predictive",
+                     "symptom_unrecoverable", "symptom_critical",
+                     "symptom_diag_err"]
+        },
+
+        "mfgSeverity":
+        {
+            "description": "The PEL severity to use in manufacturing reporting mode",
+            "$ref": "#/definitions/severity"
+        },
+
+        "eventScope":
+        {
+            "description": "The event scope PEL field. Optional and defaults to entire_platform",
+            "type": "string",
+            "enum": ["entire_platform", "single_partition", "multiple_partitions",
+                     "possibly_multiple_platforms"]
+        },
+
+        "eventType":
+        {
+            "description": "The event type PEL field. Optional and defaults to na",
+            "type": "string",
+            "enum": ["na", "misc_information_only", "tracing_event",
+                     "dump_notification"]
+        },
+
+        "powerFault":
+        {
+            "description": "The Power Fault SRC field (bit 6 in byte 1 of header). Optional and defaults to false",
+            "type": "boolean"
+        },
+
+        "actionFlags":
+        {
+            "description": "The action flags Private Header PEL field",
+            "type": "array",
+            "items":
+            {
+                "description": "List of action flags",
+                "type": "string",
+                "enum": ["service_action", "hidden", "report", "dont_report",
+                         "call_home", "isolation_incomplete", "termination"]
+            }
+        },
+
+        "mfgActionFlags":
+        {
+            "description": "The PEL action flags to use in manufacturing reporting mode",
+            "$ref": "#/definitions/actionFlags"
+        },
+
+        "docDescription":
+        {
+            "description": "This is a higher level description of the error.  It is required by the Redfish schema to generate a Redfish message entry, but is not used in Redfish or PEL output.",
+            "type": "string"
+        },
+
+        "docMessage":
+        {
+            "description": "The error message.  This will show up in parsed PELs, and in the Redfish event logs.  It can contain placeholders for numeric values using %1, %2, etc, that come from the SRC words 6-9 as defined by the MessageArgSources property.",
+            "type": "string",
+            "examples": [
+                {"Message": "The code update from level %1 to %2 failed" }
+            ]
+        },
+
+        "docMessageArgSources":
+        {
+            "description": "The SRC word 6-9 to use as the source of the numeric arguments that will be substituted into any placeholder in the Message field.  Only required if there are arguments to substitute.",
+            "type": "array",
+            "items":
+            {
+                "type": "string",
+                "enum": ["SRCWord6", "SRCWord7", "SRCWord8", "SRCWord9"]
+            },
+            "additionalItems": false
+        },
+
+        "symptomID":
+        {
+            "description": "Defines a custom Symptom ID, to be appended to the ASCII string word and separated by underscores.  The maximum size of the Symptom ID field is 80 characters.  The default is ASCIISTRING_SRCWord3 (e.g. B1103500_12345678).",
+            "type": "array",
+            "items":
+            {
+                "type": "string",
+                "enum": ["SRCWord3", "SRCWord4", "SRCWord5", "SRCWord6",
+                         "SRCWord7", "SRCWord8", "SRCWord9"]
+            },
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+
+            "examples": [
+                ["SRCWord3", "SRCWord6"]
+            ]
+        },
+
+        "srcWords6To9":
+        {
+            "description": "This details what the user defined SRC hex words (6-9) mean, and which AdditionalData properties to get them from.  These will be shown in the PEL parser output.  Must be present, but can be empty.",
+            "type": "object",
+            "patternProperties":
+            {
+                "^[6-9]$":
+                {
+                    "type": "object",
+                    "properties":
+                    {
+                        "Description":
+                        {
+                            "description": "What the value in the field represents.",
+                            "type": "string"
+                        },
+                        "AdditionalDataPropSource":
+                        {
+                            "description": "Which AdditionalData property key to get the data from.",
+                            "type": "string"
+                        }
+                    },
+
+                    "additionalProperties": false
+                },
+
+                "examples":
+                {
+                    "SRCWords6To9":
+                    {
+                        "6":
+                        {
+                            "Description": "Failing PSU number",
+                            "AdditionalDataPropSource": "PSU_NUM"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+
+        "adName":
+        {
+            "description": "The name of the AdditionalData entry to use to index into the callout tables.",
+            "type": "string"
+        },
+
+        "adValue":
+        {
+            "description": "The value for the AdditionalData entry specified by ADName that indexes into the callout tables.",
+            "type": "string"
+        },
+
+        "locationCode":
+        {
+            "description": "A location code - the segment after the 'UTMS-' prefix. (e.g. P1-C2)",
+            "type": "string"
+        },
+
+        "priority":
+        {
+            "description": "The callout priority.  See the PEL spec for priority definitions.",
+            "type": "string",
+            "enum": ["high", "medium", "low", "medium_group_a",
+                "medium_group_b", "medium_group_c"]
+        },
+
+        "symbolicFRU":
+        {
+            "description": "The symbolic FRU callout.",
+            "type": "string",
+            "enum": ["service_docs"]
+        },
+
+        "symbolicFRUTrusted":
+        {
+            "description": "The symbolic FRU callout with a trusted location code. (Can light LEDs).",
+            "ref": "#/definitions/symbolicFRU"
+        },
+
+        "procedure":
+        {
+            "description": "The maintenance procedure callout.",
+            "type": "string",
+            "enum": ["no_vpd_for_fru", "bmc_code"]
+        },
+
+        "calloutList":
+        {
+            "description": "The list of FRU callouts to add to a PEL.  If just LocCode is specified, it is a normal hardware FRU callout.  If Procedure is specified, it is a procedure callout.  If SymbolicFRU or SymbolicFRUTrusted are specified, it is a Symbolic FRU callout.  SymbolicFRUTrusted also requires LocCode.",
+            "type": "array",
+            "items":
+            {
+                "type": "object",
+                "properties":
+                {
+                    "Priority": {"$ref": "#/definitions/priority" },
+                    "LocCode": {"$ref": "#/definitions/locationCode" },
+                    "SymbolicFRU": {"$ref": "#/definitions/symbolicFRU" },
+                    "SymbolicFRUTrusted": {"$ref": "#/definitions/symbolicFRUTrusted" },
+                    "Procedure": {"$ref": "#/definitions/procedure" }
+                },
+                "additionalProperties": false,
+                "required": ["Priority"],
+
+                "oneOf":
+                [
+                    {
+                        "allOf":
+                        [
+                            { "required": ["LocCode"] },
+                            { "not": { "required": ["SymbolicFRU"] }},
+                            { "not": { "required": ["SymbolicFRUTrusted"] }},
+                            { "not": { "required": ["Procedure"] }}
+                        ]
+                    },
+                    {
+
+                        "allOf":
+                        [
+                            { "required": ["SymbolicFRU"] },
+                            { "not": { "required": ["SymbolicFRUTrusted"] }},
+                            { "not": { "required": ["Procedure"] }}
+                        ]
+                    },
+
+                    {
+                        "allOf":
+                        [
+                            { "required": ["SymbolicFRUTrusted", "LocationCode"] },
+                            { "not": { "required": ["SymbolicFRU"] }},
+                            { "not": { "required": ["Procedure"] }}
+                        ]
+                    },
+
+                    {
+                        "allOf":
+                        [
+                            { "required": ["Procedure"] },
+                            { "not": { "required": ["SymbolicFRU"] }},
+                            { "not": { "required": ["SymbolicFRUTrusted"] }},
+                            { "not": { "required": ["LocCode"] }}
+                        ]
+                    }
+                ]
+            },
+            "minItems": 1,
+            "maxItems": 10,
+
+            "examples":
+            [
+                {
+                    "Priority": "high",
+                    "LocCode": "P1"
+                },
+                {
+                    "Priority": "medium",
+                    "LocCode": "P2",
+                    "SymbolicFRU": "PROCFRU"
+                },
+                {
+                    "Priority": "low",
+                    "Procedure": "SVCDOCS"
+                }
+            ]
+        },
+
+        "system":
+        {
+            "description": "The system type string, as specified by entity manger.  It is used to index into different sections of the JSON.",
+            "type": "string",
+            "minLength": 1
+        },
+
+        "callouts":
+        {
+            "description": "This contains callouts that can vary based on system type.  Each entry contains an optional System property and a required CalloutList property.  If the System property is left out it indicates that the CalloutList callouts are valid for every system type, unless there is another Callouts entry that has a matching System property, in which case that entry is valid.",
+            "type": "array",
+            "items":
+            {
+                "type": "object",
+
+                "properties":
+                {
+                    "System": {"$ref": "#/definitions/system" },
+                    "CalloutList": {"$ref": "#/definitions/calloutList" }
+                },
+                "required": ["CalloutList"],
+                "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 10,
+
+            "examples":
+            [
+                [
+                    {
+                        "System": "system1",
+                        "CalloutList": [{"Priority": "high", "LocCode": "P1"}]
+                    },
+                    {
+                        "CalloutList": [{"Priority": "high", "Procedure": "NEXTLVL"}]
+                    }
+                ]
+            ]
+        },
+
+        "calloutsWithTheirADValues":
+        {
+            "description": "This contains callouts along with the AdditionalData value used to select an entry into the callout list.  The AdditionalData entry was specified by ADName in the CalloutsUsingAD parent entry.",
+            "type": "array",
+
+            "items":
+            {
+                "type": "object",
+                "properties":
+                {
+                    "ADValue": {"$ref": "#/definitions/adValue" },
+                    "Callouts": {"$ref": "#/definitions/callouts" }
+                },
+                "additionalProperties": false,
+                "required": ["ADValue", "Callouts"]
+            },
+            "minItems": 1,
+            "maxItems": 10,
+
+            "examples":
+            [
+                [
+                    {
+                        "ADValue": "0",
+                        "Callouts":
+                        [
+                            {
+                                "CalloutList": [{"Priority": "high", "LocCode": "P1"}]
+                            }
+                        ]
+                    },
+                    {
+                        "ADValue": "1",
+                        "Callouts":
+                        [
+                            {
+                                "CalloutList": [{"Priority": "high", "LocCode": "P2"}]
+                            }
+                        ]
+                    }
+                ]
+            ]
+        },
+
+        "calloutsUsingAD":
+        {
+            "description": "This contains the callouts that can be specified based on a value in the AdditionalData property..",
+            "type": "object",
+
+            "properties":
+            {
+                "ADName": {"$ref": "#/definitions/adName" },
+                "CalloutsWithTheirADValues":
+                    {"$ref": "#/definitions/calloutsWithTheirADValues" }
+            },
+            "additionalProperties": false,
+            "required": ["ADName", "CalloutsWithTheirADValues"],
+
+            "examples":
+            [
+                {
+                    "ADName": "PROC_NUM",
+                    "CalloutsWithTheirADValues":
+                    [
+                        {
+                            "ADValue": "0",
+                            "Callouts":
+                            [
+                                {
+                                    "CalloutList": [{"Priority": "high", "LocCode": "P1"}]
+                                }
+                            ]
+                        },
+                        {
+                            "ADValue": "1",
+                            "Callouts":
+                            [
+                                {
+                                    "CalloutList": [{"Priority": "high", "LocCode": "P2"}]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

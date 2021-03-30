@@ -1,0 +1,16 @@
+[Unit]
+Description=Mount BMC rofs volumes after a reboot
+Before=xyz.openbmc_project.Software.BMC.Updater.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/bin/mkdir -p @MEDIA_DIR@/rofs-a
+ExecStart=/bin/mkdir -p @MEDIA_DIR@/rofs-b
+ExecStart=/bin/mkdir -p @MEDIA_DIR@/hostfw
+ExecStart=-/bin/sh -c '/bin/mount PARTLABEL=rofs-a @MEDIA_DIR@/rofs-a -t ext4 -o ro || /bin/rmdir @MEDIA_DIR@/rofs-a'
+ExecStart=-/bin/sh -c '/bin/mount PARTLABEL=rofs-b @MEDIA_DIR@/rofs-b -t ext4 -o ro || /bin/rmdir @MEDIA_DIR@/rofs-b'
+ExecStart=-/bin/mount PARTLABEL=hostfw @MEDIA_DIR@/hostfw -t ext4
+
+[Install]
+WantedBy=xyz.openbmc_project.Software.BMC.Updater.service

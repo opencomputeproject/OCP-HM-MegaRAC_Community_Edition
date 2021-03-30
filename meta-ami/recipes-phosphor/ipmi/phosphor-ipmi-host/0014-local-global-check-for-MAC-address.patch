@@ -1,0 +1,35 @@
+--- a/transporthandler.cpp	2020-11-09 20:38:31.853531447 -0500
++++ b/transporthandler.cpp	2020-11-09 20:37:20.396875654 -0500
+@@ -1426,18 +1426,29 @@
+  **/
+ bool isValidMACAddress(const ether_addr& mac)
+ {
+-    // check if mac address is empty
++
++    // check if mac address is empty    
+     if (equal(mac, ether_addr{}))
+     {
+         return false;
+     }
+-    // we accept only unicast MAC addresses and  same thing has been checked in
++
++    // we accept only unicast MAC addresses and same thing has been checked in
+     // phosphor-network layer. If the least significant bit of the first octet
+-    // is set to 1, it is multicast MAC else it is unicast MAC address.
++    // is set to 1, it is multicast MAC else it is unicast MAC address.  
+     if (mac.ether_addr_octet[0] & 1)
+     {
+         return false;
+     }
++
++    // we accept only local MAC addresses
++    // If the 2nd least significant bit of the first octet
++    // is set to 0, it is global MAC else it is local MAC address.  
++    if(!(mac.ether_addr_octet[0] & 2))
++    {
++      return false;
++    }
++    
+     return true;
+ }
+ 

@@ -1,0 +1,387 @@
+#!/usr/bin/env python
+
+import dbus
+import BaseHTTPServer
+import SocketServer
+import json
+import socket
+import os
+import sys
+from xml.etree import ElementTree
+from obmc.dbuslib.introspection import IntrospectionParser
+
+busses = {
+    'system': dbus.SystemBus,
+}
+
+
+class DBusRestException(Exception):
+
+    def __init__(self, message, code=403):
+        self.code = code
+        super(DBusRestException, self).__init__(message)
+
+
+class DBusRestResponse(object):
+
+    def render(self, handler):
+        raise NotImplemented()
+
+
+class DBusRestJSONResponse(DBusRestResponse):
+
+    def __init__(self, data):
+        self.data = data
+
+    def render(self, handler):
+        handler.send_response(200)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        handler.wfile.write(json.dumps(self.data, indent=2, sort_keys=True))
+
+
+class DBusRestResourceResponse(DBusRestResponse):
+    mime_map = {
+        'html': 'text/html',
+        'js': 'text/javascript',
+        'css': 'text/css',
+        'png': 'image/png',
+        'gif': 'image/gif',
+    }
+    resource_base = os.path.join(sys.prefix, 'share',
+                                 os.path.basename(__file__), 'resources')
+
+    def __init__(self, name):
+        (_, ext) = os.path.splitext(name)
+        self.content_type = self.mime_map.get(ext[1:],
+                                              'application/octet-stream')
+        try:
+            self.data = open(os.path.join(self.resource_base, name)).read()
+        except IOError:
+            raise DBusRestException("Not Found", 404)
+
+    def render(self, handler):
+        handler.send_response(200)
+        handler.send_header('Content-Type',
+                            self.content_type + '; charset=utf-8')
+        handler.end_headers()
+        handler.wfile.write(self.data)
+
+
+class DBusRestErrorResonse(DBusRestResponse):
+
+    def __init__(self, ex):
+        self.ex = ex
+
+    def render(self, handler):
+        err = {
+            'status': 'error',
+            'error': self.ex.message,
+        }
+        handler.send_response(self.ex.code)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        handler.wfile.write(json.dumps(err, indent=2, sort_keys=True))
+
+
+class DBusRestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+
+    def handle_root(self):
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'busses': [{'name': x} for x in busses.keys()],
+        })
+
+    def handle_bus(self):
+        objects = self.bus.list_names()
+        objects.sort()
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'objects': [{'name': x} for x in objects],
+        })
+
+    def get_object_or_404(self, bus_name, obj_path):
+        try:
+            obj = self.bus.get_object(bus_name, obj_path)
+        except dbus.DBusException:
+            raise DBusRestException("Object Not Found", 404)
+        return obj
+
+    def handle_service(self, bus_name):
+        data = IntrospectionParser(bus_name, self.bus).introspect()
+        objects = [{'path': x} for x in data.iterkeys()]
+
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'bus_name': bus_name,
+            'objects': objects,
+        })
+
+    def handle_object(self, obj):
+        iface = dbus.Interface(obj, 'org.freedesktop.DBus.Introspectable')
+
+        interfaces = []
+        tree = ElementTree.fromstring(iface.Introspect())
+        for node in tree:
+            if node.tag == 'interface':
+                interfaces.append({'name': node.attrib['name']})
+
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'bus_name': obj.requested_bus_name,
+            'object_path': obj.object_path,
+            'interfaces': interfaces,
+        })
+
+    def handle_interface(self, obj, interface_name):
+        iface = dbus.Interface(obj, 'org.freedesktop.DBus.Introspectable')
+
+        interface_node = None
+        tree = ElementTree.fromstring(iface.Introspect())
+        for node in tree:
+            if (node.tag == 'interface' and
+                    node.attrib['name'] == interface_name):
+                interface_node = node
+                break
+
+        if interface_node is None:
+            raise DBusRestException("Interface Not Found", 404)
+
+        methods = []
+        signals = []
+        base_uri = ('/bus/' + self.bus_name + '/' + obj.requested_bus_name +
+                    obj.object_path + '/' + interface_name)
+
+        def parse_method(node):
+            args = []
+            for child in node:
+                if child.tag == 'arg':
+                    args.append(child.attrib)
+
+            return {
+                'name': node.attrib['name'],
+                'args': args,
+                'uri': '/'.join([base_uri, node.attrib['name']]),
+            }
+
+        def parse_signal(node):
+            args = []
+            for child in node:
+                if child.tag == 'arg':
+                    args.append(child.attrib)
+
+            return {
+                'name': node.attrib['name'],
+                'args': args
+            }
+
+        for node in interface_node:
+            if node.tag == 'method':
+                methods.append(parse_method(node))
+            elif node.tag == 'signal':
+                signals.append(parse_signal(node))
+
+        iface = dbus.Interface(obj, 'org.freedesktop.DBus.Properties')
+        try:
+            properties = iface.GetAll(interface_name)
+            # change dbus.boolean to actual bool so it doesn't get converted
+            # to an int
+            for k in properties.keys():
+                val = properties[k]
+                if isinstance(val, dbus.Boolean):
+                    properties[k] = bool(val)
+        except dbus.DBusException:
+            properties = []
+
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'bus_name': obj.requested_bus_name,
+            'object_path': obj.object_path,
+            'interface': interface_name,
+            'methods': methods,
+            'signals': signals,
+            'properties': properties,
+        })
+
+    def handle_property(self, obj, interface_name, property_name):
+        iface = dbus.Interface(obj, 'org.freedesktop.DBus.Properties')
+        try:
+            value = iface.Get(interface_name, property_name)
+        except dbus.DBusException:
+            raise DBusRestException("Property Not Found", 404)
+
+        return DBusRestJSONResponse({
+            'status': 'ok',
+            'bus_name': obj.requested_bus_name,
+            'object_path': obj.object_path,
+            'interface': interface_name,
+            'property': property_name,
+            'value': value,
+        })
+
+    def dispatch_bus(self, parts):
+
+        if not parts:
+            return self.handle_root()
+
+        self.bus_name = parts.pop(0)
+        busfn = busses.get(self.bus_name, None)
+        if busfn is None:
+            raise DBusRestException("Bus Not Found", 404)
+
+        self.bus = busfn()
+
+        if not parts:
+            return self.handle_bus()
+
+        bus_name = parts.pop(0)
+
+        if not parts:
+            return self.handle_service(bus_name)
+
+        # construct our object path, stopping when we get to an
+        # interface name
+        object_path = ''
+        while parts:
+            if '.' in parts[0]:
+                break
+            object_path += '/' + parts.pop(0)
+
+        obj = self.get_object_or_404(bus_name, object_path)
+
+        if not parts:
+            return self.handle_object(obj)
+
+        interface_name = parts.pop(0)
+        if not parts:
+            return self.handle_interface(obj, interface_name)
+
+        property_name = parts.pop(0)
+        if not parts:
+            return self.handle_property(obj, interface_name, property_name)
+
+        raise DBusRestException("Not Found", 404)
+
+    def dispatch_resource(self, parts):
+        return DBusRestResourceResponse(parts[0])
+
+    def dispatch(self):
+        parts = filter(bool, self.path.split('/'))
+
+        if parts:
+            action = parts.pop(0)
+
+            if action == 'bus':
+                return self.dispatch_bus(parts)
+
+            elif action == 'res':
+                return self.dispatch_resource(parts)
+
+            raise DBusRestException("Not Found", 404)
+
+        return self.dispatch_resource(['index.html'])
+
+    def handle_call(self, obj, interface_name, call_name, data):
+        iface = dbus.Interface(obj, interface_name)
+        call = getattr(iface, call_name)
+        d = {
+            'obj': obj.object_path,
+            'interface': interface_name,
+            'call': call_name,
+        }
+        try:
+            d.update({
+                'result': call(*data),
+                'status': 'ok',
+            })
+        except Exception, e:
+            d.update({
+                'error': str(e),
+                'status': 'error',
+            })
+        return DBusRestJSONResponse(d)
+
+    def dispatch_call(self, data):
+        parts = filter(bool, self.path.split('/'))
+        if not parts:
+            raise DBusRestException("Not Found", 404)
+
+        action = parts.pop(0)
+        if action != 'bus':
+            raise DBusRestException("Not Found", 404)
+
+        busfn = busses.get(parts.pop(0), None)
+        if busfn is None:
+            raise DBusRestException("Bus Not Found", 404)
+
+        self.bus = busfn()
+
+        if not parts:
+            raise DBusRestException("Not Found", 404)
+
+        bus_name = parts.pop(0)
+
+        if not parts:
+            raise DBusRestException("Not Found", 404)
+
+        # construct our object path, stopping when we get to an
+        # interface name
+        object_path = ''
+        while parts:
+            if '.' in parts[0]:
+                break
+            object_path += '/' + parts.pop(0)
+
+        obj = self.get_object_or_404(bus_name, object_path)
+
+        if not parts:
+            raise DBusRestException("Not Found", 404)
+
+        interface_name = parts.pop(0)
+        if not parts:
+            raise DBusRestException("Not Found", 404)
+
+        call_name = parts.pop(0)
+
+        return self.handle_call(obj, interface_name, call_name, data)
+
+    def do_GET(self):
+        try:
+            response = self.dispatch()
+        except DBusRestException, ex:
+            response = DBusRestErrorResonse(ex)
+
+        response.render(self)
+
+    def do_POST(self):
+        length = int(self.headers.getheader('content-length'))
+        data = json.loads(self.rfile.read(length))
+        try:
+            response = self.dispatch_call(data)
+        except DBusRestException, ex:
+            response = DBusRestErrorResonse(ex)
+
+        response.render(self)
+
+
+class HTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
+    def __init__(self, address, handler):
+        bind = True
+        if os.environ.get('LISTEN_PID', None) == str(os.getpid()):
+            bind = False
+        BaseHTTPServer.HTTPServer.__init__(
+            self, address, handler, bind_and_activate=bind)
+        if bind is True:
+            self.server_bind()
+        else:
+            FIRST_SYSTEMD_SOCKET_FD = 3
+            self.socket = socket.fromfd(
+                FIRST_SYSTEMD_SOCKET_FD,
+                socket.AF_INET,
+                socket.SOCK_STREAM)
+
+        self.server_activate()
+
+if __name__ == '__main__':
+    server = HTTPServer(('', 3000), DBusRestHandler)
+    server.serve_forever()

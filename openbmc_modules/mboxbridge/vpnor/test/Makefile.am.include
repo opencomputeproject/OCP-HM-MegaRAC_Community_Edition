@@ -1,0 +1,273 @@
+TEST_MOCK_VPNOR_SRCS = $(TEST_MOCK_CORE)
+
+TEST_MBOX_VPNOR_INTEG_SRCS = \
+	common.c \
+	protocol.c \
+	transport_mbox.c \
+	windows.c \
+	lpc.c \
+	vpnor/backend.cpp \
+	vpnor/partition.cpp \
+	vpnor/table.cpp \
+	%reldir%/tmpd.cpp
+
+VPNOR_LDADD = -lstdc++fs \
+	$(SDBUSPLUS_LIBS) \
+	$(PHOSPHOR_LOGGING_LIBS) \
+	$(PHOSPHOR_DBUS_INTERFACES_LIBS)
+
+
+vpnor_test_create_aligned_window_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_aligned_window.cpp
+vpnor_test_create_aligned_window_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_aligned_window_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_pnor_partition_table_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_pnor_partition_table.cpp
+vpnor_test_create_pnor_partition_table_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_pnor_partition_table_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_partition_exists_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_partition_exists.cpp
+vpnor_test_create_read_window_partition_exists_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_partition_exists_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_patch_SOURCES = \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	mtd.c \
+	%reldir%/write_patch.cpp
+vpnor_test_write_patch_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_patch_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_prsv_SOURCES = \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	mtd.c \
+	%reldir%/write_prsv.cpp
+vpnor_test_write_prsv_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_prsv_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_ro_SOURCES = \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	mtd.c \
+	%reldir%/write_ro.cpp
+vpnor_test_write_ro_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_ro_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_rw_SOURCES = \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	mtd.c \
+	%reldir%/write_rw.cpp
+vpnor_test_write_rw_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_rw_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_no_name_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_no_name.cpp
+vpnor_test_toc_no_name_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_no_name_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_start_gt_end_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_start_gt_end.cpp
+vpnor_test_toc_start_gt_end_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_start_gt_end_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_no_start_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_no_start.cpp
+vpnor_test_toc_no_start_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_no_start_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_no_end_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_no_end.cpp
+vpnor_test_toc_no_end_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_no_end_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_no_version_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_no_version.cpp
+vpnor_test_toc_no_version_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_no_version_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_flags_SOURCES = \
+	common.c \
+	vpnor/table.cpp \
+	%reldir%/toc_flags.cpp
+vpnor_test_toc_flags_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_flags_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_overlap_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/toc_overlap.cpp
+vpnor_test_toc_overlap_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_overlap_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_lookup_found_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/toc_lookup_found.cpp
+vpnor_test_toc_lookup_found_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_lookup_found_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_lookup_failed_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/toc_lookup_failed.cpp
+vpnor_test_toc_lookup_failed_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_lookup_failed_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_toc_missing_file_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/toc_missing_file.cpp
+vpnor_test_toc_missing_file_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_toc_missing_file_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_oob_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_oob.cpp
+vpnor_test_create_read_window_oob_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_oob_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_toc_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_toc.cpp
+vpnor_test_create_read_window_toc_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_toc_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_straddle_partitions_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_straddle_partitions.cpp
+vpnor_test_create_read_window_straddle_partitions_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_straddle_partitions_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_partition_invalid_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_partition_invalid.cpp
+vpnor_test_create_read_window_partition_invalid_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_partition_invalid_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_read_patch_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/read_patch.cpp
+vpnor_test_read_patch_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_read_patch_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_patch_resize_SOURCES = \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	mtd.c \
+	%reldir%/write_patch_resize.cpp
+vpnor_test_write_patch_resize_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_patch_resize_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_dump_flash_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/dump_flash.cpp
+vpnor_test_dump_flash_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_dump_flash_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_size_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_size.cpp
+vpnor_test_create_read_window_size_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_size_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_read_window_remap_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_read_window_remap.cpp
+vpnor_test_create_read_window_remap_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_read_window_remap_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_write_window_ro_partition_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_write_window_ro_partition.cpp
+vpnor_test_create_write_window_ro_partition_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_write_window_ro_partition_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_write_window_rw_partition_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_write_window_rw_partition.cpp
+vpnor_test_create_write_window_rw_partition_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_write_window_rw_partition_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_create_write_window_unmapped_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/create_write_window_unmapped.cpp
+vpnor_test_create_write_window_unmapped_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_create_write_window_unmapped_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_write_toc_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/write_toc.cpp
+vpnor_test_write_toc_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_write_toc_LDADD = $(VPNOR_LDADD)
+
+vpnor_test_force_readonly_toc_SOURCES = \
+	$(TEST_MOCK_VPNOR_SRCS) \
+	$(TEST_MBOX_VPNOR_INTEG_SRCS) \
+	%reldir%/force_readonly_toc.cpp
+vpnor_test_force_readonly_toc_LDFLAGS = $(OESDK_TESTCASE_FLAGS)
+vpnor_test_force_readonly_toc_LDADD = $(VPNOR_LDADD)
+
+check_PROGRAMS += \
+        %reldir%/create_aligned_window \
+	%reldir%/create_pnor_partition_table \
+	%reldir%/create_read_window_partition_exists \
+	%reldir%/write_prsv \
+	%reldir%/write_ro \
+	%reldir%/write_rw \
+	%reldir%/write_patch \
+	%reldir%/toc_no_name \
+	%reldir%/toc_start_gt_end \
+	%reldir%/toc_no_start \
+	%reldir%/toc_no_end \
+	%reldir%/toc_no_version \
+	%reldir%/toc_flags \
+	%reldir%/toc_overlap \
+	%reldir%/toc_lookup_found \
+	%reldir%/toc_lookup_failed \
+	%reldir%/toc_missing_file \
+	%reldir%/create_read_window_oob \
+	%reldir%/create_read_window_toc \
+	%reldir%/create_read_window_straddle_partitions \
+	%reldir%/create_read_window_partition_invalid \
+	%reldir%/read_patch \
+	%reldir%/write_patch_resize \
+	%reldir%/dump_flash \
+	%reldir%/create_read_window_size \
+	%reldir%/create_read_window_remap \
+	%reldir%/create_write_window_ro_partition \
+	%reldir%/create_write_window_rw_partition \
+	%reldir%/create_write_window_unmapped \
+	%reldir%/write_toc \
+	%reldir%/force_readonly_toc
+
+XFAIL_TESTS += \
+	%reldir%/write_toc
+
+

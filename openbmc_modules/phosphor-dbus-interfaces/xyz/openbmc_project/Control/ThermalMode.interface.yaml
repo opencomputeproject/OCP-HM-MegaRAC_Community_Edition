@@ -1,0 +1,24 @@
+description: >
+    Implement to provide alternative thermal control modes of a system
+    that can be enabled, overriding the system defaults.
+
+    Control.ThermalMode.Supported is read only.
+        Implementation of this interface populates the list of supported modes.
+    Control.ThermalMode.Current is read/write.
+        Implementation specific mode for the thermal control application
+        to run in.
+
+properties:
+    - name: Supported
+      type: array[string]
+      flags:
+          - const
+      description: >
+          An implemention specific list of supported modes that the thermal
+          control application can be configured to provide for a platform.
+    - name: Current
+      type: string
+      default: "Default"
+      description: >
+          The current mode the thermal control application should execute in
+          selected from the supported modes provided.

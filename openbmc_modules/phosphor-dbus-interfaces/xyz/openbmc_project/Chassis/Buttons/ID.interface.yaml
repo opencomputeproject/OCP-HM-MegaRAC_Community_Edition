@@ -1,0 +1,20 @@
+description: >
+    ID button is the system identification button, that allows the server to be
+    located in a rack, and can be enabled remotely via WebUI;
+    user can press ID button on the front panel and then walk around to the back
+    and quickly identify the rear bulkhead of the same server unit.
+methods:
+    - name: simPress
+      description: >
+        Emulate ID button press.
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+signals:
+    - name: Released
+      description: >
+        ID button released signal
+    - name: Pressed
+      description: >
+        ID button pressed signal

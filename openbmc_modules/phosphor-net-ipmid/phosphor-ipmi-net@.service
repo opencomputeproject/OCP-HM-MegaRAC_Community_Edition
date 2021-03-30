@@ -1,0 +1,17 @@
+[Unit]
+Description=Network IPMI daemon
+Requires=phosphor-ipmi-host.service
+After=phosphor-ipmi-host.service
+
+[Service]
+ExecStart=/usr/bin/netipmid -c %i
+SyslogIdentifier=netipmid-%i
+Restart=always
+RuntimeDirectory = ipmi
+RuntimeDirectoryPreserve = yes
+StateDirectory = ipmi
+
+[Install]
+DefaultInstance=eth0
+WantedBy=multi-user.target
+RequiredBy=

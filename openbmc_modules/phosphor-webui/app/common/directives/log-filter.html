@@ -1,0 +1,66 @@
+<div id="event-filter">
+    <div class="event-filter__content row column">
+        <fieldset class="event__severity-filter">
+            <legend class="filter-label">Filter by severity</legend>
+            <button class="btn" ng-click="toggleSeverityAll()"
+                    ng-class="selectedSeverity.all ? 'btn-primary' : 'btn-secondary'">All
+            </button>
+            <button class="btn" ng-click="toggleSeverity('high')"
+                    ng-class="selectedSeverity.high ? 'btn-primary' : 'btn-secondary'">High
+            </button>
+            <button class="btn" ng-click="toggleSeverity('medium')"
+                    ng-class="selectedSeverity.medium ? 'btn-primary' : 'btn-secondary'">Medium
+            </button>
+            <button class="btn" ng-click="toggleSeverity('low')"
+                    ng-class="selectedSeverity.low ? 'btn-primary' : 'btn-secondary'">Low
+            </button>
+        </fieldset>
+        <fieldset ng-form="eventDateFilter" class="event__date-filter">
+            <legend class="filter-label">Filter by date range ({{supportsDateInput ? 'mm/dd/yyyy' : 'yyyy-mm-dd'}})</legend>
+            <div class="event__date-filter-content">
+                <div>
+                    <label for="event-filter-start-date" class="accessible-text">Start Date</label>
+                    <input name="eventFilterStartDate" id="event-filter-start-date" type="date" max="{{end_date | date:'yyyy-MM-dd'}}" placeholder="{{supportsDateInput ? 'mm/dd/yyyy' : 'yyyy-mm-dd'}}" ng-model="start_date"/>
+                    <p class="error" ng-show="eventDateFilter.eventFilterStartDate.$invalid">Invalid date format.</p>
+                </div>
+                <strong class="event__date-filter-divider" aria-hidden="true">&ndash;</strong>
+                <div>
+                    <label for="event-filter-end-date" class="accessible-text">End Date</label>
+                    <input name="eventFilterEndDate" id="event-filter-end-date" type="date" min="{{start_date | date:'yyyy-MM-dd'}}" placeholder="{{supportsDateInput ? 'mm/dd/yyyy' : 'yyyy-mm-dd'}}" ng-model="end_date"/>
+                    <p class="error" ng-show="eventDateFilter.eventFilterEndDate.$invalid">Invalid date format.</p>
+                </div>
+            </div>
+        </fieldset>
+    </div>
+    <div class="event-filter__content row column">
+        <fieldset class="event__status-filter">
+            <legend class="filter-label">Filter by event status</legend>
+            <!-- Status filter -->
+            <div class="dropdown__wrapper">
+                <button class="dropdown__button" ng-click="statusFilter = statusFilter == true ? false : true;"
+                        ng-class="{'active' : statusFilter}" toggle-flag="statusFilter">
+                        <span ng-if="selectedStatus.all">All events</span>
+                        <span ng-if="!selectedStatus.all && selectedStatus.resolved">Resolved events</span>
+                        <span ng-if="!selectedStatus.all && !selectedStatus.resolved">Unresolved events</span>
+                </button>
+                <ul class="dropdown__list inline" ng-show="statusFilter">
+                    <li>
+                        <button
+                            ng-click="selectedStatus.all = true; statusFilter = false;"
+                            ng-class="{'active' : selectedStatus.all}">All events</button>
+                    </li>
+                    <li>
+                        <button
+                            ng-click="selectedStatus.all = false; selectedStatus.resolved = true; statusFilter = false;"
+                            ng-class="{'active' : selectedStatus.resolved}">Resolved events</button>
+                    </li>
+                    <li>
+                        <button
+                            ng-click="selectedStatus.all = false; selectedStatus.resolved = false; statusFilter = false;"
+                            ng-class="{'active' : !selectedStatus.resolved}">Unresolved events</button>
+                    </li>
+                </ul>
+            </div>
+        </fieldset>
+    </div>
+</div>

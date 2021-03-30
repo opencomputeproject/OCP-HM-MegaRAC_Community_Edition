@@ -1,0 +1,26 @@
+From 06b2778528ecf29665b2f1011f91db80fab34935 Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Thu, 25 Feb 2021 10:19:24 +0000
+Subject: [PATCH 6/6] SGPIO-DT-and-pinctrl-fixup.patch
+
+---
+ arch/arm/boot/dts/aspeed-g5.dtsi | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-g5.dtsi b/arch/arm/boot/dts/aspeed-g5.dtsi
+index 26bff1729..04157c4f8 100644
+--- a/arch/arm/boot/dts/aspeed-g5.dtsi
++++ b/arch/arm/boot/dts/aspeed-g5.dtsi
+@@ -391,8 +391,7 @@
+ 				reg = <0x1e780200 0x0100>;
+ 				clocks = <&syscon ASPEED_CLK_APB>;
+ 				interrupt-controller;
+-				ngpios = <8>;
+-				bus-frequency = <12000000>;
++				bus-frequency = <1000000>;
+ 				pinctrl-names = "default";
+ 				pinctrl-0 = <&pinctrl_sgpm_default>;
+ 				status = "disabled";
+-- 
+2.17.1
+

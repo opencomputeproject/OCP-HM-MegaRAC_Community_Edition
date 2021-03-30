@@ -1,0 +1,47 @@
+# This is a sample JSON configuration file for BIOS string type
+{
+   "entries":[
+      {
+         "attribute_name" : "str_example1",
+         # Possible values of string type {Unknown=0x00, ASCII=0x01, Hex=0x02,
+         # UTF-8=0x03, UTF-16LE=0x04, UTF-16BE=0x05, Vendor Specific=0xFF}
+         "string_type" : "ASCII",
+         "minimum_string_length" : 1,
+         "maximum_string_length" : 100,
+         "default_string_length" : 3,
+         "default_string" : "abc",
+         # This BIOS attribute has a D-Bus property as backend.
+         "dbus":
+            {
+               "object_path" : "/xyz/abc/def",
+               "interface" : "xyz.openbmc_project.str_example1.value",
+               "property_name" : "Str_example1",
+               "property_type" : "string"
+            }
+      },
+      {
+         "attribute_name" : "str_example2",
+         "string_type" : "Hex",
+         "minimum_string_length" : 0,
+         "maximum_string_length" : 100,
+         "default_string_length" : 0,
+         "default_string" : "",
+         "dbus":
+            {
+               "object_path" : "/xyz/abc/def",
+               "interface" : "xyz.openbmc_project.str_example2.value",
+               "property_name" : "Str_example2",
+               "property_type" : "string"
+            }
+      },
+      {
+         # This is an example of BIOS String Read only attribute
+         "attribute_name" : "str_example3",
+         "string_type" : "Unknown",
+         "minimum_string_length" : 1,
+         "maximum_string_length" : 100,
+         "default_string_length" : 2,
+         "default_string" : "ef"
+      }
+    ]
+}

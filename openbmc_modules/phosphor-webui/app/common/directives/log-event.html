@@ -1,0 +1,67 @@
+<div class="row column event-log__single-event"
+  ng-class="{'active': event.meta, 'selected': event.selected}">
+  <div class="row">
+    <div class="inline__confirm" ng-class="{active: event.confirm}">
+      <div class="inline__confirm-message">
+         <p class="h3"><i></i>Are you sure you want to <strong class="ng-binding">delete this event</strong>?</p>
+      </div>
+      <div class="inline__confirm-buttons">
+        <button class="btn-primary" ng-click="accept(event)">Yes</button>
+        <button class="btn-primary" ng-click="event.confirm=false;">No</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="column small-1 large-2 event-log__col-check">
+        <label class="control-check">
+          <input type="checkbox" name="events__check" ng-click="event.selected= ! event.selected"
+            ng-checked="event.selected"/>
+          <span class="control__indicator"></span>
+        </label>
+      </div>
+      <div class="column small-9 large-10 event-log__event-info"
+        ng-click="event.meta = ! event.meta">
+        <p class="inline event__id">#{{event.Id}}</p>
+        <p class="inline event__priority event-resolved" ng-hide="event.Resolved == 0">Resolved</p>
+        <p class="inline event__priority" ng-class="{'low-priority': event.priority == 'Low', 'medium-priority': event.priority == 'Medium', 'high-priority': event.priority == 'High'}">{{event.priority}}</p>
+        <p class="inline event__severity" ng-class="{'low-priority': event.priority == 'Low', 'medium-priority': event.priority == 'Medium', 'high-priority': event.priority == 'High'}">{{event.severity_code}}</p>
+        <p class="event__timestamp">{{ event.Timestamp | localeDate : (tmz =='UTC') }}</p>
+        <div>
+          <p class="inline event__description">{{getTitle(event)}}</p>
+        </div>
+      </div>
+      <div class="column small-1 large-1">
+        <button class="accord-trigger" ng-class="{'active': event.meta}"
+          ng-click="event.meta = ! event.meta" aria-label="{{event.meta ? 'collapse' : 'expand'}}"></button>
+      </div>
+    </div>
+    <div class="row event__metadata-row" ng-class="{'active': event.meta}">
+      <div class="column small-1 large-1 event-log__col-check">&nbsp;</div>
+      <div class="column small-11 large-11 end">
+        <div class="event__metadata">{{getAdditionalData(event)}}
+        </div>
+        <div>
+          <div class="event__actions">
+            <button class="btn  btn-tertiary" clipboard text="copyText(event)" on-copied="copySuccess(event)" on-error="copyfailed(err)">
+              <icon file="icon-copy.svg"></icon>
+              <span ng-if="!event.copied">Copy</span>
+              <span ng-if="event.copied">Copied</span>
+            </button>
+            <button
+              class="btn  btn-tertiary"
+              ng-class="{'disabled': multiSelected}"
+              ng-click="event.confirm= ! event.confirm"
+              ng-disabled="multiSelected">
+                <icon file="icon-trashcan.svg"></icon>Delete
+            </button>
+            <button class="btn  btn-tertiary" ng-class="{'disabled': (event.Resolved == 1 || multiSelected)}" ng-click="resolveEvent(event)" ng-disabled="event.Resolved == 1 || multiSelected">
+              <icon file="icon-check.svg"></icon>Mark as resolved
+          </div>
+          <div class="event__related" ng-show="event.related_items.length">
+            <p class="inline event__related-label">Related items:</p>
+            <p class="event__related-item" ng-repeat="item in event.related_items">{{item}}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

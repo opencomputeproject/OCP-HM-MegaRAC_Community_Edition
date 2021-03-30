@@ -1,0 +1,12 @@
+[Unit]
+Description=Phosphor User Manager
+
+[Service]
+ExecStart=/usr/bin/env phosphor-user-manager
+SyslogIdentifier=phosphor-user-manager
+Restart=always
+Type=dbus
+BusName={BUSNAME}
+
+[Install]
+WantedBy=multi-user.target

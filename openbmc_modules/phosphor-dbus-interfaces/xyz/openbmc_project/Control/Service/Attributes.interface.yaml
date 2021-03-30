@@ -1,0 +1,21 @@
+description: >
+    Implement to expose the properties of service objects like bmcweb,
+    phosphor-ipmi-net etc. This interface can be used to get and set the
+    properties of the service.
+
+properties:
+    - name: Enabled
+      type: boolean
+      description: >
+          Specifies the current state of the service. This property can be used
+          to enable or disable the service.
+    - name: Masked
+      type: boolean
+      description: >
+          Specifies whether the service is masked or not masked. This property
+          can be used to permanently enable or disable the service.
+    - name: Running
+      type: boolean
+      description: >
+          Specifies whether the service is running or not. This property can be
+          used to start or stop a service.

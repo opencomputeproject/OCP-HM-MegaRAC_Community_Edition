@@ -1,0 +1,36 @@
+--- kernel-source/drivers/net/ethernet/faraday/ftgmac100.c	2019-01-17 16:55:30.649398110 -0500
++++ kernel-source_mod/drivers/net/ethernet/faraday/ftgmac100.c	2019-01-17 17:05:09.471325671 -0500
+@@ -194,14 +194,6 @@
+ 	unsigned int l;
+ 	void *addr;
+ 
+-	addr = device_get_mac_address(priv->dev, mac, ETH_ALEN);
+-	if (addr) {
+-		ether_addr_copy(priv->netdev->dev_addr, mac);
+-		dev_info(priv->dev, "Read MAC address %pM from device tree\n",
+-			 mac);
+-		return;
+-	}
+-
+ 	m = ioread32(priv->base + FTGMAC100_OFFSET_MAC_MADR);
+ 	l = ioread32(priv->base + FTGMAC100_OFFSET_MAC_LADR);
+ 
+@@ -215,7 +207,17 @@
+ 	if (is_valid_ether_addr(mac)) {
+ 		ether_addr_copy(priv->netdev->dev_addr, mac);
+ 		dev_info(priv->dev, "Read MAC address %pM from chip\n", mac);
+-	} else {
++		return;
++	} 
++
++	addr = device_get_mac_address(priv->dev, mac, ETH_ALEN); //Read from Chip if not from device tree
++        if (addr) {
++                ether_addr_copy(priv->netdev->dev_addr, mac);
++                dev_info(priv->dev, "Read MAC address %pM from device tree\n",
++                         mac);
++                return;
++        }
++	else {
+ 		eth_hw_addr_random(priv->netdev);
+ 		dev_info(priv->dev, "Generated random MAC address %pM\n",
+ 			 priv->netdev->dev_addr);

@@ -1,0 +1,25 @@
+description: >
+    Certificate management interface to install server and client certificates.
+methods:
+    - name: Install
+      description: >
+          Install the certificate and restart the associated services.
+          NotAllowed error thrown if certificate already exists.
+      parameters:
+        - name: Path
+          type: string
+          description: >
+              Path of file that contains both the certificate public and
+              private key. (Example: a .PEM file containing both signed
+              certificate and private key).
+
+      returns:
+        - name: ObjectPath
+          type: string
+          description: >
+              D-Bus object path to created object.
+
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.NotAllowed
+        - xyz.openbmc_project.Certs.Error.InvalidCertificate

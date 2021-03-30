@@ -1,0 +1,12 @@
+--- ori_linux/drivers/i2c/busses/Makefile	2019-08-21 00:37:54.000000000 +0800
++++ new_linux/drivers/i2c/busses/Makefile	2019-11-28 17:21:29.000000000 +0800
+@@ -34,7 +34,8 @@
+ # Embedded system I2C/SMBus host controller drivers
+ obj-$(CONFIG_I2C_ALTERA)	+= i2c-altera.o
+ obj-$(CONFIG_I2C_AMD_MP2)	+= i2c-amd-mp2-pci.o i2c-amd-mp2-plat.o
+-obj-$(CONFIG_I2C_ASPEED)	+= i2c-aspeed.o
++obj-$(CONFIG_I2C_ASPEED)        += irq-aspeed-i2c-ic.o i2c-aspeed.o
++obj-$(CONFIG_I2C_NEW_ASPEED)	+= irq-aspeed-i2c-ic.o i2c-new-aspeed.o
+ obj-$(CONFIG_I2C_AT91)		+= i2c-at91.o
+ i2c-at91-objs			:= i2c-at91-core.o i2c-at91-master.o
+ ifeq ($(CONFIG_I2C_AT91_SLAVE_EXPERIMENTAL),y)

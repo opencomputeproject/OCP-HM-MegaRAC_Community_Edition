@@ -1,0 +1,11 @@
+ThermalControllers and FanControllers are derived objects from a common PID
+Controller object.  The design implemented in this structure is a facsimile of
+what was published in the Chrome OS source.
+
+One has any number of ThermalControllers that run through a PID step to
+generate a setpoint RPM to reach its thermal setpoint.  The maximum output
+from the set of ThermalControllers is taken as the input to all the
+FanController PID loops.
+
+Each group of these controllers is managed within a zone.  A PIDZone object
+helps manage them by providing a sensor value cache and overall execution.

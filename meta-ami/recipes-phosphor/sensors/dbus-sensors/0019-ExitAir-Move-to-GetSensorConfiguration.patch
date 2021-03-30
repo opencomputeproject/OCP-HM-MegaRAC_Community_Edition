@@ -1,0 +1,55 @@
+diff -Naur a/src/ExitAirTempSensor.cpp b/src/ExitAirTempSensor.cpp
+--- a/src/ExitAirTempSensor.cpp	2021-03-01 07:59:57.314523803 +0530
++++ b/src/ExitAirTempSensor.cpp	2021-03-01 08:06:57.650391347 +0530
+@@ -61,6 +61,10 @@
+ 
+ static constexpr size_t minSystemCfm = 50;
+ 
++constexpr const std::array<const char*, 2> monitorIfaces = {exitAirIface,
++                                                            cfmIface};
++
++
+ static std::vector<std::shared_ptr<CFMSensor>> cfmSensors;
+ 
+ static void setupSensorMatch(
+@@ -828,13 +832,11 @@
+         std::cerr << "Connection not created\n";
+         return;
+     }
+-    dbusConnection->async_method_call(
+-        [&](boost::system::error_code ec, const ManagedObjectType& resp) {
+-            if (ec)
+-            {
+-                std::cerr << "Error contacting entity manager\n";
+-                return;
+-            }
++
++        auto getter = std::make_shared<GetSensorConfiguration>(
++        dbusConnection,
++        std::move([&objectServer, &dbusConnection,
++                   &exitAirSensor](const ManagedObjectType& resp) {
+ 
+             cfmSensors.clear();
+             for (const auto& pathPair : resp)
+@@ -933,9 +935,9 @@
+                 exitAirSensor->setupMatches();
+                 exitAirSensor->updateReading();
+             }
+-        },
+-        entityManagerName, "/", "org.freedesktop.DBus.ObjectManager",
+-        "GetManagedObjects");
++        }));
++    getter->getConfiguration(
++        std::vector<std::string>(monitorIfaces.begin(), monitorIfaces.end()));
+ }
+ 
+ int main()
+@@ -969,8 +971,6 @@
+                 }
+             });
+         };
+-    constexpr const std::array<const char*, 2> monitorIfaces = {exitAirIface,
+-                                                                cfmIface};
+     for (const char* type : monitorIfaces)
+     {
+         auto match = std::make_unique<sdbusplus::bus::match::match>(

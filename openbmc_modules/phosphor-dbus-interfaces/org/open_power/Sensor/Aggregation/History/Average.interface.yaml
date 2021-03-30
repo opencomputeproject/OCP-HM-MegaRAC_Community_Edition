@@ -1,0 +1,57 @@
+description: >
+    Implement to provide an object that contains a history of averages.  The
+    object this interface is placed on should provide information about the
+    duration the average is calculated over.
+
+properties:
+    - name: Scale
+      type: int64
+      description: >
+          The reading scaling factor N, where the actual reading is value * 10^N.
+          This is immutable once set.
+
+    - name: Unit
+      type: enum[self.Unit]
+      description: >
+          The unit of the reading.  Immutable once set for a sensor.
+          For objects in the temperature namespace, Unit must be "DegreesC".
+          For objects in the fan_tach namespace, Unit must be "RPMS".
+          For objects in the voltage namespace, Unit must be "Volts".
+          For objects in the altitude namespace, Unit must be "Meters".
+          For objects in the current namespace, Unit must be "Amperes".
+          For objects in the power namespace, Unit must be "Watts".
+          For objects in the energy namespace, Unit must be "Joules".
+
+    - name: Values
+      type: array[struct[uint64,int64]]
+      description: >
+          An array of timestamp, average value tuples.  The timestamp is the
+          number of milliseconds since 1970.  The entries in the array will
+          always be ordered from newest to oldest.
+
+enumerations:
+    - name: Unit
+      description: >
+        A sensor reading unit.
+      values:
+        - name: DegreesC
+          description: >
+            Temperature as degrees Celsius.
+        - name: RPMS
+          description: >
+            Frequency of rotation as revolutions per minute.
+        - name: Volts
+          description: >
+            Electromotive force as volts.
+        - name: Meters
+          description: >
+            Length as meters.
+        - name: Amperes
+          description: >
+            Electrical charge flow rate as Amperes.
+        - name: Watts
+          description: >
+            Rate of energy transfer as Watts.
+        - name: Joules
+          description: >
+            Energy transfer as Joules.

@@ -1,0 +1,54 @@
+--- a/arch/arm/boot/dts/aspeed-g5.dtsi	2019-08-09 11:26:46.913041742 -0400
++++ b/arch/arm/boot/dts/aspeed-g5.dtsi	2019-08-09 12:21:43.248514180 -0400
+@@ -208,6 +208,51 @@
+ 			status = "disabled";
+ 		};
+ 
++		videocap: videocap@0x1e700000 {
++			compatible = "aspeed,aspeed-videocap";
++			reg = < 0x1e700000 0x1000>;
++			interrupts = <7>;
++			status = "ok";
++		};
++
++		usb_hub: usbhub@1e6a0000 {
++			compatible = "aspeed,aspeed-usbhub";
++			reg = <0x1e6a0000 0x01000>;
++			interrupts = <5>;
++			status = "ok";
++		};
++
++		espi: espi@1e6ee000 {
++			compatible = "aspeed,ast2500-espi-slave";
++			reg = <0x1e6ee000 0x100>;
++			interrupts = <23>;
++			clocks = <&syscon ASPEED_CLK_GATE_ESPICLK>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&pinctrl_espi_default>;
++			status = "disabled";
++		};
++
++		astpeci: astpeci@0x1e78b000 {
++			compatible = "aspeed,aspeed-peci";
++			reg = < 0x1e78b000 0x60>;
++			interrupts = <15>;
++			status = "disabled";
++		};
++
++		mctppcie: mctppcie@1e6e8000 {
++			compatible = "aspeed,aspeed-mctppcie";
++			reg = <0x1e6e8000 0x01000>;
++			interrupts = <42>;
++			status = "disabled";
++		};
++
++		astscu: astscu@1e6e2000 {
++			compatible = "aspeed,aspeed-astscu";
++			reg = <0x1e6e2000 0x01000>;
++			interrupts = <21>;
++			status = "disabled";
++                };
++
+ 		apb {
+ 			compatible = "simple-bus";
+ 			#address-cells = <1>;

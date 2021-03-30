@@ -1,0 +1,57 @@
+description: >
+    Activation state for an associated xyz.openbmc_project.Software.Version.
+properties:
+    - name: Activation
+      type: enum[self.Activations]
+      description: >
+        The current Activation state of the Software.Version.
+    - name: RequestedActivation
+      type: enum[self.RequestedActivations]
+      description: >
+        The desired Activation state of the Software.Version.
+enumerations:
+    - name: Activations
+      description: >
+        The possible Activation states of the Software.Version.
+      values:
+        - name: NotReady
+          description: >
+            The system is still analyzing the Software.Version and is
+            currently unable to activate.
+        - name: Invalid
+          description: >
+            The Software.Version is invalid and unable to be activated.
+        - name: Ready
+          description: >
+            The Software.Version has been processed and is ready for
+            Activation.
+        - name: Activating
+          description: >
+            The Software.Version is in the process of being Activated.
+        - name: Active
+          description: >
+            The Software.Version is currently Active.
+        - name: Failed
+          description: >
+            The Software.Version failed during or after Activation.
+        - name: Staged
+          description: >
+            The Software.Version is currently in staged flash area.
+            This is moved from staged flash area to active upon reset.
+        - name: Staging
+          description: >
+            The Software.Version is currently being staged into the
+            staging flash area.
+    - name: RequestedActivations
+      description: >
+        The possible RequestedActivation states of a Software.Version.
+      values:
+        - name: None
+          description: >
+            No action has been directed for this Software.Version.
+        - name: Active
+          description: >
+            The Software.Version has been requested for Activation.
+# TODO: Specify "EAGAIN" type error when requested is unable to be acted on
+#       due to current system state.  Currently, sdbusplus does not support
+#       errors on properties.

@@ -1,0 +1,392 @@
+diff -Naur a/redfish-core/include/redfish.hpp b/redfish-core/include/redfish.hpp
+--- a/redfish-core/include/redfish.hpp	2021-03-03 12:03:00.738568897 +0530
++++ b/redfish-core/include/redfish.hpp	2021-03-03 13:13:13.253991363 +0530
+@@ -47,6 +47,7 @@
+ #include "../lib/hypervisor_ethernet.hpp"
+ #include "../lib/serial_interface.hpp"
+ #include "webserver_common.hpp"
++#include "../lib/fru.hpp"
+ 
+ namespace redfish
+ {
+@@ -93,6 +94,9 @@
+         nodes.emplace_back(std::make_unique<StorageCollection>(app));
+         nodes.emplace_back(std::make_unique<Storage>(app));
+         nodes.emplace_back(std::make_unique<Drive>(app));
++	nodes.emplace_back(std::make_unique<FRUCollection>(app));
++        nodes.emplace_back(std::make_unique<FRU>(app));
++
+ #ifdef BMCWEB_INSECURE_ENABLE_REDFISH_FW_TFTP_UPDATE
+         nodes.emplace_back(
+             std::make_unique<UpdateServiceActionsSimpleUpdate>(app));
+diff -Naur a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+--- a/redfish-core/lib/chassis.hpp	2021-03-03 12:03:00.738568897 +0530
++++ b/redfish-core/lib/chassis.hpp	2021-03-03 13:13:13.257991382 +0530
+@@ -384,6 +384,12 @@
+                             asyncResp->res.jsonValue["Thermal"] = {
+                                 {"@odata.id", "/redfish/v1/Chassis/" +
+                                                   chassisId + "/Thermal"}};
++
++			    // FRU Device
++                            asyncResp->res.jsonValue["FRU"] = {
++                                {"@odata.id", "/redfish/v1/Chassis/" +
++                                                  chassisId + "/FRU"}};
++
+                             // Power object
+                             asyncResp->res.jsonValue["Power"] = {
+                                 {"@odata.id", "/redfish/v1/Chassis/" +
+diff -Naur a/redfish-core/lib/fru.hpp b/redfish-core/lib/fru.hpp
+--- a/redfish-core/lib/fru.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/redfish-core/lib/fru.hpp	2021-03-03 13:13:13.257991382 +0530
+@@ -0,0 +1,351 @@
++
++#pragma once
++
++#include "node.hpp"
++
++
++namespace redfish
++{
++
++	using GetSubTreeType = std::vector<
++		std::pair<std::string,
++		std::vector<std::pair<std::string, std::vector<std::string>>>>>;
++
++	class FRUCollection : public Node
++	{
++		public:
++			FRUCollection(CrowApp& app) :
++				Node((app), "/redfish/v1/Chassis/<str>/FRU/", std::string())
++		{
++			entityPrivileges = {
++				{boost::beast::http::verb::get, {{"Login"}}},
++				{boost::beast::http::verb::head, {{"Login"}}},
++				{boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++				{boost::beast::http::verb::put, {{"ConfigureManager"}}},
++				{boost::beast::http::verb::delete_, {{"ConfigureManager"}}},
++				{boost::beast::http::verb::post, {{"ConfigureManager"}}}};
++		}
++
++
++		private:
++			void doGet(crow::Response& res, const crow::Request& req,
++					const std::vector<std::string>& params) override
++			{
++
++				res.jsonValue["@odata.type"] = "#FRUCollection.FRUCollection";
++				res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/{ChassisId}/FRU";
++				res.jsonValue["@odata.context"] =
++					"/redfish/v1/$metadata#FRUCollection.FRUCollection";
++				res.jsonValue["Description"] = "Resource Collection of FRU instances";
++				res.jsonValue["Name"] = "FRUCollection";
++
++
++				BMCWEB_LOG_DEBUG << "FruCollection doGet enter";
++				if (params.size() != 1)
++				{
++					BMCWEB_LOG_DEBUG << "FruCollection doGet param size < 1";
++					messages::internalError(res);
++					res.end();
++					return;
++				}
++
++				const std::string& chassisId = params[0];
++				std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++				crow::connections::systemBus->async_method_call(
++						[aResp{std::move(aResp)},chassisId](
++								const boost::system::error_code ec,
++								const std::vector<std::pair<
++								std::string,
++								std::vector<std::pair<std::string, std::vector<std::string>>>>>
++								&subtree) {
++						if (ec)
++						{
++						// do not add err msg in redfish response, becaues this is not
++						//     mandatory property
++							BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++							return;
++						}
++
++						nlohmann::json& entriesArray = aResp->res.jsonValue["Members"];
++
++						for (const auto& fruobject : subtree)
++						{
++
++							std::string fru = fruobject.first;
++							std::size_t lastPos = fru.rfind("/");
++
++							if (lastPos == std::string::npos || lastPos + 1 >= fru.size())
++							{
++								BMCWEB_LOG_ERROR << "Invalid fru object path: " << fru;
++								messages::internalError(aResp->res);
++								return;
++							}
++
++							std::string fruName = fru.substr(lastPos + 1);
++							entriesArray.push_back(
++								{{"@odata.id",
++								"/redfish/v1/Chassis/" + chassisId + "/" +
++								"FRU" + "/" + fruName}});
++
++
++						}  // object path loop
++
++
++						aResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++						},
++					"xyz.openbmc_project.ObjectMapper",
++					"/xyz/openbmc_project/object_mapper",
++					"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++					"/xyz/openbmc_project/FruDevice", 1,
++					std::array<const char *, 1>{"xyz.openbmc_project.FruDevice"});
++
++				return;
++			} // do_get fun
++
++	}; // FRUCollection class
++
++
++
++
++	class FRU : public Node
++
++	{
++
++		public:
++			FRU(CrowApp& app) :
++				Node(app, "/redfish/v1/Chassis/<str>/FRU/<str>/", std::string(), std::string())
++		{
++			entityPrivileges = {
++				{boost::beast::http::verb::get, {{"Login"}}},
++				{boost::beast::http::verb::head, {{"Login"}}},
++				{boost::beast::http::verb::patch, {{"ConfigureManager"}}},
++				{boost::beast::http::verb::put, {{"ConfigureManager"}}},
++				{boost::beast::http::verb::delete_, {{"ConfigureManager"}}},
++				{boost::beast::http::verb::post, {{"ConfigureManager"}}}};
++		}
++
++		private:
++			void doGet(crow::Response& res, const crow::Request& req,
++					const std::vector<std::string>& params) override
++			{
++
++				BMCWEB_LOG_DEBUG << "Fru doGet enter";
++				if (params.size() != 2)
++				{
++					BMCWEB_LOG_DEBUG << "Fru doGet param size < 2";
++					messages::internalError(res);
++					res.end();
++					return;
++				}
++
++				const std::string& chassisId = params[0];
++				const std::string& fruName = params[1];
++
++
++
++				res.jsonValue["@odata.context"] =  "/redfish/v1/$metadata#FRU.FRU";
++
++				res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/" + chassisId + "/FRU/" + fruName;
++
++				res.jsonValue["@odata.type"] = "#FRU.v1_0_0_FRU";
++
++				res.jsonValue["Name"] = fruName ;
++
++
++
++				std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
++
++				crow::connections::systemBus->async_method_call(
++						[aResp, fruName](const boost::system::error_code ec,
++							const GetSubTreeType& subtree) {
++
++						BMCWEB_LOG_DEBUG << "respHandler1 enter";
++						if (ec)
++						{
++							messages::internalError(aResp->res);
++							BMCWEB_LOG_ERROR << "FRU getfruPaths resp_handler: "
++							<< "Dbus error " << ec;
++							return;
++						}
++
++
++						GetSubTreeType::const_iterator it = std::find_if(
++								subtree.begin(), subtree.end(),
++								[fruName](
++									const std::pair<
++									std::string,
++									std::vector<std::pair<std::string,
++									std::vector<std::string>>>>&
++									object) {
++								std::string_view fru = object.first;
++								std::size_t lastPos = fru.rfind("/");
++								if (lastPos == std::string::npos ||
++										lastPos + 1 >= fru.size())
++								{
++									BMCWEB_LOG_ERROR << "Invalid fru path: "
++									<< fru;
++									return false;
++								}
++								std::string_view name = fru.substr(lastPos + 1);
++
++								return name == fruName;
++								});
++
++
++						if (it == subtree.end())
++						{
++							BMCWEB_LOG_ERROR << "Could not find object path for fru: "
++								<< fruName;
++							messages::resourceNotFound(aResp->res, "fru",
++									fruName);
++							return;
++						}
++
++						const std::string fruPath = (*it).first;
++
++						BMCWEB_LOG_DEBUG << "Found fru object path for fru"
++							<< fruName << "': " << fruPath;
++
++
++						crow::connections::systemBus->async_method_call(
++								[aResp]( const boost::system::error_code error_code,
++									const PropertiesType &dbus_data) {
++
++								if (error_code)
++								{
++									BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++									messages::internalError(aResp->res);
++									return;
++								}
++
++								std::vector<std::string> Fru_Objectdata;
++
++
++								for ( const auto &property : dbus_data)
++								{
++
++									std::string res = "";
++									if ((property.first == "BOARD_FRU_VERSION_ID") || (property.first == "PRODUCT_VERSION" ) )
++									{
++										const std::string *version = std::get_if<std::string>(&property.second);
++
++										if (property.first == "BOARD_FRU_VERSION_ID")  {
++											res = "Board Version  : " + *version ;
++											Fru_Objectdata.emplace_back(res);
++										}	
++
++										else {
++											res = "Product Version  : " + *version ;
++											Fru_Objectdata.emplace_back(res);
++										}
++									}
++
++									else if ((property.first == "BOARD_MANUFACTURER") || (property.first == "PRODUCT_MANUFACTURER"))
++									{
++										const std::string *manufacturer = std::get_if<std::string>(&property.second);
++										if (property.first == "BOARD_MANUFACTURER") {
++											res = "Board Mfg  : " + *manufacturer ;
++											Fru_Objectdata.emplace_back(res);
++										}
++										else {
++											res = "Product Manufacturer  : " + *manufacturer ;
++											Fru_Objectdata.emplace_back(res);
++										}
++									}
++									else if ((property.first == "BOARD_PRODUCT_NAME") || (property.first == "PRODUCT_PRODUCT_NAME"))
++									{
++										const std::string *product_name = std::get_if<std::string>(&property.second);
++
++										if (property.first == "BOARD_PRODUCT_NAME") {
++
++											res = "Board Product  : " + *product_name ;
++											Fru_Objectdata.emplace_back(res);
++										}
++										else  {
++											res = "Product Name  : " + *product_name ;
++											Fru_Objectdata.emplace_back(res);
++										}
++									}
++
++									else if ((property.first == "BOARD_PART_NUMBER") || (property.first == "PRODUCT_PART_NUMBER"))
++									{
++										const std::string *part_number = std::get_if<std::string>(&property.second);
++										if (property.first == "BOARD_PART_NUMBER") {
++											res = "Board Part Number  : " + *part_number ;
++											Fru_Objectdata.emplace_back(res);
++										}
++										else {
++											res = "Product Part Number  : " + *part_number ;
++											Fru_Objectdata.emplace_back(res);
++	
++										}
++									}
++
++
++									else if ((property.first == "BOARD_SERIAL_NUMBER") || (property.first == "PRODUCT_SERIAL_NUMBER"))
++									{
++										const std::string *serial_number = std::get_if<std::string>(&property.second);
++										if (property.first == "BOARD_SERIAL_NUMBER") {
++											res = "Board Serial  : " + *serial_number ;
++											Fru_Objectdata.emplace_back(res);
++										}
++										else {
++											res = "Product Serial  : " + *serial_number ;
++											Fru_Objectdata.emplace_back(res);
++										}
++									}
++	
++									else if ((property.first == "BOARD_LANGUAGE_CODE") || (property.first == "PRODUCT_LANGUAGE_CODE"))
++									{
++										const std::string *language_code = std::get_if<std::string>(&property.second);
++										if (property.first == "BOARD_LANGUAGE_CODE") {
++											res = "Board language code  : " + *language_code ;
++											Fru_Objectdata.emplace_back(res);
++										}
++										else {
++											res = "Product language code  : " + *language_code ;
++											Fru_Objectdata.emplace_back(res);
++										}
++									}
++									else if ( property.first == "BOARD_MANUFACTURE_DATE" )
++									{
++										const std::string *mfg_date = std::get_if<std::string>(&property.second);
++										res = "Board Mfg Date  : " + *mfg_date ;
++										Fru_Objectdata.emplace_back(res);
++									}
++	
++
++								} // property loop end
++
++
++								aResp->res.jsonValue["FRU Device Description"] = Fru_Objectdata;
++
++								},
++									"xyz.openbmc_project.FruDevice",
++									fruPath,
++									"org.freedesktop.DBus.Properties", "GetAll",
++									"xyz.openbmc_project.FruDevice");
++
++
++						},
++							"xyz.openbmc_project.ObjectMapper",
++							"/xyz/openbmc_project/object_mapper",
++							"xyz.openbmc_project.ObjectMapper", "GetSubTree",
++							"/xyz/openbmc_project/FruDevice", 2,
++							std::array<const char *, 1>{"xyz.openbmc_project.FruDevice"});
++
++				return;
++
++
++			}    // doGet end
++
++
++	}; // Fru class end
++
++
++} // namespace redfish
++
++

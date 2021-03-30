@@ -1,0 +1,132 @@
+<div class="bmc-table__container">
+  <table-toolbar  ng-if="$ctrl.selectable"
+                  selection-count="$ctrl.selectedRows.size"
+                  active="$ctrl.selectedRows.size > 0"
+                  actions="$ctrl.batchActions"
+                  emit-action="$ctrl.onEmitBatchAction(action)"
+                  emit-close="$ctrl.onToolbarClose()"
+                  ng-animate-children="true">
+  </table-toolbar>
+  <table  class="bmc-table {{$ctrl.size}}"
+          ng-class="{
+            'bmc-table--sortable': $ctrl.sortable,
+            'bmc-table--expandable': $ctrl.expandable,
+            'bmc-table--selectable': $ctrl.selectable,
+            'bmc-table--row-actions-enabled': '$ctrl.rowActionsEnabled',
+          }">
+    <thead class="bmc-table__head">
+      <!-- Header row -->
+      <tr>
+        <!-- Expandable empty cell -->
+        <th ng-if="$ctrl.expandable"
+            class="bmc-table__column-header"></th>
+        <!-- Select checkbox -->
+        <th ng-if="$ctrl.selectable"
+            class="bmc-table__column-header">
+          <table-checkbox ng-model="$ctrl.selectHeaderCheckbox"
+                          indeterminate="$ctrl.someSelected"
+                          emit-change="$ctrl.onHeaderSelectChange(checked)">
+          </table-checkbox>
+        </th>
+        <!-- Header items -->
+        <th ng-repeat="headerItem in $ctrl.header track by $index"
+            class="bmc-table__column-header">
+          <span ng-if="!$ctrl.sortable || !headerItem.sortable">
+            {{headerItem.label}}
+          </span>
+          <span ng-if="$ctrl.sortable && headerItem.sortable"
+                ng-click="$ctrl.onClickSort($index)"
+                class="bmc-table__column-header--sortable">
+            {{headerItem.label}}
+            <!-- Sort icons -->
+            <button class="sort-icon"
+                    type="button"
+                    aria-label="sort {{headerItem.label}}">
+              <icon file="icon-arrow--up.svg"
+                    ng-if="$index === $ctrl.activeSort"
+                    ng-class="{
+                      'sort-icon--descending': !$ctrl.sortAscending,
+                      'sort-icon--ascending' : $ctrl.sortAscending }"
+                    class="sort-icon--active"
+                    aria-hidden="true"></icon>
+              <span ng-if="$index !== $ctrl.activeSort"
+                    class="sort-icon--inactive"
+                    aria-hidden="true">
+                  <icon file="icon-arrow--up.svg"></icon>
+                  <icon file="icon-arrow--down.svg"></icon>
+              </span>
+            </button>
+          </span>
+        </th>
+        <!-- Row actions empty cell -->
+        <th ng-if="$ctrl.rowActionsEnabled"
+            class="bmc-table__column-header"></th>
+      </tr>
+    </thead>
+    <tbody class="bmc-table__body">
+      <!-- Data rows -->
+      <tr ng-if="$ctrl.data.length > 0"
+          ng-repeat-start="row in $ctrl.data track by $index"
+          class="bmc-table__row"
+          ng-class="{
+            'bmc-table__row--expanded': $ctrl.expandedRows.has($index),
+            'bmc-table__row--selected': $ctrl.selectedRows.has($index),
+          }">
+        <!-- Row expansion trigger -->
+        <td ng-if="$ctrl.expandable"
+            class="bmc-table__cell">
+          <button type="button"
+                  class="btn  btn--expand"
+                  aria-label="expand row"
+                  ng-click="$ctrl.onClickExpand($index)">
+            <icon file="icon-chevron-right.svg" aria-hidden="true"></icon>
+          </button>
+        </td>
+        <!-- Row checkbox -->
+        <td ng-if="$ctrl.selectable"
+            class="bmc-table__cell">
+          <table-checkbox ng-if="row.selectable"
+                          ng-model="row.selected"
+                          emit-change="$ctrl.onRowSelectChange($index)">
+          </table-checkbox>
+        </td>
+        <!-- Row item -->
+        <td ng-repeat="item in row.uiData track by $index"
+            class="bmc-table__cell">
+            <ng-bind-html ng-bind-html="item"></ng-bind-html>
+        </td>
+        <!-- Row Actions -->
+        <td ng-if="$ctrl.rowActionsEnabled"
+            class="bmc-table__cell  bmc-table__row-actions">
+          <table-actions
+            ng-if="row.actions"
+            actions="row.actions"
+            emit-action="$ctrl.onEmitRowAction(action, row)">
+          </table-actions>
+        </td>
+      </tr>
+      <!-- Expansion row -->
+      <tr ng-repeat-end
+          ng-if="$ctrl.expandedRows.has($index)"
+          class="bmc-table__expansion-row">
+        <td class="bmc-table__cell"></td>
+        <td class="bmc-table__cell"
+            colspan="{{$ctrl.header.length + $ctrl.sortable +
+                      $ctrl.expandable + $ctrl.rowActionsEnabled}}">
+          <ng-bind-html
+            ng-bind-html="row.expandContent || 'No data'">
+          </ng-bind-html>
+        </td>
+      </tr>
+      <!-- Empty table -->
+      <tr ng-if="$ctrl.data.length === 0"
+          class="bmc-table__expansion-row">
+        <td class="bmc-table__cell"
+            colspan="{{$ctrl.header.length + $ctrl.sortable +
+                      $ctrl.expandable + $ctrl.rowActionsEnabled}}">
+          No data
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

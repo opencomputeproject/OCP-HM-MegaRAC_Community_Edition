@@ -1,0 +1,38 @@
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2020-12-11 16:54:12.220540664 +0530
++++ b/include/sensor.hpp	2020-12-11 16:57:56.510972887 +0530
+@@ -342,13 +342,15 @@
+         if (!readingStateGood())
+         {
+             markAvailable(false);
++	    updateValueProperty(std::numeric_limits<double>::quiet_NaN());
+             return;
+         }
+ 
+         // Indicate that it is internal set call
+-        internalSet = true;
+-        updateProperty(sensorInterface, value, newValue, "Value");
+-        internalSet = false;
++        //internalSet = true;
++        //updateProperty(sensorInterface, value, newValue, "Value");
++        //internalSet = false;
++	 updateValueProperty(newValue);
+ 
+         // Always check thresholds after changing the value,
+         // as the test against hysteresisTrigger now takes place in
+@@ -391,6 +393,15 @@
+         }
+         return false;
+     }
++
++    private:
++    void updateValueProperty(const double& newValue)
++    {
++        // Indicate that it is internal set call, not an external overwrite
++        internalSet = true;
++        updateProperty(sensorInterface, value, newValue, "Value");
++        internalSet = false;
++    }
+ };
+ 
+ struct DiscSensor

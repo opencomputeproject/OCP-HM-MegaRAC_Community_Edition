@@ -1,0 +1,87 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2020-11-23 15:29:08.499830485 +0530
++++ b/src/main.cpp	2020-11-23 15:30:49.186088480 +0530
+@@ -414,6 +414,49 @@
+         return false;
+     }
+ 
++
++    static bool setnetworkiface(const std::string& file_path, const std::string& networkiface_name)
++    {
++
++        std::ofstream fileWriter;
++        fileWriter.open(file_path, std::ios::out | std::ios::trunc);
++	if(fileWriter)
++	{
++	fileWriter << networkiface_name ;
++	fileWriter.close();
++	return true;
++	
++	}
++
++	else
++	{
++	return false;
++	}
++
++    }
++
++
++
++    static std::string getnetworkiface(const std::string& file_path)
++    {
++        std::ifstream fileReader;
++	fileReader.open(file_path);
++
++        if(fileReader)
++        {
++
++	std::string temp_buf;
++
++        std::getline(fileReader,temp_buf);
++        fileReader.close();
++	return temp_buf;
++	
++        }
++	return std::string("");
++
++    }
++
++    
+   private:
+     boost::asio::io_context& ioc;
+     boost::process::child child;
+@@ -705,6 +748,7 @@
+         }
+ 	addKVMProcessInterface("kvm0");
+         addNBDProcessInterface("nbd0");
++        addNBDusedNetworkIface("NetworkIface");
+         prepareNBDFile();
+         devMonitor.run([this](const std::string& device, StateChange change) {
+             configureUsbGadget(device, change);
+@@ -1222,6 +1266,25 @@
+         iface->initialize();
+     }
+ 
++    
++    void addNBDusedNetworkIface(const std::string& networkIface)
++    {
++            auto iface = objServer->add_interface(
++                "/xyz/openbmc_project/VirtualMedia/Nbd/" + networkIface,
++                "xyz.openbmc_project.Network.Iface");
++    
++            iface->register_property(
++                "NwIfaceName", std::string(""),
++                [](const std::string& req, std::string& property) {
++    	         return Process::setnetworkiface(std::string("/etc/nbd-proxy/networkiface"),req); 
++                },
++                [this](const std::string& property) {
++                     return Process::getnetworkiface(std::string("/etc/nbd-proxy/networkiface")); });
++    
++    	    iface->initialize();
++    }
++
++
+     boost::asio::io_context& ioc;
+     DeviceMonitor devMonitor;
+     std::shared_ptr<sdbusplus::asio::connection> bus;

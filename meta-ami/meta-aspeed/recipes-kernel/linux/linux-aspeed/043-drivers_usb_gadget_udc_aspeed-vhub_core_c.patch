@@ -1,0 +1,20 @@
+--- a/drivers/usb/gadget/udc/aspeed-vhub/core.c	2020-07-30 13:35:38.154269780 -0400
++++ b/drivers/usb/gadget/udc/aspeed-vhub/core.c	2020-07-30 13:38:45.627170571 -0400
+@@ -97,16 +97,13 @@
+ void ast_vhub_nuke(struct ast_vhub_ep *ep, int status)
+ {
+ 	struct ast_vhub_req *req;
+-	int count = 0;
+ 
++	EPDBG(ep, "Nuking\n");
+ 	/* Beware, lock will be dropped & req-acquired by done() */
+ 	while (!list_empty(&ep->queue)) {
+ 		req = list_first_entry(&ep->queue, struct ast_vhub_req, queue);
+ 		ast_vhub_done(ep, req, status);
+-		count++;
+ 	}
+-	if (count)
+-		EPDBG(ep, "Nuked %d request(s)\n", count);
+ }
+ 
+ struct usb_request *ast_vhub_alloc_request(struct usb_ep *u_ep,

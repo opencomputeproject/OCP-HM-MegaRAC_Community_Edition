@@ -1,0 +1,113 @@
+# Validate condition callback rendering.
+
+- name: test path group 1
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+
+- name: test path group 2
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst6
+
+- name: test property group 1
+  class: group
+  group: property
+  type: int32
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface1
+      meta: PROPERTY
+      property: Value
+
+- name: test property group 2
+  class: group
+  group: property
+  type: string
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface3
+      meta: PROPERTY
+      property: Value2
+
+- name: test count condition 1
+  class: condition
+  condition: count
+  paths: test path group 1
+  properties: test property group 1
+  callback: test journal callback 1
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: test count condition 2
+  class: condition
+  condition: count
+  paths: test path group 1
+  properties: test property group 1
+  callback: test journal callback 1
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: test journal callback 1
+  class: callback
+  callback: journal
+  paths: test path group 1
+  properties: test property group 1
+  severity: INFO
+  message: Hello world from PDM!
+
+- name: test count condition 3
+  class: condition
+  condition: count
+  paths: test path group 1
+  properties: test property group 1
+  callback: test journal callback 2
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: test count condition 4
+  class: condition
+  condition: count
+  paths: test path group 1
+  properties: test property group 1
+  callback: test journal callback 2
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: test journal callback 2
+  class: callback
+  callback: journal
+  paths: test path group 1
+  properties: test property group 1
+  severity: INFO
+  message: Hello world from PDM!
+
+- name: test median condition 1
+  class: condition
+  condition: median
+  paths: test path group 1
+  properties: test property group 1
+  callback: test journal callback 1
+  op: '>='
+  bound: 45
+
+- name: test median condition 2
+  class: condition
+  condition: median
+  paths: test path group 2
+  properties: test property group 1
+  callback: test journal callback 2
+  op: '>='
+  bound: 45

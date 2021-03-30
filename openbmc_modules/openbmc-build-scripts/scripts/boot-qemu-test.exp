@@ -1,0 +1,39 @@
+#!/usr/bin/expect
+#
+# Launch QEMU and verify we can login then sleep for defined amount of time
+# before exiting
+#
+#  Requires following env variables be set:
+#   QEMU_RUN_TIMER  Amount of time to run the QEMU instance
+#   HOME            Location of scripts
+
+set timeout "$env(QEMU_RUN_TIMER)*2"
+set command "$env(HOME)/boot-qemu.sh"
+
+spawn $command
+
+expect {
+  timeout { send_user "\nFailed to boot\n"; exit 1 }
+  eof { send_user "\nFailure, got EOF"; exit 1 }
+  "* login:"
+}
+
+send "root\r"
+
+expect {
+  timeout { send_user "\nFailed, no login prompt\n"; exit 1 }
+  eof { send_user "\nFailure, got EOF"; exit 1 }
+  "Password:"
+}
+
+send "0penBmc\r"
+
+expect {
+  timeout { send_user "\nFailed, could not login\n"; exit 1 }
+  eof { send_user "\nFailure, got EOF"; exit 1 }
+  "root@*:~#"
+}
+
+send_user "OPENBMC-READY\n"
+sleep "$env(QEMU_RUN_TIMER)"
+send_user "OPENBMC-EXITING\n"

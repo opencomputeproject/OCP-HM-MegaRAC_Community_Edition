@@ -1,0 +1,201 @@
+//Breakpoints mixin
+@mixin mediaQuery($breakpoint) {
+  @if $breakpoint == "x-small" {
+    @media (min-width: 25em) {
+      //400px
+      @content;
+    }
+  }
+  @if $breakpoint == "small" {
+    @media (min-width: 47.938em) {
+      //767px
+      @content;
+    }
+  } @else if $breakpoint == "medium" {
+    @media (min-width: 64em) {
+      //1024px
+      @content;
+    }
+  } @else if $breakpoint == "large" {
+    @media (min-width: 85.375em) {
+      //1366px
+      @content;
+    }
+  } @else if $breakpoint == "x-large" {
+    @media (min-width: 100em) {
+      //1600px
+      @content;
+    }
+  }
+}
+
+//Fonts mixin
+@mixin fontFamily {
+  font-family: Helvetica, Arial, Verdana, sans-serif;
+  font-weight: 200;
+}
+
+@mixin fontFamilyBold {
+  font-family: Helvetica, Arial, Verdana, sans-serif;
+  font-weight: 700;
+}
+
+@mixin fontCourierBold {
+  font-family: "Courier New", Helvetica, arial, sans-serif;
+  font-weight: 700;
+}
+
+//Transitions mixin
+@mixin fastTransition-all {
+  transition: all $duration--fast-02 ease;
+}
+
+@mixin slowTransition-all {
+  transition: all $duration--slow-02 ease;
+}
+
+@mixin page-transition {
+  transition: 110ms cubic-bezier(0.4, 0.14, 1, 1);
+}
+
+@mixin page-transition-visibility {
+  visibility: hidden;
+  opacity: 0;
+}
+
+//Custom SVG arrow
+@mixin bgImage__arrowDown-primary {
+  background-image: url(../assets/images/icon-caret-down.svg);
+  background-size: 0.8em;
+  background-repeat: no-repeat;
+  background-position-y: center;
+  background-position-x: calc(100% - 0.5em);
+}
+
+@mixin bgImage__arrowDown-disabled {
+  background-image: url(../assets/images/icon-caret-down-disabled.svg);
+  background-size: 0.8em;
+  background-repeat: no-repeat;
+  background-position-y: center;
+  background-position-x: calc(100% - 0.5em);
+}
+
+@mixin calcColumn-5 {
+  min-width: calc(100% * (1 / 5) - 5px);
+}
+
+@mixin calcColumn-4($offset: 0) {
+  min-width: calc(100% * (1 / 4) - #{$offset});
+}
+
+@mixin calcColumn-3 {
+  min-width: calc(100% * (1 / 3) - 5px);
+}
+
+@mixin calcSplitColumn {
+  min-width: calc(100% * (1 / 2) - 5px);
+}
+
+@mixin vertCenter {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+@mixin indeterminate-bar {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(251, 234, 174, 0.35),
+    rgba(251, 234, 174, 0.35) 25px,
+    rgba(244, 176, 0, 0.45) 25px,
+    rgba(244, 176, 0, 0.45) 50px
+  );
+  -webkit-animation: progress 2s linear infinite;
+  -moz-animation: progress 2s linear infinite;
+  animation: progress 2s linear infinite;
+  background-size: 165% 100%;
+
+  @-webkit-keyframes progress {
+    0% {
+      background-position: -70px 0;
+    }
+    100% {
+      background-position: 0 0;
+    }
+  }
+
+  @-moz-keyframes progress {
+    0% {
+      background-position: -70px 0;
+    }
+    100% {
+      background-position: 0 0;
+    }
+  }
+
+  @-ms-keyframes progress {
+    0% {
+      background-position: -70px 0;
+    }
+    100% {
+      background-position: 0 0;
+    }
+  }
+
+  @keyframes progress {
+    0% {
+      background-position: -70px 0;
+    }
+    100% {
+      background-position: 0 0;
+    }
+  }
+}
+
+@mixin table-row-save {
+  @-webkit-keyframes row-flash {
+    from {
+      background-color: $background-02;
+    }
+    to {
+      background-color: inherit;
+    }
+  }
+  @-moz-keyframes row-flash {
+    from {
+      background-color: $background-02;
+    }
+    to {
+      background-color: inherit;
+    }
+  }
+  @-o-keyframes row-flash {
+    from {
+      background-color: $background-02;
+    }
+    to {
+      background-color: inherit;
+    }
+  }
+  @keyframes row-flash {
+    from {
+      background-color: $background-02;
+    }
+    to {
+      background-color: inherit;
+    }
+  }
+  .row-flash {
+    -webkit-animation: row-flash 1s infinite; /* Safari 4+ */
+    -moz-animation: row-flash 1s infinite; /* Fx 5+ */
+    -o-animation: row-flash 1s infinite; /* Opera 12+ */
+    animation: row-flash 1s infinite; /* IE 10+ */
+  }
+}
+
+@mixin label {
+  color: $text-02;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.75em;
+  margin-bottom: 0.5rem;
+}

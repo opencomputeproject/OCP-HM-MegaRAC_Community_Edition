@@ -1,0 +1,17 @@
+description: >
+    Certificate interface to replace existing certificate.
+methods:
+    - name: Replace
+      description: >
+          Replace the certificate and restart the associated services.
+      parameters:
+        - name: Path
+          type: string
+          description: >
+              Path of file that contains both the certificate public and
+              private key. (Example: a .PEM file containing both signed
+              certificate and private key).
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Certs.Error.InvalidCertificate
+        - xyz.openbmc_project.Common.Error.NotAllowed

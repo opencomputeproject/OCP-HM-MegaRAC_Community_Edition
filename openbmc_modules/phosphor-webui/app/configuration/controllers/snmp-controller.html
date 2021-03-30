@@ -1,0 +1,96 @@
+<loader loading="loading"></loader>
+<div id="configuration-snmp" class="page">
+  <h1 class="page-title">SNMP settings</h1>
+  <section class="section">
+    <p class="section-content">
+      Set the Simple Network Management Protocol (SNMP) with a host name or IP
+      address and a port.
+    </p>
+  </section>
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Managers</h2>
+    </div>
+    <div class="section-content">
+      <p class="manager_group empty" ng-if="managers.length < 1">
+        No managers have been added yet.
+      </p>
+    </div>
+    <form id="snmp__form" name="snmp__form" novalidate>
+      <div class="section-content">
+        <div
+          class="row manager_group"
+          ng-form="manager_group"
+          ng-repeat="manager in managers track by $index">
+          <div class="small-12 medium-5 large-4 form__field snmp-field">
+            <label
+              for="snmp-manager{{ $index + 1 }}-address"
+              class="content-label">
+              Host name or IP Address
+            </label>
+            <input
+              id="snmp-manager{{ $index + 1 }}-address"
+              name="snmp-manager{{ $index + 1 }}-address"
+              type="text"
+              ng-change="manager.updateAddress=true"
+              ng-model="manager.address"
+              required/>
+            <div
+              ng-messages="manager_group['snmp-manager'+($index+1)+'-address'].$error"
+              class="form-error"
+              ng-class="{'visible': manager_group['snmp-manager'+($index+1)+'-address'].$touched || submitted}">
+              <p ng-message="required" role="alert">Field is required</p>
+            </div>
+          </div>
+          <div class="small-9 medium-5 large-4 form__field snmp-field">
+            <label for="snmp-manager{{ $index + 1 }}-port" class="content-label">Port</label>
+            <input
+              id="snmp-manager{{ $index + 1 }}-port"
+              name="snmp-manager{{ $index + 1 }}-port"
+              type="number"
+              min="0"
+              max="65535"
+              step="1"
+              ng-change="manager.updatePort=true"
+              ng-model="manager.port"
+              required/>
+            <div
+              ng-messages="manager_group['snmp-manager'+($index+1)+'-port'].$error"
+              class="form-error"
+              ng-class="{'visible': manager_group['snmp-manager'+($index+1)+'-port'].$touched || submitted}">
+              <p ng-message="required" role="alert">Value must be between 0 - 65,535</p>
+            </div>
+          </div>
+          <div class="small-3 medium-2 large-4 snmp-field">
+            <button
+              class="btn btn-tertiary trash_button"
+              type="button"
+              ng-click="removeSNMPManager($index)"
+              aria-label="Remove">
+              <icon file="icon-trashcan.svg" aria-hidden="true"></icon>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="section-content">
+        <button
+          class="btn btn-tertiary btn-add-manager"
+          type="button"
+          ng-click="submitted=false; addNewSNMPManager();">
+          <icon file="icon-plus.svg" aria-hidden="true"></icon>Add manager
+        </button>
+      </div>
+      <div class="form__actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          ng-click="submitted=true;  snmp__form.$valid && setSNMP();">
+          Save settings
+        </button>
+        <button type="button" class="btn btn-secondary" ng-click="refresh()">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </section>
+</div>

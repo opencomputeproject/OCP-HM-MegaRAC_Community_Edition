@@ -1,0 +1,250 @@
+description: >
+    Implement to provide DIMM attributes.
+properties:
+    - name: MemoryDataWidth
+      type: uint16
+      description: >
+          Data width of Memory.
+    - name: MemorySizeInKB
+      type: uint32
+      description: >
+          Memory size of DIMM in Kilobyte.
+    - name: MemoryDeviceLocator
+      type: string
+      description: >
+          Socket on base board where Memory located, for example CPU1_DIMM_B1.
+    - name: MemoryType
+      type: enum[self.DeviceType]
+      description: >
+          Type of memory.
+    - name: MemoryTypeDetail
+      type: string
+      description: >
+          Additional detail on Memory, such as Synchronous, Static column, etc.
+    - name: MaxMemorySpeedInMhz
+      type: uint16
+      description: >
+          The maximum capable clock speed of Memory, in megahertz.
+    - name: MemoryAttributes
+      type: byte
+      description: >
+          Rank attributes of Memory. Means how many groups of memory chips on
+          the dimm.
+    - name: MemoryConfiguredSpeedInMhz
+      type: uint16
+      description: >
+          Configured clock speed to Memory, in megahertz.
+    - name: ECC
+      type: enum[self.Ecc]
+      description: >
+          Error-Correcting Code.
+    - name: CASLatencies
+      type: uint16
+      description: >
+          CAS Latency (CL) values are supported. The CAS latency is the delay
+          between the time at which the column address and the column address
+          strobe signal are presented to the memory module and the time at
+          which the corresponding data is made available by the memory module.
+    - name: RevisionCode
+      type: uint16
+      description: >
+          Revision code provided by the individual manufacturer.
+    - name: FormFactor
+      type: enum[self.FormFactor]
+      description: >
+          The base module type of the memory.
+    - name: MemoryTotalWidth
+      type: uint16
+      description: >
+          The bus width, in bits.
+    - name: AllowedSpeedsMT
+      type: array[uint16]
+      description: >
+          Speeds supported by this memory in megatransfers.
+
+enumerations:
+    - name: Ecc
+      description: >
+          Error-Correcting Code.
+      values:
+        - name: NoECC
+          description: >
+              No ECC support.
+        - name: SingleBitECC
+          description: >
+              Single bit data errors can be corrected by ECC.
+        - name: MultiBitECC
+          description: >
+              Multibit data errors can be corrected by ECC.
+        - name: AddressParity
+          description: >
+              Address parity errors can be corrected.
+    - name: Type
+      description: >
+          This property shall contain the type ofmemory that this Resource
+          represents.
+      values:
+        - name: DRAM
+          description: >
+              The memory module is comprised of volatile memory.
+        - name: NVDIMM_N
+          description: >
+              The memory module is comprised of volatile memory backed by
+              non-volatile memory.
+        - name: NVDIMM_F
+          description: >
+              The memory module is comprised of non-volatile memory.
+        - name: NVDIMM_P
+          description: >
+              The memory module is comprised of a combination of non-volatile
+              and volatile memory.
+        - name: IntelOptane
+          description: >
+              The memory module is an Intel Optane DC Persistent Memory Module.
+    - name: DeviceType
+      description: >
+          This property shall contain the Memory Device Type as defined by
+          SMBIOS.
+      values:
+        - name: Other
+          description: >
+              Some devices which are not defined in this table.
+        - name: Unknown
+          description: >
+              Unknown device.
+        - name: DRAM
+          description: >
+              Dynamic Random Access Memory.
+        - name: EDRAM
+          description: >
+              Enhanced Dynamic Random Access Memory.
+        - name: VRAM
+          description: >
+              Video Random Access Memory.
+        - name: SRAM
+          description: >
+              Static Random Access Memory.
+        - name: RAM
+          description: >
+              Random Access Memory.
+        - name: ROM
+          description: >
+              Read Only Memory.
+        - name: FLASH
+          description: >
+              Flash Memory.
+        - name: EEPROM
+          description: >
+              Electrically Erasable Programmable Read Only Memory.
+        - name: FEPROM
+          description: >
+              Flash Erasable Programmable Read Only Memory.
+        - name: EPROM
+          description: >
+              Erasable Programmable Read Only Memory.
+        - name: CDRAM
+          description: >
+              Cached Dynamic Random Access Memory.
+        - name: ThreeDRAM
+          description: >
+              Three Dimensional Random Access Memory.
+        - name: SDRAM
+          description: >
+              Synchronous Dynamic Random Access Memory.
+        - name: DDR_SGRAM
+          description: >
+              Double Data Rate Synchronous Graphics Random-Access Memory.
+        - name: RDRAM
+          description: >
+              Direct Rambus Dynamic Random Access Memory.
+        - name: DDR
+          description: >
+              Double Data Rate SDRAM.
+        - name: DDR2
+          description: >
+              Double Data Rate 2 SDRAM.
+        - name: DDR2_SDRAM_FB_DIMM
+          description: >
+              DDR2 SDRAM Fully Buffered DIMM.
+        - name: EDO
+          description: >
+              Extended Data Output Memory.
+        - name: FastPageMode
+          description: >
+              Fast Page Mode Memory.
+        - name: PipelinedNibble
+          description: >
+              Pipelined Nibble Memory.
+        - name: DDR3
+          description: >
+              Double Data Rate 3 SDRAM.
+        - name: FBD2
+          description: >
+              Fully Buffered DIMM 2.
+        - name: DDR4
+          description: >
+              Double Data Rate 4 SDRAM.
+        - name: LPDDR_SDRAM
+          description: >
+              Low-Power Double Data Rate SDRAM.
+        - name: LPDDR2_SDRAM
+          description: >
+              Low-Power Double Data Rate 2 SDRAM.
+        - name: LPDDR3_SDRAM
+          description: >
+              Low-Power Double Data Rate 3 SDRAM.
+        - name: LPDDR4_SDRAM
+          description: >
+              Low-Power Double Data Rate 4 SDRAM.
+        - name: Logical
+          description: >
+              Logical Non-volatile device.
+        - name: HBM
+          description: >
+              High Bandwidth Memory
+        - name: HBM2
+          description: >
+              High Bandwidth Memory Generation 2.
+        - name: DDR2_SDRAM_FB_DIMM_PROB
+          description: >
+              DDR2 SDRAM Fully Buffered DIMM PROBE.
+        - name: DDR4E_SDRAM
+          description: >
+              Double Data Rate 4 Extended Compliant SDRAM.
+    - name: FormFactor
+      description: >
+          Implementation form factor for this memory device.
+      values:
+        - name: RDIMM
+          description: >
+              Registered DIMM.
+        - name: UDIMM
+          description: >
+              Unbuffered DIMM.
+        - name: SO_DIMM
+          description: >
+              Small Outline DIMM.
+        - name: LRDIMM
+          description: >
+              Load-reduced DIMMs.
+        - name: Mini_RDIMM
+          description: >
+              mini Registered DIMM.
+        - name: Mini_UDIMM
+          description: >
+              mini Unbuffered DIMM.
+        - name: SO_RDIMM_72b
+          description: >
+              Small Outline Registered DIMM.
+        - name: SO_UDIMM_72b
+          description: >
+              Small Outline Unbuffered DIMM.
+        - name: SO_DIMM_16b
+          description: >
+              Small Outline DIMM 16 bit.
+        - name: SO_DIMM_32b
+          description: >
+              Small Outline DIMM 32 bit.
+        - name: Die
+          description: >
+              A die within a package.

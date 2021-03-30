@@ -1,0 +1,43 @@
+<loader loading="loading"></loader>
+<div class="page local-users">
+  <div class="row column">
+    <div class="column small-12">
+      <h1 class="page-title">Local user management</h1>
+    </div>
+  </div>
+  <div class="row column">
+    <div class="column small-12 medium-10">
+      <div class="local-users__actions">
+        <button ng-disabled="accountSettings === null"
+                ng-click="onClickAccountSettingsPolicy()"
+                class="btn btn-tertiary">
+          <icon file="icon-config.svg"></icon>
+          Account policy settings
+        </button>
+        <button ng-disabled="userRoles === null || localUsers.length >= 15"
+                ng-click="onClickAddUser()"
+                class="btn btn-primary">
+          <icon file="icon-plus.svg"></icon>
+          Add user
+        </button>
+      </div>
+      <!-- Local user table -->
+      <bmc-table
+        data="tableData"
+        header="tableHeader"
+        row-actions-enabled="true"
+        selectable="true"
+        batch-actions="tableBatchActions"
+        emit-row-action="onEmitRowAction(value)"
+        emit-batch-action="onEmitBatchAction(value)"
+        class="local-users__table">
+      </bmc-table>
+    </div>
+  </div>
+  <div class="row column">
+    <div class="column small-12 medium-9">
+      <!-- Role table -->
+      <role-table></role-table>
+    </div>
+  </div>
+</div>

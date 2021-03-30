@@ -1,0 +1,37 @@
+# This JSON has the information needed to create General FRU record for FRU of
+# type Board. The FRU fields are based on the PLDM specification DSP0257.
+{
+   "record_details":
+   {
+        # FRU Record Type - General FRU Record
+        "fru_record_type" : 1,
+        # Encoding Type for FRU fields - ASCII
+        "fru_encoding_type": 1,
+        "dbus_interface_name": "xyz.openbmc_project.Inventory.Item.Board"
+   },
+   "fru_fields":[
+      {
+         # FRU Field Type 3 - Part Number
+         "fru_field_type" : 3,
+         # D-Bus property to read and populate the FRU field
+         "dbus":
+            {
+               "interface" : "xyz.openbmc_project.Inventory.Decorator.Asset",
+               "property_name" : "PartNumber",
+               "property_type" : "string"
+            }
+      },
+      {
+         # FRU Field Type 4 - Serial Number
+         "fru_field_type" : 4,
+         # D-Bus property to read and populate the FRU field
+         "dbus":
+            {
+               "interface" : "xyz.openbmc_project.Inventory.Decorator.Asset",
+               "property_name" : "SerialNumber",
+               "property_type" : "string"
+            }
+      }
+    ]
+}
+

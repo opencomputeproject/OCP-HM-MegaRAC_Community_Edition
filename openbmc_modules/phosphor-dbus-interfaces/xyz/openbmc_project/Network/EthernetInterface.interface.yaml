@@ -1,0 +1,93 @@
+description: >
+    This defines an ethernet interface.
+    An object implementing this interface must implement
+    xyz.openbmc_project.State.OperationalStatus.
+
+
+properties:
+    - name: InterfaceName
+      type: string
+      description: >
+          Name of the ethernet interface.
+    - name: Speed
+      type: uint32
+      description: >
+          Current speed of the ethernet interface, in Mbps.
+    - name: AutoNeg
+      type: boolean
+      description: >
+          This indicates if the speed and duplex are automatically negotiated
+          and configured on this ethernet interface.
+    - name: DomainName
+      type: array[string]
+      description: >
+          Domain names of the ethernet interface.
+    - name: DHCPEnabled
+      type: enum[self.DHCPConf]
+      description: >
+          Address mode of the ethernet interface.
+    - name: Nameservers
+      type: array[string]
+      description: >
+          DNS servers that are currently in use on this interface.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+    - name: StaticNameServers
+      type: array[string]
+      description: >
+          A statically defined set of DNS server IP addresses to be used when
+          DHCP provisioning is not enabled for name server configuration. As
+          an implementation option this may also be used in addition to DHCP
+          provided addresses, or in cases where the DHCP server provides no DNS
+          assigments.
+      errors:
+         - xyz.openbmc_project.Common.Error.InvalidArgument
+    - name: NTPServers
+      type: array[string]
+      description: >
+          This property describes the NTP Servers on the interface.
+          Implementation of this Dbus-interface is required to implement this property.
+          This property supports read/write operation.
+          Configure the NTP servers on the system during write operation.
+    - name: LinkLocalAutoConf
+      type: enum[self.LinkLocalConf]
+      description: >
+          This indicates link local auto configuration on this ethernet
+          interface and configured on this ethernet interface.
+    - name: IPv6AcceptRA
+      type: boolean
+      description: >
+          Boolean for accepting router advertisements in IPv6
+    - name: NICEnabled
+      type: boolean
+      description: >
+          Boolean for to enabling or disabling the ethernet port
+    - name: LinkUp
+      type: boolean
+      flags:
+          - const
+      description: >
+          This property reports the link status for the NIC. The read-only
+          boolean value is TRUE when the network cable is inserted, or there
+          is a carrier signal. It is FALSE when the cable is unplugged, or the
+          carrier signal is missing.
+
+enumerations:
+    - name: LinkLocalConf
+      description: >
+          Possible link local auto configuration values.
+      values:
+        - name: fallback
+        - name: both
+        - name: v4
+        - name: v6
+        - name: none
+
+    - name: DHCPConf
+      description: >
+          A list of the permitted DHCP settings used by systemd.
+      values:
+        - name: both
+        - name: v4
+        - name: v6
+        - name: none

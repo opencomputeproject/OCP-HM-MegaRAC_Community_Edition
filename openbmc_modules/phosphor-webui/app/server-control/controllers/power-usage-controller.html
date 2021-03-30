@@ -1,0 +1,71 @@
+<loader loading="loading"></loader>
+<div id="power-usage" class="page">
+  <h1 class="page-title">Manage Power Usage</h1>
+  <form class="power-usage__form" role="form" action="">
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Power information</h2>
+      </div>
+      <dl class="list-pair">
+        <dt>Power Consumption</dt>
+        <dd>{{ power_consumption }}</dd>
+      </dl>
+    </section>
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          Server power cap setting
+        </h2>
+      </div>
+      <div class="section-content">
+        <p>
+          Set a power cap to keep power consumption at or below the specified
+          value in watts.
+        </p>
+        <div class="toggle-container">
+          <div class="toggle">
+            <input
+              id="toggle__switch-round"
+              class="toggle-switch toggle-switch__round-flat"
+              type="checkbox"
+              tabindex="0"
+              ng-model="power_cap.PowerCapEnable"
+              ng-checked="power_cap.PowerCapEnable"
+            />
+            <label for="toggle__switch-round" tabindex="0"
+              >Server power cap setting is
+              <span class="uid-switch__status">{{
+                power_cap.PowerCapEnable ? "on" : "off"
+              }}</span></label
+            >
+          </div>
+          <span>
+            {{ power_cap.PowerCapEnable ? "On" : "Off" }}
+          </span>
+        </div>
+      </div>
+      <div class="section-content form__field">
+        <label for="power-cap" class="content-label"
+          >POWER CAP VALUE IN WATTS</label
+        >
+        <input
+          id="power-cap"
+          type="number"
+          min="100"
+          max="10000"
+          step="1"
+          ng-disabled="!power_cap.PowerCapEnable"
+          ng-model="power_cap.PowerCap"
+        />
+      </div>
+    </section>
+    <div class="form__actions">
+      <button type="submit" class="btn-primary" ng-click="setPowerCap()">
+        Save settings
+      </button>
+      <button type="button" class="btn btn-secondary" ng-click="refresh()">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,74 @@
+description: >
+    Implement to provide event/error entry attributes.
+    This interface should be instantiated for the phosphor::logging namespace.
+    This interface is a collection of objects, therefore it is required to
+    implement org.freedesktop.DBus.ObjectManager on the logging namespace root.
+    Optionally, implement org.openbmc.Object.Delete to allow the deletion of
+    individual entries.
+properties:
+    - name: Id
+      type: uint32
+      description: >
+          The error event entry id number.
+    - name: Timestamp
+      type: uint64
+      description: >
+          Commit timestamp of the error event entry in milliseconds since 1970.
+    - name: Severity
+      type: enum[self.Level]
+      description: >
+          The severity of the error event entry.
+    - name: Message
+      type: string
+      description: >
+          The message description of the error event entry.
+    - name: AdditionalData
+      type: array[string]
+      description: >
+          Additional information in the form of metadata field strings VAR=val
+    - name: Resolved
+      type: boolean
+      description: >
+          Error resolution status. Indicate if the problem being reported by
+          this error log has been resolved. This will start out 'false' by
+          default. Setting this to 'true' will NOT result in the error log being
+          deleted.
+    - name: UpdateTimestamp
+      type: uint64
+      description: >
+          The timestamp when any property was last modified, in milliseconds
+          since the epoch (1 Jan 1970 00:00:00 UTC).  As only the
+          Resolved property has a reason to change, a value that doesn't
+          match the Timestamp property's value (which indicates when the
+          log was created) would indicate that Resolved was changed.
+
+enumerations:
+    - name: Level
+      description: >
+          Possible severity levels for an error log entry.
+      values:
+        - name: Emergency
+          description: >
+              System is unusable.
+        - name: Alert
+          description: >
+              Should be corrected immediately.
+        - name: Critical
+          description: >
+              Critical condition.
+        - name: Error
+          description: >
+              Error condition.
+        - name: Warning
+          description: >
+              An error may occur if action is not taken.
+        - name: Notice
+          description: >
+              Unusual condition, but not an error.
+        - name: Informational
+          description: >
+              Normal operational message that does not require action.
+        - name: Debug
+          description: >
+              Information useful to developers for debugging the application.
+

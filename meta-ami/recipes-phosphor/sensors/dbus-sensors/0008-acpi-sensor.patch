@@ -1,0 +1,446 @@
+diff -Naur a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2020-09-25 12:01:28.758499588 +0530
++++ b/CMakeLists.txt	2020-09-25 15:21:38.583221264 +0530
+@@ -64,7 +64,7 @@
+ 
+ set (DIG_GPIO_SRC_FILES src/Utils.cpp src/GpioSensor.cpp src/SdrRecord.cpp)
+ 
+-set (DISC_EVENT_SRC_FILES src/Utils.cpp src/EventSensor.cpp src/SdrRecord.cpp)
++set (DISC_EVENT_SRC_FILES src/Utils.cpp src/EventSensor.cpp src/AcpiSensor.cpp src/SdrRecord.cpp)
+ 
+ set (EXIT_AIR_SRC_FILES src/Utils.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+@@ -327,7 +327,7 @@
+                  DESTINATION ${SERVICE_FILE_INSTALL_DIR})
+ endif ()
+ 
+-if (NOT DISABLE_PSUEVENT)
++if (NOT DISABLE_PSU_EVENT)
+     install (TARGETS psuevent DESTINATION bin)
+     install (FILES
+                  ${SERVICE_FILE_SRC_DIR}/xyz.openbmc_project.psuevent.service
+diff -Naur a/include/AcpiSensor.hpp b/include/AcpiSensor.hpp
+--- a/include/AcpiSensor.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/include/AcpiSensor.hpp	2020-09-25 15:22:59.448134361 +0530
+@@ -0,0 +1,34 @@
++#pragma once
++
++#include <sdbusplus/asio/object_server.hpp>
++#include <sensor.hpp>
++
++class AcpiSensor : public DiscSensor
++{
++  public: 
++   AcpiSensor(
++    const std::string& path, const std::string& objectType,
++    sdbusplus::asio::object_server& objectServer,
++    std::shared_ptr<sdbusplus::asio::connection>& conn, std::shared_ptr<sdbusplus::asio::connection> bus, 
++    boost::asio::io_service& io, const std::string& sensorName,
++    const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
++    uint8_t DType,uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
++
++    ~AcpiSensor();
++
++  private:
++    sdbusplus::asio::object_server& objServer;
++//    boost::asio::posix::stream_descriptor inputDev;
++    boost::asio::deadline_timer waitTimer;
++    boost::asio::streambuf readBuf;
++    std::string path;
++    int errCount;
++    
++    uint8_t DType;
++    std::vector<uint8_t> data;
++    uint8_t al;
++    uint8_t EventType;
++    uint8_t EventOffset;
++    void setupRead(void);
++    void handleResponse(const boost::system::error_code& err);
++};
+diff -Naur a/include/PwmSensor.hpp b/include/PwmSensor.hpp
+--- a/include/PwmSensor.hpp	2020-09-25 12:01:05.790052876 +0530
++++ b/include/PwmSensor.hpp	2020-09-25 15:24:10.060932379 +0530
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <sdbusplus/asio/object_server.hpp>
++#include <SdrRecord.hpp>
+ 
+ #include <memory>
+ #include <string>
+@@ -12,13 +13,14 @@
+               std::shared_ptr<sdbusplus::asio::connection>& conn,
+               sdbusplus::asio::object_server& objectServer,
+               const std::string& sensorConfiguration,
+-              const std::string& sensorType,const std::string& sensorUnit);
++              const std::string& sensorType,const std::string& sensorUnit, struct sdr::SdrRecord sdrRecord);
+     ~PwmSensor();
+ 
+   private:
+     std::string sysPath;
+     sdbusplus::asio::object_server& objectServer;
+     std::string name;
++    struct sdr::SdrRecord sdrRecord_t;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> controlInterface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> association;
+diff -Naur a/src/AcpiSensor.cpp b/src/AcpiSensor.cpp
+--- a/src/AcpiSensor.cpp	1970-01-01 05:30:00.000000000 +0530
++++ b/src/AcpiSensor.cpp	2020-09-25 15:26:35.994583301 +0530
+@@ -0,0 +1,116 @@
++/*
++//
++// Auther: selvaganapathim
++// Email : selvaganapathim@amiindia.co.in
++//
++*/
++
++#include <unistd.h>
++
++#include <AcpiSensor.hpp>
++#include <boost/algorithm/string/predicate.hpp>
++#include <boost/algorithm/string/replace.hpp>
++#include <boost/date_time/posix_time/posix_time.hpp>
++#include <iostream>
++#include <limits>
++#include <sdbusplus/asio/connection.hpp>
++#include <sdbusplus/asio/object_server.hpp>
++#include <string>
++
++
++static constexpr double maxReading = 127;
++static constexpr double minReading = -128;
++
++AcpiSensor::AcpiSensor(
++    const std::string& path, const std::string& objectType,
++    sdbusplus::asio::object_server& objectServer,
++    std::shared_ptr<sdbusplus::asio::connection>& conn, std::shared_ptr<sdbusplus::asio::connection> bus,
++    boost::asio::io_service& io, const std::string& sensorName,
++    const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
++    uint8_t DType, uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) :
++    DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
++           sensorConfiguration, objectType, maxReading,
++           minReading,EvStat, sensorUnit,sdrRecord),
++    path(path), objServer(objectServer), waitTimer(io), errCount(0)
++{
++
++    sensorInterface = objectServer.add_interface(
++        "/xyz/openbmc_project/sensors/acpisensor/" + name,
++        "xyz.openbmc_project.Sensor.Value");
++
++    discreteInterfaceState = objectServer.add_interface(
++        "/xyz/openbmc_project/sensors/acpisensor/" + name,
++        "xyz.openbmc_project.Sensor.Discrete.State");
++
++    data = {0xFF,0xFF,0xFF};
++    al = 0x00;
++  
++    discreteInterfaceState->register_property("EventData",data,
++			[&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
++		    oldValue = request;
++                    data = request;
++                    return 1;	
++		});
++    discreteInterfaceState->register_property("ActiveAlarmState",al,
++                        [&](const uint8_t& request, uint8_t& oldValue) {
++                    oldValue = request;
++                    al = request;
++                    return 1;
++                });
++
++
++    association = objectServer.add_interface(
++        "/xyz/openbmc_project/sensors/acpisensor/" + name,
++        "org.openbmc.Associations");
++    sensorInterface->register_property("DType",DType);
++    sensorInterface->register_property("EventType",EventType);
++    sensorInterface->register_property("EventOffset",EventOffset); 
++    setInitialProperties(conn);
++
++    std::function<void(sdbusplus::message::message&)> PgoodEventMatcherCallback =
++      [&](sdbusplus::message::message& message) {
++           boost::container::flat_map<std::string, std::variant<int>> propertiesChanged;
++           std::string objectName;
++           if (message.is_method_error())
++           {
++               std::cerr << "callback method error\n";
++               return;
++           }
++
++           message.read(objectName, propertiesChanged);
++           std::string event = propertiesChanged.begin()->first;
++           int *pgood = std::get_if<int>(&propertiesChanged.begin()->second);
++
++           if (!pgood)
++           {
++               std::cerr << "event has invalid type\n";
++               return;
++           }
++           if (event == "pgood")
++           {
++	       if(*pgood == 1){
++	             discreteInterfaceState->set_property("EventData", std::vector<uint8_t>({0x00, 0xFF, 0xFF}));
++                     discreteInterfaceState->set_property("ActiveAlarmState", static_cast<uint8_t>(0x01));
++	       }else{
++		     discreteInterfaceState->set_property("EventData", std::vector<uint8_t>({0x05, 0xFF, 0xFF}));
++               	     discreteInterfaceState->set_property("ActiveAlarmState", static_cast<uint8_t>(0x20));
++	       }
++           }
++
++       };
++
++    //event trigger, this can move to poll the gpio service.
++    sdbusplus::bus::match::match caterrEventMatcher(
++        static_cast<sdbusplus::bus::bus&>(*bus),
++        "type='signal',interface='org.freedesktop.DBus.Properties',member='"
++        "PropertiesChanged',arg0namespace='org.openbmc.control.Power'",
++        PgoodEventMatcherCallback);
++}
++
++AcpiSensor::~AcpiSensor()
++{
++    waitTimer.cancel();
++    objServer.remove_interface(discreteInterfaceState);
++    objServer.remove_interface(sensorInterface);
++    objServer.remove_interface(association);
++}
+diff -Naur a/src/EventMain.cpp b/src/EventMain.cpp
+--- a/src/EventMain.cpp	2020-09-25 12:01:00.393947714 +0530
++++ b/src/EventMain.cpp	2020-09-25 15:33:16.602140410 +0530
+@@ -5,6 +5,7 @@
+ //
+ */
+ #include <EventSensor.hpp>
++#include <AcpiSensor.hpp>
+ #include <Utils.hpp>
+ #include <boost/algorithm/string/predicate.hpp>
+ #include <boost/algorithm/string/replace.hpp>
+@@ -39,8 +40,8 @@
+ void createSensors(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+     boost::container::flat_map<std::string, std::unique_ptr<EventSensor>>&
+-        sensors,
+-    std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
++        sensors, boost::container::flat_map<std::string, std::unique_ptr<AcpiSensor>>& acpi,
++    std::shared_ptr<sdbusplus::asio::connection>& dbusConnection, std::shared_ptr<sdbusplus::asio::connection> bus,
+     const std::unique_ptr<boost::container::flat_set<std::string>>&
+         sensorsChanged)
+ {
+@@ -187,20 +188,18 @@
+         }
+ 	 uint8_t sensorEventType = sdrRecord.EventType;
+ 
+-//        std::vector<discretes::Discrete> sensorDiscretes;
+-//        if (!parseDiscretesFromConfig(*sensorData, sensorDiscretes))
+-//        {
+-//            std::cerr << "error populating discretes for " << sensorName
+-//                      << "\n";
+-//        }
+-
+-       //std::string sensorPath="/sys/class/gpio/gpio"+std::to_string(index)+"/value";
+        std::string sensorPath;
+-
+-        sensors[sensorName] = std::make_unique<EventSensor>(
+-            sensorPath, sensorType, objectServer,
+-            dbusConnection, io, sensorName,
+-           *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset,sdrRecord);
++	if(sensorDType == 0x22){
++	   acpi[sensorName] = std::make_unique<AcpiSensor>(
++             sensorPath, sensorType, objectServer,
++             dbusConnection, bus, io, sensorName,
++             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, sensorEventOffset,sdrRecord);
++	}else{	
++          sensors[sensorName] = std::make_unique<EventSensor>(
++             sensorPath, sensorType, objectServer,
++             dbusConnection, io, sensorName,
++             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, sensorEventOffset,sdrRecord);
++	}
+     }
+ }
+ int main()
+@@ -211,12 +210,14 @@
+     sdbusplus::asio::object_server objectServer(systemBus);
+     boost::container::flat_map<std::string, std::unique_ptr<EventSensor>>
+         sensors;
++    boost::container::flat_map<std::string, std::unique_ptr<AcpiSensor>>
++	acpi;
+     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
+     std::unique_ptr<boost::container::flat_set<std::string>> sensorsChanged =
+         std::make_unique<boost::container::flat_set<std::string>>();
+ 
+     io.post([&]() {
+-        createSensors(io, objectServer, sensors, systemBus, nullptr);
++        createSensors(io, objectServer, sensors, acpi, systemBus, systemBus, nullptr);
+     });
+ 
+     boost::asio::deadline_timer filterTimer(io);
+@@ -242,7 +243,7 @@
+                     std::cerr << "timer error\n";
+                     return;
+                 }
+-                createSensors(io, objectServer, sensors, systemBus,
++                createSensors(io, objectServer, sensors, acpi, systemBus, systemBus,
+                               sensorsChanged);
+             });
+         };
+diff -Naur a/src/FanMain.cpp b/src/FanMain.cpp
+--- a/src/FanMain.cpp	2020-09-25 12:01:00.393947714 +0530
++++ b/src/FanMain.cpp	2020-09-25 19:48:40.376710556 +0530
+@@ -41,13 +41,14 @@
+ #include <vector>
+ 
+ static constexpr bool DEBUG = false;
+-
+ namespace fs = std::filesystem;
+ 
+ static constexpr std::array<const char*, 3> sensorTypes = {
+     "xyz.openbmc_project.Configuration.AspeedFan",
+     "xyz.openbmc_project.Configuration.I2CFan",
+     "xyz.openbmc_project.Configuration.NuvotonFan"};
++static constexpr std::array<const char*, 1> pwmsensorTypes = {
++    	"xyz.openbmc_project.Configuration.IntelFanConnector"};
+ constexpr const char* redundancyConfiguration =
+     "xyz.openbmc_project.Configuration.FanRedundancy";
+ static std::regex inputRegex(R"(fan(\d+)_input)");
+@@ -366,11 +367,24 @@
+                 }
+             }
+             std::vector<fs::path> pwms;
++	    struct sdr::SdrRecord pwmsdrRecord;
++	    ManagedObjectType pwmsensorConfigurations;
+             if (!findFiles(fs::path("/sys/class/hwmon"), R"(pwm\d+$)", pwms))
+             {
+                 std::cerr << "No pwm in system\n";
+                 return;
+             }
++	    //useCache = false;
++	    for (const char* type : pwmsensorTypes)
++	    {
++	        if (!getSensorConfiguration(type, dbusConnection, pwmsensorConfigurations,
++                                false))
++	    	{
++            	std::cerr << "error communicating to entity manager\n";
++            	return;
++            	}
++            	//useCache = true;
++    	    }
+             for (const fs::path& pwm : pwms)
+             {
+                 if (pwmSensors.find(pwm) != pwmSensors.end())
+@@ -385,13 +399,40 @@
+                     if (boost::ends_with(pwm.string(),
+                                          std::to_string(index + 1)))
+                     {
+-                        path = &configPath;
+-                        pwmName = &name;
+-                        break;
+-                    }
+-                }
++		 	const char* pwmbaseType;
++                 	const SensorData* pwmsensorData = nullptr;
++                 	const std::string* pwminterfacePath = nullptr;
++		 	const SensorBaseConfiguration* pwmbaseConfiguration = nullptr;
++		 	for (const std::pair<sdbusplus::message::object_path, SensorData>&
++         			pwmsensor : pwmsensorConfigurations)
++		 	{
++                     		// find the base of the configuration to see if indexes match
++                     		//pwmsensorData = nullptr;
++            	     		for (const char* type : pwmsensorTypes)
++                     		{
++                         		auto sensorBaseFind = pwmsensor.second.find(type);
++                         		if (sensorBaseFind != pwmsensor.second.end())
++                         		{
++                             			pwmbaseConfiguration = &(*sensorBaseFind);
++                             			pwminterfacePath = &(pwmsensor.first.str);
++                             			pwmbaseType = type;
++                             			break;
++                         		}
++                     		}
++                     		if (pwmbaseConfiguration == nullptr)
++                     		{
++                         		continue;
++                     		}
++                     		auto findPwm = pwmbaseConfiguration->second.find("Pwm");
++                     		if (findPwm == pwmbaseConfiguration->second.end())
++                     		{
++                          		std::cerr << pwmbaseConfiguration->first << " missing Pwm\n";
++                          		continue;
++                     		}
++                 	}
++           	}
+ 
+-                if (path == nullptr)
++		if (path == nullptr)
+                 {
+                     continue;
+                 }
+@@ -403,8 +444,9 @@
+                     std::pair<std::string, std::unique_ptr<PwmSensor>>(
+                         sysPath, std::make_unique<PwmSensor>(
+                                      *pwmName, sysPath, dbusConnection,
+-                                     objectServer, *path, "Fan",sensorUnit)));
++                                     objectServer, *path, "Fan",sensorUnit, pwmsdrRecord)));
+             }
++	    }
+         }));
+     getter->getConfiguration(
+         std::vector<std::string>{sensorTypes.begin(), sensorTypes.end()});
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2020-09-25 12:01:00.397947792 +0530
++++ b/src/PSUSensorMain.cpp	2020-09-25 16:24:58.368194850 +0530
+@@ -216,9 +216,9 @@
+                 continue;
+             }
+             std::string sensorUnit = findSensorUnit->second;
+-        pwmSensors[psuName + labelHead] = std::make_unique<PwmSensor>(
++        /*pwmSensors[psuName + labelHead] = std::make_unique<PwmSensor>(
+             "Pwm_" + psuName + "_" + pwmName.second, pwmPathStr, dbusConnection,
+-            objectServer, interfacePath + "_" + pwmName.second, "PSU",sensorUnit);
++            objectServer, interfacePath + "_" + pwmName.second, "PSU",sensorUnit);*/
+     }
+ }
+ 
+diff -Naur a/src/PwmSensor.cpp b/src/PwmSensor.cpp
+--- a/src/PwmSensor.cpp	2020-09-25 12:01:00.397947792 +0530
++++ b/src/PwmSensor.cpp	2020-09-25 16:30:26.219899222 +0530
+@@ -31,8 +31,8 @@
+                      std::shared_ptr<sdbusplus::asio::connection>& conn,
+                      sdbusplus::asio::object_server& objectServer,
+                      const std::string& sensorConfiguration,
+-                     const std::string& sensorType,const std::string& Unit) :
+-    sysPath(sysPath),
++                     const std::string& sensorType,const std::string& Unit, struct sdr::SdrRecord sdrRecord) :
++    sysPath(sysPath), sdrRecord_t(sdrRecord),
+     objectServer(objectServer), name(name)
+ {
+     // add interface under sensor and Control.FanPwm as Control is used
+@@ -85,6 +85,29 @@
+     sensorInterface->register_property("Unit", Unit);
+     sensorInterface->register_property("EvStat", static_cast<int16_t>(162));
+ 
++    sensorInterface->register_property("SensorStat",false);
++    sensorInterface->register_property("SdrVersion", sdrRecord_t.SdrVersion);
++    sensorInterface->register_property("RecordType",sdrRecord_t.RecordType);
++    sensorInterface->register_property("RecordLen", sdrRecord_t.RecordLen);
++    sensorInterface->register_property("OwnerId", sdrRecord_t.OwnerId);
++    sensorInterface->register_property("OwnerLun", sdrRecord_t.OwnerLun);
++    sensorInterface->register_property("EntityId", sdrRecord_t.EntityId);
++    sensorInterface->register_property("EntityInstance", sdrRecord_t.EntityInstance);
++    sensorInterface->register_property("SensorInit",sdrRecord_t.SensorInit);
++    sensorInterface->register_property("SensorCap",sdrRecord_t.SensorCap);
++    sensorInterface->register_property("SensorType",sdrRecord_t.SensorType);
++    sensorInterface->register_property("EventType",sdrRecord_t.EventType);
++    sensorInterface->register_property("SensorUnit1", sdrRecord_t.SensorUnit1);
++    sensorInterface->register_property("SensorUnit2", sdrRecord_t.SensorUnit2);
++    sensorInterface->register_property("ModifierUnit", sdrRecord_t.ModifierUnit);
++    sensorInterface->register_property("Linearization", sdrRecord_t.Linearization);
++    sensorInterface->register_property("NominalReading", sdrRecord_t.NominalReading);
++    sensorInterface->register_property("NormalMax", sdrRecord_t.NormalMax);
++    sensorInterface->register_property("NormalMin", sdrRecord_t.NormalMin);
++    sensorInterface->register_property("PositiveHysteris", sdrRecord_t.PositiveHysteris);
++    sensorInterface->register_property("NegativeHysteresis", sdrRecord_t.NegativeHysteresis);
++    sensorInterface->register_property("IdStringLen", sdrRecord_t.IdStringLen);
++
+     controlInterface = objectServer.add_interface(
+         "/xyz/openbmc_project/control/fanpwm/" + name,
+         "xyz.openbmc_project.Control.FanPwm");

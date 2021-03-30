@@ -1,0 +1,55 @@
+.local-users {
+  margin-bottom: 50px;
+}
+
+.local-users__actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.modal__local-users,
+.modal__local-users-settings {
+  .modal-body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.modal__local-users {
+  input[type="password"] {
+    &::placeholder {
+      color: $primary-dark;
+      font-weight: bold;
+    }
+    &::-ms-placeholder {
+      color: $primary-dark;
+      font-weight: bold;
+    }
+  }
+}
+
+.role-table {
+  margin-top: 30px;
+  .bmc-table__cell:not(:first-of-type) {
+    text-align: center;
+  }
+  .bmc-table__column-header {
+    text-align: center;
+  }
+
+  // Bootstrap collapse directive override
+  // The expanded element gets 'in' class instead of 'show' class
+  // Bootstrap changes the display property for 'show' but not 'in'
+  .collapse.in {
+      display: block!important;
+  }
+}
+
+.icon__check-mark {
+  display: inline-block;
+  svg {
+    width: 16px;
+    fill: $primary-dark;
+  }
+}

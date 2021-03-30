@@ -1,0 +1,160 @@
+diff -Naur a/app/common/directives/app-header.js b/app/common/directives/app-header.js
+--- a/app/common/directives/app-header.js	2020-12-16 10:09:29.181362640 -0500
++++ b/app/common/directives/app-header.js	2020-12-16 10:11:34.374438360 -0500
+@@ -68,8 +68,13 @@
+             }
+ 
+             $scope.loadServerHealth = function() {
+-              APIUtils.getLogs().then(function(result) {
+-                dataService.updateServerHealth(result.data);
++              // APIUtils.getLogs().then(function(result) {
++              //   dataService.updateServerHealth(result.data);
++              // });
++              APIUtils.getAllSensorStatus(function(data, originalData) {
++                $scope.data = data;
++                $scope.originalData = originalData;
++                dataService.updateServerHealth($scope.data);
+               });
+             };
+ 
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-12-16 10:09:29.181362640 -0500
++++ b/app/common/services/api-utils.js	2020-12-16 10:12:51.468686806 -0500
+@@ -1590,7 +1590,7 @@
+               return title;
+             }
+ 
+-            function camelcaseToLabel(obj) {
++            function camelcaseToLabel(obj, title) {
+               var transformed = [], label = '', value = '';
+               for (var key in obj) {
+                 label = key.replace(/([A-Z0-9]+)/g, ' $1').replace(/^\s+/, '');
+@@ -1599,6 +1599,12 @@
+                   if (value == 1 || value == 0) {
+                     value = (value == 1) ? 'Yes' : 'No';
+                   }
++                  if(label == "Name"){
++                    value = title;
++                  }
++                  if(label == "Unit" && value != null){
++                    value = value.split(".").pop();
++                  }
+                   transformed.push({key: label, value: value});
+                 }
+               }
+@@ -1654,10 +1660,11 @@
+                   delete content.data[key].Purpose;
+                 }
+ 
+-                data = camelcaseToLabel(content.data[key]);
+-                searchText = getSearchText(data);
+                 title = key.split('/').pop();
+                 title = titlelize(title);
++                title = title.replace('_','');
++                data = camelcaseToLabel(content.data[key], title);
++                searchText = getSearchText(data);
+                 // e.g. /xyz/openbmc_project/inventory/system and
+                 // /xyz/openbmc_project/inventory/system/chassis are depths of 5
+                 // and 6.
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2020-12-16 10:09:29.181362640 -0500
++++ b/app/common/services/dataService.js	2020-12-16 10:13:11.048247127 -0500
+@@ -120,13 +120,32 @@
+         // If any unresolved severity high logs are present, set server health
+         // to critical. Else if any unresolved severity medium logs are present
+         // set server health to warning.
++        // for (var log of logs) {
++          //   if (log.priority == 'High' && !log.Resolved) {
++            //     this.server_health = Constants.SERVER_HEALTH.critical;
++            //     return;
++            //   } else if (log.priority == 'Medium' && !log.Resolved) {
++              //     this.server_health = Constants.SERVER_HEALTH.warning;
++              //   }
++              // }
++
+         this.server_health = Constants.SERVER_HEALTH.good;
+         for (var log of logs) {
+-          if (log.priority == 'High' && !log.Resolved) {
++          if(log.CriticalAlarmHigh && log.CriticalAlarmHigh != undefined){
+             this.server_health = Constants.SERVER_HEALTH.critical;
+-            return;
+-          } else if (log.priority == 'Medium' && !log.Resolved) {
++            break;
++          }
++          if(log.CriticalAlarmLow && log.CriticalAlarmLow != undefined){
++            this.server_health = Constants.SERVER_HEALTH.critical;
++            break;
++          }
++          if(log.WarningAlarmLow && log.WarningAlarmLow != undefined){
++            this.server_health = Constants.SERVER_HEALTH.warning;
++            break;
++          }
++          if(log.WarningAlarmHigh && log.WarningAlarmHigh != undefined){
+             this.server_health = Constants.SERVER_HEALTH.warning;
++            break;
+           }
+         }
+       };
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.js b/app/server-health/controllers/inventory-overview-controller.js
+--- a/app/server-health/controllers/inventory-overview-controller.js	2020-12-16 10:09:29.173362829 -0500
++++ b/app/server-health/controllers/inventory-overview-controller.js	2020-12-16 10:13:28.787850436 -0500
+@@ -22,8 +22,35 @@
+       APIUtils.getHardwares(function(data, originalData) {
+         $scope.hardwares = data;
+         $scope.originalData = JSON.stringify(originalData);
+-        $scope.loading = false;
++        // $scope.loading = false;
++        get_sensor_details();
+       });
++      function get_sensor_details(){
++        APIUtils.getAllSensorStatus(function(sdata, originalData) {
++          $scope.sensor_data = sdata;
++
++          for (var each_sensor in $scope.sensor_data){
++            for(var each_inventory_itm in $scope.hardwares){
++
++              var sensor_name = $scope.sensor_data[each_sensor].path.split("/").pop();
++              var inventory_name = $scope.hardwares[each_inventory_itm].path.split("/").pop();
++
++              if(sensor_name == inventory_name){
++                var tmp_item = $scope.hardwares[each_inventory_itm].items;
++                for(var each_item in tmp_item){
++                  if(tmp_item[each_item].key == "Severity"){
++                    $scope.hardwares[each_inventory_itm].items[each_item].value = $scope.sensor_data[each_sensor].status;
++                  }
++                  if(tmp_item[each_item].key == "Value"){
++                    $scope.hardwares[each_inventory_itm].items[each_item].value = $scope.sensor_data[each_sensor].Value;
++                  }
++                }
++              }
++            }
++          }
++          $scope.loading = false;
++        });
++      }
+ 
+       $scope.clear = function() {
+         $scope.customSearch = '';
+diff -Naur a/app/server-health/controllers/log-controller.js b/app/server-health/controllers/log-controller.js
+--- a/app/server-health/controllers/log-controller.js	2020-12-16 10:09:29.173362829 -0500
++++ b/app/server-health/controllers/log-controller.js	2020-12-16 10:13:35.507700573 -0500
+@@ -66,7 +66,7 @@
+                 }
+                 expandedSelectedIdOnce = true;
+               }
+-              dataService.updateServerHealth(result.data);
++              // dataService.updateServerHealth(result.data);
+               $scope.logs = result.data;
+               $scope.originalData = result.original;
+               $scope.loading = false;
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.js b/app/server-health/controllers/sensors-overview-controller.js
+--- a/app/server-health/controllers/sensors-overview-controller.js	2020-12-16 10:09:29.173362829 -0500
++++ b/app/server-health/controllers/sensors-overview-controller.js	2020-12-16 10:13:43.375525383 -0500
+@@ -121,6 +121,7 @@
+           $scope.data = data;
+           $scope.originalData = originalData;
+           $scope.export_data = JSON.stringify(originalData);
++          dataService.updateServerHealth($scope.data);
+           $scope.loading = false;
+         });
+       };

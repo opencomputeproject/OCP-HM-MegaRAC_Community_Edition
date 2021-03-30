@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <link href="res/style.css" rel="stylesheet" type="text/css" />
+  <link href="res/jstree.style.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="res/jquery.min.js"></script>
+  <script type="text/javascript" src="res/jstree.min.js"></script>
+  <script type="text/javascript" src="res/jsrender.min.js"></script>
+  <script type="text/javascript" src="res/dbus.js"></script>
+ </head>
+ <body>
+
+  <div>
+   Bus: <select id="bus"></select>
+  </div>
+
+  <div id="container"></div>
+
+  <script id="method-call-ui-template" type="text/x-jsrender">
+   <div id="method-call-ui">
+    <form method="POST" action="{{:method.uri}}">
+     <input type="hidden" name="argN" value="{{:method.nargs}}"/>
+     <pre>{{:method.uri}}</pre>
+     <table>
+      {{for in_args}}
+      <tr>
+       <th>{{:type}}</th>
+       <td><input name="arg{{:idx}}"/></td>
+      </tr>
+      {{/for}}
+      <tr>
+        <th/>
+        <td><input type="submit" value="run"></td>
+     </table>
+    </form>
+    <pre id="method-call-ui-result"></pre>
+   </div>
+  </script>
+ </body>
+</html>

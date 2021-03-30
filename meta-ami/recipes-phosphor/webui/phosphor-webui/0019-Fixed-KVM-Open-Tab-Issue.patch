@@ -1,0 +1,18 @@
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2020-12-11 15:29:07.151131002 +0530
++++ b/app/server-control/directives/kvm-console.js	2020-12-11 17:06:32.988122191 +0530
+@@ -89,9 +89,13 @@
+               };
+ 
+               scope.openWindow = function() {
++		if (rfb) {
++                  rfb.disconnect();
++                }
++
+                 window.open(
+                     '#/server-control/kvm-window', 'Kvm Window',
+-                    'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=1125,height=900');
++                    'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=800,height=600');
+               };
+             }
+       }

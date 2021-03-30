@@ -1,0 +1,62 @@
+description: >
+    Implement to set/get ACPI power status
+
+properties:
+    - name: SysACPIStatus
+      type: enum[self.ACPI]
+      description: >
+          The ACPI system power status.
+
+    - name: DevACPIStatus
+      type: enum[self.ACPI]
+      description: >
+          The ACPI device power status.
+
+enumerations:
+    - name: ACPI
+      description: >
+        Possible ACPI status.
+      values:
+        - name: S0_G0_D0
+          description: >
+            Working, the system is running
+        - name: S1_D1
+          description: >
+            Hardware context maintained, typically equates to proc/chip
+            set clocks stopped.
+        - name: S2_D2
+          description: >
+            Typically equates to stopped clocks with proc/cache context lost.
+        - name: S3_D3
+          description: >
+            Typically equates to "suspend-to-RAM".
+        - name: S4
+          description: >
+            Typically equates to "suspend-to-disk".
+        - name: S5_G2
+          description: >
+            Soft off.
+        - name: S4_S5
+          description: >
+            Sent when message source cannot differentiate between S4 and S5.
+        - name: G3
+          description: >
+            Mechanical off.
+        - name: SLEEP
+          description: >
+            Sleeping - cannot differentiate between S1-S3.
+        - name: G1_SLEEP
+          description: >
+            Sleeping - cannot differentiate between S1-S4.
+        - name: OVERRIDE
+          description: >
+            S5 entered by override.
+        - name: LEGACY_ON
+          description: >
+            Legacy On - used when ACPI mode is disabled.
+        - name: LEGACY_OFF
+          description: >
+            Legacy Off - used when ACPI mode is disabled.
+        - name: Unknown
+          description: >
+            System power state has not been initialized.

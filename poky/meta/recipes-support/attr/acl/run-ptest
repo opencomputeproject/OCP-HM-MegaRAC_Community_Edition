@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+#This script is used to run acl test suites
+
+#umask 077
+
+mkdir -p /tmp/acl-ptest/test
+cp test/test.* /tmp/acl-ptest/test
+
+make test-suite.log

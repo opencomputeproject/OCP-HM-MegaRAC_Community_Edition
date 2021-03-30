@@ -1,0 +1,31 @@
+AM_CPPFLAGS = \
+	$(PTHREAD_CPPFLAGS) \
+	$(SDBUSPLUS_CPPFLAGS) \
+	$(PHOSPHOR_DBUS_INTERFACES_CPPFLAGS) \
+	$(CODE_COVERAGE_CPPFLAGS)
+AM_CFLAGS = \
+	$(PTHREAD_CFLAGS) \
+	$(SDBUSPLUS_CFLAGS) \
+	$(PHOSPHOR_DBUS_INTERFACES_CFLAGS) \
+	$(CODE_COVERAGE_CFLAGS)
+AM_CXXFLAGS = \
+	$(PTHREAD_CXXFLAGS) \
+	$(SDBUSPLUS_CXXFLAGS) \
+	$(PHOSPHOR_DBUS_INTERFACES_CXXFLAGS) \
+	$(CODE_COVERAGE_CXXFLAGS)
+AM_LDFLAGS = \
+	-lstdc++fs \
+	$(SDBUSPLUS_LIBS) \
+	$(PHOSPHOR_DBUS_INTERFACES_LIBS) \
+	$(CODE_COVERAGE_LIBS) \
+	-lgtest -lgtest_main -lgmock $(PTHREAD_CFLAGS) $(OESDK_TESTCASE_FLAGS)
+
+test_physical_SOURCES = %reldir%/physical.cpp
+test_physical_LDADD = physical.o sysfs.o
+
+test_sysfs_SOURCES = %reldir%/sysfs.cpp
+test_sysfs_LDADD = sysfs.cpp
+
+check_PROGRAMS += \
+	%reldir%/physical \
+	%reldir%/sysfs

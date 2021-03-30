@@ -1,0 +1,42 @@
+diff -Naur a/lib/Kconfig b/lib/Kconfig
+--- a/lib/Kconfig	2020-05-05 15:23:50.052880779 -0400
++++ b/lib/Kconfig	2020-05-05 15:24:29.241368242 -0400
+@@ -127,7 +127,7 @@
+ choice
+ 	prompt "Pseudo-random library support type"
+ 	depends on NET_RANDOM_ETHADDR || RANDOM_UUID || CMD_UUID
+-	default LIB_RAND
++	default NPCM750_RNG
+ 	help
+ 	  Select the library to provide pseudo-random number generator
+ 	  functions.  LIB_HW_RAND supports certain hardware engines that
+@@ -139,6 +139,9 @@
+ config LIB_HW_RAND
+ 	bool "HW Engine for random libray support"
+ 
++config NPCM750_RNG
++	bool "NPCM750 Random Number Generator (RNG) support"
++
+ endchoice
+ 
+ config SPL_TINY_MEMSET
+diff -Naur a/lib/Makefile b/lib/Makefile
+--- a/lib/Makefile	2020-05-05 15:23:50.044880679 -0400
++++ b/lib/Makefile	2020-05-05 15:24:29.241368242 -0400
+@@ -18,7 +18,7 @@
+ obj-$(CONFIG_ARCH_AT91) += at91/
+ obj-$(CONFIG_OPTEE) += optee/
+ 
+-obj-$(CONFIG_AES) += aes.o
++obj-$(CONFIG_AES_TMD) += aes.o
+ 
+ ifndef API_BUILD
+ ifneq ($(CONFIG_UT_UNICODE)$(CONFIG_EFI_LOADER),)
+@@ -35,6 +35,7 @@
+ obj-$(CONFIG_GZIP_COMPRESSED) += gzip.o
+ obj-$(CONFIG_GENERATE_SMBIOS_TABLE) += smbios.o
+ obj-$(CONFIG_IMAGE_SPARSE) += image-sparse.o
++obj-$(CONFIG_LMB) += lmb.o
+ obj-y += ldiv.o
+ obj-$(CONFIG_MD5) += md5.o
+ obj-y += net_utils.o

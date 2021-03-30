@@ -1,0 +1,73 @@
+description: >
+    Defines the object configuration like mounting mode, image paths,
+    timouts etc.
+
+properties:
+    - name: EndPointId
+      type: string
+      description: Name of the Network Block Devices that will be used.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Mode
+      type: byte
+      description: Mounting mode, supported values are 0-proxy, 1-legacy.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Device
+      type: string
+      description: Name of mounted device.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Socket
+      type: string
+      description: Path to socket used to mount the image.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Timeout
+      type: uint16
+      description: >
+            Client connection timeout in seconds.
+            If VirtualMedia cannot connect successfully with served
+            image the connection is dropped after that timeout.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: BlockSize
+      type: uint16
+      description: Size of data block.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: RemainingInactivityTimeout
+      type: uint16
+      description: >
+            Seconds to drop connection by server, for activated endpoint,
+            0 otherwise.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: ImageURL
+      type: string
+      description: URL to mounted image.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure

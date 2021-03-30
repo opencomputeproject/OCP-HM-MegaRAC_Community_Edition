@@ -1,0 +1,60 @@
+cmake_minimum_required (VERSION 3.5)
+
+include (ExternalProject)
+
+file (MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/prefix)
+file (MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/prefix/include)
+
+# requires apt install autoconf-archive and autoconf
+
+externalproject_add (
+    intel-dbus-interfaces PREFIX ${CMAKE_BINARY_DIR}/intel-dbus-interfaces
+    GIT_REPOSITORY https://github.com/openbmc/intel-dbus-interfaces GIT_TAG
+    b5f2dd444c5d3808d005452417e4ae2ea28624ff SOURCE_DIR
+    ${CMAKE_BINARY_DIR}/intel-dbus-interfaces-src BINARY_DIR
+    ${CMAKE_BINARY_DIR}/intel-dbus-interfaces-build CONFIGURE_COMMAND cd
+    ${CMAKE_BINARY_DIR}/intel-dbus-interfaces-src && export
+    PYTHONPATH=${CMAKE_BINARY_DIR}/prefix/lib/python2.7/site-packages:$ENV{PYTHONPATH}
+    && export PATH=${CMAKE_BINARY_DIR}/prefix/bin:$ENV{PATH} && export
+    PKG_CONFIG_PATH=${CMAKE_BINARY_DIR}/prefix/lib/pkgconfig && ./bootstrap.sh
+    && ./configure --prefix=${CMAKE_BINARY_DIR}/prefix
+    CPPFLAGS=-I${CMAKE_BINARY_DIR}/prefix/include/ BUILD_COMMAND cd
+    ${CMAKE_BINARY_DIR}/intel-dbus-interfaces-src && export
+    PYTHONPATH=${CMAKE_BINARY_DIR}/prefix/lib/python2.7/site-packages:$ENV{PYTHONPATH}
+    && export PATH=${CMAKE_BINARY_DIR}/prefix/bin:$ENV{PATH} && export
+    PKG_CONFIG_PATH=${CMAKE_BINARY_DIR}/prefix/lib/pkgconfig && make -j
+    verbose=1 INSTALL_COMMAND cd ${CMAKE_BINARY_DIR}/intel-dbus-interfaces-src
+    && make install LOG_DOWNLOAD ON
+)
+
+externalproject_add (
+    host-ipmid PREFIX ${CMAKE_BINARY_DIR}/phosphor-host-ipmid GIT_REPOSITORY
+    https://github.com/openbmc/phosphor-host-ipmid SOURCE_DIR
+    ${CMAKE_BINARY_DIR}/phosphor-ipmi-host-src BINARY_DIR
+    ${CMAKE_BINARY_DIR}/phosphor-ipmi-host-build CONFIGURE_COMMAND cd
+    ${CMAKE_BINARY_DIR}/phosphor-ipmi-host-src && export
+    PYTHONPATH=${CMAKE_BINARY_DIR}/prefix/lib/python2.7/site-packages:$ENV{PYTHONPATH}
+    && export PATH=${CMAKE_BINARY_DIR}/prefix/bin:$ENV{PATH} && export
+    PKG_CONFIG_PATH=${CMAKE_BINARY_DIR}/prefix/lib/pkgconfig && ./bootstrap.sh
+    && ./configure --prefix=${CMAKE_BINARY_DIR}/prefix
+    CPPFLAGS=-I${CMAKE_BINARY_DIR}/prefix/include/
+    CXXFLAGS=-Wno-error=unused-result LDFLAGS=-L${CMAKE_BINARY_DIR}/prefix/lib/
+    BUILD_COMMAND cd ${CMAKE_BINARY_DIR}/phosphor-ipmi-host-src && export
+    PYTHONPATH=${CMAKE_BINARY_DIR}/prefix/lib/python2.7/site-packages:$ENV{PYTHONPATH}
+    && export PATH=${CMAKE_BINARY_DIR}/prefix/bin:$ENV{PATH} && export
+    PKG_CONFIG_PATH=${CMAKE_BINARY_DIR}/prefix/lib/pkgconfig && make -j
+    verbose=1 INSTALL_COMMAND cd ${CMAKE_BINARY_DIR}/phosphor-ipmi-host-src &&
+    make install && mkdir -p
+    "${CMAKE_BINARY_DIR}/prefix/include/phosphor-ipmi-host" && cp
+    sensorhandler.hpp selutility.hpp
+    "${CMAKE_BINARY_DIR}/prefix/include/phosphor-ipmi-host/" LOG_DOWNLOAD ON
+)
+
+externalproject_add (gtest GIT_REPOSITORY
+                     "https://github.com/google/googletest.git" GIT_TAG
+                     dfa853b63d17c787914b663b50c2095a0c5b706e CMAKE_ARGS
+                     -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/googletest-build
+                     SOURCE_DIR "${CMAKE_BINARY_DIR}/googletest-src" BINARY_DIR
+                     "${CMAKE_BINARY_DIR}/googletest-build" CMAKE_ARGS
+                     -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/prefix)
+

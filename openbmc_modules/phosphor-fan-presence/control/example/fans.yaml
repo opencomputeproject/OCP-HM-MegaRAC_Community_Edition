@@ -1,0 +1,32 @@
+#Example fan definitions for phosphor-fan-control
+
+#List all fans that need to be known to phosphor-fan-control.
+#For each fan, the inventory path, cooling zone, cooling zone
+#profile, and sensor name(s).
+
+#fans:
+# - inventory: [The system inventory location for the fan]
+#   cooling_zone: [The cooling zone number for the fan]
+#   cooling_profile: [The cooling profile for the fan]
+#   sensors: [The list of sensors for this fan]
+#   target_interface: [The interface implemented by the fan target.
+#                      Default is xyz.openbmc_project.Control.FanSpeed]
+
+#The cooling zone, a number, and the cooling profile, a string,
+#have to match the corresponding values in the fan zone yaml
+#so the fans can be merged into the zone definition.
+
+#Example entries for 2 fan system where fan0 uses default FanSpeed and
+#fan1 uses FanPwm:
+#fans:
+#  - inventory: /system/chassis/motherboard/fan0
+#    cooling_zone: 0
+#    cooling_profile: all
+#    sensors:
+#     - fan0
+#  - inventory: /system/chassis/motherboard/fan1
+#    cooling_zone: 0
+#    cooling_profile: air
+#    sensors:
+#     - fan1
+#    target_interface: xyz.openbmc_project.Control.FanPwm

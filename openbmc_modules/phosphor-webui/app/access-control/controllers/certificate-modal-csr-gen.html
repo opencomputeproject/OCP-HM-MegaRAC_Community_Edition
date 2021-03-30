@@ -1,0 +1,351 @@
+<div class="uib-modal__content">
+  <div class="modal-header">
+    <h2 class="modal-title" id="modal_label">
+      Generate a Certificate Signing Request (CSR)
+    </h2>
+    <button
+      type="button"
+      class="btn  btn--close"
+      ng-click="$dismiss()"
+      aria-label="close">
+      <icon file="icon-close.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+    <form name="addCsrForm" id="addCsrForm" novalidate>
+      <div class="modal-body">
+        <div class="row">
+          <fieldset class="column large-8 add-csr__section">
+            <legend class="content-label">General</legend>
+            <div class="row">
+              <div class="column large-6">
+                <label for="certType" class="content-label">
+                  Certificate Type *
+                </label>
+                <select
+                  class="add-csr__select"
+                  id="certType"
+                  name="certType"
+                  ng-model="newCSR.certificateCollection"
+                  required>
+                  <option
+                    class="courier-bold"
+                    ng-value="default"
+                    ng-model="selectOption">
+                    Select an option
+                  </option>
+                  <!-- Do not show CA certificate as an option.
+                       Only a certificate authority can generate a CA certificate
+                       (known as TrustStore Certificate in Redfish) -->
+                  <option
+                    class="courier-bold"
+                    ng-value="type"
+                    ng-repeat="type in allCertificateTypes"
+                    ng-if="type.Description !== 'TrustStore Certificate'">
+                    {{ type.name }}
+                  </option>
+                </select>
+                <div
+                  ng-messages="addCsrForm.certType.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.certType.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="countryCode" class="content-label">Country *</label>
+                <select
+                  class="add-csr__select"
+                  id="countryCode"
+                  name="countryCode"
+                  ng-model="newCSR.countryCode"
+                  required>
+                  <option
+                    class="courier-bold"
+                    ng-value=""
+                    ng-model="selectOption">
+                    Select an option
+                  </option>
+                  <option
+                    class="courier-bold"
+                    ng-value="country"
+                    ng-repeat="country in countryList">
+                    {{ country.Name }}
+                  </option>
+                </select>
+                <div
+                  ng-messages="addCsrForm.countryCode.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.countryCode.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="state" class="content-label">State *</label>
+                <input
+                  class="add-csr__input"
+                  ng-model="newCSR.state"
+                  type="text"
+                  id="state"
+                  name="state"
+                  required/>
+                <div
+                  ng-messages="addCsrForm.state.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.state.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="city" class="content-label">City *</label>
+                <input
+                  class="add-csr__input"
+                  id="city"
+                  name="city"
+                  ng-model="newCSR.city"
+                  type="text"
+                  required/>
+                <div
+                  ng-messages="addCsrForm.city.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.city.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="companyName" class="content-label">
+                  Company Name *
+                </label>
+                <input
+                  class="add-csr__input"
+                  type="text"
+                  ng-model="newCSR.organization"
+                  id="companyName"
+                  name="companyName"
+                  required/>
+                <div
+                  ng-messages="addCsrForm.companyName.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.companyName.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="companyUnit" class="content-label">
+                  Company Unit *
+                </label>
+                <input
+                  class="add-csr__input"
+                  ng-model="newCSR.companyUnit"
+                  name="companyUnit"
+                  id="companyUnit"
+                  type="text"
+                  required/>
+                <div
+                  ng-messages="addCsrForm.companyUnit.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.companyUnit.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="commonName" class="content-label">
+                  Common Name *
+                </label>
+                <input
+                  class="add-csr__input"
+                  ng-model="newCSR.commonName"
+                  name="commonName"
+                  type="text"
+                  id="commonName"
+                  required/>
+                <div
+                  ng-messages="addCsrForm.commonName.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.commonName.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div class="column large-6">
+                <label for="challengePassword" class="content-label">
+                  Challenge Password
+                </label>
+                <input
+                  class="add-csr__input-no-validation"
+                  id="challengePassword"
+                  ng-model="newCSR.challengePassword"
+                  type="text"/>
+              </div>
+              <div class="column large-6">
+                <label for="contactPerson" class="content-label">
+                  Contact Person
+                </label>
+                <input
+                  class="add-csr__input-no-validation"
+                  id="contactPerson"
+                  ng-model="newCSR.contactPerson"
+                  type="text"/>
+              </div>
+              <div class="column large-6">
+                <label for="emailAddress" class="content-label">
+                  Email Address
+                </label>
+                <input
+                  class="add-csr__input-no-validation"
+                  id="emailAddress"
+                  ng-model="newCSR.emailAddress"
+                  type="text"/>
+              </div>
+              <div class="column large-6">
+                <label
+                  id="alternate-name-label"
+                  for="alternateName"
+                  class="content-label">
+                  Alternate Name
+                </label>
+                <input
+                  class="add-csr__input-no-validation"
+                  ng-model="newCSR.firstAlternativeName"
+                  id="alternateName"
+                  name="alternativeName"
+                  type="text"/>
+                <div
+                  class="add-csr__additional-alt-names"
+                  ng-repeat="name in names">
+                  <input
+                    id="alternate-name-input-{{ $index }}"
+                    aria-describedby="alternate-name-label"
+                    class="add-csr__input-no-validation"
+                    ng-model="name.Value"
+                    type="text"/>
+                  <button
+                    aria-label="Delete alternate name field"
+                    aria-controls="alternate-name-input-{{ $index }}"
+                    class="btn btn-tertiary add-csr__alt-name-delete-btn"
+                    ng-click="deleteOptionalRow($index)"
+                    ng-disabled="multiSelected">
+                    <icon aria-hidden="true" file="icon-trashcan.svg"></icon>
+                  </button>
+                </div>
+              </div>
+              <div class="column large-6">
+                <button
+                  class="btn btn-tertiary add-csr__alt-name-add-btn"
+                  ng-click="addOptionalRow()">
+                  <icon file="icon-plus.svg" aria-hidden="true"></icon>
+                  Add another alternate name
+                </button>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset
+            class="column medium-12 large-4 add-csr__section add-csr__section--border">
+            <legend class="content-label">Private key</legend>
+            <div class="add-csr__container-private-key">
+              <div class="add-csr__container-private-key">
+                <label for="keyPairAlgorithm" class="content-label">
+                  Key Pair Algorithm *
+                </label>
+                <select
+                  class="add-csr__select"
+                  ng-model="newCSR.keyPairAlgorithm"
+                  id="keyPairAlgorithm"
+                  name="keyPairAlgorithm"
+                  required>
+                  <option
+                    class="courier-bold"
+                    ng-value=""
+                    ng-model="selectOption">
+                    Select an option
+                  </option>
+                  <option
+                    class="courier-bold"
+                    ng-value="data"
+                    ng-repeat="data in keyPairAlgorithm">
+                    {{ data }}
+                  </option>
+                </select>
+                <div
+                  ng-messages="addCsrForm.keyPairAlgorithm.$error"
+                  class="form-error"
+                  ng-class="{'visible' : addCsrForm.keyPairAlgorithm.$touched}">
+                  <p ng-message="required">Field is required</p>
+                </div>
+              </div>
+              <div ng-if="newCSR.keyPairAlgorithm == 'EC'">
+                <div class="large-12">
+                  <label for="keyCurveId" class="content-label">
+                    Key Curve ID
+                  </label>
+                  <select
+                    class="add-csr__select"
+                    ng-model="newCSR.keyCurveId"
+                    id="keyCurveId"
+                    name="keyCurveId"
+                    required>
+                    <option class="courier-bold" ng-value="">None</option>
+                    <option
+                      class="courier-bold"
+                      ng-value="data"
+                      ng-repeat="data in keyCurveId">
+                      {{ data }}
+                    </option>
+                  </select>
+                  <div
+                    ng-messages="addCsrForm.keyCurveId.$error"
+                    class="form-error"
+                    ng-class="{'visible' : addCsrForm.keyCurveId.$touched}">
+                    <p ng-message="required">Field is required</p>
+                  </div>
+                </div>
+              </div>
+              <div ng-if="newCSR.keyPairAlgorithm =='RSA'">
+                <div class="large-12">
+                  <label for="keyBitLength" class="content-label">
+                    Key Bit Length *
+                  </label>
+                  <select
+                    class="add-csr__select"
+                    ng-model="newCSR.keyBitLength"
+                    id="keyBitLength"
+                    name="keyBitLength"
+                    required>
+                    <option class="courier-bold" ng-value="">
+                      Select an option
+                    </option>
+                    <option
+                      class="courier-bold"
+                      ng-value="data"
+                      ng-repeat="data in keyBitLength">
+                      {{ data }}
+                    </option>
+                  </select>
+                  <div
+                    ng-messages="addCsrForm.keyBitLength.$error"
+                    class="form-error"
+                    ng-class="{'visible' : addCsrForm.keyBitLength.$touched}">
+                    <p ng-message="required">Field is required</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button
+          type="reset"
+          class="btn btn-secondary"
+          ng-click="$dismiss()">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          ng-click="getCSRCode();addCsrForm.$setUntouched();$dismiss()"
+          ng-disabled="addCsrForm.$invalid">
+          Generate CSR
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

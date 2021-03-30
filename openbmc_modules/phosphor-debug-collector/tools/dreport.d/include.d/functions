@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+
+# @brief Execute the command and save the output into the dreport
+#        packaging, if it is in the user allowed dump size limit.
+# @param $1 Command to be executed.
+# @param $2 Save file name.
+# @param $3 Plugin description used for logging.
+function add_cmd_output()
+{
+    command="$1"
+    file_name="$2"
+    desc="$3"
+
+    eval $command >> "$name_dir/$file_name"
+    if [ $? -ne 0 ]; then
+        log_error "Failed to collect $desc"
+        return 1
+    fi
+
+    if check_size "$name_dir/$file_name"; then
+        log_info "Collected $desc"
+    else
+        log_warning "Skipping $desc"
+    fi
+}
+
+# @brief Copy the file or directory into the dreport packaging,
+#        if it is in the user allowed dump size limit.
+# @param $1 Copy file or directory name.
+# @param $2 Plugin description used for logging.
+function add_copy_file()
+{
+    file_name="$1"
+    desc="$2"
+
+    cp -r $file_name $name_dir
+    if [ $? -ne 0 ]; then
+        log_error "Failed to copy $desc $file_name"
+        return $RESOURCE_UNAVAILABLE
+    fi
+    if check_size "$name_dir/$(basename "$file_name")"; then
+        log_info "Copied $desc $file_name"
+        return $SUCCESS
+    else
+        return $RESOURCE_UNAVAILABLE
+        log_warning "Skipping copy $desc $file_name"
+    fi
+}
+# @brief Copy the symbolic link file to the dreport packaging,
+#        if it is in the user allowed dump size limit.
+# @param $1 symbolic link file name
+# @param $2 Plugin description used for logging.
+function add_copy_sym_link_file()
+{
+    file_name="$1"
+    desc="$2"
+
+    cp $file_name $name_dir
+    if [ $? -ne 0 ]; then
+        log_error "Failed to copy $desc $file_name"
+        return $RESOURCE_UNAVAILABLE
+    fi
+    if check_size "$name_dir/$(basename "$file_name")"; then
+        log_info "Copied $desc $file_name"
+        return $SUCCESS
+    else
+        log_warning "Skipping copy $desc $file_name"
+        return $RESOURCE_UNAVAILABLE
+    fi
+}
+
+# @brief Calculate file or directory compressed size based on input
+#        and check whether the size in the allowed size limit.
+#        Remove the file or directory from the name_dir
+#        if the check fails.
+# @param $1 Source file or directory
+# @return 0 on success, error code if size exceeds the limit.
+# Limitation: compress and tar will have few bytes size difference
+function check_size()
+{
+    source=$1
+
+    #No size check required in case dump_size is set to unlimited
+    if [ $dump_size = $UNLIMITED ]; then
+        return 0
+    fi
+
+    #get the file or directory size
+    if [[ -d $source ]] && [[ -n $source ]]; then
+        tar -cf "$source.tar" -C \
+                 $(dirname "$source") $(basename "$source")
+        size=$(stat -c%s "$source.tar")
+        rm "$source.tar"
+    else
+        size=$(stat -c%s "$source")
+    fi
+
+    if [ $((size + cur_dump_size)) -gt $dump_size ]; then
+        #Exceed the allowed limit,
+        #tar and compress the files and check the size
+        tar -Jcf "$name_dir.tar.xz" -C \
+                  $(dirname "$name_dir") $(basename "$name_dir")
+        size=$(stat -c%s "$name_dir.tar.xz")
+        if [ $size -gt $dump_size ]; then
+            #Remove the the specific data from the name_dir and continue
+            rm "$source" "$name_dir.tar.xz"
+            return $RESOURCE_UNAVAILABLE
+        else
+            rm "$name_dir.tar.xz"
+        fi
+    fi
+
+    cur_dump_size=$((size + cur_dump_size))
+    return $SUCCESS
+}
+
+# @brief log the error message
+# @param error message
+function log_error()
+{
+   echo $($TIME_STAMP) "ERROR: $@" >> $dreport_log
+   if ((quiet != TRUE)); then
+      echo $($TIME_STAMP) "ERROR: $@" >&2
+   fi
+}
+
+# @brief log warning message
+# @param warning message
+function log_warning()
+{
+    if ((verbose == TRUE)); then
+        echo $($TIME_STAMP) "WARNING: $@" >> $dreport_log
+        if ((quiet != TRUE)); then
+            echo $($TIME_STAMP) "WARNING: $@" >&2
+        fi
+    fi
+}
+
+# @brief log info message
+# @param info message
+function log_info()
+{
+    if ((verbose == TRUE)); then
+        echo $($TIME_STAMP) "INFO: $@" >> $dreport_log
+        if ((quiet != TRUE)); then
+            echo $($TIME_STAMP) "INFO: $@" >&1
+        fi
+    fi
+}
+
+# @brief log summary message
+# @param message
+function log_summary()
+{
+    echo $($TIME_STAMP) "$@" >> $summary_log
+    if ((quiet != TRUE)); then
+        echo $($TIME_STAMP) "$@" >&1
+    fi
+}

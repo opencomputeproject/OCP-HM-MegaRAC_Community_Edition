@@ -1,0 +1,93 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-11-23 17:18:33.260961408 +0530
++++ b/src/sensorcommands.cpp	2020-11-24 19:54:25.870234742 +0530
+@@ -969,65 +969,35 @@
+         return ipmi::responseResponseError();
+     }
+ 
+-    auto warningInterface =
+-        sensorMap.find("xyz.openbmc_project.Sensor.Threshold.Warning");
+-    auto criticalInterface =
+-        sensorMap.find("xyz.openbmc_project.Sensor.Threshold.Critical");
++    auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
++    if (sensorObject == sensorMap.end())
++    {
++        return ipmi::responseResponseError();
++    }
++
++    auto AssertMaskobj = sensorObject->second.find("AssertEventMask");
++    uint16_t AssertMask;
++    if (AssertMaskobj != sensorObject->second.end())
++    {
++        AssertMask = std::visit(VariantToUnsignedIntVisitor(), AssertMaskobj->second);
++    }
++
++    auto DeassertMaskobj = sensorObject->second.find("DeassertEventMask");
++    uint16_t DeassertMask ;
++    if (DeassertMaskobj != sensorObject->second.end())
++    {
++        DeassertMask = std::visit(VariantToUnsignedIntVisitor(), DeassertMaskobj->second);
++    }
++
+     enabled = static_cast<uint8_t>(
+             IPMISensorEventEnableByte2::sensorScanningEnable);
+     enabled |=
+         static_cast<uint8_t>(IPMISensorReadingByte2::eventMessagesEnable);
+ 
+-
+-    if ((warningInterface != sensorMap.end()) ||
+-        (criticalInterface != sensorMap.end()))
+-    {
+-    //    enabled = static_cast<uint8_t>(
+-      //      IPMISensorEventEnableByte2::sensorScanningEnable);
+-        if (warningInterface != sensorMap.end())
+-        {
+-            auto& warningMap = warningInterface->second;
+-
+-            auto warningHigh = warningMap.find("WarningHigh");
+-            auto warningLow = warningMap.find("WarningLow");
+-            if (warningHigh != warningMap.end())
+-            {
+-                assertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::upperNonCriticalGoingHigh);
+-                deassertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::upperNonCriticalGoingLow);
+-            }
+-            if (warningLow != warningMap.end())
+-            {
+-                assertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::lowerNonCriticalGoingLow);
+-                deassertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::lowerNonCriticalGoingHigh);
+-            }
+-        }
+-        if (criticalInterface != sensorMap.end())
+-        {
+-            auto& criticalMap = criticalInterface->second;
+-
+-            auto criticalHigh = criticalMap.find("CriticalHigh");
+-            auto criticalLow = criticalMap.find("CriticalLow");
+-
+-            if (criticalHigh != criticalMap.end())
+-            {
+-                assertionEnabledMsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::upperCriticalGoingHigh);
+-                deassertionEnabledMsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::upperCriticalGoingLow);
+-            }
+-            if (criticalLow != criticalMap.end())
+-            {
+-                assertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::lowerCriticalGoingLow);
+-                deassertionEnabledLsb |= static_cast<uint8_t>(
+-                    IPMISensorEventEnableThresholds::lowerCriticalGoingHigh);
+-            }
+-        }
+-    }
++    assertionEnabledLsb = AssertMask;
++    assertionEnabledMsb = AssertMask >> 8;
++    deassertionEnabledLsb = DeassertMask;
++    deassertionEnabledMsb = DeassertMask >> 8;
+ 
+     return ipmi::responseSuccess(enabled, assertionEnabledLsb,
+                                  assertionEnabledMsb, deassertionEnabledLsb,

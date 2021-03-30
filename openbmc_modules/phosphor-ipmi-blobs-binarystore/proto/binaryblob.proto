@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package binstore.binaryblobproto;
+
+message BinaryBlob {
+    optional string blob_id = 1; // A valid, unique unix path as identifier
+    optional bytes data = 2;
+}
+
+/* BinaryBlobBase is analogous to a directory of BinaryBlobs. */
+message BinaryBlobBase {
+    optional string blob_base_id = 1; // Common parent path of contained blobs
+    repeated BinaryBlob blobs = 2;
+    optional uint32 max_size_bytes = 3;
+}

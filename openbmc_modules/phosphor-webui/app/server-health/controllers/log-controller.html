@@ -1,0 +1,77 @@
+<loader loading="loading"></loader>
+<div id="event-log">
+  <div class="row column">
+   <div class="column small-6 large-7 no-padding">
+     <h1>Event log</h1>
+   </div>
+   <div class="column small-6 large-5">
+     <remote-logging-server class="remote-logging-server"></remote-logging-server>
+   </div>
+  </div>
+  <section class="row column">
+    <div class="page-header">
+      <h2 class="inline">All events from the BMC</h2>
+      <div class="event-log__timezone inline float-right">
+        <button class="dropdown__button" ng-click="timezone = timezone == true ? false : true;" toggle-flag="timezone">
+          <span>{{tmz === 'UTC' ? 'UTC Timezone' : 'User Timezone'}}</span>
+        </button>
+        <ul class="dropdown__list inline" ng-show="timezone">
+          <li>
+            <button ng-click="tmz = ''">User Timezone</button>
+          </li>
+          <li>
+            <button ng-click="tmz = 'UTC'">UTC Timezone</button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <!-- search -->
+  <log-search-control></log-search-control>
+  <!-- filters -->
+  <log-filter></log-filter>
+  <section class="row column event-log__events">
+    <div id="event__actions-bar" class="row header__actions-bar no-margin">
+      <div class="column small-1 large-1 event-log__col-check">
+        <label class="control-check">
+          <input type="checkbox" name="events__check-all" ng-disabled="filteredLogs.length === 0" ng-model="all" ng-checked="((filteredLogs|filter:{selected: true}).length == filteredLogs.length) && filteredLogs.length != 0"/>
+          <span class="control__indicator"></span>
+        </label>
+      </div>
+      <div class="column small-11 end col-logged-events">
+        <!-- top bar confirmation - ADD ACTIVE CLASS TO DISPLAY-->
+        <div class="inline__confirm event__confirm" ng-class="{active: confirm}">
+          <div class="inline__confirm-message">
+            <p class="h3"><i></i>Are you sure you want to <strong class="ng-binding">delete {{selectedEvents.length}} logs</strong>?
+            </p>
+          </div>
+          <div class="inline__confirm-buttons">
+            <button class="btn  btn-primary" ng-click="accept()">Yes</button>
+            <button class="btn  btn-primary" ng-click="confirm = false">No</button>
+          </div>
+        </div>
+        <p class="inline" ng-show="selectedEvents.length"><span class="event__select-count">{{selectedEvents.length}}</span> Events are selected</p>
+        <p class="inline" ng-hide="selectedEvents.length"><span class="event__select-count">{{filteredLogs.length}}</span> Events are logged</p>
+        <!-- when logs are selected, this text changes to show how many logs are checked -->
+        <div class="event__actions">
+          <button class="btn  btn-tertiary" ng-class="{'disabled': (!selectedEvents.length && !all)}" ng-disabled="!selectedEvents.length && !all" ng-click="confirm= ! confirm">
+            <icon file="icon-trashcan.svg"></icon>Delete
+          </button>
+          <button class="btn  btn-tertiary" ng-class="{'disabled': ((selectedEvents|unResolvedCount) == 0)}" ng-click="resolve()" ng-disabled="(selectedEvents|unResolvedCount) == 0">
+            <icon file="icon-check.svg"></icon>Mark as resolved
+          </button>
+          <a ng-href="data:text/json;charset=utf-8,{{export_data}}" class="btn  btn-tertiary"  ng-class="{'disabled': (!selectedEvents.length && !all)}" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
+        </div>
+      </div>
+    </div>
+    <div class="empty__logs" ng-if="filteredLogs.length === 0">{{filteredLogs.length === logs.length ? 'No events have been logged yet.' : 'There are no events that match the selected criteria.'}}</div>
+    <log-event
+      dir-paginate="event in (filteredLogs = (logs|filter:filterBySeverity|filter:filterByStatus|filter:filterByDate|filter:filterBySearchTerms | orderBy:'-Id'))| itemsPerPage: itemsPerPage"
+      event="event"
+      tmz="tmz"
+      multi-selected="selectedEvents.length > 1"
+      >
+    </log-event>
+    <dir-pagination-controls></dir-pagination-controls>
+  </section>
+</div> <!-- end event log -->

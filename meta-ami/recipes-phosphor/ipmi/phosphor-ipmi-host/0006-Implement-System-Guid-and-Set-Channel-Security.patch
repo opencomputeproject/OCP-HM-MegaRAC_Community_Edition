@@ -1,0 +1,310 @@
+diff -Naur a/app/channel.hpp b/app/channel.hpp
+--- a/app/channel.hpp	2020-09-14 20:42:37.082877766 +0530
++++ b/app/channel.hpp	2020-09-14 20:35:22.126798903 +0530
+@@ -92,3 +92,18 @@
+ static constexpr auto confTag = 0x80;
+ 
+ } // namespace cipher
++
++struct SetChSecurityresp
++{
++   uint8_t LockStatus;
++   uint8_t keys[20];
++}__attribute__((packed));
++
++struct SetChSecurity
++{
++   uint8_t ChannelNum;
++   uint8_t Operation;
++   uint8_t KeyID;
++   uint8_t keys[20];
++}__attribute__((packed));
++
+diff -Naur a/apphandler.cpp b/apphandler.cpp
+--- a/apphandler.cpp	2020-09-14 18:26:51.897836504 +0530
++++ b/apphandler.cpp	2020-09-14 20:35:02.442629504 +0530
+@@ -61,6 +61,15 @@
+ using BMC = sdbusplus::xyz::openbmc_project::State::server::BMC;
+ namespace fs = std::filesystem;
+ 
++#define MAXCH 15
++#define KG 1
++#define READ_KEY 0
++#define SET_KEY 1
++#define LOCKKEY 2
++#define NULLSTR "00000000000000000000"
++#define KEYSIZE 20
++#define KG_FILE "/etc/ipmi_kg"
++#define KEYUNLOCKED 2
+ #ifdef ENABLE_I2C_WHITELIST_CHECK
+ typedef struct
+ {
+@@ -785,7 +794,7 @@
+     return ipmi::responseSuccess(nrOutstanding, inputBufferSize,
+                                  outputBufferSize, transactionTime, nrRetries);
+ }
+-
++/*
+ auto ipmiAppGetSystemGuid() -> ipmi::RspType<std::array<uint8_t, 16>>
+ {
+     static constexpr auto bmcInterface =
+@@ -830,6 +839,52 @@
+     }
+     return ipmi::responseSuccess(uuid);
+ }
++*/
++
++auto ipmiAppGetSystemGuid() -> ipmi::RspType<std::array<uint8_t, 16>>
++{
++    std::string  systemUuid {""};
++    const char* filename = "/home/root/bmcweb_persistent_data.json";
++    std::ifstream sys_uuid(filename);
++        if (sys_uuid.is_open())
++        {
++            auto data = nlohmann::json::parse(sys_uuid, nullptr, false);
++            if (data.is_discarded())
++            {
++                    std::cout
++                    << "Error parsing persistent data in json file.";
++            }
++            else{
++                  for (const auto& item : data.items())
++                  {
++                     if (item.key() == "system_uuid")
++                     {
++                        const std::string* jSystemUuid =
++                        item.value().get_ptr<const std::string*>();
++                        if (jSystemUuid != nullptr)
++                        {
++                          systemUuid = *jSystemUuid;
++                          break;
++                        }
++                    }
++                  }
++              }
++        }
++
++    std::array<uint8_t, 16> uuid;
++    std::string rfc4122Uuid =  systemUuid;
++    try
++    {
++        // convert to IPMI format
++        uuid = rfc4122ToIpmi(rfc4122Uuid);
++    }
++    catch (const InvalidArgument& e)
++    {
++        log<level::ERR>("Failed in converting Uuid");
++        return ipmi::responseUnspecifiedError();
++    }
++    return ipmi::responseSuccess(uuid);
++}
+ 
+ /**
+  * @brief set the session state as teardown
+@@ -1665,6 +1720,118 @@
+     return ipmi::responseSuccess(readBuf);
+ }
+ 
++bool CheckNullValue(uint8_t* keys, uint8_t* testNull)
++{
++        for(int i = 0; i < KEYSIZE ; i++ )
++        {
++            testNull[i] = keys[i]+48;
++        }
++        std::string p (reinterpret_cast<char*>(testNull));
++        if( !strncmp(p.c_str(),NULLSTR,KEYSIZE))
++        {
++                return true;
++        }
++        return false;
++}
++
++/**
++ @brief Implements Set Channel Security Command which can be used for
++ channel security via RMCP+
++**/
++ipmi_ret_t ipmi_set_chan_security_keys(ipmi_netfn_t netfn, ipmi_cmd_t cmd,
++                                    ipmi_request_t request,
++                                    ipmi_response_t response,
++                                    ipmi_data_len_t dataLen,
++                                    ipmi_context_t context)
++{
++        std::array<uint8_t,KEYSIZE> keys;
++        std::fill(keys.data(),
++              keys.data() + keys.size(),0);
++        uint8_t testNull[KEYSIZE];
++
++        auto *reqData = reinterpret_cast<SetChSecurity*>(request);
++        auto *resp = reinterpret_cast<SetChSecurityresp*>(response);
++        if( reqData->ChannelNum > MAXCH )
++        {
++                return IPMI_CC_INVALID_FIELD_REQUEST;
++        }
++
++        switch(reqData->Operation)
++        {
++                case READ_KEY:
++                        {
++                                if(*dataLen != 3)
++                                {
++                                        return IPMI_CC_INVALID_FIELD_REQUEST;
++                                }
++                                if(reqData->KeyID != KG ) //only kg key is supported
++                                {
++                                        return IPMI_CC_REQ_KR_IS_NOT_USED;
++                                }
++
++                                *dataLen = sizeof(SetChSecurityresp);
++                                resp->LockStatus = KEYUNLOCKED;
++                                std::ifstream readkey(KG_FILE, std::ios::in | std::ios::binary);
++                                 if (!readkey.is_open())
++                                 {
++                                        std::memcpy(resp->keys,&keys,KEYSIZE);
++                                        break;
++                                 }
++                                readkey.read(reinterpret_cast<char*>(keys.data()),KEYSIZE);
++                                readkey.close();
++                                std::string p (reinterpret_cast<char*>(keys.data()));
++                                if(!strncmp(p.c_str(),NULLSTR,KEYSIZE))
++                                {
++                                        std::fill(keys.data(),
++                                                        keys.data() + keys.size(),0);
++                                        std::memcpy(resp->keys,&keys,KEYSIZE);
++                                        break;
++                                }
++                                std::memcpy(resp->keys, reinterpret_cast<uint8_t*>(&keys),KEYSIZE);
++                                break;
++                        }
++
++                case SET_KEY:
++                        {
++                                if(( *dataLen - 3 ) >  KEYSIZE)
++                                {
++                                        return IPMI_CC_REQ_TO_MANY_KEY_BYTES;
++                                }
++                                if(( *dataLen - 3 ) <  KEYSIZE)
++                                {
++                                        return IPMI_CC_REQ_INSUFFICIENT_KEY_BYTES;
++                                }
++
++                                if(reqData->KeyID != KG ) //only kg key is supported
++                                {
++                                        return IPMI_CC_REQ_KR_IS_NOT_USED;
++                                }
++                                *dataLen = 0;
++                                std::ofstream writekey(KG_FILE, std::ios::out | std::ios::trunc);
++                                if(CheckNullValue(reqData->keys,testNull))
++                                {
++                                        writekey.write(reinterpret_cast<char*>(&testNull) , KEYSIZE );
++                                        writekey.close();
++                                        break;
++                                }
++                                writekey.write(reinterpret_cast<char*>(&(reqData->keys)) , KEYSIZE );
++                                writekey.close();
++                                break;
++                        }
++
++		case LOCKKEY :
++			{
++				return IPMI_CC_REQ_KEY_DOES_NOT_MEET_CRITERIA;
++				break;
++			}
++
++                default :
++                                return IPMI_CC_INVALID_FIELD_REQUEST;
++        }
++
++        return IPMI_CC_OK;
++}
++
+ void register_netfn_app_functions()
+ {
+     // <Get Device ID>
+@@ -1749,5 +1916,9 @@
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
+                           ipmi::app::cmdSetSystemInfoParameters,
+                           ipmi::Privilege::Admin, ipmiAppSetSystemInfo);
++    // <Set Channel Security Keys>
++    ipmi_register_callback(NETFUN_APP, IPMI_CMD_SET_CHAN_SECURITY_KEYS , NULL,
++                           ipmi_set_chan_security_keys, PRIVILEGE_ADMIN);
++
+     return;
+ }
+diff -Naur a/apphandler.hpp b/apphandler.hpp
+--- a/apphandler.hpp	2020-09-14 18:26:56.557897411 +0530
++++ b/apphandler.hpp	2020-09-14 20:35:02.442629504 +0530
+@@ -19,6 +19,7 @@
+     IPMI_CMD_SET_CHAN_ACCESS = 0x40,
+     IPMI_CMD_GET_CHANNEL_ACCESS = 0x41,
+     IPMI_CMD_GET_CHAN_INFO = 0x42,
++    IPMI_CMD_SET_CHAN_SECURITY_KEYS = 0x56,
+     IPMI_CMD_SET_SYSTEM_INFO = 0x58,
+     IPMI_CMD_GET_SYSTEM_INFO = 0x59,
+ };
+diff -Naur a/include/ipmid/api.h b/include/ipmid/api.h
+--- a/include/ipmid/api.h	2020-09-14 18:28:08.446832522 +0530
++++ b/include/ipmid/api.h	2020-09-14 20:35:50.771048411 +0530
+@@ -116,6 +116,10 @@
+     IPMI_WDOG_CC_NOT_INIT = 0x80,
+     IPMI_CC_SYSTEM_INFO_PARAMETER_NOT_SUPPORTED = 0x80,
+     IPMI_CC_SYSTEM_INFO_PARAMETER_SET_READ_ONLY = 0x82,
++    IPMI_CC_REQ_INSUFFICIENT_KEY_BYTES = 0x81,
++    IPMI_CC_REQ_TO_MANY_KEY_BYTES = 0x82,
++    IPMI_CC_REQ_KEY_DOES_NOT_MEET_CRITERIA = 0x83,
++    IPMI_CC_REQ_KR_IS_NOT_USED = 0x84,
+     IPMI_CC_BUSY = 0xC0,
+     IPMI_CC_INVALID = 0xC1,
+     IPMI_CC_TIMEOUT = 0xC3,
+diff -Naur a/user_channel/user_layer.cpp b/user_channel/user_layer.cpp
+--- a/user_channel/user_layer.cpp	2020-09-14 18:27:37.402429698 +0530
++++ b/user_channel/user_layer.cpp	2020-09-14 20:36:06.051182905 +0530
+@@ -18,6 +18,12 @@
+ 
+ #include "passwd_mgr.hpp"
+ #include "user_mgmt.hpp"
++#include <fstream>
++#include <iostream>
++#define SETZERO 48
++#define KEYSIZE 20
++#define KG_FILE "/etc/ipmi_kg"
++
+ 
+ namespace
+ {
+@@ -226,4 +232,22 @@
+     return ccSuccess;
+ }
+ 
++std::string ipmiGetChannelSecurityKeys()
++{
++   std::array<uint8_t,20> keys;
++
++   std::ifstream chsecuritykey(KG_FILE, std::ios::in | std::ios::binary);
++   if (!chsecuritykey.is_open())
++   {
++            std::fill(keys.data(),
++              keys.data() + keys.size(),SETZERO);
++      std::string p (reinterpret_cast<char*>(keys.data()));
++      return p;
++   }
++   chsecuritykey.read(reinterpret_cast<char*>(keys.data()), KEYSIZE);
++   chsecuritykey.close();
++
++   std::string p (reinterpret_cast<char*>(keys.data()));
++   return p;
++}
+ } // namespace ipmi
+diff -Naur a/user_channel/user_layer.hpp b/user_channel/user_layer.hpp
+--- a/user_channel/user_layer.hpp	2020-09-14 18:27:37.402429698 +0530
++++ b/user_channel/user_layer.hpp	2020-09-14 20:36:06.051182905 +0530
+@@ -267,5 +267,10 @@
+  */
+ Cc ipmiUserGetUserPayloadAccess(const uint8_t chNum, const uint8_t userId,
+                                 PayloadAccess& payloadAccess);
++/** @brief The ipmi get security keys
++ *
++ *  @return 20 byte security
++ */
++std::string ipmiGetChannelSecurityKeys();
+ 
+ } // namespace ipmi

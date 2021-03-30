@@ -1,0 +1,248 @@
+From 2033174686f886a21636b91eac9e07584de9496e Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Fri, 26 Feb 2021 07:10:40 +0000
+Subject: [PATCH 15/15] Implement-a-memory-driver-share-memory
+
+---
+ .../soc/aspeed/aspeed-vga-sharedmem.txt       |  20 +++
+ drivers/soc/aspeed/Kconfig                    |  10 ++
+ drivers/soc/aspeed/Makefile                   |   1 +
+ drivers/soc/aspeed/aspeed-vga-sharedmem.c     | 163 ++++++++++++++++++
+ 4 files changed, 194 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/soc/aspeed/aspeed-vga-sharedmem.txt
+ create mode 100644 drivers/soc/aspeed/aspeed-vga-sharedmem.c
+
+diff --git a/Documentation/devicetree/bindings/soc/aspeed/aspeed-vga-sharedmem.txt b/Documentation/devicetree/bindings/soc/aspeed/aspeed-vga-sharedmem.txt
+new file mode 100644
+index 000000000..03f57c53e
+--- /dev/null
++++ b/Documentation/devicetree/bindings/soc/aspeed/aspeed-vga-sharedmem.txt
+@@ -0,0 +1,20 @@
++* Aspeed VGA shared memory driver
++
++Aspeed VGA shared memory driver allow user to read data from AST2500
++VGA memory. This driver is required by ManagedDataRegionlV2
++specification. In the spec, BIOS will transfer whole SMBIOS table to
++VGA memroy and BMC get the table from VGA memory. 0penBMC project do
++not allow to use /dev/mem for security concerns. To get the data in
++VGA shared memory in user space, implement this driver only allowed
++user to mmap limited memory area.
++
++Required properties:
++- compatible: "aspeed,ast2500-vga-sharedmem"
++	- aspeed,ast2500-vga-sharedmem: Aspeed AST2500 family
++- reg: Should contain VGA shared memory start address and length
++
++Example:
++vga-shared-memory {
++	compatible = "aspeed,ast2500-vga-sharedmem";
++	reg = <0x9ff00000 0x100000>;
++};
+diff --git a/drivers/soc/aspeed/Kconfig b/drivers/soc/aspeed/Kconfig
+index e8dfef315..ec654e395 100644
+--- a/drivers/soc/aspeed/Kconfig
++++ b/drivers/soc/aspeed/Kconfig
+@@ -32,6 +32,7 @@ config ASPEED_LPC_MBOX
+ 	  and AST2500) to userspace.
+ 
+ config ASPEED_LPC_SIO
++
+ 	tristate "Aspeed ast2400/2500 HOST LPC SIO support"
+ 	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
+ 	help
+@@ -68,4 +69,13 @@ config ASPEED_JTAG
+ 	help
+ 	  Driver for JTAG Controller
+ 
++config ASPEED_VGA_SHAREDMEM
++	tristate "Aspeed VGA Shared memory"
++	depends on SOC_ASPEED
++	help
++	  To access VGA shared memory on Aspeed BMC, enable this option.
++	  This driver used by ManagedDataRegionlV2 specification. In the
++	  specification, BIOS will transfer whole SMBIOS table to VGA memory,
++	  and BMC can get the table from VGA memory through this driver.
++
+ endmenu
+diff --git a/drivers/soc/aspeed/Makefile b/drivers/soc/aspeed/Makefile
+index f4153314b..55a5ec487 100644
+--- a/drivers/soc/aspeed/Makefile
++++ b/drivers/soc/aspeed/Makefile
+@@ -6,4 +6,5 @@ obj-$(CONFIG_ASPEED_LPC_MBOX)	+= aspeed-lpc-mbox.o
+ obj-$(CONFIG_ASPEED_LPC_SIO)	+= aspeed-lpc-sio.o
+ obj-$(CONFIG_ASPEED_LPC_SNOOP)	+= aspeed-lpc-snoop.o
+ obj-$(CONFIG_ASPEED_P2A_CTRL)	+= aspeed-p2a-ctrl.o
++obj-$(CONFIG_ASPEED_VGA_SHAREDMEM)	+= aspeed-vga-sharedmem.o
+ obj-$(CONFIG_ASPEED_ESPI)	+= aspeed-espi.oobj-$(CONFIG_ASPEED_XDMA)	+= aspeed-xdma.o
+diff --git a/drivers/soc/aspeed/aspeed-vga-sharedmem.c b/drivers/soc/aspeed/aspeed-vga-sharedmem.c
+new file mode 100644
+index 000000000..cd1f54313
+--- /dev/null
++++ b/drivers/soc/aspeed/aspeed-vga-sharedmem.c
+@@ -0,0 +1,163 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (c) 2018 Intel Corporation
++ * VGA Shared Memory driver for Aspeed AST2500
++ */
++
++#include <linux/kernel.h>
++#include <linux/miscdevice.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/of_platform.h>
++
++#define SHAREDMEM_NAME "vgasharedmem"
++
++struct aspeed_vga_sharedmem {
++	struct miscdevice	miscdev;
++	unsigned int	addr;
++	unsigned int	size;
++	bool	mmap_enable;
++};
++
++static struct aspeed_vga_sharedmem *file_sharemem(struct file *file)
++{
++	return container_of(file->private_data,
++			struct aspeed_vga_sharedmem, miscdev);
++}
++
++static int vga_open(struct inode *inode, struct file *file)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem = file_sharemem(file);
++
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
++	if (!vga_sharedmem->mmap_enable)
++		return -EPERM;
++
++	return 0;
++}
++
++static int vga_mmap(struct file *file, struct vm_area_struct *vma)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem = file_sharemem(file);
++
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
++	vma->vm_flags = (vma->vm_flags & (~VM_WRITE));
++	remap_pfn_range(vma, vma->vm_start, vga_sharedmem->addr >> PAGE_SHIFT,
++			vga_sharedmem->size, vma->vm_page_prot);
++	return 0;
++}
++
++static ssize_t enable_mmap_show(struct device *dev,
++				struct device_attribute *attr,
++				char *buf)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem = dev_get_drvdata(dev);
++
++	return sprintf(buf, "%u\n", vga_sharedmem->mmap_enable);
++}
++
++static ssize_t enable_mmap_store(struct device *dev,
++				 struct device_attribute *attr,
++				  const char *buf, size_t count)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem =
++		dev_get_drvdata(dev);
++	bool val;
++
++	if (kstrtobool(buf, &val))
++		return -EINVAL;
++
++	vga_sharedmem->mmap_enable = val;
++
++	return count;
++}
++static DEVICE_ATTR_RW(enable_mmap);
++
++static struct attribute *sharedmem_attrs[] = {
++	&dev_attr_enable_mmap.attr,
++	NULL
++};
++
++static const struct attribute_group sharedmem_attr_group = {
++	.attrs = sharedmem_attrs,
++};
++
++static const struct attribute_group *sharedmem_attr_groups[] = {
++	&sharedmem_attr_group,
++	NULL
++};
++
++static const struct file_operations vga_sharedmem_fops = {
++	.owner	= THIS_MODULE,
++	.open	= vga_open,
++	.mmap	= vga_mmap,
++};
++
++static struct miscdevice vga_sharedmem_miscdev = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = SHAREDMEM_NAME,
++	.fops = &vga_sharedmem_fops,
++	.groups = sharedmem_attr_groups,
++};
++
++static int vga_sharedmem_probe(struct platform_device *pdev)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem;
++	struct device *dev = &pdev->dev;
++	struct resource *rc;
++
++	vga_sharedmem = devm_kzalloc(dev, sizeof(*vga_sharedmem), GFP_KERNEL);
++	if (!vga_sharedmem)
++		return -ENOMEM;
++
++	dev_set_drvdata(&pdev->dev, vga_sharedmem);
++
++	rc = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!rc) {
++		dev_err(dev, "Couldn't read size device-tree property\n");
++		return -ENXIO;
++	}
++
++	vga_sharedmem->addr = rc->start;
++	vga_sharedmem->size = resource_size(rc);
++	vga_sharedmem->mmap_enable = true;
++
++	vga_sharedmem->miscdev = vga_sharedmem_miscdev;
++
++	return misc_register(&vga_sharedmem->miscdev);
++}
++
++static int vga_sharedmem_remove(struct platform_device *pdev)
++{
++	struct aspeed_vga_sharedmem *vga_sharedmem =
++				dev_get_drvdata(&pdev->dev);
++
++	misc_deregister(&vga_sharedmem->miscdev);
++
++	return 0;
++}
++
++static const struct of_device_id vga_sharedmem_match[] = {
++	{ .compatible = "aspeed,ast2500-vga-sharedmem", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, vga_sharedmem_match);
++
++static struct platform_driver vga_sharedmem_driver = {
++	.driver = {
++		.name	= "VGA-SHAREDMEM",
++		.of_match_table = vga_sharedmem_match,
++	},
++	.probe = vga_sharedmem_probe,
++	.remove = vga_sharedmem_remove,
++};
++
++module_platform_driver(vga_sharedmem_driver);
++
++MODULE_AUTHOR("Yang Cheng <cheng.c.yang@intel.com>");
++MODULE_DESCRIPTION("Shared VGA memory");
++MODULE_LICENSE("GPL v2");
+-- 
+2.17.1
+

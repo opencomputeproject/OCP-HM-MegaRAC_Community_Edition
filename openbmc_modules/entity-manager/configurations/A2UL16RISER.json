@@ -1,0 +1,155 @@
+[
+    {
+        "Exposes": [
+            {
+                "Address": "$address",
+                "Bus": "$bus",
+                "Name": "Riser 1 Fru",
+                "Type": "EEPROM"
+            },
+            {
+                "Address": "0x72",
+                "Bus": "$bus",
+                "ChannelNames": [
+                    "Pcie_Slot_1",
+                    "Pcie_Slot_2",
+                    "Pcie_Slot_3",
+                    ""
+                ],
+                "Name": "Riser 1 Mux",
+                "Type": "PCA9544Mux"
+            },
+            {
+                "Class": "temp",
+                "FFGainCoefficient": 0.0,
+                "FFOffCoefficient": 0.0,
+                "ICoefficient": -1.0,
+                "ILimitMax": 100,
+                "ILimitMin": 30,
+                "Inputs": [
+                    "Riser 1 Temp"
+                ],
+                "Name": "Riser 1 Temp",
+                "NegativeHysteresis": 5.0,
+                "OutLimitMax": 100,
+                "OutLimitMin": 30,
+                "Outputs": [],
+                "PCoefficient": -0.15,
+                "PositiveHysteresis": 0.0,
+                "SetPoint": 60.0,
+                "SlewNeg": -1,
+                "SlewPos": 0.0,
+                "Type": "Pid",
+                "Zones": [
+                    "Zone 1",
+                    "Zone 2",
+                    "Zone 3"
+                ]
+            },
+            {
+                "Address": "0x48",
+                "Bus": "$bus",
+                "Name": "Riser1 Temp",
+                "Thresholds": [
+                    {
+                        "Direction": "greater than",
+                        "Name": "upper critical",
+                        "Severity": 1,
+                        "Value": 80
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Name": "upper non critical",
+                        "Severity": 0,
+                        "Value": 75
+                    },
+                    {
+                        "Direction": "less than",
+                        "Name": "lower non critical",
+                        "Severity": 0,
+                        "Value": 5
+                    },
+                    {
+                        "Direction": "less than",
+                        "Name": "lower critical",
+                        "Severity": 1,
+                        "Value": 0
+                    }
+                ],
+                "Type": "TMP75"
+            }
+        ],
+        "Name": "2U12x35 Riser1",
+        "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'A2UL16RISER\\d', 'ADDRESS' : 80})",
+        "Type": "Board",
+        "xyz.openbmc_project.Inventory.Decorator.Asset": {
+            "Manufacturer": "$BOARD_MANUFACTURER",
+            "Model": "$BOARD_PRODUCT_NAME",
+            "PartNumber": "$BOARD_PART_NUMBER",
+            "SerialNumber": "$BOARD_SERIAL_NUMBER"
+        }
+    },
+    {
+        "Exposes": [
+            {
+                "Address": "$address",
+                "Bus": "$bus",
+                "Name": "Riser 2 Fru",
+                "Type": "EEPROM"
+            },
+            {
+                "Address": "0x73",
+                "Bus": "$bus",
+                "ChannelNames": [
+                    "Pcie_Slot_1",
+                    "Pcie_Slot_2",
+                    "Pcie_Slot_3",
+                    ""
+                ],
+                "Name": "Riser 2 Mux",
+                "Type": "PCA9544Mux"
+            },
+            {
+                "Address": "0x49",
+                "Bus": "$bus",
+                "Name": "Riser2 Temp",
+                "Thresholds": [
+                    {
+                        "Direction": "greater than",
+                        "Name": "upper critical",
+                        "Severity": 1,
+                        "Value": 80
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Name": "upper non critical",
+                        "Severity": 0,
+                        "Value": 75
+                    },
+                    {
+                        "Direction": "less than",
+                        "Name": "lower non critical",
+                        "Severity": 0,
+                        "Value": 5
+                    },
+                    {
+                        "Direction": "less than",
+                        "Name": "lower critical",
+                        "Severity": 1,
+                        "Value": 0
+                    }
+                ],
+                "Type": "TMP75"
+            }
+        ],
+        "Name": "2U12x35 Riser2",
+        "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'A2UL16RISER\\d', 'ADDRESS' : 81})",
+        "Type": "Board",
+        "xyz.openbmc_project.Inventory.Decorator.Asset": {
+            "Manufacturer": "$BOARD_MANUFACTURER",
+            "Model": "$BOARD_PRODUCT_NAME",
+            "PartNumber": "$BOARD_PART_NUMBER",
+            "SerialNumber": "$BOARD_SERIAL_NUMBER"
+        }
+    }
+]

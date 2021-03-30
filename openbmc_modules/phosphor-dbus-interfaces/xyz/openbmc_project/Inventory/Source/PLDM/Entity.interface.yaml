@@ -1,0 +1,29 @@
+description: >
+    Implement to represent a PLDM Entity (see chapter 9 of
+    www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.2.0.pdf).
+
+    Any OpenBMC implementation must add this interface on a D-Bus object that
+    represents a PLDM Entity. For example, if an app is creating D-Bus objects
+    consisting of PLDM FRU fields (DSP0257) as D-Bus properties, to be then
+    converted to inventory D-Bus objects (by apps like EM and PIM), then the app
+    may implement this interface. In this example, this interface helps identify
+    what the FRU's type is, in addition to instance and containment information.
+
+    PLDM stands for Platform Level Data Model. More information about PLDM (and
+    MCTP) can be found at https://www.dmtf.org/standards/pmci
+
+properties:
+    - name: EntityType
+      type: uint16
+      description: >
+          Represents the type of the entity. See 9.2 in DSP0248 v1.2.0.
+    - name: EntityInstanceNumber
+      type: uint16
+      description: >
+          Represents the instance number of the entity. See 9.3 in DSP0248
+          v1.2.0.
+    - name: ContainerID
+      type: uint16
+      description: >
+          Represents the ID of the containing entity of this entity. See 9.4 in
+          DSP0248 v1.2.0.

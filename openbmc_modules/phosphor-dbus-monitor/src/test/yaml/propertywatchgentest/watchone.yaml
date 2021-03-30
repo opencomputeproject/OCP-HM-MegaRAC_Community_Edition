@@ -1,0 +1,61 @@
+- name: test path group 1
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst1
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst2
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst3
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+
+- name: test path group 2
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst3
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst5
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst6
+
+- name: test property group 1
+  class: group
+  group: property
+  type: string
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface1
+      meta: PROPERTY
+      property: Value
+    - interface: xyz.openbmc_project.Sensor.Iface2
+      meta: PROPERTY
+      property: Value
+
+- name: test property group 2
+  class: group
+  group: property
+  type: uint32
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface3
+      meta: PROPERTY
+      property: Value1
+    - interface: xyz.openbmc_project.Sensor.Iface3
+      meta: PROPERTY
+      property: Value2
+
+- name: test property watch 1
+  class: watch
+  watch: property
+  paths: test path group 1
+  properties: test property group 1
+
+- name: test property watch 2
+  class: watch
+  watch: property
+  paths: test path group 2
+  properties: test property group 2

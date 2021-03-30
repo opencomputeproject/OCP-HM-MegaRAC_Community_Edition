@@ -1,0 +1,50 @@
+diff -Naur a/user_mgr.cpp b/user_mgr.cpp
+--- a/user_mgr.cpp	2020-10-28 16:25:12.645227512 +0530
++++ b/user_mgr.cpp	2020-10-28 16:22:41.243526723 +0530
+@@ -25,6 +25,9 @@
+ #include <regex>
+ #include <algorithm>
+ #include <numeric>
++#include <iomanip>
++#include <sstream>
++#include <ctime>
+ #include <boost/process/child.hpp>
+ #include <boost/process/io.hpp>
+ #include <boost/algorithm/string/split.hpp>
+@@ -669,6 +672,8 @@
+ static constexpr size_t t2UserIdx = 0;
+ static constexpr size_t t2FailCntIdx = 1;
+ static constexpr size_t t2OutputIndex = 1;
++static constexpr size_t t2FailDateIdx = 2;
++static constexpr size_t t2FailTimeIdx = 3;
+ 
+ bool UserMgr::userLockedForFailedAttempt(const std::string &userName)
+ {
+@@ -695,6 +700,27 @@
+         if (AccountPolicyIface::maxLoginAttemptBeforeLockout() != 0 &&
+             value16 >= AccountPolicyIface::maxLoginAttemptBeforeLockout())
+         {
++	    auto failure_time = splitWords[t2FailTimeIdx];
++	    auto failure_date = splitWords[t2FailDateIdx];
++	    uint32_t accountLockingTime = 0;
++	    std::string latestFailureTime = failure_date+"20T"+failure_time;
++	    // Get the failure timestamp
++    	    std::time_t failTs = 0;
++    	    std::tm timeStruct = {};
++	    std::istringstream entryStream(latestFailureTime);
++    	    if (entryStream >> std::get_time(&timeStruct, "%m/%d/%YT%H:%M:%S"))
++    	    {
++        	failTs = std::mktime(&timeStruct);
++    	    }
++	    // Get the present timestamp
++	    std::time_t presentTs = 0;
++	    presentTs = std::time(NULL);
++	    accountLockingTime = presentTs - failTs;
++	    // when lockout time reaches unlock the user
++	    if(accountLockingTime >= AccountPolicyIface::accountUnlockTimeout())
++	    {
++		return userLockedForFailedAttempt(userName,false);
++	    }
+             return true; // User account is locked out
+         }
+         return false; // User account is un-locked

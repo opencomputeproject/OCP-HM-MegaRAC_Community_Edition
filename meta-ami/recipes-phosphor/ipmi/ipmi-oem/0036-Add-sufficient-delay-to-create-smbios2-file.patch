@@ -1,0 +1,14 @@
+diff -Naur a/include/smbiosmdrv2handler.hpp b/include/smbiosmdrv2handler.hpp
+--- a/include/smbiosmdrv2handler.hpp	2021-02-24 17:29:15.804751629 +0530
++++ b/include/smbiosmdrv2handler.hpp	2021-02-24 17:29:37.840748017 +0530
+@@ -57,8 +57,8 @@
+     1024 * 1024; // Total size of VGA share memory
+ static constexpr const size_t smbiosTableStorageSize =
+     64 * 1024; // Total size of smbios table
+-static constexpr const uint32_t defaultTimeout = 200;
+-static constexpr const uint8_t sysClock = 100;
++static constexpr const uint32_t defaultTimeout = 4000;
++static constexpr const uint8_t sysClock = 1000;
+ static constexpr const int lastAgentIndex = -1;
+ static constexpr const uint16_t lastAgentId = 0xFFFF;
+ constexpr const uint32_t invalidChecksum = 0xffffffff;

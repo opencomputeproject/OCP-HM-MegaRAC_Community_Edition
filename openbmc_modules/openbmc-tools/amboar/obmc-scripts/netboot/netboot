@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import time
+import toml
+from os import path
+from telnetlib import Telnet
+from types import MethodType
+from xdg import BaseDirectory
+
+def expect_or_raise(conn, patterns, timeout=None):
+    i, m, d = conn.expect([bytes(p, 'ascii') for p in patterns], timeout)
+    if i == -1:
+        msg = "Match failed, expected '%s', got '%s'" % (str(patterns), d)
+        print(msg, file=sys.stderr)
+        raise ValueError
+    return i, m, d
+
+def encode_and_write(conn, comm="", sep="\n"):
+    # Slow down the writes to help poor ol' serial-over-telnet
+    for c in comm + sep:
+        conn.write(bytes(c, 'ascii'))
+        time.sleep(0.01)
+
+def init_telnet(host, port=0, timeout=None):
+    conn = Telnet(host, port, timeout)
+    conn.encode_and_write = MethodType(encode_and_write, conn)
+    conn.expect_or_raise = MethodType(expect_or_raise, conn)
+    return conn
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("machine", nargs="?")
+    parser.add_argument("-l", "--list-machines", action="store_true")
+    parser.add_argument("-i", "--initramfs", action="store_true")
+    args = parser.parse_args()
+
+    confbase = BaseDirectory.save_config_path("obmc-scripts")
+    conffile = path.join(confbase, "netboot")
+    if not path.exists(conffile):
+        print("Missing configuration file: %s" % (conffile))
+        sys.exit(1)
+
+    conf = toml.load(conffile)
+    if args.list_machines:
+        print("Machines:", *list(sorted(conf.keys())), sep="\n\t")
+        sys.exit(0)
+
+    if not args.machine:
+        print("Machine name required")
+        sys.exit(1)
+
+    mach = conf[args.machine]
+    console = mach["console"]
+    conn = init_telnet(console["host"], console["port"])
+
+    try:
+        conn.encode_and_write()
+        i, m, d = conn.expect_or_raise([
+            "%s login:" % (mach["platform"]),
+            "root@%s:.*#" % (mach["platform"]),
+            "root@%s:.*#" % (args.machine),
+            "ast#",
+            "# ",
+        ], 5)
+
+        if i != 3:
+            if i == 0:
+                conn.encode_and_write(mach["user"])
+                conn.read_until(b"Password:")
+                conn.encode_and_write(mach["password"])
+                conn.expect_or_raise(["root@%s:.*#" % (mach["platform"])])
+
+            conn.encode_and_write("reboot")
+
+            conn.expect_or_raise(["Hit any key to stop autoboot"])
+            conn.encode_and_write()
+
+        for comm in mach["u-boot"]["commands"]:
+            conn.encode_and_write(comm)
+            if "tftp" in comm:
+                i, m, d = conn.expect_or_raise([
+                    r"Bytes transferred = \d+ \([0-9a-f]+ hex\)",
+                    "Not retrying...",
+                    r"## Warning:",
+                    r"[*]{3} ERROR:",
+                    "Abort",
+                    "Retry count exceeded; starting again",
+                ])
+                if i > 0:
+                    print("Error detected, exiting", file=sys.stderr)
+                    return
+
+        if args.initramfs:
+            conn.encode_and_write("setenv bootargs console=ttyS4,115200n root=/dev/ram rw earlyprintk debug")
+            conn.read_until(b"ast#")
+        else:
+            conn.encode_and_write("printenv set_bootargs")
+            i, m, d = conn.expect_or_raise([
+                "set_bootargs=.*$",
+                "## Error: \"set_bootargs\" not defined",
+            ], 1)
+            if i == 0:
+                conn.encode_and_write("run set_bootargs")
+                conn.read_until(b"ast#")
+
+        conn.encode_and_write("bootm")
+        conn.read_until(b"Starting kernel")
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    main()

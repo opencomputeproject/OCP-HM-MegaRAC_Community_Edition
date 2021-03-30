@@ -1,0 +1,71 @@
+Include fcntl.h to pacify compiler errors on musl
+like
+
+error: unknown type name 'loff_t'
+Cover rpc headers under proper conditional
+Dont use __P its undefined
+
+Upstream-Status: Pending
+
+Signed-off-by: Khem Raj <raj.khem@gmail.com>
+
+diff --git a/quota.h b/quota.h
+index 4c21411..d20c217 100644
+--- a/quota.h
++++ b/quota.h
+@@ -182,6 +182,6 @@ enum {
+ 	#endif
+ #endif
+ 
+-long quotactl __P((int, const char *, qid_t, caddr_t));
++long quotactl (int, const char *, qid_t, caddr_t);
+ 
+ #endif /* _QUOTA_ */
+diff --git a/quotacheck.c b/quotacheck.c
+index 2cdf475..07c18a7 100644
+--- a/quotacheck.c
++++ b/quotacheck.c
+@@ -19,6 +19,7 @@
+ #include <unistd.h>
+ #include <stdlib.h>
+ #include <errno.h>
++#include <fcntl.h>
+ 
+ #include <sys/stat.h>
+ #include <sys/types.h>
+diff --git a/quotaio.c b/quotaio.c
+index 94ae458..d57fc1a 100644
+--- a/quotaio.c
++++ b/quotaio.c
+@@ -12,6 +12,7 @@
+ #include <string.h>
+ #include <unistd.h>
+ #include <stdlib.h>
++#include <fcntl.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <sys/file.h>
+diff --git a/rquota_client.c b/rquota_client.c
+index a3a4ae3..0ffe7a9 100644
+--- a/rquota_client.c
++++ b/rquota_client.c
+@@ -19,7 +19,9 @@
+ 
+ #include "config.h"
+ 
++#if defined(RPC)
+ #include <rpc/rpc.h>
++#endif
+ #include <sys/types.h>
+ #include <sys/param.h>
+ #include <sys/stat.h>
+@@ -35,7 +37,9 @@
+ #include <stdint.h>
+ 
+ #include "mntopt.h"
++#if defined(RPC)
+ #include "rquota.h"
++#endif
+ #include "common.h"
+ #include "quotaio.h"
+ #include "quotasys.h"

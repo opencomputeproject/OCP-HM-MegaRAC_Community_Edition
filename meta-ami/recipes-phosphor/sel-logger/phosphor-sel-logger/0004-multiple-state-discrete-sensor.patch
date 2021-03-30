@@ -1,0 +1,204 @@
+diff -Naur a/include/discrete_event_monitor.hpp b/include/discrete_event_monitor.hpp
+--- a/include/discrete_event_monitor.hpp	2020-08-30 13:17:43.013599511 +0530
++++ b/include/discrete_event_monitor.hpp	2020-08-30 13:17:51.753823266 +0530
+@@ -33,46 +33,61 @@
+ {
+     auto discreteEventMatcherCallback = [conn](
+                                              sdbusplus::message::message &msg) {
+-        // This static set of std::pair<path, event> tracks asserted events to
+-        // avoid duplicate logs or deasserts logged without an assert
+-        static boost::container::flat_set<std::pair<std::string, std::string>>
+-            assertedEvents;
++
++       boost::container::flat_map<std::string, std::variant<std::vector<uint8_t>>>
++            msgVarient;
+         // SEL event data is three bytes where 0xFF means unspecified
+         std::vector<uint8_t> eventData(selEvtDataMaxSize, 0xFF);
+ 
+         // Get the event type and assertion details from the message
+         std::string discreteInterface;
+-        boost::container::flat_map<std::string, std::variant<std::vector<std::uint8_t>>>
++        boost::container::flat_map<std::string, std::variant<uint8_t>> 
+             propertiesChanged;
+         msg.read(discreteInterface, propertiesChanged);
+         std::string event = propertiesChanged.begin()->first;
+-        std::vector<std::uint8_t> *pval = std::get_if<std::vector<uint8_t>>(&propertiesChanged.begin()->second);
++        uint8_t *pval = std::get_if<uint8_t>(&propertiesChanged.begin()->second); 
+         if (!pval)
+         {
+             std::cerr << "discrete event direction has invalid type\n";
+             return;
+         }
+-        std::vector<std::uint8_t> eventoffset = *pval;
+-	std::cerr << "discrete event called\n";
+         // Set the IPMI threshold event type based on the event details from the
+         // message
+-        if (event == "ActiveAlarmState")
++        if (event.compare("ActiveAlarmState") == 0) 
+         {
+-		std::cerr << "discrete event DiscreteAlarmState\n";
+-	     if(eventoffset[0] == 0xFF && eventoffset[1] == 0xFF && eventoffset[2] == 0xFF){
+-		return ;
+-	     }
+-
+-	     eventData[0] = eventoffset[0]; 
+-	     eventData[1] = eventoffset[1];
+-	     eventData[2] = eventoffset[2];
+-	   /* if(assert){
+-            	eventData[0] =
+-                	static_cast<uint8_t>(discreteEventOffsets::state1);
+-	    }else{
+-		eventData[0] =
+-                        static_cast<uint8_t>(discreteEventOffsets::state0);
+-	    }*/
++	  // Get the sensor reading to put in the event data
++                sdbusplus::message::message getEvent =
++                        conn->new_method_call(msg.get_sender(), msg.get_path(),
++                                "org.freedesktop.DBus.Properties", "GetAll");
++                getEvent.append("xyz.openbmc_project.Sensor.Discrete.State");
++
++                try
++                {
++                        sdbusplus::message::message getSensorEventResp =
++                                                        conn->call(getEvent);
++                        getSensorEventResp.read(msgVarient);
++                }
++                catch (sdbusplus::exception_t &)
++                {
++                        std::cerr << "error getting sensor value from " << msg.get_path() << "\n";
++                        return;
++                }
++
++                std::vector<uint8_t> sensorEvent;
++                auto findEvent = msgVarient.find("EventData");
++                if (findEvent != msgVarient.end())
++                {
++                       std::cerr << "error getting sensor value from" ;
++                        sensorEvent = std::get<std::vector<uint8_t>>(findEvent->second);
++                }
++
++                if(sensorEvent[0] == 0xFF && sensorEvent[1] == 0xFF && sensorEvent[2] == 0xFF){
++                        return;
++               }
++               eventData[0] = sensorEvent[0];
++               eventData[1] = sensorEvent[1];
++               eventData[2] = sensorEvent[2];
++
+         }else{
+ 	    return;
+ 	}
+@@ -102,6 +117,7 @@
+         }
+ 
+         double sensorVal = 0;
++	uint8_t sensorType = 0, sensorNum = 0, eventType = 0;
+         auto findVal = sensorValue.find("Value");
+         if (findVal != sensorValue.end())
+         {
+@@ -150,7 +166,8 @@
+                                state + ". Reading=" + std::to_string(sensorVal) + ".");
+ 
+         selAddSystemRecord(
+-            journalMsg, std::string(msg.get_path()), eventData, /*assert*/true,
++            journalMsg, std::string(msg.get_path()), 0x02, 0x04,
++            sensorType, sensorNum, eventType, eventData, true,
+             selBMCGenID, "REDFISH_MESSAGE_ID=%s", redfishMessageID.c_str(),
+             "REDFISH_MESSAGE_ARGS=%.*s,%f,%f", sensorName.length(),
+             sensorName.data(), sensorVal, 0.00);
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2020-08-30 13:17:43.013599511 +0530
++++ b/include/sel_logger.hpp	2020-08-30 13:17:51.753823266 +0530
+@@ -29,9 +29,9 @@
+ static constexpr uint8_t selSystemType = 0x02;
+ static constexpr uint16_t selBMCGenID = 0x0020;
+ static constexpr uint8_t evmRev = 0x04;
+-uint8_t sensorType = 0x00;
+-uint8_t sensorNum = 0x00;
+-uint8_t eventType = 0x00;
++//uint8_t sensorType = 0x00;
++//uint8_t sensorNum = 0x00;
++//uint8_t eventType = 0x00;
+ static constexpr uint32_t timestamp = 0x00;
+ static constexpr uint16_t selInvalidRecID =
+     std::numeric_limits<uint16_t>::max();
+@@ -45,5 +45,7 @@
+ template <typename... T>
+ static uint16_t
+     selAddSystemRecord(const std::string& message, const std::string& path,
++                       const uint8_t &recType, const uint8_t &evmRev,
++                       const uint8_t &senType, const uint8_t &senNum, const uint8_t &eveType,
+                        const std::vector<uint8_t>& selData, const bool& assert,
+                        const uint16_t& genId, T&&... metadata);
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2020-08-30 13:17:43.013599511 +0530
++++ b/include/threshold_event_monitor.hpp	2020-08-30 13:17:51.753823266 +0530
+@@ -255,9 +255,9 @@
+             std::cerr << e.what();
+             eventData[2] = selEvtDataUnspecified;
+         }
+-        sensorType = getSensorTypeFromPath(msg.get_path());
+-        sensorNum = getSensorNumberFromPath(msg.get_path());
+-        eventType = getSensorEventTypeFromPath(msg.get_path());
++       uint8_t sensorType = getSensorTypeFromPath(msg.get_path());
++       uint8_t sensorNum = getSensorNumberFromPath(msg.get_path());
++       uint8_t eventType = getSensorEventTypeFromPath(msg.get_path());
+ 
+         std::string threshold;
+         std::string direction;
+@@ -327,7 +327,8 @@
+                                ".");
+ 
+         selAddSystemRecord(
+-            journalMsg, std::string(msg.get_path()), eventData, assert,
++	    journalMsg, std::string(msg.get_path()), 0x02, 0x04,
++            sensorType, sensorNum, eventType, eventData, assert,
+             selBMCGenID, "REDFISH_MESSAGE_ID=%s", redfishMessageID.c_str(),
+             "REDFISH_MESSAGE_ARGS=%.*s,%f,%f", sensorName.length(),
+             sensorName.data(), assertValue, thresholdVal);
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2020-08-30 13:18:52.315372419 +0530
++++ b/src/sel_logger.cpp	2020-08-30 13:19:00.695586619 +0530
+@@ -130,6 +130,8 @@
+ template <typename... T>
+ static uint16_t
+     selAddSystemRecord(const std::string& message, const std::string& path,
++                       const uint8_t &recType, const uint8_t &evmRev,
++                       const uint8_t &senType, const uint8_t &senNum, const uint8_t &eveType,
+                        const std::vector<uint8_t>& selData, const bool& assert,
+                        const uint16_t& genId, T&&... metadata)
+ {
+@@ -144,13 +146,13 @@
+     uint16_t  recordId = getNewRecordId();
+     sd_journal_send("MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
+                     "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%x",
+-                    recordId, "IPMI_SEL_RECORD_TYPE=%x", selSystemType,
++                    recordId, "IPMI_SEL_RECORD_TYPE=%x", recType, 
+                     "IPMI_SEL_GENERATOR_ID=%x", genId,
+ 		    "IPMI_SEL_TIME_STAMP=%x",timestamp,
+                     "IPMI_SEL_EVMREV=%x",evmRev,
+-                    "IPMI_SEL_SENSOR_TYPE=%x",sensorType,
+-                    "IPMI_SEL_SENSOR_NUM=%x",sensorNum,
+-                    "IPMI_SEL_EVENT_TYPE=%x",eventType,
++                    "IPMI_SEL_SENSOR_TYPE=%x",senType,
++                    "IPMI_SEL_SENSOR_NUM=%x",senNum,
++                    "IPMI_SEL_EVENT_TYPE=%x",eveType,
+                     "IPMI_SEL_SENSOR_PATH=%s", path.c_str(),
+                     "IPMI_SEL_EVENT_DIR=%x", assert, "IPMI_SEL_DATA=%s",
+                     selDataStr.c_str(), std::forward<T>(metadata)..., NULL);
+@@ -194,9 +196,13 @@
+     // Add a new SEL entry
+     ifaceAddSel->register_method(
+         "IpmiSelAdd", [](const std::string& message, const std::string& path,
+-                         const std::vector<uint8_t>& selData,
+-                         const bool& assert, const uint16_t& genId) {
+-            return selAddSystemRecord(message, path, selData, assert, genId);
++                      const uint8_t &recType, const uint8_t &evmRev,
++                       const uint8_t &senType, const uint8_t &senNum, const uint8_t &eveType,
++                       const std::vector<uint8_t> &selData, const bool &assert,
++                       const uint16_t &genId) {
++            return selAddSystemRecord(message, path, recType,
++                                     evmRev, senType, senNum, eveType, selData, assert, genId);
++
+         });
+     // Add a new OEM SEL entry
+     ifaceAddSel->register_method(

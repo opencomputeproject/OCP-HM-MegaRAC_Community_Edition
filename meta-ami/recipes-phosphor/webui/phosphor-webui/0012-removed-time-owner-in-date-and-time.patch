@@ -1,0 +1,36 @@
+diff -Naur a/app/configuration/controllers/date-time-controller.html b/app/configuration/controllers/date-time-controller.html
+--- a/app/configuration/controllers/date-time-controller.html	2020-10-21 13:14:28.912520394 -0400
++++ b/app/configuration/controllers/date-time-controller.html	2020-10-21 13:18:22.132192014 -0400
+@@ -50,12 +50,12 @@
+               <p class="courier-bold">{{host.timezone}}</p>
+             </div>
+           </li>
+-          <li class="date-time__metadata-block">
++          <!-- <li class="date-time__metadata-block">
+             <label for="date-time-owner" class="content-label">Time Owner</label>
+             <select id="date-time-owner" ng-model="time.owner" class="date-time__owner-dropdown">
+               <option class="courier-bold" ng-repeat="owner in timeOwners">{{owner}}</option>
+             </select>
+-          </li>
++          </li> -->
+         </ul>
+       </div>
+     </fieldset>
+diff -Naur a/app/configuration/controllers/date-time-controller.js b/app/configuration/controllers/date-time-controller.js
+--- a/app/configuration/controllers/date-time-controller.js	2020-10-21 13:14:28.912520394 -0400
++++ b/app/configuration/controllers/date-time-controller.js	2020-10-21 13:18:29.860049063 -0400
+@@ -132,12 +132,12 @@
+         $scope.loading = true;
+         if ($scope.time.mode == 'Manual' || $scope.time.owner == 'Split') {
+           setTimeMode()
+-              .then(setTimeOwner)
++              // .then(setTimeOwner)
+               .then(setNTPServers)
+               .then($timeout(setDateTime, 20000));
+         } else {
+           setTimeMode()
+-              .then(setTimeOwner)
++              // .then(setTimeOwner)
+               .then(setNTPServers)
+               .then(
+                   function() {

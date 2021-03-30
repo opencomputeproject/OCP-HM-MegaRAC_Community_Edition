@@ -1,0 +1,12 @@
+diff -Naur a/src/manufacturingcommands.cpp b/src/manufacturingcommands.cpp
+--- a/src/manufacturingcommands.cpp	2020-10-02 16:59:13.758723475 +0530
++++ b/src/manufacturingcommands.cpp	2020-10-02 17:00:05.167138660 +0530
+@@ -788,7 +788,7 @@
+                         ipmi::intel::general::cmdSetManufacturingData):
+         case makeCmdKey(ipmi::netFnOemOne,
+                         ipmi::intel::general::cmdGetManufacturingData):
+-        case makeCmdKey(ipmi::netFnStorage, ipmi::storage::cmdWriteFruData):
++        //case makeCmdKey(ipmi::netFnStorage, ipmi::storage::cmdWriteFruData):
+ 
+             // Check for Special mode
+             if (mtm.getMfgMode() == SpecialMode::none)

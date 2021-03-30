@@ -1,0 +1,62 @@
+diff -Naur a/watchdog.cpp b/watchdog.cpp
+--- a/watchdog.cpp	2020-11-15 22:54:31.131672549 +0530
++++ b/watchdog.cpp	2020-11-15 22:57:13.589499393 +0530
+@@ -265,13 +265,32 @@
+         "/xyz/openbmc_project/sensors/eventsensor/WATCHDOG2";
+     static constexpr auto SEN_WATCHDOG_INTERFACE =
+         "xyz.openbmc_project.Sensor.Discrete.State";
+-    static constexpr auto SEN_SET_INTERFACE = "org.freedesktop.DBus.Properties";
++    static constexpr auto SEN_INTERFACE = "org.freedesktop.DBus.Properties";
+     static constexpr auto SEN_WATCHDOG_STATPROP = "ActiveAlarmState";
+     static constexpr auto SEN_WATCHDOG_DATAPROP = "EventData";
+     static constexpr const uint16_t ipmiBMCSlaveAddr = 0x20;
+ 
+     uint8_t eventData1=0xff;
+     uint8_t eventData2=0xff;
++    std::variant<uint8_t> value;
++
++    try
++    {
++	auto method = bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
++                                       SEN_INTERFACE, "Get");
++    method.append(SEN_WATCHDOG_INTERFACE, "DontLog");
++    auto reply = bus.call(method);
++    reply.read(value);
++
++    }
++    catch (const SdBusError& e)
++    {
++        std::cerr << "Get status error \n";
++        log<level::ERR>(e.what());
++    }
++    if (!std::get <uint8_t>( value ) )
++    {
++
+     switch (action)
+     {
+         case Action::None:
+@@ -309,7 +328,7 @@
+             eventData2 = 5;
+             break;
+     }
+-
++    }
+     std::vector<std::uint8_t> d = {eventData1, eventData2, 0xFF };
+     uint8_t al = (0x01 << eventData1);
+ 
+@@ -319,13 +338,13 @@
+     {
+         auto method =
+             bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
+-                                SEN_SET_INTERFACE, "Set");
++                                SEN_INTERFACE, "Set");
+         method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_DATAPROP,std::variant<std::vector<std::uint8_t>>{d});
+         bus.call_noreply(method);
+ 
+ 	method =
+             bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
+-                                SEN_SET_INTERFACE, "Set");
++                                SEN_INTERFACE, "Set");
+         method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_STATPROP,std::variant<uint8_t>{al});
+         bus.call_noreply(method);
+     }

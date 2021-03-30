@@ -1,0 +1,11 @@
+[Unit]
+Description=BMC health monitoring
+
+[Service]
+ExecStart=@bindir@/health-monitor
+Type=dbus
+BusName=xyz.openbmc_project.HealthMon
+SyslogIdentifier=phosphor-health-monitor
+
+[Install]
+WantedBy=multi-user.target

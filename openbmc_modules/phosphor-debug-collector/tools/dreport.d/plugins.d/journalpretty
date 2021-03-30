@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 24 10
+# @brief: Collect Journal pretty log information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Journal pretty log"
+file_name="journal-pretty.log"
+command="journalctl -o json-pretty -r"
+
+add_cmd_output "$command" "$file_name" "$desc"

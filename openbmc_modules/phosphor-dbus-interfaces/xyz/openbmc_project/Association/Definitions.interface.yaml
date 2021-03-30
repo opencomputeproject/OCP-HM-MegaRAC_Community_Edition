@@ -1,0 +1,12 @@
+description: >
+    This interface is used to tell the mapper to create
+    xyz.openbmc_project.Association interfaces on <this path>/forward and
+    endpoint/reverse.
+properties:
+    - name: Associations
+      type: array[struct[string,string,string]]
+      description: >
+          An array of forward, reverse, endpoint tuples where:
+              forward - The type of the association.
+              reverse - The type of the association to create for the endpoint.
+              endpoint - The association endpoint.

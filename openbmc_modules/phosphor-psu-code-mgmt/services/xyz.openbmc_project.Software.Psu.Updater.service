@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenBMC PSU Code Manager
+Wants=xyz.openbmc_project.Software.Version.service
+After=xyz.openbmc_project.Software.Version.service
+Wants=obmc-mapper.target
+After=obmc-mapper.target
+
+[Service]
+ExecStart=/usr/bin/phosphor-psu-code-manager
+Restart=always
+Type=dbus
+BusName=xyz.openbmc_project.Software.Psu.Updater
+
+[Install]
+WantedBy=multi-user.target

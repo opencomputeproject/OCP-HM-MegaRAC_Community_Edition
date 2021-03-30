@@ -1,0 +1,76 @@
+
+<div class="row column">
+  <div class="page-header">
+    <h1>Profile settings</h1>
+  </div>
+</div>
+<div class="row column">
+  <div class="column medium-12 large-5 xlarge-4">
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Profile information</h2>
+      </div>
+      <dl>
+        <dt class="label">Username</dt>
+        <dd>{{username}}</dd>
+      </dl>
+    </section>
+  </div>
+</div>
+<div class="row column">
+  <div class="column medium-12 large-5 xlarge-4">
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Change password</h2>
+      </div>
+      <form name="form">
+        <!-- Password -->
+        <div class="field-group-container">
+          <label for="password">New password</label>
+          <p class="label__helper-text">Password must between <span class="nowrap">{{minPasswordLength}} – {{maxPasswordLength}}</span> characters</p>
+          <input  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  ng-minlength="minPasswordLength"
+                  ng-maxlength="maxPasswordLength"
+                  autocomplete="new-password"
+                  ng-model="password"
+                  password-visibility-toggle/>
+          <div ng-if="form.password.$invalid && form.password.$dirty" class="form__validation-message">
+            <span ng-show="form.password.$error.required">
+              Field is required</span>
+            <span ng-show="form.password.$error.minlength || form.password.$error.maxlength">
+              Length must be between <span class="nowrap">{{minPasswordLength}} – {{maxPasswordLength}}</span> characters</span>
+          </div>
+        </div>
+        <!-- Password confirm -->
+        <div class="field-group-container">
+          <label for="passwordConfirm">Confirm new password</label>
+          <input  id="passwordConfirm"
+                  name="passwordConfirm"
+                  type="password"
+                  required
+                  autocomplete="new-password"
+                  ng-model="passwordConfirm"
+                  password-visibility-toggle
+                  password-confirm
+                  first-password="form.password.$modelValue"/>
+          <div ng-if="form.passwordConfirm.$invalid && form.passwordConfirm.$dirty" class="form__validation-message">
+            <span ng-show="form.passwordConfirm.$error.required">
+              Field is required</span>
+            <span ng-show="form.passwordConfirm.$error.passwordConfirm"
+                  ng-hide="form.passwordConfirm.$error.required">
+              Passwords do not match</span>
+          </div>
+        </div>
+        <!-- Form actions -->
+        <div class="field-group-container">
+          <button class="btn btn-primary" type="submit" ng-click="onSubmit(form)">
+            Change password
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>

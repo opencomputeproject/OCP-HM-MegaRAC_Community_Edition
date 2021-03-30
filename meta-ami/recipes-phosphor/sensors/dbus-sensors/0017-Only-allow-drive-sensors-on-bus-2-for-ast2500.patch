@@ -1,0 +1,15 @@
+diff -Naur a/src/NVMeSensorMain.cpp b/src/NVMeSensorMain.cpp
+--- a/src/NVMeSensorMain.cpp	2021-02-28 22:11:31.393356825 +0530
++++ b/src/NVMeSensorMain.cpp	2021-02-28 22:12:43.081373748 +0530
+@@ -118,6 +118,11 @@
+                     }
+                     rootBus = std::stoi(rootName.substr(0, dash));
+                 }
++                // HACK: cpld on current products doesn't allow multi-master
++                if (rootBus != 2)
++                {
++                    continue;
++                }
+ 
+                 std::shared_ptr<NVMeContext> context;
+                 auto findRoot = nvmeDeviceMap.find(rootBus);

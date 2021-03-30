@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/peci/peci-npcm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Nuvoton NPCM PECI Bus Device Tree Bindings
+
+maintainers:
+  - Tomer Maimon <tmaimon77@gmail.com>
+
+properties:
+  compatible:
+    const: nuvoton,npcm750-peci # for the NPCM7XX BMC.
+
+  reg:
+    maxItems: 1
+
+  "#address-cells":
+    # Required to define a client address.
+    const: 1
+
+  "#size-cells":
+    # Required to define a client address.
+    const: 0
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    # PECI reference clock.
+    maxItems: 1
+
+  cmd-timeout-ms:
+    # Command timeout in units of ms.
+    allOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - minimum: 1
+        maximum: 60000
+        default: 1000
+
+  pull-down:
+    description: |
+      Defines the PECI I/O internal pull down operation.
+        0: pull down always enable
+        1: pull down only during transactions.
+        2: pull down always disable.
+    allOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - minimum: 0
+        maximum: 2
+        default: 0
+
+  host-neg-bit-rate:
+    description: |
+      Define host negotiation bit rate divider.
+      the host negotiation bit rate calculate with formula:
+      clock frequency[Hz] / [4 x {host-neg-bit-rate + 1}]
+    allOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - minimum: 7
+        maximum: 31
+        default: 15
+
+  high-volt-range:
+    description: |
+      Adapts PECI I/O interface to voltage range.
+        0: PECI I/O interface voltage range of 0.8-1.06V (default)
+        1: PECI I/O interface voltage range of 0.95-1.26V
+    type: boolean
+
+required:
+  - compatible
+  - reg
+  - "#address-cells"
+  - "#size-cells"
+  - interrupts
+  - clocks
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+    #include <dt-bindings/clock/nuvoton,npcm7xx-clock.h>
+    peci: bus@100000 {
+        compatible = "simple-bus";
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges = <0x0 0x100000 0x200>;
+
+        peci0: peci-bus@0 {
+            compatible = "nuvoton,npcm750-peci";
+            reg = <0x0 0x200>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+            interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+            clocks = <&clk NPCM7XX_CLK_APB3>;
+            cmd-timeout-ms = <1000>;
+            pull-down = <0>;
+            host-neg-bit-rate = <15>;
+        };
+    };
+...

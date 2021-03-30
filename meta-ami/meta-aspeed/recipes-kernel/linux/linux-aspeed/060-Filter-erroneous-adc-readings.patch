@@ -1,0 +1,38 @@
+From f7d28ed92528e8ac8dd19b5d20b4d92ea4e550b4 Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Tue, 2 Mar 2021 15:07:20 +0000
+Subject: [PATCH 61/61] Filter-erroneous-adc-readings
+
+---
+ drivers/iio/adc/aspeed_adc.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/iio/adc/aspeed_adc.c b/drivers/iio/adc/aspeed_adc.c
+index 2de147c18..9408c8e81 100644
+--- a/drivers/iio/adc/aspeed_adc.c
++++ b/drivers/iio/adc/aspeed_adc.c
+@@ -48,6 +48,7 @@
+ 
+ #define ASPEED_ADC_CHANNELS_MAX        16
+ #define ASPEED_ADC_RAW_VALUE_MAX       0x3ff
++#define ASPEED_ADC_RAW_VALUE_DELTA_THRESHOLD   80
+ 
+ struct aspeed_adc_model_data {
+ 	const char *model_name;
+@@ -125,6 +126,13 @@ static int aspeed_adc_read_raw(struct iio_dev *indio_dev,
+                         pr_err("aspeed_adc: channel %d drop invalid raw reading 0x3FF %d\n",
+                                 chan->channel, ASPEED_ADC_RAW_VALUE_MAX);
+                 } else {
++                        if (*val > (data->channel_raw_value[chan->channel] +
++                                            ASPEED_ADC_RAW_VALUE_DELTA_THRESHOLD)) {
++                                pr_err("aspeed_adc: Warning-channel %d prev=%d, curr=%d, retry.\n",
++                                                chan->channel,
++                                                data->channel_raw_value[chan->channel], *val);
++                                *val = readw(data->base + chan->address);
++                        }			
+                         data->channel_raw_value[chan->channel] = *val;
+                 }		
+ 		return IIO_VAL_INT;
+-- 
+2.17.1
+

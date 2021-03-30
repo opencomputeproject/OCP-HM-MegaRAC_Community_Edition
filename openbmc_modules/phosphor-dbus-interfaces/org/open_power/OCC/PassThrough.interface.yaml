@@ -1,0 +1,26 @@
+description: >
+    Implement to provide pass-through mechanism to the On Chip Controller (OCC).
+methods:
+    - name: Send
+      description: >
+          Pass through a command to the OCC.
+      parameters:
+        - name: command
+          # TODO via https://github.com/openbmc/openbmc/issues/1160. This should
+          # change to array[byte]. As of now, the REST server maps any numeric
+          # data to int32.
+          type: array[int32]
+          description: >
+              An array of integers representing the command and payload. This
+              should still be bytes worth of data (as though using array[byte]),
+              so each entry in the array should pack as many bytes as possible.
+      returns:
+        - name: response
+          # TODO via https://github.com/openbmc/openbmc/issues/1160. This should
+          # change to array[byte]. As of now, the REST server maps any numeric
+          # data to int32.
+          type: array[int32]
+          description: >
+              An array of integers representing the response. This
+              should still be bytes worth of data (as though using array[byte]),
+              so each entry in the array should pack as many bytes as possible.

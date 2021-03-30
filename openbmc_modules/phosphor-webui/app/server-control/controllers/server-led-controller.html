@@ -1,0 +1,44 @@
+<div id="led-switch">
+  <div class="row column">
+    <h1>Server LED</h1>
+    <div class="page-header">
+      <h2>LED light control</h2>
+    </div>
+  </div>
+  <div
+    class="column"
+    ng-class="{disabled: dataService.server_unreachable || dataService.loading}"
+  >
+    <div class="led-switch__label">
+      <h3>
+        Server LED light
+      </h3>
+      <p>
+        Turn the LED light on or off. If the server has an LCD, use this control
+        to display text (on) or not to display text (off) on the LCD.
+      </p>
+    </div>
+    <div class="toggle-container">
+      <div class="toggle">
+        <input
+          id="toggle__switch-round"
+          class="toggle-switch toggle-switch__round-flat"
+          type="checkbox"
+          tabindex="0"
+          ng-click="toggleLED()"
+          ng-checked="dataService.LED_state == 'on'"
+          ng-disabled="dataService.server_unreachable"
+        />
+        <label for="toggle__switch-round" tabindex="0"
+          >Server LED indicator is
+          <span class="toggle-switch__status">{{
+            dataService.LED_state
+          }}</span></label
+        >
+      </div>
+      <span>
+        {{ dataService.LED_state == "on" ? "On" : "Off" }}
+      </span>
+    </div>
+  </div>
+</div>

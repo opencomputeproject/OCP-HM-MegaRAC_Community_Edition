@@ -1,0 +1,2104 @@
+diff -Naur i/arch/arm/dts/nuvoton-common-npcm7xx.dtsi j/arch/arm/dts/nuvoton-common-npcm7xx.dtsi
+--- i/arch/arm/dts/nuvoton-common-npcm7xx.dtsi	1969-12-31 19:00:00.000000000 -0500
++++ j/arch/arm/dts/nuvoton-common-npcm7xx.dtsi	2020-08-27 17:51:35.851107046 -0400
+@@ -0,0 +1,456 @@
++#include <dt-bindings/clock/npcm750_poleg-clock.h>
++#include <dt-bindings/gpio/gpio.h>
++#include "nuvoton-npcm7xx-pinctrl.dtsi"
++
++/ {
++
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	clks: clock-control@f0801000 {
++		compatible = "nuvoton,npcm750-clock";
++		#clock-cells = <1>;
++		reg = <0xf0801000 0x70>;
++		u-boot,dm-pre-reloc;
++	};
++
++	usbd0: usbd0@f0830100 {
++		compatible = "nuvoton,poleg-usbd";
++		reg = <0xF0830100 0x200>;
++		status = "disabled";
++	};
++
++	serial0: serial0@f0001000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0001000 0x20>;
++		id = <0>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++
++	serial1: serial1@f0002000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0002000 0x20>;
++		id = <1>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++
++	serial2: serial2@f0003000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0003000 0x20>;
++		id = <2>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++
++	serial3: serial3@f0004000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0004000 0x20>;
++		id = <3>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++
++	timer0: timer@f0008000 {
++		compatible = "nuvoton,poleg-timer";
++		reg = <0xF0008000 0x100>;
++		clocks = <&clks CLK_TIMER>;
++	};
++
++	otp: otp@f0189000 {
++		compatible = "nuvoton,npcm750-otp";
++		reg = <0xf0189000 0x1000
++			   0xf018a000 0x1000>;
++		clocks = <&clks CLK_APB4>;
++		status = "disabled";
++	};
++
++	rng: rng@f000b000 {
++		compatible = "nuvoton,npcm750-rng";
++		reg = <0xf000b000 0x1000>;
++		clocks = <&clks CLK_APB1>;
++		status = "disabled";
++	};
++
++	fiu0: fiu0@fb000000 {
++		compatible = "nuvoton,npcm750-fiu";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xfb000000 0x1000>;
++		index = <0>;
++		spi-max-frequency = <66000000>;
++	};
++
++	fiu3: fiu3@c0000000 {
++		compatible = "nuvoton,npcm750-fiu";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xc0000000 0x1000>;
++		index = <3>;
++		spi-max-frequency = <50000000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&spi3_pins>;
++		status = "disabled";
++	};
++
++	fiux: fiux@fb001000 {
++		compatible = "nuvoton,npcm750-fiu";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xfb001000 0x1000>;
++		index = <4>;
++		spi-max-frequency = <50000000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&spix_pins>;
++		status = "disabled";
++	};
++
++	pspi1: pspi1@f0200000 {
++		compatible = "nuvoton,npcm750-pspi";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xf0200000 0x1000>;
++		index = <0>;
++		spi-max-frequency = <25000000>;
++		cs-gpios = <&gpio6 203 GPIO_ACTIVE_HIGH>;
++		clocks = <&clks CLK_APB5>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&pspi1_pins>;
++		status = "disabled";
++	};
++
++	sdhci0: sdhci0@f0840000 {
++		compatible = "nuvoton,npcmx50-sdhci-SD";
++		reg = <0xf0840000 0x2000>;
++		index = <0x0>;
++		bus-width = <0x4>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&sd1_pins>;
++		status = "disabled";
++	};
++
++	sdhci1: sdhci1@f0842000 {
++		compatible = "nuvoton,npcmx50-sdhci-eMMC";
++		reg = <0xf0842000 0x200>;
++		index = <0x1>;
++		bus-width = <0x8>;
++		clocks = <&clks CLK_EMMC>;
++		clock-frequency = <50000000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&mmc_pins
++			&mmc8_pins>;
++		status = "disabled";
++	};
++
++	aec: aes@f0858000 {
++		compatible = "nuvoton,npcm750-aes";
++		reg = <0xf0858000 0x1000>;
++		clocks = <&clks CLK_AHB>;
++		clock-names = "clk_ahb";
++		status = "disabled";
++	};
++
++	sha: sha@f085a000 {
++		compatible = "nuvoton,npcm750-sha";
++		reg = <0xf085a000 0x1000>;
++		clocks = <&clks CLK_AHB>;
++		clock-names = "clk_ahb";
++		status = "disabled";
++	};
++
++	gpio0: gpio0@f0010000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0010000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio0";
++		gpio-count = <32>;
++		gpio-port = <0>;
++	};
++
++	gpio1: gpio1@f0011000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0011000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio1";
++		gpio-count = <32>;
++		gpio-port = <1>;
++	};
++
++	gpio2: gpio2@f0012000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0012000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio2";
++		gpio-count = <32>;
++		gpio-port = <2>;
++	};
++
++	gpio3: gpio3@f0013000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0013000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio3";
++		gpio-count = <32>;
++		gpio-port = <3>;
++	};
++
++	gpio4: gpio4@f0014000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0014000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio4";
++		gpio-count = <32>;
++		gpio-port = <4>;
++	};
++
++	gpio5: gpio5@f0015000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0015000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio5";
++		gpio-count = <32>;
++		gpio-port = <5>;
++	};
++
++	gpio6: gpio6@f0016000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0016000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio6";
++		gpio-count = <32>;
++		gpio-port = <6>;
++	};
++
++	gpio7: gpio7@f0017000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0017000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio7";
++		gpio-count = <32>;
++		gpio-port = <7>;
++	};
++
++	gmac0: gmac0@f0802000 {
++		compatible = "nuvoton,npcm750-dwmac";
++		reg = <0xF0802000 0x2000>;
++		phy-mode = "rgmii";
++		pinctrl-names = "default";
++		pinctrl-0 = <&rg1_pins
++			&rg1mdio_pins>;
++		status = "disabled";
++	};
++
++	gmac1: gmac1@f0804000 {
++		compatible = "nuvoton,npcm750-dwmac";
++		reg = <0xF0804000 0x2000>;
++		phy-mode = "rgmii";
++		pinctrl-names = "default";
++		pinctrl-0 = <&rg2_pins
++			&rg2mdio_pins>;
++		status = "disabled";
++	};
++
++	emc0: emc0@f0825000 {
++		compatible = "nuvoton,npcm750-emc";
++		reg = <0xF0825000 0x1000>;
++		phy-mode = "rmii";
++		id = <0>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&r1_pins
++			&r1err_pins
++			&r1md_pins>;
++		status = "disabled";
++	};
++
++	emc1: emc1@f0826000 {
++		compatible = "nuvoton,npcm750-emc";
++		reg = <0xF0826000 0x1000>;
++		phy-mode = "rmii";
++		id = <1>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&r2_pins
++			&r2err_pins
++			&r2md_pins>;
++		status = "disabled";
++	};
++
++	ehci: ehci {
++		compatible = "nuvoton,poleg-ehci";
++		reg = <0xF0806100 0x100>;
++		status = "disabled";
++	};
++
++	i2c0: i2c-bus@f0080000 {
++		reg = <0xf0080000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb0_pins>;
++		status = "disabled";
++	};
++
++	i2c1: i2c-bus@f0081000 {
++		reg = <0xf0081000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb1_pins>;
++		status = "disabled";
++	};
++
++	i2c2: i2c-bus@f0082000 {
++		reg = <0xf0082000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb2_pins>;
++		status = "disabled";
++	};
++
++	i2c3: i2c-bus@f0083000 {
++		reg = <0xf0083000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb3_pins>;
++		status = "disabled";
++	};
++
++	i2c4: i2c-bus@f0084000 {
++		reg = <0xf0084000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb4_pins>;
++		status = "disabled";
++	};
++
++	i2c5: i2c-bus@f0085000 {
++		reg = <0xf0085000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb5_pins>;
++		status = "disabled";
++	};
++
++	i2c6: i2c-bus@f0086000 {
++		reg = <0xf0086000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb6_pins>;
++		status = "disabled";
++	};
++
++	i2c7: i2c-bus@f0087000 {
++		reg = <0xf0087000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb7_pins>;
++		status = "disabled";
++	};
++
++	i2c8: i2c-bus@f0088000 {
++		reg = <0xf0088000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb8_pins>;
++		status = "disabled";
++	};
++
++	i2c9: i2c-bus@f0089000 {
++		reg = <0xf0089000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb9_pins>;
++		status = "disabled";
++	};
++
++	i2c10: i2c-bus@f008a000 {
++		reg = <0xf008a000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb10_pins>;
++		status = "disabled";
++	};
++
++	i2c11: i2c-bus@f008b000 {
++		reg = <0xf008b000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb11_pins>;
++		status = "disabled";
++	};
++
++	i2c12: i2c-bus@f008c000 {
++		reg = <0xf008c000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb12_pins>;
++		status = "disabled";
++	};
++
++	i2c13: i2c-bus@f008d000 {
++		reg = <0xf008d000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb13_pins>;
++		status = "disabled";
++	};
++
++	i2c14: i2c-bus@f008e000 {
++		reg = <0xf008e000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb14_pins>;
++		status = "disabled";
++	};
++
++	i2c15: i2c-bus@f008f000 {
++		reg = <0xf008f000 0x1000>;
++		compatible = "nuvoton,npcm750-i2c-bus";
++		clocks = <&clks CLK_APB2>;
++		clock-frequency = <100000>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb15_pins>;
++		status = "disabled";
++	};
++
++	pinctrl: pinctrl@f0800000 {
++		compatible = "nuvoton,npcm7xx-pinctrl";
++	};
++
++};
+diff -Naur i/arch/arm/dts/nuvoton-npcm750-evb.dts j/arch/arm/dts/nuvoton-npcm750-evb.dts
+--- i/arch/arm/dts/nuvoton-npcm750-evb.dts	1969-12-31 19:00:00.000000000 -0500
++++ j/arch/arm/dts/nuvoton-npcm750-evb.dts	2020-09-01 15:54:15.033348378 -0400
+@@ -0,0 +1,194 @@
++/dts-v1/;
++#include "nuvoton-common-npcm7xx.dtsi"
++
++/ {
++	model = "Nuvoton npcm750 Development Board";
++	compatible = "nuvoton,poleg", "nuvoton,npcm750";
++
++	chosen {
++		stdout-path = &serial0;
++		tick-timer = &timer0;
++	};
++
++	aliases {
++		serial0 = &serial0;
++		serial1 = &serial1;
++		serial2 = &serial2;
++		serial3 = &serial3;
++		i2c0 = &i2c0;
++		i2c1 = &i2c1;
++		i2c2 = &i2c2;
++		i2c3 = &i2c3;
++		i2c4 = &i2c4;
++		i2c5 = &i2c5;
++		i2c6 = &i2c6;
++		i2c7 = &i2c7;
++		i2c8 = &i2c8;
++		i2c9 = &i2c9;
++		i2c10 = &i2c10;
++		i2c11 = &i2c11;
++		i2c12 = &i2c12;
++		i2c13 = &i2c13;
++		i2c14 = &i2c14;
++		i2c15 = &i2c15;
++		spi0 = &fiu0;
++		spi3 = &fiu3;
++		spi4 = &pspi1;
++		mmc0 = &sdhci0;
++		mmc1 = &sdhci1;
++		gpio0 = &gpio0;
++		gpio1 = &gpio1;
++		gpio2 = &gpio2;
++		gpio3 = &gpio3;
++		gpio4 = &gpio4;
++		gpio5 = &gpio5;
++		gpio6 = &gpio6;
++		gpio7 = &gpio7;
++		usb0 = &usbd0;
++		eth0 = &emc0;
++		eth1 = &emc1;
++		eth2 = &gmac0;
++		eth3 = &gmac1;
++	};
++
++	fiu0: fiu0@fb000000 {
++		pinctrl-names = "default";
++		pinctrl-0 = <&spi0cs1_pins>;
++		status = "okay";
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0x80000000 0x4000000>;
++		};
++		spi_flash@1 {
++			compatible = "spi-flash";
++			reg = <1>;
++			memory-map = <0x88000000 0x2000000>;
++		};
++	};
++
++	fiu3: fiu3@c0000000 {
++		status = "okay";
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0xA0000000 0x2000000>;
++		};
++	};
++
++	pspi1: pspi1@f0200000 {
++		status = "okay";
++	};
++
++	usbd0: usbd0@f0830100 {
++		status = "okay";
++	};
++
++	pspi1: pspi1@f0200000 {
++		status = "okay";
++	};
++
++	sdhci1: sdhci1@f0842000 {
++		status = "okay";
++	};
++
++	otp: otp@f0189000 {
++		status = "okay";
++	};
++
++	rng: rng@f000b000 {
++		status = "okay";
++	};
++
++	aes: aes@f0858000 {
++		status = "okay";
++	};
++
++	sha: sha@f085a000 {
++		status = "okay";
++	};
++
++	gmac0: gmac0@f0802000 {
++		status = "okay";
++	};
++
++	gmac1: gmac1@f0804000 {
++		status = "okay";
++	};
++
++	emc0: emc0@f0825000 {
++		status = "okay";
++	};
++
++	emc1: emc1@f0826000 {
++		status = "okay";
++	};
++
++	ehci: ehci {
++		status = "okay";
++	};
++
++	i2c0: i2c-bus@f0080000 {
++		status = "okay";
++	};
++
++	i2c1: i2c-bus@f0081000 {
++		status = "okay";
++	};
++
++	i2c2: i2c-bus@f0082000 {
++		status = "okay";
++	};
++
++	i2c3: i2c-bus@f0083000 {
++		status = "okay";
++	};
++
++	i2c4: i2c-bus@f0084000 {
++		status = "okay";
++	};
++
++	i2c5: i2c-bus@f0085000 {
++		status = "okay";
++	};
++
++	i2c6: i2c-bus@f0086000 {
++		status = "okay";
++	};
++
++	i2c7: i2c-bus@f0087000 {
++		status = "okay";
++	};
++
++	i2c8: i2c-bus@f0088000 {
++		status = "okay";
++	};
++
++	i2c9: i2c-bus@f0089000 {
++		status = "okay";
++	};
++
++	i2c10: i2c-bus@f008a000 {
++		status = "okay";
++	};
++
++	i2c11: i2c-bus@f008b000 {
++		status = "okay";
++	};
++
++	i2c12: i2c-bus@f008c000 {
++		status = "okay";
++	};
++
++	i2c13: i2c-bus@f008d000 {
++		status = "okay";
++	};
++
++	i2c14: i2c-bus@f008e000 {
++		status = "okay";
++	};
++
++	i2c15: i2c-bus@f008f000 {
++		status = "okay";
++	};
++};
+diff -Naur i/arch/arm/dts/nuvoton-npcm750-olympus.dts j/arch/arm/dts/nuvoton-npcm750-olympus.dts
+--- i/arch/arm/dts/nuvoton-npcm750-olympus.dts	1969-12-31 19:00:00.000000000 -0500
++++ j/arch/arm/dts/nuvoton-npcm750-olympus.dts	2020-08-27 17:50:46.918511830 -0400
+@@ -0,0 +1,296 @@
++/dts-v1/;
++#include "nuvoton-common-npcm7xx.dtsi"
++#include "nuvoton-npcm750-olympus-pincfg.dtsi"
++
++/ {
++	model = "Nuvoton RunBMC Olympus";
++	compatible = "npcm750,runbmc", "quanta,olympus";
++
++	chosen {
++		stdout-path = &serial0;
++		tick-timer = &timer0;
++	};
++
++	aliases {
++		serial0 = &serial0;
++		serial1 = &serial1;
++		serial2 = &serial2;
++		serial3 = &serial3;
++		i2c0 = &i2c0;
++		i2c1 = &i2c1;
++		i2c2 = &i2c2;
++		i2c3 = &i2c3;
++		i2c4 = &i2c4;
++		i2c5 = &i2c5;
++		i2c6 = &i2c6;
++		i2c7 = &i2c7;
++		i2c8 = &i2c8;
++		i2c9 = &i2c9;
++		i2c10 = &i2c10;
++		i2c11 = &i2c11;
++		i2c12 = &i2c12;
++		i2c13 = &i2c13;
++		i2c14 = &i2c14;
++		i2c15 = &i2c15;
++		spi0 = &fiu0;
++		spi3 = &fiu3;
++		spi4 = &pspi1;
++		mmc1 = &sdhci1;
++		gpio0 = &gpio0;
++		gpio1 = &gpio1;
++		gpio2 = &gpio2;
++		gpio3 = &gpio3;
++		gpio4 = &gpio4;
++		gpio5 = &gpio5;
++		gpio6 = &gpio6;
++		gpio7 = &gpio7;
++		usb0 = &usbd0;
++		eth0 = &emc0;
++		eth1 = &gmac0;
++	};
++
++	fiu0: fiu0@fb000000 {
++		status = "okay";
++		pinctrl-names = "default";
++		pinctrl-0 = <&spi0cs1_pins>;
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0x80000000 0x4000000>;
++		};
++		spi_flash@1 {
++			compatible = "spi-flash";
++			reg = <1>;
++			memory-map = <0x88000000 0x4000000>;
++		};
++	};
++
++	fiu3: fiu3@c0000000 {
++		status = "okay";
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0xA0000000 0x4000000>;
++		};
++	};
++
++	usbd0: usbd0@f0830100 {
++		status = "okay";
++	};
++
++	pspi1: pspi1@f0200000 {
++		status = "okay";
++	};
++
++	sdhci1: sdhci1@f0842000 {
++		status = "okay";
++	};
++
++	otp: otp@f0189000 {
++		status = "okay";
++	};
++
++	rng: rng@f000b000 {
++		status = "okay";
++	};
++
++	aes: aes@f0858000 {
++		status = "okay";
++	};
++
++	sha: sha@f085a000 {
++		status = "okay";
++	};
++
++	gmac0: gmac0@f0802000 {
++		status = "okay";
++	};
++
++	emc0: emc0@f0825000 {
++		status = "okay";
++		pinctrl-names = "default";
++		pinctrl-0 = <&r1_pins
++			&r1err_pins>;
++		fixed-link {
++			speed = <100>;
++			full-dulpex;
++		};
++	};
++
++	i2c0: i2c-bus@f0080000 {
++		status = "okay";
++	};
++
++	i2c1: i2c-bus@f0081000 {
++		status = "okay";
++	};
++
++	i2c2: i2c-bus@f0082000 {
++		status = "okay";
++	};
++
++	i2c3: i2c-bus@f0083000 {
++		status = "okay";
++	};
++
++	i2c4: i2c-bus@f0084000 {
++		status = "okay";
++	};
++
++	i2c5: i2c-bus@f0085000 {
++		status = "okay";
++	};
++
++	i2c6: i2c-bus@f0086000 {
++		status = "okay";
++	};
++
++	i2c7: i2c-bus@f0087000 {
++		status = "okay";
++	};
++
++	i2c8: i2c-bus@f0088000 {
++		status = "okay";
++	};
++
++	i2c9: i2c-bus@f0089000 {
++		status = "okay";
++	};
++
++	i2c10: i2c-bus@f008a000 {
++		status = "okay";
++	};
++
++	i2c11: i2c-bus@f008b000 {
++		status = "okay";
++	};
++
++	i2c12: i2c-bus@f008c000 {
++		status = "okay";
++	};
++
++	i2c13: i2c-bus@f008d000 {
++		status = "okay";
++	};
++
++	i2c14: i2c-bus@f008e000 {
++		status = "okay";
++	};
++
++	i2c15: i2c-bus@f008f000 {
++		status = "okay";
++	};
++
++	pinctrl: pinctrl@f0800000 {
++		pinctrl-names = "default";
++		pinctrl-0 = <
++				&uart1_pins
++				&gpio0ol_pins
++				&gpio1ol_pins
++				&gpio2ol_pins
++				&gpio3ol_pins
++				&gpio8o_pins
++				&gpio9ol_pins
++				&gpio12ol_pins
++				&gpio13ol_pins
++				&gpio14ol_pins
++				&gpio15ol_pins
++				&gpio37o_pins
++				&gpio38_pins
++				&gpio39_pins
++				&gpio94ol_pins
++				&gpio108ol_pins
++				&gpio109ol_pins
++				&gpio111ol_pins
++				&gpio112ol_pins
++				&gpio113ol_pins
++				&gpio208_pins
++				&gpio209ol_pins
++				&gpio210ol_pins
++				&gpio211ol_pins
++				&gpio212ol_pins
++				&gpio213ol_pins
++				&gpio214ol_pins
++				&gpio215ol_pins
++				&gpio216ol_pins
++				&gpio217ol_pins
++				/******* RunBMC outside Connector pins *******/
++				&gpio5_pins
++				&gpio6_pins
++				&gpio7_pins
++				&gpio10_pins
++				&gpio11_pins
++				&gpio20_pins
++				&gpio21_pins
++				&gpio22o_pins
++				&gpio23_pins
++				&gpio24_pins
++				&gpio25_pins
++				&gpio30_pins
++				&gpio31_pins
++				&gpio40o_pins
++				&gpio59_pins
++				&gpio76_pins
++				&gpio77_pins
++				&gpio78o_pins
++				&gpio79_pins
++				&gpio82_pins
++				&gpio83_pins
++				&gpio84_pins
++				&gpio85o_pins
++				&gpio86ol_pins
++				&gpio87_pins
++				&gpio88_pins
++				&gpio89_pins
++				&gpio90_pins
++				&gpio93_pins
++				&gpio114o_pins
++				&gpio115_pins
++				&gpio120_pins
++				&gpio121_pins
++				&gpio122_pins
++				&gpio123_pins
++				&gpio124_pins
++				&gpio125_pins
++				&gpio126_pins
++				&gpio127o_pins
++				&gpio136_pins
++				&gpio137_pins
++				&gpio138_pins
++				&gpio139_pins
++				&gpio140_pins
++				&gpio141_pins
++				&gpio142_pins
++				&gpio143_pins
++				&gpio144_pins
++				&gpio146_pins
++				&gpio145_pins
++				&gpio147_pins
++				&gpio153o_pins
++				&gpio155_pins
++				&gpio160o_pins
++				&gpio168_pins
++				&gpio169o_pins
++				&gpio188o_pins
++				&gpio189_pins
++				&gpio192o_pins
++				&gpio196_pins
++				&gpio197_pins
++				&gpio198o_pins
++				&gpio199o_pins
++				&gpio200_pins
++				&gpio202_pins
++				&gpio203o_pins
++				&gpio224_pins
++				&gpio225ol_pins
++				&gpio226ol_pins
++				&gpio227ol_pins
++				&gpio228o_pins
++				&gpio229o_pins
++				&gpio230_pins
++				&gpio231o_pins
++				&ddc_pins
++				&wdog1_pins
++				&wdog2_pins>;
++	};
++};
+diff -Naur i/arch/arm/dts/nuvoton-npcm750-olympus-pincfg.dtsi j/arch/arm/dts/nuvoton-npcm750-olympus-pincfg.dtsi
+--- i/arch/arm/dts/nuvoton-npcm750-olympus-pincfg.dtsi	1969-12-31 19:00:00.000000000 -0500
++++ j/arch/arm/dts/nuvoton-npcm750-olympus-pincfg.dtsi	2020-08-27 17:50:46.918511830 -0400
+@@ -0,0 +1,631 @@
++// SPDX-License-Identifier: GPL-2.0
++// Copyright (c) 2019 Quanta Computer Inc. Samuel.Jiang@quantatw.com
++
++/ {
++	pinctrl: pinctrl@f0800000 {
++		gpio0ol_pins: gpio0ol-pins {
++			pins = "GPIO0/IOX1DI";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio1ol_pins: gpio1ol-pins {
++			pins = "GPIO1/IOX1LD";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio2ol_pins: gpio2ol-pins {
++			pins = "GPIO2/IOX1CK";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio3ol_pins: gpio3ol-pins {
++			pins = "GPIO3/IOX1D0";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio5_pins: gpio5-pins {
++			pins = "GPIO5/IOX2LD/SMB1DSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio6_pins: gpio6-pins {
++			pins = "GPIO6/IOX2CK/SMB2DSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio7_pins: gpio7-pins {
++			pins = "GPIO7/IOX2D0/SMB2DSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio8o_pins: gpio8o-pins {
++			pins = "GPIO8/LKGPO1";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio9ol_pins: gpio9ol-pins {
++			pins = "GPIO9/LKGPO2";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio10_pins: gpio10-pins {
++			pins = "GPIO10/IOXHLD";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio11_pins: gpio11-pins {
++			pins = "GPIO11/IOXHCK";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio12ol_pins: gpio12ol-pins {
++			pins = "GPIO12/GSPICK/SMB5BSCL";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio13ol_pins: gpio13ol-pins {
++			pins = "GPIO13/GSPIDO/SMB5BSDA";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio14ol_pins: gpio14ol-pins {
++			pins = "GPIO14/GSPIDI/SMB5CSCL";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio15ol_pins: gpio15ol-pins {
++			pins = "GPIO15/GSPICS/SMB5CSDA";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio20_pins: gpio20-pins {
++			pins = "GPIO20/SMB4CSDA/SMB15SDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio21_pins: gpio21-pins {
++			pins = "GPIO21/SMB4CSCL/SMB15SCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio22o_pins: gpio22o-pins {
++			pins = "GPIO22/SMB4DSDA/SMB14SDA";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio23_pins: gpio23-pins {
++			pins = "GPIO23/SMB4DSCL/SMB14SCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio24_pins: gpio24-pins {
++			pins = "GPIO24/IOXHDO";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio25_pins: gpio25-pins {
++			pins = "GPIO25/IOXHDI";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio30_pins: gpio30-pins {
++			pins = "GPIO30/SMB3SDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio31_pins: gpio31-pins {
++			pins = "GPIO31/SMB3SCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio37o_pins: gpio37o-pins {
++			pins = "GPIO37/SMB3CSDA";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio38_pins: gpio38-pins {
++			pins = "GPIO38/SMB3CSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio39_pins: gpio39-pins {
++			pins = "GPIO39/SMB3BSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio40o_pins: gpio40o-pins {
++			pins = "GPIO40/SMB3BSCL";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio59_pins: gpio59-pins {
++			pins = "GPIO59/SMB3DSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio76_pins: gpio76-pins {
++			pins = "GPIO76/FANIN12";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio77_pins: gpio77-pins {
++			pins = "GPIO77/FANIN13";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio78o_pins: gpio78o-pins {
++			pins = "GPIO78/FANIN14";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio79_pins: gpio79-pins {
++			pins = "GPIO79/FANIN15";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio82_pins: gpio82-pins {
++			pins = "GPIO82/PWM2";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio83_pins: gpio83-pins {
++			pins = "GPIO83/PWM3";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio84_pins: gpio84-pins {
++			pins = "GPIO84/R2TXD0";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio85o_pins: gpio85o-pins {
++			pins = "GPIO85/R2TXD1";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio86ol_pins: gpio86ol-pins {
++			pins = "GPIO86/R2TXEN";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio87_pins: gpio87-pins {
++			pins = "GPIO87/R2RXD0";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio88_pins: gpio88-pins {
++			pins = "GPIO88/R2RXD1";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio89_pins: gpio89-pins {
++			pins = "GPIO89/R2CRSDV";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio90_pins: gpio90-pins {
++			pins = "GPIO90/R2RXERR";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio93_pins: gpio93-pins {
++			pins = "GPIO93/GA20/SMB5DSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio94ol_pins: gpio94ol-pins {
++			pins = "GPIO94/nKBRST/SMB5DSDA";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio108ol_pins: gpio108ol-pins {
++			pins = "GPIO108/RG1MDC";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio109ol_pins: gpio109ol-pins {
++			pins = "GPIO109/RG1MDIO";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio110ol_pins: gpio110ol-pins {
++			pins = "GPIO110/RG2TXD0/DDRV0";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio111ol_pins: gpio111ol-pins {
++			pins = "GPIO111/RG2TXD1/DDRV1";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio112ol_pins: gpio112ol-pins {
++			pins = "GPIO112/RG2TXD2/DDRV2";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio113ol_pins: gpio113ol-pins {
++			pins = "GPIO113/RG2TXD3/DDRV3";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio114o_pins: gpio114o-pins {
++			pins = "GPIO114/SMB0SCL";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio115_pins: gpio115-pins {
++			pins = "GPIO115/SMB0SDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio120_pins: gpio120-pins {
++			pins = "GPIO120/SMB2CSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio121_pins: gpio121-pins {
++			pins = "GPIO121/SMB2CSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio122_pins: gpio122-pins {
++			pins = "GPIO122/SMB2BSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio123_pins: gpio123-pins {
++			pins = "GPIO123/SMB2BSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio124_pins: gpio124-pins {
++			pins = "GPIO124/SMB1CSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio125_pins: gpio125-pins {
++			pins = "GPIO125/SMB1CSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio126_pins: gpio126-pins {
++			pins = "GPIO126/SMB1BSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio127o_pins: gpio127o-pins {
++			pins = "GPIO127/SMB1BSCL";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio136_pins: gpio136-pins {
++			pins = "GPIO136/SD1DT0";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio137_pins: gpio137-pins {
++			pins = "GPIO137/SD1DT1";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio138_pins: gpio138-pins {
++			pins = "GPIO138/SD1DT2";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio139_pins: gpio139-pins {
++			pins = "GPIO139/SD1DT3";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio140_pins: gpio140-pins {
++			pins = "GPIO140/SD1CLK";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio141_pins: gpio141-pins {
++			pins = "GPIO141/SD1WP";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio142_pins: gpio142-pins {
++			pins = "GPIO142/SD1CMD";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio143_pins: gpio143-pins {
++			pins = "GPIO143/SD1CD/SD1PWR";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio144_pins: gpio144-pins {
++			pins = "GPIO144/PWM4";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio145_pins: gpio145-pins {
++			pins = "GPIO145/PWM5";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio146_pins: gpio146-pins {
++			pins = "GPIO146/PWM6";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio147_pins: gpio147-pins {
++			pins = "GPIO147/PWM7";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio153o_pins: gpio153o-pins {
++			pins = "GPIO153/MMCWP";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio155_pins: gpio155-pins {
++			pins = "GPIO155/nMMCCD/nMMCRST";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio160o_pins: gpio160o-pins {
++			pins = "GPIO160/CLKOUT/RNGOSCOUT";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio168_pins: gpio168-pins {
++			pins = "GPIO168/nCLKRUN/nESPIALERT";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio169o_pins: gpio169o-pins {
++			pins = "GPIO169/nSCIPME";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio188o_pins: gpio188o-pins {
++			pins = "GPIO188/SPI3D2/nSPI3CS2";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio189_pins: gpio189-pins {
++			pins = "GPIO189/SPI3D3/nSPI3CS3";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio192o_pins: gpio192o-pins {
++			pins = "GPIO192";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio196_pins: gpio196-pins {
++			pins = "GPIO196/SMB0CSCL";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio197_pins: gpio197-pins {
++			pins = "GPIO197/SMB0DEN";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio198o_pins: gpio198o-pins {
++			pins = "GPIO198/SMB0DSDA";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio199o_pins: gpio199o-pins {
++			pins = "GPIO199/SMB0DSCL";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio200_pins: gpio200-pins {
++			pins = "GPIO200/R2CK";
++			input-enable;
++			bias-disable;
++			persist-enable;
++		};
++		gpio202_pins: gpio202-pins {
++			pins = "GPIO202/SMB0CSDA";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio203o_pins: gpio203o-pins {
++			pins = "GPIO203/FANIN16";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio208_pins: gpio208-pins {
++			pins = "GPIO208/RG2TXC/DVCK";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio209ol_pins: gpio209ol-pins {
++			pins = "GPIO209/RG2TXCTL/DDRV4";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio210ol_pins: gpio210ol-pins {
++			pins = "GPIO210/RG2RXD0/DDRV5";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio211ol_pins: gpio211ol-pins {
++			pins = "GPIO211/RG2RXD1/DDRV6";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio212ol_pins: gpio212ol-pins {
++			pins = "GPIO212/RG2RXD2/DDRV7";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio213ol_pins: gpio213ol-pins {
++			pins = "GPIO213/RG2RXD3/DDRV8";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio214ol_pins: gpio214ol-pins {
++			pins = "GPIO214/RG2RXC/DDRV9";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio215ol_pins: gpio215ol-pins {
++			pins = "GPIO215/RG2RXCTL/DDRV10";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio216ol_pins: gpio216ol-pins {
++			pins = "GPIO216/RG2MDC/DDRV11";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio217ol_pins: gpio217ol-pins {
++			pins = "GPIO217/RG2MDIO/DVHSYNC";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio224_pins: gpio224-pins {
++			pins = "GPIO224/SPIXCK";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio225ol_pins: gpio225ol-pins {
++			pins = "GPO225/SPIXD0/STRAP12";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio226ol_pins: gpio226ol-pins {
++			pins = "GPO226/SPIXD1/STRAP13";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio227ol_pins: gpio227ol-pins {
++			pins = "GPIO227/nSPIXCS0";
++			bias-disable;
++			output-low;
++			persist-enable;
++		};
++		gpio228o_pins: gpio228ol-pins {
++			pins = "GPIO228/nSPIXCS1";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio229o_pins: gpio229o-pins {
++			pins = "GPO229/SPIXD2/STRAP3";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++		gpio230_pins: gpio230-pins {
++			pins = "GPIO230/SPIXD3";
++			bias-disable;
++			input-enable;
++			persist-enable;
++		};
++		gpio231o_pins: gpio231o-pins {
++			pins = "GPIO231/nCLKREQ";
++			bias-disable;
++			output-high;
++			persist-enable;
++		};
++	};
++};
+diff -Naur i/arch/arm/dts/nuvoton-npcm7xx-pinctrl.dtsi j/arch/arm/dts/nuvoton-npcm7xx-pinctrl.dtsi
+--- i/arch/arm/dts/nuvoton-npcm7xx-pinctrl.dtsi	1969-12-31 19:00:00.000000000 -0500
++++ j/arch/arm/dts/nuvoton-npcm7xx-pinctrl.dtsi	2020-08-27 17:52:35.399834193 -0400
+@@ -0,0 +1,507 @@
++// SPDX-License-Identifier: GPL-2.0
++// Copyright (c) 2020 Nuvoton Technology Crop.
++
++/ {
++	pinctrl: pinctrl@f0800000 {
++		iox1_pins: iox1-pins {
++			groups = "iox1";
++			function = "iox1";
++		};
++		iox2_pins: iox2-pins {
++			groups = "iox2";
++			function = "iox2";
++		};
++		smb1d_pins: smb1d-pins {
++			groups = "smb1d";
++			function = "smb1d";
++		};
++		smb2d_pins: smb2d-pins {
++			groups = "smb2d";
++			function = "smb2d";
++		};
++		lkgpo1_pins: lkgpo1-pins {
++			groups = "lkgpo1";
++			function = "lkgpo1";
++		};
++		lkgpo2_pins: lkgpo2-pins {
++			groups = "lkgpo2";
++			function = "lkgpo2";
++		};
++		ioxh_pins: ioxh-pins {
++			groups = "ioxh";
++			function = "ioxh";
++		};
++		gspi_pins: gspi-pins {
++			groups = "gspi";
++			function = "gspi";
++		};
++		smb5b_pins: smb5b-pins {
++			groups = "smb5b";
++			function = "smb5b";
++		};
++		smb5c_pins: smb5c-pins {
++			groups = "smb5c";
++			function = "smb5c";
++		};
++		lkgpo0_pins: lkgpo0-pins {
++			groups = "lkgpo0";
++			function = "lkgpo0";
++		};
++		pspi2_pins: pspi2-pins {
++			groups = "pspi2";
++			function = "pspi2";
++		};
++		smb4den_pins: smb4den-pins {
++			groups = "smb4den";
++			function = "smb4den";
++		};
++		smb4b_pins: smb4b-pins {
++			groups = "smb4b";
++			function = "smb4b";
++		};
++		smb4c_pins: smb4c-pins {
++			groups = "smb4c";
++			function = "smb4c";
++		};
++		smb15_pins: smb15-pins {
++			groups = "smb15";
++			function = "smb15";
++		};
++		smb4d_pins: smb4d-pins {
++			groups = "smb4d";
++			function = "smb4d";
++		};
++		smb14_pins: smb14-pins {
++			groups = "smb14";
++			function = "smb14";
++		};
++		smb5_pins: smb5-pins {
++			groups = "smb5";
++			function = "smb5";
++		};
++		smb4_pins: smb4-pins {
++			groups = "smb4";
++			function = "smb4";
++		};
++		smb3_pins: smb3-pins {
++			groups = "smb3";
++			function = "smb3";
++		};
++		spi0cs1_pins: spi0cs1-pins {
++			groups = "spi0cs1";
++			function = "spi0cs1";
++		};
++		spi0cs2_pins: spi0cs2-pins {
++			groups = "spi0cs2";
++			function = "spi0cs2";
++		};
++		spi0cs3_pins: spi0cs3-pins {
++			groups = "spi0cs3";
++			function = "spi0cs3";
++		};
++		smb3c_pins: smb3c-pins {
++			groups = "smb3c";
++			function = "smb3c";
++		};
++		smb3b_pins: smb3b-pins {
++			groups = "smb3b";
++			function = "smb3b";
++		};
++		bmcuart0a_pins: bmcuart0a-pins {
++			groups = "bmcuart0a";
++			function = "bmcuart0a";
++		};
++		uart1_pins: uart1-pins {
++			groups = "uart1";
++			function = "uart1";
++		};
++		jtag2_pins: jtag2-pins {
++			groups = "jtag2";
++			function = "jtag2";
++		};
++		bmcuart1_pins: bmcuart1-pins {
++			groups = "bmcuart1";
++			function = "bmcuart1";
++		};
++		uart2_pins: uart2-pins {
++			groups = "uart2";
++			function = "uart2";
++		};
++		bmcuart0b_pins: bmcuart0b-pins {
++			groups = "bmcuart0b";
++			function = "bmcuart0b";
++		};
++		r1err_pins: r1err-pins {
++			groups = "r1err";
++			function = "r1err";
++		};
++		r1md_pins: r1md-pins {
++			groups = "r1md";
++			function = "r1md";
++		};
++		smb3d_pins: smb3d-pins {
++			groups = "smb3d";
++			function = "smb3d";
++		};
++		fanin0_pins: fanin0-pins {
++			groups = "fanin0";
++			function = "fanin0";
++		};
++		fanin1_pins: fanin1-pins {
++			groups = "fanin1";
++			function = "fanin1";
++		};
++		fanin2_pins: fanin2-pins {
++			groups = "fanin2";
++			function = "fanin2";
++		};
++		fanin3_pins: fanin3-pins {
++			groups = "fanin3";
++			function = "fanin3";
++		};
++		fanin4_pins: fanin4-pins {
++			groups = "fanin4";
++			function = "fanin4";
++		};
++		fanin5_pins: fanin5-pins {
++			groups = "fanin5";
++			function = "fanin5";
++		};
++		fanin6_pins: fanin6-pins {
++			groups = "fanin6";
++			function = "fanin6";
++		};
++		fanin7_pins: fanin7-pins {
++			groups = "fanin7";
++			function = "fanin7";
++		};
++		fanin8_pins: fanin8-pins {
++			groups = "fanin8";
++			function = "fanin8";
++		};
++		fanin9_pins: fanin9-pins {
++			groups = "fanin9";
++			function = "fanin9";
++		};
++		fanin10_pins: fanin10-pins {
++			groups = "fanin10";
++			function = "fanin10";
++		};
++		fanin11_pins: fanin11-pins {
++			groups = "fanin11";
++			function = "fanin11";
++		};
++		fanin12_pins: fanin12-pins {
++			groups = "fanin12";
++			function = "fanin12";
++		};
++		fanin13_pins: fanin13-pins {
++			groups = "fanin13";
++			function = "fanin13";
++		};
++		fanin14_pins: fanin14-pins {
++			groups = "fanin14";
++			function = "fanin14";
++		};
++		fanin15_pins: fanin15-pins {
++			groups = "fanin15";
++			function = "fanin15";
++		};
++		pwm0_pins: pwm0-pins {
++			groups = "pwm0";
++			function = "pwm0";
++		};
++		pwm1_pins: pwm1-pins {
++			groups = "pwm1";
++			function = "pwm1";
++		};
++		pwm2_pins: pwm2-pins {
++			groups = "pwm2";
++			function = "pwm2";
++		};
++		pwm3_pins: pwm3-pins {
++			groups = "pwm3";
++			function = "pwm3";
++		};
++		r2_pins: r2-pins {
++			groups = "r2";
++			function = "r2";
++		};
++		r2err_pins: r2err-pins {
++			groups = "r2err";
++			function = "r2err";
++		};
++		r2md_pins: r2md-pins {
++			groups = "r2md";
++			function = "r2md";
++		};
++		ga20kbc_pins: ga20kbc-pins {
++			groups = "ga20kbc";
++			function = "ga20kbc";
++		};
++		smb5d_pins: smb5d-pins {
++			groups = "smb5d";
++			function = "smb5d";
++		};
++		lpc_pins: lpc-pins {
++			groups = "lpc";
++			function = "lpc";
++		};
++		espi_pins: espi-pins {
++			groups = "espi";
++			function = "espi";
++		};
++		rg1_pins: rg1-pins {
++			groups = "rg1";
++			function = "rg1";
++		};
++		rg1mdio_pins: rg1mdio-pins {
++			groups = "rg1mdio";
++			function = "rg1mdio";
++		};
++		rg2_pins: rg2-pins {
++			groups = "rg2";
++			function = "rg2";
++		};
++		ddr_pins: ddr-pins {
++			groups = "ddr";
++			function = "ddr";
++		};
++		smb0_pins: smb0-pins {
++			groups = "smb0";
++			function = "smb0";
++		};
++		smb1_pins: smb1-pins {
++			groups = "smb1";
++			function = "smb1";
++		};
++		smb2_pins: smb2-pins {
++			groups = "smb2";
++			function = "smb2";
++		};
++		smb2c_pins: smb2c-pins {
++			groups = "smb2c";
++			function = "smb2c";
++		};
++		smb2b_pins: smb2b-pins {
++			groups = "smb2b";
++			function = "smb2b";
++		};
++		smb1c_pins: smb1c-pins {
++			groups = "smb1c";
++			function = "smb1c";
++		};
++		smb1b_pins: smb1b-pins {
++			groups = "smb1b";
++			function = "smb1b";
++		};
++		smb8_pins: smb8-pins {
++			groups = "smb8";
++			function = "smb8";
++		};
++		smb9_pins: smb9-pins {
++			groups = "smb9";
++			function = "smb9";
++		};
++		smb10_pins: smb10-pins {
++			groups = "smb10";
++			function = "smb10";
++		};
++		smb11_pins: smb11-pins {
++			groups = "smb11";
++			function = "smb11";
++		};
++		sd1_pins: sd1-pins {
++			groups = "sd1";
++			function = "sd1";
++		};
++		sd1pwr_pins: sd1pwr-pins {
++			groups = "sd1pwr";
++			function = "sd1pwr";
++		};
++		pwm4_pins: pwm4-pins {
++			groups = "pwm4";
++			function = "pwm4";
++		};
++		pwm5_pins: pwm5-pins {
++			groups = "pwm5";
++			function = "pwm5";
++		};
++		pwm6_pins: pwm6-pins {
++			groups = "pwm6";
++			function = "pwm6";
++		};
++		pwm7_pins: pwm7-pins {
++			groups = "pwm7";
++			function = "pwm7";
++		};
++		mmc8_pins: mmc8-pins {
++			groups = "mmc8";
++			function = "mmc8";
++		};
++		mmc_pins: mmc-pins {
++			groups = "mmc";
++			function = "mmc";
++		};
++		mmcwp_pins: mmcwp-pins {
++			groups = "mmcwp";
++			function = "mmcwp";
++		};
++		mmccd_pins: mmccd-pins {
++			groups = "mmccd";
++			function = "mmccd";
++		};
++		mmcrst_pins: mmcrst-pins {
++			groups = "mmcrst";
++			function = "mmcrst";
++		};
++		clkout_pins: clkout-pins {
++			groups = "clkout";
++			function = "clkout";
++		};
++		serirq_pins: serirq-pins {
++			groups = "serirq";
++			function = "serirq";
++		};
++		lpcclk_pins: lpcclk-pins {
++			groups = "lpcclk";
++			function = "lpcclk";
++		};
++		scipme_pins: scipme-pins {
++			groups = "scipme";
++			function = "scipme";
++		};
++		sci_pins: sci-pins {
++			groups = "sci";
++			function = "sci";
++		};
++		smb6_pins: smb6-pins {
++			groups = "smb6";
++			function = "smb6";
++		};
++		smb7_pins: smb7-pins {
++			groups = "smb7";
++			function = "smb7";
++		};
++		pspi1_pins: pspi1-pins {
++			groups = "pspi1";
++			function = "pspi1";
++		};
++		faninx_pins: faninx-pins {
++			groups = "faninx";
++			function = "faninx";
++		};
++		r1_pins: r1-pins {
++			groups = "r1";
++			function = "r1";
++		};
++		spi3_pins: spi3-pins {
++			groups = "spi3";
++			function = "spi3";
++		};
++		spi3cs1_pins: spi3cs1-pins {
++			groups = "spi3cs1";
++			function = "spi3cs1";
++		};
++		spi3quad_pins: spi3quad-pins {
++			groups = "spi3quad";
++			function = "spi3quad";
++		};
++		spi3cs2_pins: spi3cs2-pins {
++			groups = "spi3cs2";
++			function = "spi3cs2";
++		};
++		spi3cs3_pins: spi3cs3-pins {
++			groups = "spi3cs3";
++			function = "spi3cs3";
++		};
++		nprd_smi_pins: nprd-smi-pins {
++			groups = "nprd_smi";
++			function = "nprd_smi";
++		};
++		smb0b_pins: smb0b-pins {
++			groups = "smb0b";
++			function = "smb0b";
++		};
++		smb0c_pins: smb0c-pins {
++			groups = "smb0c";
++			function = "smb0c";
++		};
++		smb0den_pins: smb0den-pins {
++			groups = "smb0den";
++			function = "smb0den";
++		};
++		smb0d_pins: smb0d-pins {
++			groups = "smb0d";
++			function = "smb0d";
++		};
++		ddc_pins: ddc-pins {
++			groups = "ddc";
++			function = "ddc";
++		};
++		rg2mdio_pins: rg2mdio-pins {
++			groups = "rg2mdio";
++			function = "rg2mdio";
++		};
++		wdog1_pins: wdog1-pins {
++			groups = "wdog1";
++			function = "wdog1";
++		};
++		wdog2_pins: wdog2-pins {
++			groups = "wdog2";
++			function = "wdog2";
++		};
++		smb12_pins: smb12-pins {
++			groups = "smb12";
++			function = "smb12";
++		};
++		smb13_pins: smb13-pins {
++			groups = "smb13";
++			function = "smb13";
++		};
++		spix_pins: spix-pins {
++			groups = "spix";
++			function = "spix";
++		};
++		spixcs1_pins: spixcs1-pins {
++			groups = "spixcs1";
++			function = "spixcs1";
++		};
++		clkreq_pins: clkreq-pins {
++			groups = "clkreq";
++			function = "clkreq";
++		};
++		hgpio0_pins: hgpio0-pins {
++			groups = "hgpio0";
++			function = "hgpio0";
++		};
++		hgpio1_pins: hgpio1-pins {
++			groups = "hgpio1";
++			function = "hgpio1";
++		};
++		hgpio2_pins: hgpio2-pins {
++			groups = "hgpio2";
++			function = "hgpio2";
++		};
++		hgpio3_pins: hgpio3-pins {
++			groups = "hgpio3";
++			function = "hgpio3";
++		};
++		hgpio4_pins: hgpio4-pins {
++			groups = "hgpio4";
++			function = "hgpio4";
++		};
++		hgpio5_pins: hgpio5-pins {
++			groups = "hgpio5";
++			function = "hgpio5";
++		};
++		hgpio6_pins: hgpio6-pins {
++			groups = "hgpio6";
++			function = "hgpio6";
++		};
++		hgpio7_pins: hgpio7-pins {
++			groups = "hgpio7";
++			function = "hgpio7";
++		};
++	};
++};

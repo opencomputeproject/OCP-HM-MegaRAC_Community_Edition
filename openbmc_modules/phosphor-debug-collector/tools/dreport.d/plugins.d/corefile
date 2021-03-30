@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# config: 1 1
+# @brief: Move user initialized core file to the dreport packaging.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Core file"
+if [ -z $optional_path ]; then
+    log_error "$desc does not exist"
+    exit
+fi
+
+# Remove the file from optional_path after successful copy
+if add_copy_file "$optional_path" "$desc"; then
+    rm "$optional_path"
+fi

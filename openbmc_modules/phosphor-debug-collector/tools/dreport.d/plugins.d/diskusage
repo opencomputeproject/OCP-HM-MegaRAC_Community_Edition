@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 123 10
+# @brief: Collect disk usage information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="disk usage"
+file_name="disk-usage.log"
+command="df -hT"
+
+add_cmd_output "$command" "$file_name" "$desc"

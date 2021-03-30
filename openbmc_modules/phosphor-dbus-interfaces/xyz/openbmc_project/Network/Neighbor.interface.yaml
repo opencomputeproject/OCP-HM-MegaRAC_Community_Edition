@@ -1,0 +1,30 @@
+description: >
+    This defines a network Neighbor mapping.
+
+# TODO Fix it through https://github.com/openbmc/openbmc/issues/1438
+# creatable: true
+
+properties:
+    - name: IPAddress
+      type: string
+      description: >
+          The IP Address of the neighbor.
+    - name: MACAddress
+      type: string
+      description: >
+          The low level mac address that the IP maps to.
+    - name: State
+      type: enum[self.State]
+      description: >
+          State the neighbor is in.
+
+enumerations:
+    - name: State
+      description: >
+          The internal state of the neighbor entry.
+      values:
+        - name: Incomplete
+        - name: Reachable
+        - name: Stale
+        - name: Invalid
+        - name: Permanent

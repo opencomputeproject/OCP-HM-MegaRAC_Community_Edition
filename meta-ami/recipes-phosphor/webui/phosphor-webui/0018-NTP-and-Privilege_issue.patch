@@ -1,0 +1,175 @@
+diff -Naur a/app/access-control/controllers/certificate-controller.html b/app/access-control/controllers/certificate-controller.html
+--- a/app/access-control/controllers/certificate-controller.html	2020-12-01 06:22:34.382412015 -0500
++++ b/app/access-control/controllers/certificate-controller.html	2020-12-01 06:25:55.778181346 -0500
+@@ -27,12 +27,12 @@
+       <button
+         type="button"
+         class="btn  btn-tertiary"
+-        ng-disabled="availableCertificateTypes.length === 0"
++        ng-disabled="availableCertificateTypes.length === 0 || dataService.isNotAdmin()"
+         ng-click="addCertModal()">
+         <icon class="icon-add" file="icon-plus.svg" aria-hidden="true"></icon>
+         Add new certificate
+       </button>
+-      <button type="button" class="btn btn-tertiary" ng-click="addCsrModal()">
++      <button type="button" class="btn btn-tertiary" ng-click="addCsrModal()" ng-disabled="dataService.isNotAdmin()">
+         <icon class="icon-add" file="icon-plus.svg" aria-hidden="true"></icon>
+         Generate CSR
+       </button>
+diff -Naur a/app/access-control/controllers/user-accounts-modal-user.html b/app/access-control/controllers/user-accounts-modal-user.html
+--- a/app/access-control/controllers/user-accounts-modal-user.html	2020-12-01 06:22:34.390411845 -0500
++++ b/app/access-control/controllers/user-accounts-modal-user.html	2020-12-01 06:26:01.350064998 -0500
+@@ -113,6 +113,7 @@
+                    type="password"
+                    ng-minlength="modalCtrl.minPasswordLength"
+                    ng-maxlength="modalCtrl.maxPasswordLength"
++                   ng-pattern="/^(?=.*[\w\d]).+/"
+                    autocomplete="new-password"
+                    ng-required="modalCtrl.user.new || form.password.$touched || form.passwordConfirm.$touched"
+                    ng-model="modalCtrl.user.password"
+diff -Naur a/app/access-control/controllers/user-controller.html b/app/access-control/controllers/user-controller.html
+--- a/app/access-control/controllers/user-controller.html	2020-12-01 06:22:34.390411845 -0500
++++ b/app/access-control/controllers/user-controller.html	2020-12-01 06:26:13.141818881 -0500
+@@ -8,13 +8,13 @@
+   <div class="row column">
+     <div class="column small-12 medium-10">
+       <div class="local-users__actions">
+-        <button ng-disabled="accountSettings === null || dataService.getLoggedUserRole() == 'User' || dataService.getLoggedUserRole() == 'Operator'"
++        <button ng-disabled="accountSettings === null || dataService.isNotAdmin()"
+                 ng-click="onClickAccountSettingsPolicy()"
+                 class="btn btn-tertiary">
+           <icon file="icon-config.svg"></icon>
+           Account policy settings
+         </button>
+-        <button ng-disabled="userRoles === null || localUsers.length >= 15 || dataService.getLoggedUserRole() == 'User' || dataService.getLoggedUserRole() == 'Operator'"
++        <button ng-disabled="userRoles === null || localUsers.length >= 15 || dataService.isNotAdmin()"
+                 ng-click="onClickAddUser()"
+                 class="btn btn-primary">
+           <icon file="icon-plus.svg"></icon>
+diff -Naur a/app/access-control/controllers/user-controller.js b/app/access-control/controllers/user-controller.js
+--- a/app/access-control/controllers/user-controller.js	2020-12-01 06:22:34.390411845 -0500
++++ b/app/access-control/controllers/user-controller.js	2020-12-01 06:26:21.449645565 -0500
+@@ -44,14 +44,14 @@
+         var loggeduserName = dataService.getUser();
+         switch (type){
+           case "edit":
+-            if(loggeduserRole === 'Operator' || loggeduserRole === 'User'){
++            if(loggeduserRole === 'Operator' || loggeduserRole === 'User' || loggeduserRole === 'ReadOnly'){
+               return true;
+             }else{
+               return false;
+             }
+           break;
+           case "delete":
+-            if(user.UserName === 'root' || loggeduserRole === 'Operator' || loggeduserRole === 'User' || user.UserName == loggeduserName){
++            if(user.UserName === 'root' || loggeduserRole === 'Operator' || loggeduserRole === 'User' || loggeduserRole === 'ReadOnly' || user.UserName == loggeduserName){
+               return true;
+             }else{
+               return false;
+diff -Naur a/app/common/directives/certificate.html b/app/common/directives/certificate.html
+--- a/app/common/directives/certificate.html	2020-12-01 06:22:34.302413707 -0500
++++ b/app/common/directives/certificate.html	2020-12-01 06:26:30.661453490 -0500
+@@ -73,6 +73,7 @@
+         class="file-upload-btn btn btn-secondary"
+         tabindex="0">Choose file</label>
+       <input
++        ng-disabled="dataService.isNotAdmin()"
+         name="upload_{{ cert.Description + cert.Id }}"
+         id="upload_{{ cert.Description + cert.Id }}"
+         type="file"
+@@ -94,7 +95,7 @@
+     <div class="replace-btn">
+       <button
+         type="submit"
+-        ng-disabled="!cert.file"
++        ng-disabled="!cert.file || dataService.isNotAdmin()"
+         class="btn btn-primary"
+         ng-click="replaceCertificate(cert)">
+         Replace
+diff -Naur a/app/configuration/controllers/date-time-controller.html b/app/configuration/controllers/date-time-controller.html
+--- a/app/configuration/controllers/date-time-controller.html	2020-12-01 06:22:34.418411254 -0500
++++ b/app/configuration/controllers/date-time-controller.html	2020-12-01 06:26:42.613204375 -0500
+@@ -36,7 +36,7 @@
+           <li class="date-time__metadata-block">
+             <p class="content-label">BMC <span ng-if="time.owner != 'Split'">and Host</span> Time</p>
+             <div class="inline">
+-              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="2018-01-01" max="2099-12-31"/>
++              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="2018-01-01" max="2037-12-31"/>
+               <input type="time" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{bmc.timezone}}</p>
+             </div>
+@@ -45,7 +45,7 @@
+             <p class="content-label">Host Time</p>
+             <div class="inline">
+               <!--- Ideally, would just use one input, datetime-local, but datetime-local is not supported on Firefox.--->
+-              <input type="date" ng-model="host.date" ng-readonly="dataService.isNotAdmin()" min="2018-01-01" max="2099-12-31"/>
++              <input type="date" ng-model="host.date" ng-readonly="dataService.isNotAdmin()" min="2018-01-01" max="2037-12-31"/>
+               <input type="time" ng-model="host.date" ng-readonly="dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{host.timezone}}</p>
+             </div>
+diff -Naur a/app/profile-settings/controllers/profile-settings-controller.html b/app/profile-settings/controllers/profile-settings-controller.html
+--- a/app/profile-settings/controllers/profile-settings-controller.html	2020-12-01 06:22:34.322413284 -0500
++++ b/app/profile-settings/controllers/profile-settings-controller.html	2020-12-01 06:28:36.258842210 -0500
+@@ -66,11 +66,11 @@
+         </div>
+         <!-- Form actions -->
+         <div class="field-group-container">
+-          <button class="btn btn-primary" type="submit" ng-click="onSubmit(form)">
++          <button class="btn btn-primary" type="submit" ng-disabled="dataService.isNotAdmin()" ng-click="onSubmit(form)">
+             Change password
+           </button>
+         </div>
+       </form>
+     </section>
+   </div>
+-</div>
+\ No newline at end of file
++</div>
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.html b/app/server-health/controllers/sensors-overview-controller.html
+--- a/app/server-health/controllers/sensors-overview-controller.html	2020-12-01 06:22:34.338412946 -0500
++++ b/app/server-health/controllers/sensors-overview-controller.html	2020-12-01 06:28:49.106575839 -0500
+@@ -66,7 +66,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low critical</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.CriticalLow | number:0}}</span>
++              <span class="sensors__tbody-info">{{sensor.CriticalLow | number}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -74,7 +74,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low warning</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.WarningLow | number:0}}</span>
++              <span class="sensors__tbody-info">{{sensor.WarningLow | number}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -83,7 +83,7 @@
+           <span class="sensors__tbody-cell__title">Current</span>
+           <span class="sensors__tbody-cell__content">
+               <span class="sensors__tbody-info" ng-if="sensor.Value == '' || sensor.Value == null">0</span>
+-              <span class="sensors__tbody-info" ng-if="sensor.Value != ''">{{sensor.Value | number:0}}</span>
++              <span class="sensors__tbody-info" ng-if="sensor.Value != ''">{{sensor.Value | number}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -91,7 +91,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High warning</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh != '' || sensor.WarningHigh != null">{{sensor.WarningHigh | number:0}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh != '' || sensor.WarningHigh != null">{{sensor.WarningHigh | number}}</span>
+             <span class="sensors__tbody-info" ng-if="sensor.WarningHigh == '' || sensor.WarningHigh == null">0</span>
+             <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+@@ -100,7 +100,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High critical</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh != '' || sensor.CriticalHigh != null">{{sensor.CriticalHigh | number:0}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh != '' || sensor.CriticalHigh != null">{{sensor.CriticalHigh | number}}</span>
+             <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh == '' || sensor.CriticalHigh == null">0</span>
+             <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>

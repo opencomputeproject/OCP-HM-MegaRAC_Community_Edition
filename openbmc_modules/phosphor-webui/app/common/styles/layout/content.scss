@@ -1,0 +1,54 @@
+// Content layout styles
+$nav__toplvlWidth: 240px;
+
+// Main element class
+.content__container {
+  margin-left: $nav__toplvlWidth;
+  padding: 1em 0.1em;
+  margin-top: 130px;
+  @include mediaQuery(x-small) {
+    padding: 1rem 2rem;
+  }
+
+  section.row,
+  .column.row.row,
+  .row.row.columns {
+    margin-left: 0;
+  }
+
+  // Must be applied to the <main> element in the app
+  // Required to create an elegant page transition
+  @include page-transition;
+  &.ng-leave-active,
+  &.ng-enter {
+    @include page-transition-visibility;
+  }
+}
+
+.content-header {
+  font-weight: 700;
+  margin-bottom: 0;
+  margin-top: 2em;
+}
+
+// TODO: Determine if label and content-label are the same - remove generic element selector
+.content-label,
+label {
+  @include label;
+}
+
+// TODO: Remove and replace with section and section-title pattern
+// Page header
+.page-header {
+  width: 100%;
+  position: relative;
+  border-bottom: 1px solid $border-color-01;
+  margin: 0.5em 0 2.2em;
+  padding-left: 0;
+}
+// TODO: Remove and replace with the .section and .section-title pattern
+.subhead {
+  width: 100%;
+  border-bottom: 1px solid $border-color-01;
+  padding-bottom: 0.5em;
+}

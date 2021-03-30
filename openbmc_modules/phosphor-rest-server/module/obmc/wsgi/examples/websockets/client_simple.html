@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript">
+    // This simple example subscribes, via websocket, to certain events occurring
+    // on the BMC. Specfically, it's interested in an d-bus events (object
+    // creations, property changes), occurring in the d-bus namespaces
+    // /xyz/openbmc_project/logging and /xyz/openbmc_project/sensors. It's also
+    // interested in the interfaces xyz.openbmc_project.Logging.Entry and
+    // xyz.openbmc_project.Sensor.Value being added, or property changes to
+    // these interfaces.
+
+    // Login to the BMC.
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://<BMC IP>/login", true);
+    // Set 'withCredentials' to be able to send back login session cookie.
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Content-type", "application/json");
+    xhr.send(JSON.stringify({data: ["<username>", "<password>"]}));
+
+    // Open a new secure websocket. The rest server on the BMC
+    // only supports the /subscribe route with websockets as of now.
+    var ws = new WebSocket("wss://<BMC IP>/subscribe");
+    // Send in array of d-bus paths and interfaces of interest over the
+    // websocket. Either/both of them can be an empty array. The arrays
+    // need to be sent in a JSON dictionary.
+    // Client will be notified of events occurring on these paths and/or
+    // interfaces.
+    var data = JSON.stringify(
+        {
+            "paths": ["/xyz/openbmc_project/logging",
+                      "/xyz/openbmc_project/sensors"],
+            "interfaces": ["xyz.openbmc_project.Logging.Entry",
+                           "xyz.openbmc_project.Sensor.Value"]
+        });
+    ws.onopen = function() {
+        // Send the JSON dictionary
+        ws.send(data);
+    };
+    ws.onmessage = function (evt) {
+        // Received a message on the websocket, the response is a JSON dict.
+        var response = JSON.parse(evt.data);
+        for (var key in response) {
+            if (response.hasOwnProperty(key)) {
+                var value = response[key];
+                if ("path" == key) {
+                    // If the d-bus path is in the response, let's do a GET on
+                    // that path.
+                    var xhr = new XMLHttpRequest();
+                    xhr.withCredentials = true;
+                    var url = "https://<BMC IP>" + value;
+                    xhr.open("GET", url, true);
+                    xhr.setRequestHeader("Content-type", "application/json");
+                    xhr.send();
+                }
+            }
+        }
+    };
+  </script>
+</head>
+</html>

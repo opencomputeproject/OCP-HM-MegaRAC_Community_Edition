@@ -1,0 +1,89 @@
+description: >
+    Implement to represent a PLDM FRU (
+    www.dmtf.org/sites/default/files/standards/documents/DSP0257_1.0.0.pdf).
+    This interface is composed of standard (not OEM) FRU field type (FRU
+    properties) definitions from table 5 in DSP0257.
+
+    Caveat: This interface is primarily for consumption by the PLDM FRU format
+    producer apps (for eg the PLDM daemon) and apps that transform specific FRU
+    formats to Inventory information, such as Entity Manager and Phosphor
+    Inventory Manager.
+
+    An OpenBMC implementation that wants to process a PLDM FRU record table
+    received by a connected PLDM entity must add this interface on a D-Bus
+    object that represents a PLDM FRU definition - a set of properties and their
+    values for the FRU. Typically such an app would parse PLDM FRU records and
+    relay the parsed information onto D-Bus. If the value of a certain standard
+    FRU field is missing in the FRU record, then the corresponding D-Bus
+    property in this interface will have a default value.
+
+    The proposal in https://gerrit.openbmc-project.xyz/#/c/openbmc/docs/+/32532
+    will make use of this interface.
+
+    PLDM stands for Platform Level Data Model. More information about PLDM (and
+    MCTP) can be found at https://www.dmtf.org/standards/pmci
+
+properties:
+    - name: ChassisType
+      type: string
+      description: >
+          Chassis type of the FRU. Can be empty if the FRU is not a chassis.
+    - name: Model
+      type: string
+      description: >
+          Model of the FRU.
+    - name: PN
+      type: string
+      description: >
+          Part number of the FRU.
+    - name: SN
+      type: string
+      description: >
+          Serial number of the FRU.
+    - name: Manufacturer
+      type: string
+      description: >
+          Manufacturer of the FRU.
+    - name: ManufacturerDate
+      type: string
+      description: >
+          Manufacturing date of the FRU in YYYYMMDD format. While the FRU spec
+          has this defined as 13 byte binary format, that is aligned with CIM. A
+          string is likely to be more useful. An implementation of this is
+          expected to transform the 13 byte binary format to a string.
+    - name: Vendor
+      type: string
+      description: >
+          Vendor of the FRU.
+    - name: Name
+      type: string
+      description: >
+          Name of the FRU.
+    - name: SKU
+      type: string
+      description: >
+          Stock-keeping unit number of the FRU.
+    - name: Version
+      type: string
+      description: >
+          Version of the FRU.
+    - name: AssetTag
+      type: string
+      description: >
+          Asset tag of the FRU.
+    - name: Description
+      type: string
+      description: >
+          A description of the FRU.
+    - name: ECLevel
+      type: string
+      description: >
+          Engineering change level of the FRU.
+    - name: Other
+      type: string
+      description: >
+          Other information about the FRU.
+    - name: IANA
+      type: uint32
+      description: >
+          The FRU vendor's IANA number.

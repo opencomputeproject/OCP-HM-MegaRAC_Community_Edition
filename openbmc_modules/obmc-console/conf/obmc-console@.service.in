@@ -1,0 +1,9 @@
+[Unit]
+Description=%i Console Server
+ConditionPathExists=/etc/obmc-console/server.%i.conf
+
+[Service]
+# Instance ID is the VUART basename
+ExecStart=/usr/sbin/obmc-console-server --config /etc/obmc-console/server.%i.conf %i
+SyslogIdentifier=%i-console-server
+Restart=always

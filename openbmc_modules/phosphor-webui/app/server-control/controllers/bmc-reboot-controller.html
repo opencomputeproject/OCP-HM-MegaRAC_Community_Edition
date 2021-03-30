@@ -1,0 +1,26 @@
+<section id="bmc-reboot">
+  <div class="row column">
+    <h1>Reboot BMC</h1>
+  </div>
+  <div class="row column">
+    <div class="page-header">
+      <h2 class="inline">Current BMC boot status</h2>
+      <div class="float-right bmc-reboot__status-log inline">BMC last reboot at
+        <span class="courier-bold">{{reboot_time | localeDate}}</span></div>
+    </div>
+  </div>
+  <div class="row column">
+    <div class="bmc-reboot-option" ng-class="{disabled: dataService.server_unreachable || dataService.loading, transitionAll: confirm}">
+      <p>When you reboot the BMC, your web browser loses contact with the BMC for several minutes. When the BMC is back online, you must log in again. If the Log In button is not available when the BMC is brought back online, close your web browser. Then, reopen the web browser and enter your BMC IP address.</p>
+      <confirm title="Reboot the BMC"
+          confirm="confirm"
+          ng-show="confirm"
+          callback="reboot"></confirm>
+    </div>
+  </div>
+  <div class="row column">
+    <button id="bmc__reboot" class="btn  btn-secondary" ng-class="{disabled: confirm}" ng-click="rebootConfirm()" ng-disabled="dataService.server_unreachable">
+      <icon file="icon-restart.svg"></icon>Reboot BMC
+    </button>
+  </div>
+</section>

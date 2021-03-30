@@ -1,0 +1,17 @@
+--- a/globalhandler.cpp	2020-11-12 19:15:47.905403767 +0530
++++ b/globalhandler.cpp	2020-11-12 19:16:11.716916533 +0530
+@@ -76,8 +76,14 @@
+  */
+ ipmi::RspType<> ipmiGlobalReset()
+ {
++    const char* filename = "/var/configuration/system.json";
++
+     try
+     {
++	/* Delete the file so all sensor should come to its default value once bmc rebooted  */
++	if (remove(filename) != 0)
++		perror("File deletion failed");
++
+         resetBMC();
+     }
+     catch (std::exception& e)

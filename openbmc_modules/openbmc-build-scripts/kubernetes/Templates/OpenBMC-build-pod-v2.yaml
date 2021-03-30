@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${pod_name}
+  namespace: ${namespace}
+spec:
+  nodeSelector:
+    beta.kubernetes.io/arch: ${ARCH}
+  volumes:
+  - name: workspace
+    persistentVolumeClaim:
+      claimName: ${w_claim}
+  - name: ssc-dir
+    persistentVolumeClaim:
+      claimName: ${s_claim}
+  hostNetwork: True
+  containers:
+  - image: ${img_name}
+    name: builder
+    command: ["/bin/bash","-c"]
+    args: ["sleep 2h"]
+    workingDir: ${HOME}
+    env:
+    - name: WORKSPACE
+      value: ${WORKSPACE}
+    - name: build-dir
+      value: ${build_dir}
+    securityContext:
+      capabilities:
+        add:
+        - SYS_ADMIN
+    volumeMounts:
+    - name: workspace
+      mountPath: ${HOME}/workspace
+    - name: ssc-dir
+      mountPath: ${ssc_dir}
+  restartPolicy: Never
+  imagePullSecrets:
+  - name: ${img_pl_sec}

@@ -1,0 +1,39 @@
+description: >
+    Implement to set the operating system status.
+
+properties:
+    - name: OperatingSystemState
+      type: enum[self.OSStatus]
+      default: Inactive
+      description: >
+        Current state of the operating system.
+
+enumerations:
+   - name: OSStatus
+     description: >
+       The operaing system statuses.
+     values:
+       - name: CBoot
+         description: >
+           C Boot Completed.
+       - name: PXEBoot
+         description: >
+           PXE Boot Completed.
+       - name: DiagBoot
+         description: >
+           Diagnostic Boot Completed.
+       - name: CDROMBoot
+         description: >
+           CD-ROM Boot completed.
+       - name: ROMBoot
+         description: >
+           ROM Boot Completed
+       - name: BootComplete
+         description: >
+           Boot Completed or Unspecified Boot Device.
+       - name: Inactive
+         description: >
+           System Inactive.
+       - name: Standby
+         description: >
+           Operating system is ready to be booted.

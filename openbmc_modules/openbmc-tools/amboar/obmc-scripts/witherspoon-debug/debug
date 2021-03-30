@@ -1,0 +1,93 @@
+#!/bin/bash
+#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2018 IBM Corp.
+
+set -eou pipefail
+
+if [ $# -lt 2 ]
+then
+	echo Usage: $0 [user@][host] [tarball]
+	exit 1
+fi
+
+TARGET="$1"
+DEBUGTOOLS_PATH="$2"
+DEBUGTOOLS="$(basename "${DEBUGTOOLS_PATH}")"
+
+scp "${DEBUGTOOLS_PATH}" libncurses.so.5.9 libncursesw.so.5.9 "${TARGET}":/tmp/
+ssh "${TARGET}" <<-EOF
+set -eou pipefail
+
+set -x
+
+on_exit() {
+	rm -f /tmp/'${DEBUGTOOLS}'
+	rm -f /tmp/libncurses.so.5.9 /tmp/libncursesw.so.5.9
+}
+
+trap on_exit EXIT
+
+# Deal with field mode
+if ! mountpoint /usr/local
+then
+	systemctl unmask usr-local.mount
+	systemctl start usr-local.mount
+fi
+
+# Untar debug tools tarball into /usr/local
+pushd /usr/local
+tar -xvJf /tmp/"${DEBUGTOOLS}"
+popd
+
+# Work around bugs preventing perf from working
+# Tracking issue: https://github.com/openbmc/openbmc/issues/2880
+
+# Fake expand(1): https://github.com/openbmc/openbmc/issues/2879
+mkdir -p bin
+pushd /usr/local/bin
+# which expand isn't enough as expand might be a symlink to a busybox not built with CONFIG_EXPAND
+if ! echo "" | expand
+then
+	# Remove what is likely a symlink to busybox before trying to overwrite
+	# file because:
+	#
+	# 1) We get errors through trying to write to a read-only filesystem
+	# 2) If the filesystem were read-write, we would overwrite the busybox binary
+	[ -f expand ] && rm expand
+	# Fake out expand(1) in the cheapest way possible
+	echo -e "#!/bin/sh\ncat" > expand
+	chmod +x expand
+fi
+
+# Fix the broken objdump link: https://github.com/openbmc/openbmc/issues/2878
+ln -sf arm-openbmc-linux-gnueabi-objdump objdump
+popd
+
+# perf-config(1) is terrible and won't write your configuration unless the
+# configuration file exists
+touch \${HOME}/.perfconfig
+
+# Disable writing junk to \${HOME}, otherwise we fill up the RW volume and
+# cause systemic failures.
+LD_LIBRARY_PATH=/usr/local/lib /usr/local/bin/perf config --user buildid.dir=/dev/null
+
+# Deal with latencytop's missing shared object dependency on ncurses, tracked by
+# https://github.com/openbmc/openbmc/issues/2430
+pushd /usr/local/lib
+if [ -f /tmp/libncurses.so.5.9 -o -f /tmp/libncursesw.so.5.9 ]
+then
+	cp /tmp/libncurses.so.5.9 /tmp/libncursesw.so.5.9 .
+	ln -sf libncurses.so.5.9 libncurses.so.5
+	ln -sf libncurses.so.5.9 libncurses.so
+	ln -sf libncursesw.so.5.9 libncursesw.so.5
+	ln -sf libncursesw.so.5.9 libncursesw.so
+fi
+popd
+EOF
+
+echo
+echo Make sure to run the following in your shell:
+echo
+echo export LD_LIBRARY_PATH=/usr/local/lib PYTHONPATH=/usr/local/lib/python2.7
+echo

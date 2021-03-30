@@ -1,0 +1,24 @@
+description: >
+    An interface for node shutdown policy on multi-node products.
+    It is used by Intel OEM IPMI command.
+properties:
+    - name: OCOTPolicy
+      type: enum[self.Policy]
+      description: >
+          Node shutdown policy on a power supply over current(OC)
+          or over temperature(OT) event,
+          Only available on multi-node products.
+
+      default: 'NoShutdownOnOCOT'
+
+enumerations:
+   - name: Policy
+     description: >
+       The type of shutdown policy.
+     values:
+       - name: 'NoShutdownOnOCOT'
+         description: >
+           Do not shutdown node on an OC/OT event.
+       - name: 'ShutdownOnOCOT'
+         description: >
+           Shutdown node on an OC/OT event.

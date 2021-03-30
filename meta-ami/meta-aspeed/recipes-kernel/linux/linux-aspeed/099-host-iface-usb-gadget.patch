@@ -1,0 +1,147 @@
+diff -Naur a/drivers/usb/gadget/configfs.c b/drivers/usb/gadget/configfs.c
+--- a/drivers/usb/gadget/configfs.c	2020-10-22 12:29:15.743482081 +0530
++++ b/drivers/usb/gadget/configfs.c	2020-10-22 12:30:08.948684032 +0530
+@@ -1246,7 +1246,8 @@
+ 	struct f_ecm_opts		*ecm_opts = NULL;
+ 	if(!list_empty(&gi->available_func)) {
+ 		list_for_each_entry(ecm_fi, &gi->available_func, cfs_list) {
+-			if(strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) {
++			//if(strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) {
++			if((strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) || (strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb1") == 0) )  {
+ 				ecm_opts = container_of(ecm_fi, struct f_ecm_opts, func_inst);
+ 				if(cdev->gadget != NULL) {
+ 					mutex_lock(&ecm_opts->lock);
+@@ -1255,7 +1256,9 @@
+ 					mutex_unlock(&ecm_opts->lock);
+ 					ecm_opts->bound = true;
+ 					list_for_each_entry(rndis_fi, &gi->available_func, cfs_list) {
+-						if(strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) {
++						//if(strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) {
++						if((strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) || (strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb1") == 0)) {
++
+ 							rndis_borrow_net(rndis_fi, ecm_opts->net);
+ 						}
+ 					}
+diff -Naur a/drivers/usb/gadget/function/f_rndis.c b/drivers/usb/gadget/function/f_rndis.c
+--- a/drivers/usb/gadget/function/f_rndis.c	2020-10-22 12:29:15.743482081 +0530
++++ b/drivers/usb/gadget/function/f_rndis.c	2020-10-22 12:30:08.988684923 +0530
+@@ -69,7 +69,7 @@
+ struct f_rndis {
+ 	struct gether			port;
+ 	u8				ctrl_id, data_id;
+-	u8				ethaddr[ETH_ALEN];
++	u8				ethaddr[14];
+ 	u32				vendorID;
+ 	const char			*manufacturer;
+ 	struct rndis_params		*params;
+@@ -152,6 +152,19 @@
+ 	.bSlaveInterface0 =	0x01,
+ };
+ 
++static struct usb_cdc_ether_desc ecm_desc = {
++	.bLength =		sizeof ecm_desc,
++	.bDescriptorType =	USB_DT_CS_INTERFACE,
++	.bDescriptorSubType =	USB_CDC_ETHERNET_TYPE,
++
++	/* this descriptor actually adds value, surprise! */
++	.iMACAddress = 0x05,
++	.bmEthernetStatistics =	cpu_to_le32(0), /* no statistics */
++	.wMaxSegmentSize =	cpu_to_le16(ETH_FRAME_LEN),
++	.wNumberMCFilters =	cpu_to_le16(0),
++	.bNumberPowerFilters =	0,
++};
++
+ /* the data interface has two bulk endpoints */
+ 
+ static struct usb_interface_descriptor rndis_data_intf = {
+@@ -206,6 +219,7 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,	
+ 	(struct usb_descriptor_header *) &fs_notify_desc,
+ 
+ 	/* data interface has no altsetting */
+@@ -253,6 +267,8 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,
++
+ 	(struct usb_descriptor_header *) &hs_notify_desc,
+ 
+ 	/* data interface has no altsetting */
+@@ -319,6 +335,7 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,
+ 	(struct usb_descriptor_header *) &ss_notify_desc,
+ 	(struct usb_descriptor_header *) &ss_intr_comp_desc,
+ 
+@@ -334,9 +351,10 @@
+ /* string descriptors: */
+ 
+ static struct usb_string rndis_string_defs[] = {
+-	[0].s = "RNDIS Notification Interface.",
+-	[1].s = "RNDIS Data Interface.",
+-	[2].s = "RNDIS",
++	[0].s = "",
++	[1].s = "RNDIS Notification Interface.",
++	[2].s = "RNDIS Data Interface.",
++	[3].s = "RNDIS",
+ 	{  } /* end of list */
+ };
+ 
+@@ -385,7 +403,7 @@
+ 	 */
+ 	data[0] = cpu_to_le32(1);
+ 	data[1] = cpu_to_le32(0);
+-
++	req->length = 8;
+ 	status = usb_ep_queue(rndis->notify, req, GFP_ATOMIC);
+ 	if (status) {
+ 		atomic_dec(&rndis->notify_count);
+@@ -693,15 +711,22 @@
+ 			goto fail;
+ 		rndis_opts->bound = true;
+ 	}
+-
++	status = gether_get_host_addr_cdc(rndis_opts->net, rndis->ethaddr,
++					  sizeof(rndis->ethaddr));
++	if (status < 12) {
++		kfree(rndis);
++		return ERR_PTR(-EINVAL);
++	}
++	rndis_string_defs[0].s = rndis->ethaddr;
+ 	us = usb_gstrings_attach(cdev, rndis_strings,
+ 				 ARRAY_SIZE(rndis_string_defs));
+ 	if (IS_ERR(us)) {
+ 		status = PTR_ERR(us);
+ 		goto fail;
+ 	}
+-	rndis_control_intf.iInterface = us[0].id;
+-	rndis_data_intf.iInterface = us[1].id;
++	ecm_desc.iMACAddress = us[0].id;
++	rndis_control_intf.iInterface = us[1].id;
++	rndis_data_intf.iInterface = us[2].id;
+ 
+ 	/* allocate instance-specific interface IDs */
+ 	status = usb_interface_id(c, f);
+diff -Naur a/drivers/usb/gadget/function/rndis.c b/drivers/usb/gadget/function/rndis.c
+--- a/drivers/usb/gadget/function/rndis.c	2020-10-22 12:29:15.743482081 +0530
++++ b/drivers/usb/gadget/function/rndis.c	2020-10-22 12:30:08.992685013 +0530
+@@ -815,11 +815,11 @@
+ 	case RNDIS_MSG_HALT:
+ 		pr_debug("%s: RNDIS_MSG_HALT\n",
+ 			__func__);
+-		params->state = RNDIS_UNINITIALIZED;
++		/*params->state = RNDIS_UNINITIALIZED;
+ 		if (params->dev) {
+ 			netif_carrier_off(params->dev);
+ 			netif_stop_queue(params->dev);
+-		}
++		}*/
+ 		return 0;
+ 
+ 	case RNDIS_MSG_QUERY:

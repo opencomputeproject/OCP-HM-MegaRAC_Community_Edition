@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenPOWER Host%i Control
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/env control_host.exe
+SyslogIdentifier=control_host.exe
+Type=dbus
+BusName={BUSNAME}
+
+[Install]
+WantedBy=multi-user.target

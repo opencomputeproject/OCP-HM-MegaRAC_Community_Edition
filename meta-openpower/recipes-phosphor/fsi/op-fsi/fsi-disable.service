@@ -1,0 +1,9 @@
+[Unit]
+Description=Disable FSI
+Conflicts=fsi-enable.service
+
+[Service]
+ExecStart=/usr/bin/openpower-proc-control setSyncFSIClock
+ExecStart=/bin/sh -c "echo 1 > /sys/devices/platform/gpio-fsi/external_mode"
+Type=oneshot
+RemainAfterExit=yes

@@ -1,0 +1,46 @@
+--- a/systemintfcmds.cpp	2020-12-01 14:04:25.875136941 -0500
++++ b/systemintfcmds.cpp	2020-12-01 14:39:53.423465748 -0500
+@@ -9,6 +9,10 @@
+ #include <ipmid-host/cmd.hpp>
+ #include <ipmid/api.hpp>
+ 
++#include <ipmid/utils.hpp>
++
++
++
+ void register_netfn_app_functions() __attribute__((constructor));
+ 
+ using namespace sdbusplus::xyz::openbmc_project::Control::server;
+@@ -68,8 +72,31 @@
+     // or when the Event Message buffer is disabled.
+     // This path is used to communicate messages to the host
+     // from within the phosphor::host::command::Manager
++
++	uint8_t GetMsgFlags;
++
++	
++	constexpr char wdt_intf[] = "xyz.openbmc_project.State.Watchdog";
++
++
++	sdbusplus::bus::bus bus{ipmid_get_sd_bus_connection()};
++
++    auto wdtObj =
++        ipmi::getDbusObject(bus, wdt_intf);
++
++    uint8_t preTimeoutInterruptsValue =	std::get<uint8_t> (	
++		ipmi::getDbusProperty(bus, wdtObj.second, wdtObj.first,
++								  wdt_intf, "PreTimeoutInterrupt"));
++
+     constexpr uint8_t setEventMsgBufferFull = 0x2;
+-    return ipmi::responseSuccess(setEventMsgBufferFull);
++	constexpr uint8_t setPretimeoutInterrupt = 0x8;
++
++	if ((preTimeoutInterruptsValue & 0xF0) != 0)  //PreTimeoutInterrupt is set
++		GetMsgFlags = setPretimeoutInterrupt + setEventMsgBufferFull;
++	else
++		GetMsgFlags = setEventMsgBufferFull;
++	
++    return ipmi::responseSuccess(GetMsgFlags);
+ }
+ 
+ ipmi::RspType<bool,    // Receive Message Queue Interrupt Enabled

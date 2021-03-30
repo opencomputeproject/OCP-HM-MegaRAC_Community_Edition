@@ -1,0 +1,42 @@
+diff -Naur a/src/appcommands.cpp b/src/appcommands.cpp
+--- a/src/appcommands.cpp	2020-11-02 08:56:12.001879628 -0500
++++ b/src/appcommands.cpp	2020-11-02 08:57:38.910559318 -0500
+@@ -44,7 +44,8 @@
+     "xyz.openbmc_project.State.BMC.BMCState.Ready";
+ 
+ static std::unique_ptr<sdbusplus::bus::match::match> bmcStateChangedSignal;
+-static uint8_t bmcDeviceBusy = true;
++//static uint8_t bmcDeviceBusy = true;
++static uint8_t bmcDeviceBusy = false;
+ 
+ int initBMCDeviceState(ipmi::Context::ptr ctx)
+ {
+@@ -330,8 +331,11 @@
+             {
+                 devId.id = data.value("id", 0);
+                 devId.revision = data.value("revision", 0);
++				devId.fwMajor = data.value("fw0", 0);
++				devId.fwMinor = data.value("fw1", 0);
+                 devId.addnDevSupport = data.value("addn_dev_support", 0);
+                 devId.manufId = data.value("manuf_id", 0);
++				devId.aux = data.value("aux", 0);
+             }
+             else
+             {
+@@ -368,7 +372,7 @@
+             devId.prodId = 0;
+         }
+     }
+-
++#if 0
+     if (!bmcStateInitialized)
+     {
+         if (!initBMCDeviceState(ctx))
+@@ -376,6 +380,7 @@
+             bmcStateInitialized = true;
+         }
+     }
++#endif
+ 
+     return ipmi::responseSuccess(devId.id, devId.revision, devId.fwMajor,
+                                  bmcDeviceBusy, devId.fwMinor, devId.ipmiVer,

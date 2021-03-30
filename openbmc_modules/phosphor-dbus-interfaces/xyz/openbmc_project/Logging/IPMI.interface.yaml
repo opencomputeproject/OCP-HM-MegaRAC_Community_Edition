@@ -1,0 +1,77 @@
+description: >
+    Implement to provide an IPMI System Event Log (SEL) logging interface
+    under the path /xyz/openbmc_project/Logging/IPMI.
+
+    SEL records store system event information and will contain a record ID
+    and type followed by type-specific information.  The type-specific
+    information includes a timestamp, generator ID (used to identify the
+    component that is adding the SEL record), sensor number, event
+    direction and event-specific data for system type events; or timestamp
+    and OEM data for OEM type events.
+
+    The interface allows adding system or OEM type events.  For system type
+    events it requires a generator ID (0x20 for BMC), sensor D-Bus path,
+    event direction (assertion or de-assertion), and event specific data.
+    For OEM type events, it requires the record type and OEM data.
+
+    It will assign a record ID and timestamp automatically and return the
+    assigned record ID.
+methods:
+    - name: IpmiSelAdd
+      description: >
+        Log a system event record type SEL entry.
+      parameters:
+        - name: Message
+          type: string
+          description: >
+            The text to log for the event.
+        - name: Path
+          type: path
+          description: >
+            The object path that is generating the SEL entry.
+        - name: SELData
+          type: array[byte]
+          description: >
+            An array of up to 3 bytes of SEL event data.
+        - name: Assert
+          type: boolean
+          description: >
+            An indicator if the SEL event is asserting or de-asserting.
+        - name: GeneratorID
+          type: uint16
+          description: >
+            The Generator ID of the component requesting the new SEL entry.
+            In most cases this will be 0x20 (the BMC Generator ID).
+      returns:
+        - name: RecordID
+          type: uint16
+          description: >
+            The Record ID of the new SEL entry.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+
+    - name: IpmiSelAddOem
+      description: >
+        Log an OEM record type SEL entry requested from external to the BMC.
+      parameters:
+        - name: Message
+          type: string
+          description: >
+            The text to log for the event.
+        - name: SELData
+          type: array[byte]
+          description: >
+            An array of up to 13 bytes of SEL event data.
+        - name: RecordType
+          type: byte
+          description: >
+            The OEM record type for the SEL entry.
+      returns:
+        - name: RecordID
+          type: uint16
+          description: >
+            The Record ID of the new SEL entry.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument

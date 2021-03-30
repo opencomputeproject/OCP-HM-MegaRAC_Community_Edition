@@ -1,0 +1,20 @@
+# HostSensor
+
+A HostSensor object is one whose value is received from the host over IPMI (or
+some other mechanism).  These sensors create dbus objects in the following
+namespace:
+        /xyz/openbmc_projects/extsensors/{namespace}/{sensorname}
+
+You can update them by setting the Value in Sensor.Value as a set or update
+property dbus call.
+
+# SensorManager
+
+There is a SensorManager object whose job is to hold all the sensors.
+
+# PluggableSensor
+
+The PluggableSensor is an object that receives a reader and writer and is
+therefore meant to be used for a variety of sensor types that aren't
+HostSensors.
+

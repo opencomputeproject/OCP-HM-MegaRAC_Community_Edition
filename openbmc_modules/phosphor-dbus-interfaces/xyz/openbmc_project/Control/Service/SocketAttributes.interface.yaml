@@ -1,0 +1,13 @@
+description: >
+    This interface defines the attributes of services which support socket-based
+    activation. Applications can expose the port number of a network service by
+    implementing this interface. For example, application like
+    service-config-manager will implement this interface for network services
+    like bmcweb and phosphor-ipmi-net and allow the port number to be configured.
+
+properties:
+    - name: Port
+      type: uint16
+      description: >
+          Specifies the port number on which the service is listening. This
+          property can be set to configure a port number for the service.

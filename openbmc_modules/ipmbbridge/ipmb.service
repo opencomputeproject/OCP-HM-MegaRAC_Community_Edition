@@ -1,0 +1,12 @@
+[Unit]
+Description=IPMB bridge
+After=phosphor-ipmi-host.service
+
+[Service]
+ExecStart=/usr/bin/ipmbbridged
+SyslogIdentifier=ipmbbridged
+Restart=always
+Type=simple
+
+[Install]
+WantedBy=basic.target

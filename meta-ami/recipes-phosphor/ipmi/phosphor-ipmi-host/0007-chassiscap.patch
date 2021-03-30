@@ -1,0 +1,130 @@
+diff -Naur a/chassishandler.cpp b/chassishandler.cpp
+--- a/chassishandler.cpp	2020-10-08 17:47:48.760599167 +0530
++++ b/chassishandler.cpp	2020-10-08 17:44:52.506357071 +0530
+@@ -39,6 +39,12 @@
+ #define SET_PARM_BOOT_FLAGS_PERMANENT 0x40
+ #define SET_PARM_BOOT_FLAGS_VALID_ONE_TIME 0x80
+ #define SET_PARM_BOOT_FLAGS_VALID_PERMANENT 0xC0
++#define CHASSIS_CAP_FLAGS 0x05
++#define FRU_DEV_ADDR 0x20
++#define SDR_DEV_ADDR 0x20
++#define SEL_DEV_ADDR 0x20
++#define SYS_MGMT_DEV_ADDR 0x20
++#define BRIDGE_DEV_ADDR 0x20
+ 
+ std::unique_ptr<phosphor::Timer> identifyTimer
+     __attribute__((init_priority(101)));
+@@ -158,6 +164,17 @@
+ } // namespace internal
+ } // namespace chassis
+ 
++typedef struct
++{
++    uint8_t cap_flags;
++    uint8_t fru_info_dev_addr;
++    uint8_t sdr_dev_addr;
++    uint8_t sel_dev_addr;
++    uint8_t system_management_dev_addr;
++    uint8_t bridge_dev_addr;
++} __attribute__((packed)) ipmi_chassis_cap_t;
++
++
+ namespace poh
+ {
+ 
+@@ -504,7 +521,7 @@
+ 
+     return std::get<uint32_t>(propValue);
+ }
+-
++#if 0
+ /** @brief Implements the get chassis capabilities command
+  *
+  *  @returns IPMI completion code plus response data
+@@ -628,6 +645,71 @@
+                                  *chassisSELDevAddr, *chassisSMDevAddr,
+                                  *chassisBridgeDevAddr);
+ }
++#endif
++
++ipmi_ret_t ipmi_get_chassis_cap(ipmi_netfn_t netfn, ipmi_cmd_t cmd,
++                                ipmi_request_t request,
++                                ipmi_response_t response,
++                                ipmi_data_len_t data_len,
++                                ipmi_context_t context)
++{
++    // sd_bus error
++    ipmi_ret_t rc = IPMI_CC_OK;
++
++    ipmi_chassis_cap_t chassis_cap{};
++
++    if (*data_len != 0)
++    {
++        return IPMI_CC_REQ_DATA_LEN_INVALID;
++    }
++
++    *data_len = sizeof(ipmi_chassis_cap_t);
++
++    try
++    {
++
++        // capabilities flags
++        // [7..4] - reserved
++        // [3] – 1b = provides power interlock  (IPM 1.5)
++        // [2] – 1b = provides Diagnostic Interrupt (FP NMI)
++        // [1] – 1b = provides “Front Panel Lockout” (indicates that the chassis
++        // has capabilities
++        //            to lock out external power control and reset button or
++        //            front panel interfaces and/or detect tampering with those
++        //            interfaces).
++        // [0] -1b = Chassis provides intrusion (physical security) sensor.
++        // Supported intrusion and diagnostic intrrupt.
++        chassis_cap.cap_flags = CHASSIS_CAP_FLAGS;
++
++        // Chassis FRU info Device Address.
++        chassis_cap.fru_info_dev_addr = FRU_DEV_ADDR;
++
++        // Chassis SDR Device Address.
++        chassis_cap.sdr_dev_addr = SDR_DEV_ADDR ;
++
++        // Chassis SEL Device Address.
++        chassis_cap.sel_dev_addr = SEL_DEV_ADDR;
++
++        // Chassis System Management Device Address.
++        chassis_cap.system_management_dev_addr = SYS_MGMT_DEV_ADDR;
++
++        // Chassis Bridge Device Address.
++        chassis_cap.bridge_dev_addr = BRIDGE_DEV_ADDR;
++        uint8_t* respP = reinterpret_cast<uint8_t*>(response);
++        uint8_t* chassisP = reinterpret_cast<uint8_t*>(&chassis_cap);
++        std::copy(chassisP, chassisP + *data_len, respP);
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>(e.what());
++        rc = IPMI_CC_UNSPECIFIED_ERROR;
++        *data_len = 0;
++        return rc;
++    }
++
++    return rc;
++
++}
+ 
+ /** @brief implements set chassis capalibities command
+  *  @param intrusion        - chassis intrusion
+@@ -2002,9 +2084,12 @@
+     createIdentifyTimer();
+ 
+     // Get Chassis Capabilities
+-    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnChassis,
++    ipmi_register_callback(NETFUN_CHASSIS, IPMI_CMD_GET_CHASSIS_CAP, NULL,
++                           ipmi_get_chassis_cap, PRIVILEGE_USER);
++
++ /*   ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnChassis,
+                           ipmi::chassis::cmdGetChassisCapabilities,
+-                          ipmi::Privilege::User, ipmiGetChassisCap);
++                          ipmi::Privilege::User, ipmiGetChassisCap); */
+ 
+     // Set Front Panel Button Enables
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnChassis,

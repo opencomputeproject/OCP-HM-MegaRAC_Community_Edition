@@ -1,0 +1,16 @@
+description: >
+    Implement to provide fan pwm control. The method of control is hardware
+    dependent and objects implementing Control.FanPwm must be instantiated
+    within the sensors/fan_tach namespace.
+
+    Any service implementing Control.FanPwm on one or more objects must
+    implement xyz.openbmc_project.Sensors.Value on the object and
+    org.freedesktop.DBus.ObjectManager on the sensors namespace root.
+
+    All Control.FanPwm properties are read-write.
+
+properties:
+    - name: Target
+      type: uint64
+      description: >
+          The fan pwm target value. 0 - 255

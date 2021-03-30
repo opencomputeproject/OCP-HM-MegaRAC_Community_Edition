@@ -1,0 +1,153 @@
+// Threshold graphs
+$thresh-critical: $status-error;
+$thresh-warning: $accent-03--02;
+$thresh-normal: $accent-02--02;
+
+.sensors {
+  max-width: 1196px;
+}
+
+.sensors__table {
+  display: block;
+  border-collapse: collapse;
+}
+
+.sensors__thead {
+  display: block;
+}
+
+.sensors__thead-row {
+  display: block;
+  background: $background-05;
+  color: $primary-light;
+  margin-bottom: 1rem;
+
+  @include mediaQuery(medium) {
+    display: flex;
+    margin-bottom: 0;
+  }
+}
+
+.sensors__thead-cell {
+  display: block;
+  padding: 1rem;
+  font-weight: 700;
+
+  &:not(:first-child) {
+    display: none;
+  }
+
+  @include mediaQuery(medium) {
+    flex: 1;
+
+    &:not(:first-child) {
+      display: block;
+      flex-grow: 0;
+      flex-shrink: 0;
+      flex-basis: 0;
+      min-width: 16%;
+    }
+  }
+}
+
+.sensors__tbody {
+  display: block;
+}
+
+.sensors__tbody-row {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid $border-color-01;
+  margin-bottom: 1rem;
+
+  @include mediaQuery(medium) {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 0;
+  }
+}
+
+.sensors__tbody-header {
+  display: block;
+  background: $background-02;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+
+  @include mediaQuery(medium) {
+    flex: 1;
+    align-items: center;
+    background: transparent;
+    font-weight: 400;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.sensors__tbody-cell {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  @include fontCourierBold;
+
+  @include mediaQuery(medium) {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: 0;
+    align-items: center;
+    min-width: 16%;
+    justify-content: flex-start;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.sensors__tbody-cell__title {
+  font-weight: 300;
+
+  @include mediaQuery(medium) {
+    display: none;
+  }
+}
+
+.sensors__tbody-unit {
+  display: inline-block;
+  color: $text-01;
+  margin-left: 0.5em;
+  font-weight: 700;
+  text-transform: uppercase;
+
+  @include mediaQuery(medium) {
+    margin-left: 0;
+  }
+}
+
+.sensors__tbody-degree {
+  display: inline-block;
+  margin-left: -8px;
+}
+
+.sensors__tbody-current {
+  background: darken($thresh-normal, 3%);
+
+  .sensors__tbody-cell__title {
+    font-weight: 700;
+  }
+}
+
+.sensors__tbody-current--critical {
+  background: $thresh-critical;
+  color: $primary-light;
+
+  .sensors__tbody-unit {
+    color: $primary-light;
+  }
+}
+
+.sensors__tbody-current--warn {
+  background: $thresh-warning;
+  color: $primary-dark;
+
+  .sensors__tbody-unit {
+    color: $primary-dark;
+  }
+}

@@ -1,0 +1,56 @@
+From 53ffa9d8e64dfc862f067ebc4eccb27489463efe Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Fri, 13 Nov 2020 16:13:51 -0500
+Subject: [PATCH] system boot options mailbox fix
+
+---
+ systembootoption.cpp | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/systembootoption.cpp b/systembootoption.cpp
+index 458c22b..3d9db11 100644
+--- a/systembootoption.cpp
++++ b/systembootoption.cpp
+@@ -560,7 +560,7 @@ ipmi::RspType<ipmi::message::Payload>
+             return ipmi::responseUnspecifiedError();
+         }
+     }
+-    else if (parameterSelector =
++    else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorInfo))
+     {
+         ipmi::Value channel;
+@@ -1207,7 +1207,9 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorMailbox))
+     {
+         uint8_t block;
+-        data.unpack(block);
++        if (data.unpack(block) != 0) {
++            return ipmi::responseReqDataLenInvalid();
++        }
+         if (block > 4)
+         {
+             return ipmi::responseParmOutOfRange();
+@@ -1245,14 +1247,14 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+         uint64_t inLower = std::get<uint64_t>(lower);
+         uint64_t inUpper = std::get<uint64_t>(upper);
+         int i = 0;
+-        while (data.unpack(inByte) != 0 && !data.fullyUnpacked() && i < 16)
++        while (data.unpack(inByte) == 0 && !data.fullyUnpacked() && i < 16)
+         {
+             if (i < 8) {
+-                inLower &= ~(0xFF << ((i % 8) * 8)); // clear
+-                inLower |= (inByte << ((i % 8) * 8)); // set
++                inLower &= ~(((uint64_t)0xFF) << ((i % 8) * 8)); // clear
++                inLower |= (((uint64_t)inByte) << ((i % 8) * 8)); // set
+             } else {
+-                inUpper &= ~(0xFF << ((i % 8) * 8)); // clear
+-                inUpper |= (inByte << ((i % 8) * 8)); // set
++                inUpper &= ~(((uint64_t)0xFF) << ((i % 8) * 8)); // clear
++                inUpper |= (((uint64_t)inByte) << ((i % 8) * 8)); // set
+             }
+ 
+             i++;
+-- 
+2.17.1
+

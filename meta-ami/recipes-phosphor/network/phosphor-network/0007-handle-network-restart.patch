@@ -1,0 +1,67 @@
+diff -Naur a/dhcp_configuration.cpp b/dhcp_configuration.cpp
+--- a/dhcp_configuration.cpp	2021-01-12 09:01:20.660955876 -0500
++++ b/dhcp_configuration.cpp	2021-01-12 09:08:05.858245397 -0500
+@@ -3,7 +3,9 @@
+ #include "dhcp_configuration.hpp"
+ 
+ #include "network_manager.hpp"
+-
++#include <sdbusplus/bus.hpp>
++#include <sdbusplus/bus/match.hpp>
++#include <sdbusplus/server/manager.hpp>
+ #include <phosphor-logging/elog-errors.hpp>
+ #include <phosphor-logging/log.hpp>
+ #include <xyz/openbmc_project/Common/error.hpp>
+@@ -12,6 +14,19 @@
+ {
+ namespace network
+ {
++
++extern std::unique_ptr<Timer> restartTimer;
++
++void HandleTimer(bool value)
++{
++	if (value == false)
++	{
++		restartTimer=nullptr;
++		return;
++	}
++	phosphor::network::initializeTimers();
++}
++
+ namespace dhcp
+ {
+ 
+@@ -26,7 +41,9 @@
+     }
+ 
+     auto name = ConfigIntf::sendHostNameEnabled(value);
++    phosphor::network::HandleTimer(false);
+     manager.writeToConfigurationFile();
++    phosphor::network::HandleTimer(true);
+ 
+     return name;
+ }
+@@ -39,7 +56,9 @@
+     }
+ 
+     auto name = ConfigIntf::vendorClassIdentifierEnabled(value);
++    phosphor::network::HandleTimer(false);
+     manager.writeToConfigurationFile();
++    phosphor::network::HandleTimer(true);
+ 
+     return name;
+ }
+diff -Naur a/network_manager.hpp b/network_manager.hpp
+--- a/network_manager.hpp	2021-01-12 09:00:22.657926392 -0500
++++ b/network_manager.hpp	2021-01-12 09:06:13.896344339 -0500
+@@ -22,6 +22,9 @@
+ using SystemConfPtr = std::unique_ptr<SystemConfiguration>;
+ using DHCPConfPtr = std::unique_ptr<dhcp::Configuration>;
+ 
++extern void initializeTimers();
++extern void HandleTimer();
++
+ namespace fs = std::filesystem;
+ namespace details
+ {

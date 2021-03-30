@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <style type="text/css">
+body, input, #file { font-size: 12px; }
+pre {
+    border: thin solid #c0c0c0;
+    color: #404040;
+    font-family: Inconsolata, Ubuntu mono, fixed;
+    font-size: 9pt;
+    padding: 0.1em 0.4em;
+}
+  </style>
+  <script src="/js/nbd.js" type="text/javascript">
+  </script>
+  <script type="text/javascript">
+var server;
+
+function start_server()
+{ 
+    var file = document.getElementById("file").files[0];
+
+    server = new NBDServer("ws://" + location.host + "/", file);
+    server.onlog = function(msg) {
+        var container = document.getElementById("log");
+        container.innerText += msg + "\n";
+    }
+    server.start()
+}
+
+function stop_server()
+{
+    if (server)
+        server.stop();
+}
+
+document.addEventListener("DOMContentLoaded", function(event) {
+    document.getElementById("go").focus();
+});
+
+  </script>
+ </head>
+ <body>
+  <div>
+   <input type="file" id="file">
+   <input type="button" id="go" onclick="start_server()" value="Serve Image">
+   <input type="button" id="stop" onclick="stop_server()" value="Stop">
+  </div>
+  <pre id="log"></pre>
+ </body>
+</html>

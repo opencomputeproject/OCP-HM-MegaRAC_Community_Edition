@@ -1,0 +1,430 @@
+diff -Naur a/drivers/usb/gadget/Kconfig b/drivers/usb/gadget/Kconfig
+--- a/drivers/usb/gadget/Kconfig	2019-07-22 22:57:53.000000000 -0400
++++ b/drivers/usb/gadget/Kconfig	2020-05-25 15:11:22.423903956 -0400
+@@ -156,6 +156,12 @@
+ 
+ endif # USB_GADGET_DOWNLOAD
+ 
++config NPCM750_UDC
++	bool "Poleg USB Device Controller"
++	select USB_GADGET_DUALSPEED
++	help
++	  Poleg USB Device Controller
++
+ config USB_ETHER
+ 	bool "USB Ethernet Gadget"
+ 	depends on NET
+diff -Naur a/drivers/usb/gadget/Makefile b/drivers/usb/gadget/Makefile
+--- a/drivers/usb/gadget/Makefile	2019-07-22 22:57:53.000000000 -0400
++++ b/drivers/usb/gadget/Makefile	2020-05-25 15:11:22.419903914 -0400
+@@ -21,6 +21,7 @@
+ obj-$(CONFIG_USB_GADGET_DWC2_OTG_PHY) += dwc2_udc_otg_phy.o
+ obj-$(CONFIG_USB_GADGET_FOTG210) += fotg210.o
+ obj-$(CONFIG_CI_UDC)	+= ci_udc.o
++obj-$(CONFIG_NPCM750_UDC) += poleg_udc.o
+ ifndef CONFIG_SPL_BUILD
+ obj-$(CONFIG_USB_GADGET_DOWNLOAD) += g_dnl.o
+ obj-$(CONFIG_USB_FUNCTION_THOR) += f_thor.o
+diff -Naur a/drivers/usb/gadget/poleg_udc.c b/drivers/usb/gadget/poleg_udc.c
+--- a/drivers/usb/gadget/poleg_udc.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/usb/gadget/poleg_udc.c	2020-05-25 15:11:22.415903873 -0400
+@@ -0,0 +1,124 @@
++#include <common.h>
++#include <dm.h>
++#include <dm/device-internal.h>
++#include <asm/io.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/gcr.h>
++#include <asm/arch/clock.h>
++
++#include "../host/ehci.h"
++
++/* Declare global data pointer */
++DECLARE_GLOBAL_DATA_PTR;
++/**
++ * Contains pointers to register base addresses
++ * for the usb controller.
++ */
++struct poleg_usbdev {
++	struct ehci_ctrl ctrl;
++	fdt_addr_t reg_base;
++};
++
++static int usbd_ofdata_to_platdata(struct udevice *dev)
++{
++	struct poleg_usbdev *priv = dev_get_priv(dev);
++
++	priv = dev_get_priv(dev);
++	/*
++	 * Get the base address for XHCI controller from the device node
++	 */
++	priv->reg_base = dev_read_addr(dev);
++	if (priv->reg_base == FDT_ADDR_T_NONE) {
++		debug("Can't get the USBDEV register base address\n");
++		return -ENXIO;
++	}
++
++	return 0;
++}
++
++static int poleg_usbd_probe(struct udevice *dev)
++{
++	struct poleg_usbdev *ctx = dev_get_priv(dev);
++	struct clk_ctl *clkctl = (struct clk_ctl *)npcm750_get_base_clk();
++	struct npcm750_gcr *gcr = (struct npcm750_gcr *)npcm750_get_base_gcr();
++	struct ehci_hccr *hccr;
++	struct ehci_hcor *hcor;
++
++	hccr = (struct ehci_hccr *)ctx->reg_base;
++
++	if ((readl(&clkctl->ipsrst3) & (1 << IPSRST3_USBPHY2)) != 0) {
++		/* set usb device controller to reset */
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV6), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV5), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV4), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV3), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV2), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV1), &clkctl->ipsrst1);
++
++		/* set usb host to reset */
++		writel(readl(&clkctl->ipsrst2) | (1 << IPSRST2_USBHOST), &clkctl->ipsrst2);
++		/* set usb hub to reset */
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBHUB), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBDEV9), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBDEV8), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBDEV7), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBDEV0), &clkctl->ipsrst3);
++
++		/* set usb phy1 & phy2 to reset */
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBPHY2), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBPHY1), &clkctl->ipsrst3);
++
++		writel(readl(&gcr->usb1phyctl) & ~(1 << USB1PHYCTL_RS), &gcr->usb1phyctl);
++		writel(readl(&gcr->usb2phyctl) & ~(1 << USB2PHYCTL_RS), &gcr->usb2phyctl);
++
++		udelay(1);
++
++		/* enable phy */
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBPHY2), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBPHY1), &clkctl->ipsrst3);
++
++		/* wait for PHY clocks to stablize for 50us or more */
++		udelay(1000);
++
++		/* set RS bit after PHY reset bit is released */
++		writel(readl(&gcr->usb1phyctl) | (1 << USB1PHYCTL_RS), &gcr->usb1phyctl);
++		writel(readl(&gcr->usb2phyctl) | (1 << USB2PHYCTL_RS), &gcr->usb2phyctl);
++
++		/* enable hub */
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBHUB), &clkctl->ipsrst3);
++	}
++
++    /* enable usb device 0 */
++	writel(readl(&clkctl->ipsrst3) & ~((1 << IPSRST3_USBDEV0)), &clkctl->ipsrst3);
++
++	hcor = (struct ehci_hcor *)((uint32_t)hccr +
++			HC_LENGTH(ehci_readl(&hccr->cr_capbase)));
++
++	return ehci_register(dev, hccr, hcor, NULL, 0, USB_INIT_DEVICE);
++}
++
++static int poleg_usbd_remove(struct udevice *dev)
++{
++	int ret;
++
++	ret = ehci_deregister(dev);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static const struct udevice_id poleg_usb_ids[] = {
++	{ .compatible = "nuvoton,poleg-usbd" },
++	{ }
++};
++
++U_BOOT_DRIVER(poleg_usbd) = {
++	.name	= "usbdev",
++	.id	= UCLASS_USB,
++	.of_match = poleg_usb_ids,
++	.ofdata_to_platdata = usbd_ofdata_to_platdata,
++	.probe	= poleg_usbd_probe,
++	.remove = poleg_usbd_remove,
++	.priv_auto_alloc_size = sizeof(struct poleg_usbdev),
++};
+diff -Naur a/drivers/usb/host/ehci-npcm7xx.c b/drivers/usb/host/ehci-npcm7xx.c
+--- a/drivers/usb/host/ehci-npcm7xx.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/usb/host/ehci-npcm7xx.c	2020-05-25 15:11:22.403903746 -0400
+@@ -0,0 +1,137 @@
++/*
++ * NUVOTON POLEG USB HOST EHCI Controller
++ *
++ * Copyright (C) 2019 Nuvoton Co.Ltd
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <fdtdec.h>
++#include <usb.h>
++#include <asm/io.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/gcr.h>
++#include <asm/arch/clock.h>
++#include "ehci.h"
++
++
++/* Declare global data pointer */
++DECLARE_GLOBAL_DATA_PTR;
++
++struct poleg_ehci_platdata {
++	struct usb_platdata usb_plat;
++	fdt_addr_t hcd_base;
++};
++
++/**
++ * Contains pointers to register base addresses
++ * for the usb controller.
++ */
++struct poleg_ehci {
++	struct ehci_ctrl ctrl;
++	struct ehci_hccr *hcd;
++};
++
++static int ehci_usb_ofdata_to_platdata(struct udevice *dev)
++{
++	struct poleg_ehci_platdata *plat = dev_get_platdata(dev);
++
++	/*
++	 * Get the base address for EHCI controller from the device node
++	 */
++	plat->hcd_base = (fdt_addr_t) dev_read_addr_ptr(dev);
++	if (plat->hcd_base == FDT_ADDR_T_NONE) {
++		debug("Can't get the XHCI register base address\n");
++		return -ENXIO;
++	}
++
++	return 0;
++}
++
++/* Reset the EHCI host controller. */
++
++static int ehci_usb_probe(struct udevice *dev)
++{
++	struct poleg_ehci_platdata *plat = dev_get_platdata(dev);
++	struct poleg_ehci *ctx = dev_get_priv(dev);
++	struct ehci_hcor *hcor;
++	struct clk_ctl *clkctl = (struct clk_ctl *)npcm750_get_base_clk();
++	struct npcm750_gcr *gcr = (struct npcm750_gcr *)npcm750_get_base_gcr();
++
++	ctx->hcd = (struct ehci_hccr *)plat->hcd_base;
++
++	if ((readl(&clkctl->ipsrst3) & (1 << IPSRST3_USBPHY2)) != 0) {
++		/* set usb device controller to reset */
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV3), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV6), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV5), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV4), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV2), &clkctl->ipsrst1);
++		writel(readl(&clkctl->ipsrst1) | (1 << IPSRST1_USBDEV1), &clkctl->ipsrst1);
++
++		/* set usb host controller to reset */
++		writel(readl(&clkctl->ipsrst2) | (1 << IPSRST2_USBHOST), &clkctl->ipsrst2);
++
++		/* set usb phy1 & phy2 to reset */
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBPHY2), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) | (1 << IPSRST3_USBPHY1), &clkctl->ipsrst3);
++
++		writel(readl(&gcr->usb1phyctl) & ~(1 << USB1PHYCTL_RS), &gcr->usb1phyctl);
++		writel(readl(&gcr->usb2phyctl) & ~(1 << USB2PHYCTL_RS), &gcr->usb2phyctl);
++
++		udelay(1000);
++
++		/* enable phy */
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBPHY2), &clkctl->ipsrst3);
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBPHY1), &clkctl->ipsrst3);
++
++		/* wait for PHY clocks to stablize for 50us or more */
++		udelay(1000);
++
++		/* set RS bit after PHY reset bit is released */
++		writel(readl(&gcr->usb1phyctl) | (1 << USB1PHYCTL_RS), &gcr->usb1phyctl);
++		writel(readl(&gcr->usb2phyctl) | (1 << USB2PHYCTL_RS), &gcr->usb2phyctl);
++
++		/* enable hub */
++		writel(readl(&clkctl->ipsrst3) & ~(1 << IPSRST3_USBHUB), &clkctl->ipsrst3);
++	}
++
++	/* enable host */
++	writel(readl(&clkctl->ipsrst2) & ~(1 << IPSRST2_USBHOST), &clkctl->ipsrst2);
++
++	hcor = (struct ehci_hcor *)((uint32_t)ctx->hcd +
++			HC_LENGTH(ehci_readl(&ctx->hcd->cr_capbase)));
++
++	return ehci_register(dev, ctx->hcd, hcor, NULL, 0, USB_INIT_HOST);
++}
++
++static int ehci_usb_remove(struct udevice *dev)
++{
++	int ret;
++
++	ret = ehci_deregister(dev);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static const struct udevice_id ehci_usb_ids[] = {
++	{ .compatible = "nuvoton,poleg-ehci" },
++	{ }
++};
++
++U_BOOT_DRIVER(usb_poleg) = {
++	.name	= "ehci_poleg",
++	.id	= UCLASS_USB,
++	.of_match = ehci_usb_ids,
++	.ofdata_to_platdata = ehci_usb_ofdata_to_platdata,
++	.probe = ehci_usb_probe,
++	.remove = ehci_usb_remove,
++	.ops	= &ehci_usb_ops,
++	.priv_auto_alloc_size = sizeof(struct poleg_ehci),
++	.platdata_auto_alloc_size = sizeof(struct poleg_ehci_platdata),
++	.flags	= DM_FLAG_ALLOC_PRIV_DMA,
++};
+diff -Naur a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
+--- a/drivers/usb/host/Kconfig	2019-07-22 22:57:54.000000000 -0400
++++ b/drivers/usb/host/Kconfig	2020-05-25 15:11:22.415903873 -0400
+@@ -207,6 +207,14 @@
+ 	select  CONFIG_EHCI_HCD_INIT_AFTER_RESET
+ 	---help---
+ 	  Enables support for the on-chip EHCI controller on FSL chips.
++
++config USB_EHCI_NPCM7XX
++	bool "Support for Poleg on-chip EHCI USB controller"
++	depends on ARCH_NPCM750
++	default n
++	---help---
++	  Enable support for Poleg on-chip EHCI USB controller
++
+ endif # USB_EHCI_HCD
+ 
+ config USB_OHCI_HCD
+diff -Naur a/drivers/usb/host/Makefile b/drivers/usb/host/Makefile
+--- a/drivers/usb/host/Makefile	2019-07-22 22:57:54.000000000 -0400
++++ b/drivers/usb/host/Makefile	2020-05-25 15:11:22.407903788 -0400
+@@ -41,6 +41,7 @@
+ obj-$(CONFIG_USB_EHCI_VF) += ehci-vf.o
+ obj-$(CONFIG_USB_EHCI_RMOBILE) += ehci-rmobile.o
+ obj-$(CONFIG_USB_EHCI_ZYNQ) += ehci-zynq.o
++obj-$(CONFIG_USB_EHCI_NPCM7XX) += ehci-npcm7xx.o
+ 
+ # xhci
+ obj-$(CONFIG_USB_XHCI_HCD) += xhci.o xhci-mem.o xhci-ring.o
+diff -Naur a/drivers/usb/host/usb-uclass.c b/drivers/usb/host/usb-uclass.c
+--- a/drivers/usb/host/usb-uclass.c	2019-07-22 22:57:54.000000000 -0400
++++ b/drivers/usb/host/usb-uclass.c	2020-06-02 14:55:14.036143434 -0400
+@@ -36,7 +36,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->interrupt)
++	if ( !ops || !ops->interrupt)
+ 		return -ENOSYS;
+ 
+ 	return ops->interrupt(bus, udev, pipe, buffer, length, interval);
+@@ -50,7 +50,7 @@
+ 	struct usb_uclass_priv *uc_priv = bus->uclass->priv;
+ 	int err;
+ 
+-	if (!ops->control)
++	if (!ops || !ops->control)
+ 		return -ENOSYS;
+ 
+ 	err = ops->control(bus, udev, pipe, buffer, length, setup);
+@@ -71,7 +71,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->bulk)
++	if (!ops || !ops->bulk)
+ 		return -ENOSYS;
+ 
+ 	return ops->bulk(bus, udev, pipe, buffer, length);
+@@ -84,7 +84,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->create_int_queue)
++	if (!ops || !ops->create_int_queue)
+ 		return NULL;
+ 
+ 	return ops->create_int_queue(bus, udev, pipe, queuesize, elementsize,
+@@ -96,7 +96,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->poll_int_queue)
++	if (!ops || !ops->poll_int_queue)
+ 		return NULL;
+ 
+ 	return ops->poll_int_queue(bus, udev, queue);
+@@ -107,7 +107,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->destroy_int_queue)
++	if (!ops || !ops->destroy_int_queue)
+ 		return -ENOSYS;
+ 
+ 	return ops->destroy_int_queue(bus, udev, queue);
+@@ -119,7 +119,7 @@
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+ 	/* This is only requird by some controllers - current XHCI */
+-	if (!ops->alloc_device)
++	if (!ops || !ops->alloc_device)
+ 		return 0;
+ 
+ 	return ops->alloc_device(bus, udev);
+@@ -130,7 +130,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->reset_root_port)
++	if (!ops || !ops->reset_root_port)
+ 		return -ENOSYS;
+ 
+ 	return ops->reset_root_port(bus, udev);
+@@ -141,7 +141,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->update_hub_device)
++	if (!ops || !ops->update_hub_device)
+ 		return -ENOSYS;
+ 
+ 	return ops->update_hub_device(bus, udev);
+@@ -152,7 +152,7 @@
+ 	struct udevice *bus = udev->controller_dev;
+ 	struct dm_usb_ops *ops = usb_get_ops(bus);
+ 
+-	if (!ops->get_max_xfer_size)
++	if (!ops || !ops->get_max_xfer_size)
+ 		return -ENOSYS;
+ 
+ 	return ops->get_max_xfer_size(bus, size);
+@@ -206,6 +206,11 @@
+ 	struct udevice *dev;
+ 	int ret;
+ 
++	if( !usb_get_ops(bus) ){
++		printf("skip scanning bus %d for devices, due to ops is NULL...\n",bus->seq);
++		return;
++	}
++
+ 	priv = dev_get_uclass_priv(bus);
+ 
+ 	assert(recurse);	/* TODO: Support non-recusive */

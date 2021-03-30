@@ -1,0 +1,60 @@
+option('tests', type: 'feature', description: 'Build tests')
+option('oe-sdk', type: 'feature', description: 'Enable OE SDK')
+option('examples', type: 'boolean', value: true, description: 'Build vendor-example')
+
+option('MANIFEST_FILE',
+       type: 'string',
+       value: 'MANIFEST',
+       description: 'The path of the MANIFEST file')
+
+option('SOFTWARE_OBJPATH',
+       type: 'string',
+       value: '/xyz/openbmc_project/software',
+       description: 'The software manager Dbus root')
+
+option('PSU_INVENTORY_PATH_BASE',
+       type: 'string',
+       value: '/xyz/openbmc_project/inventory/system',
+       description: 'The base path for PSU inventory')
+
+option('IMG_DIR',
+       type: 'string',
+       value: '/tmp/images',
+       description: 'The directory where downloaded or uploaded PSU images are placed and extracted')
+
+# The PSU_VERSION_UTIL specifies an executable that accepts the PSU
+# inventory path as input, and output the version string, e.g
+#   psutils get-version /xyz/openbmc_project/inventory/system/chassis/motherboard/powersupply0
+# or in vendor-example
+#   get_version <some-psu-path>
+option('PSU_VERSION_UTIL',
+       type: 'string',
+       value: '/usr/bin/psutils --raw --get-version',
+       description: 'The command and arguments to get PSU version')
+
+# The PSU_VERSION_COMPARE_UTIL specifies an executable that accepts the PSU
+# versions as input, and outputs which version is the newest, e.g.
+#   psutils get-version 0001 0002 0003 # May output 0003
+# or in vendor-example
+#   get_latest_version 0001 0002 0003 # output 0003
+option('PSU_VERSION_COMPARE_UTIL',
+       type: 'string',
+       value: '/usr/bin/psutils --raw --compare',
+       description: 'The command and arguments to compare PSU versions')
+
+# The PSU update service
+# It shall take a path containing the PSU image(s) as the input
+option('PSU_UPDATE_SERVICE',
+       type: 'string',
+       value: 'psu-update@.service',
+       description: 'The PSU update service')
+
+option('IMG_DIR_PERSIST',
+       type: 'string',
+       value: '/var/lib/obmc/psu',
+       description: 'The writable directory to store updated PSU images persistently')
+
+option('IMG_DIR_BUILTIN',
+       type: 'string',
+       value: '/usr/share/obmc/psu',
+       description: 'The read-only directory where the built-in PSU images are stored')

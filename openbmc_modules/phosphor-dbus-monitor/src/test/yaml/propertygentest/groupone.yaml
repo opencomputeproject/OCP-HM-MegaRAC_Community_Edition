@@ -1,0 +1,23 @@
+- name: test property group
+  class: group
+  group: property
+  type: uint32
+  members:
+    - interface: xyz.openbmc_project.Test.Iface3
+      property: Foo
+      meta: PROPERTY1
+    - interface: xyz.openbmc_project.Test.Iface2
+      property: Value
+      meta: PROPERTY2
+
+- name: test property group 2
+  class: group
+  group: property
+  type: int32
+  members:
+    - interface: xyz.openbmc_project.Test.Iface3
+      property: Bar
+      meta: PROPERTY1
+    - interface: xyz.openbmc_project.Test.Iface2
+      property: Foo
+      meta: PROPERTY2

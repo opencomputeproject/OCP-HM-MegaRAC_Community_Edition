@@ -1,0 +1,45 @@
+#!/bin/bash -xe
+#
+# Purpose:
+#  This script is responsible for setting up a openbmc/openbmc build
+#  environment for a meta-* repository.
+#
+# Required Inputs:
+#  WORKSPACE:      Directory which contains the extracted meta-*
+#                  layer test is running against
+#  GERRIT_PROJECT: openbmc/meta-* layer under test (i.e. openbmc/meta-phosphor)
+#  GERRIT_BRANCH:  Branch under test (default is master)
+
+export LANG=en_US.UTF8
+cd $WORKSPACE
+
+GERRIT_BRANCH=${GERRIT_BRANCH:-"master"}
+
+# Grab this for the downstream job
+# TODO - Need test repo to branch
+# git clone https://github.com/openbmc/openbmc-test-automation.git --branch ${GERRIT_BRANCH} --single-branch
+git clone https://github.com/openbmc/openbmc-test-automation.git --branch master --single-branch
+
+export META_REPO=`basename $GERRIT_PROJECT`
+
+# Move the extracted meta layer to a dir based on it's meta-* name
+mv $GERRIT_PROJECT $META_REPO
+
+# Remove openbmc dir in prep for full repo clone
+rm -rf openbmc
+
+# Clone openbmc/openbmc
+git clone https://github.com/openbmc/openbmc.git --branch ${GERRIT_BRANCH} --single-branch
+
+# Make sure meta-* directory is there
+mkdir -p ./openbmc/$META_REPO/
+
+# Clean out the dir to handle delete/rename of files
+rm -rf ./openbmc/$META_REPO/*
+
+# Copy the extracted meta code into it
+cp -Rf $META_REPO/* ./openbmc/$META_REPO/
+
+# Create a dummy commit so code update will pick it up
+cd openbmc
+git add -A && git commit --allow-empty -m "Dummy commit to cause code update"

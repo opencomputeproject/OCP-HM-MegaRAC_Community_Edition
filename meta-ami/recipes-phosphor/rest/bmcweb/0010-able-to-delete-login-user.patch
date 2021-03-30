@@ -1,0 +1,23 @@
+--- a/redfish-core/lib/account_service.hpp	2020-08-03 11:49:54.706921230 -0400
++++ b/redfish-core/lib/account_service.hpp	2020-08-05 15:39:43.782061124 -0400
+@@ -1902,6 +1902,20 @@
+             return;
+         }
+ 
++	
++	std::vector<const std::string*> sessionIds = 
++            crow::persistent_data::SessionStore::getInstance().getUniqueIds(false, crow::persistent_data::PersistenceType::TIMEOUT);
++        for(auto n : sessionIds)
++        {
++            auto session = crow::persistent_data::SessionStore::getInstance().getSessionByUid(*n);
++            if(session->username == params[0])
++            {
++                messages::internalError(asyncResp->res);
++                return;       
++            }
++        }
++
++	
+         const std::string userPath = "/xyz/openbmc_project/user/" + params[0];
+ 
+         crow::connections::systemBus->async_method_call(

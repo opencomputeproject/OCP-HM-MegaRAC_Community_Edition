@@ -1,0 +1,26 @@
+description: >
+    Implement to provide privilege for the group.
+
+properties:
+    - name: GroupName
+      type: string
+      description: >
+          Group Name to which the privilege is to be assigned. In the case of
+          LDAP, the GroupName will be the LDAP group the user is part of.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.User.Common.Error.PrivilegeMappingExists
+    - name: Privilege
+      type: string
+      description: >
+          One of the privilege as defined by
+          xyz.openbmc_project.User.Manager.AllPrivileges.
+          xyz.openbmc_project.Common.Error.InvalidArgument exception will be
+          thrown if the privilege is invalid. Additional documentation
+          on privilege is available here.
+          https://github.com/openbmc/docs/blob/master/architecture/user-management.md
+
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument

@@ -1,0 +1,12 @@
+diff -Naur a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2020-12-10 15:25:25.141793827 -0500
++++ b/transporthandler.cpp	2020-12-10 15:30:40.368765041 -0500
+@@ -1592,6 +1592,8 @@
+                 {
+                     return responseInvalidFieldRequest();
+                 }
++                default:
++                    return responseInvalidFieldRequest();
+             }
+             return response(ccParamNotSupported);
+         }

@@ -1,0 +1,18 @@
+diff -Naur a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-03-03 11:43:12.437699052 +0530
++++ b/redfish-core/lib/log_services.hpp	2021-03-03 11:45:27.594077281 +0530
+@@ -1190,6 +1190,14 @@
+             }
+         }
+ 
++        static const std::string thresholdLogFile = "/var/event/threshold";
++        if(std::filesystem::exists(thresholdLogFile))
++        {
++           std::error_code ec;
++           std::filesystem::remove(thresholdLogFile, ec);
++        }
++
++
+         // Clear the EventLog by deleting the log files
+         std::vector<std::filesystem::path> redfishLogFiles;
+         if (getRedfishLogFiles(redfishLogFiles))

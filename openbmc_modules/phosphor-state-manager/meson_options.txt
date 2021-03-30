@@ -1,0 +1,90 @@
+option('tests', type: 'feature', description: 'Build tests')
+
+option(
+    'host-busname', type: 'string',
+    value: 'xyz.openbmc_project.State.Host',
+    description: 'The Host DBus busname to own.',
+)
+
+option(
+    'host-objpath', type: 'string',
+    value: '/xyz/openbmc_project/state/host',
+    description: 'The host state manager Dbus root.',
+)
+
+option(
+    'chassis-busname', type: 'string',
+    value: 'xyz.openbmc_project.State.Chassis',
+    description: 'The Chassis DBus busname to own.',
+)
+
+option(
+    'chassis-objpath', type: 'string',
+    value: '/xyz/openbmc_project/state/chassis',
+    description: 'The chassis state manager Dbus root.',
+)
+
+option(
+    'bmc-busname', type: 'string',
+    value: 'xyz.openbmc_project.State.BMC',
+    description: 'The BMC DBus busname to own.',
+)
+
+option(
+    'bmc-objpath', type: 'string',
+    value: '/xyz/openbmc_project/state/bmc',
+    description: 'The bmc state manager Dbus root.',
+)
+
+option(
+    'host-running-file', type: 'string',
+    value: '/run/openbmc/host@%d-on',
+    description: 'File to create if host is running.',
+)
+
+option(
+    'host-state-persist-path', type: 'string',
+    value: '/var/lib/phosphor-state-manager/requestedHostTransition',
+    description: 'Path of file for storing requested host state.',
+)
+
+option(
+    'poh-counter-persist-path', type: 'string',
+    value: '/var/lib/phosphor-state-manager/POHCounter',
+    description: 'Path of file for storing POH counter.',
+)
+
+option(
+    'chassis-state-change-persist-path', type: 'string',
+    value: '/var/lib/phosphor-state-manager/chassisStateChangeTime',
+    description: 'Path of file for storing the state change time.',
+)
+
+option(
+    'scheduled-host-transition-persist-path', type: 'string',
+    value: '/var/lib/phosphor-state-manager/scheduledHostTransition',
+    description: 'Path of file for storing the scheduled time and the requested transition.',
+)
+
+option(
+    'boot-count-max-allowed', type: 'integer',
+    value: 3,
+    description: 'The maximum allowed reboot count.',
+)
+
+option(
+    'class-version', type: 'integer',
+    value: 1,
+    description: 'Class version to register with Cereal.',
+)
+
+option(
+    'scheduled-host-transition-busname', type: 'string',
+    value: 'xyz.openbmc_project.State.ScheduledHostTransition',
+    description: 'The scheduled host transition Dbus busname to own.',
+)
+
+option('warm-reboot', type : 'feature',
+    value : 'enabled',
+    description : 'Enable warm reboots of the system',
+)

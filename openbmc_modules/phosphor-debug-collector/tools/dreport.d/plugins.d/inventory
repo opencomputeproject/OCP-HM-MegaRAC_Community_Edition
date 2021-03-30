@@ -1,0 +1,19 @@
+#!/bin/bash
+#
+# config: 2 20
+# @brief: Get the inventory information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="inventory"
+
+command="busctl call --verbose --no-pager \
+                xyz.openbmc_project.Inventory.Manager \
+                /xyz/openbmc_project/inventory \
+                org.freedesktop.DBus.ObjectManager \
+                GetManagedObjects"
+
+file_name="inventory.log"
+
+add_cmd_output "$command" "$file_name" "$desc"

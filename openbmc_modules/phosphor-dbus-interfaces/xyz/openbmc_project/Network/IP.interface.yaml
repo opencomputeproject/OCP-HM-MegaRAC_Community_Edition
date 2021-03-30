@@ -1,0 +1,67 @@
+description: >
+    This defines an IP address.
+
+# TODO Fix it through https://github.com/openbmc/openbmc/issues/1438
+# creatable: true
+
+properties:
+    - name: Address
+      type: string
+      description: >
+          The value of this property shall be an IP address assigned to
+          the ethernet interface.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+
+    - name: PrefixLength
+      type: byte
+      description: >
+          This is the number of network bits in the ipaddress.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+
+    - name: Origin
+      type: enum[self.AddressOrigin]
+      description: >
+          This indicates how the address was determined.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+
+    - name: Gateway
+      type: string
+      description: >
+          This is the IP gateway for this address.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+
+    - name: Type
+      type: enum[self.Protocol]
+      description: >
+          IP protocol type which can be IPv4 or IPv6 etc.
+      errors:
+          - xyz::openbmc_project.Common.Error.NotAllowed
+
+enumerations:
+    - name: Protocol
+      description: >
+          Possible IP protocol types.
+      values:
+        - name: IPv4
+        - name: IPv6
+
+    - name: AddressOrigin
+      description: >
+          Possible IP address origin types.
+      values:
+        - name: Static
+          description: >
+              Static address configured by the server.
+        - name: DHCP
+          description: >
+              Address is provided by a DHCP service.
+        - name: LinkLocal
+          description: >
+              Address is valid only for this network segment.
+        - name: SLAAC
+          description: >
+              Address is provided by a Stateless Address Autoconfiguration.

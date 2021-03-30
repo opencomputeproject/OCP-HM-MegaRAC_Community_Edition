@@ -1,0 +1,362 @@
+diff --git a/arch/arm/boot/dts/nuvoton-common-npcm7xx.dtsi b/arch/arm/boot/dts/nuvoton-common-npcm7xx.dtsi
+old mode 100644
+new mode 100755
+index 72841f54d..ae5526880
+--- a/arch/arm/boot/dts/nuvoton-common-npcm7xx.dtsi
++++ b/arch/arm/boot/dts/nuvoton-common-npcm7xx.dtsi
+@@ -4,6 +4,7 @@
+ 
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/clock/nuvoton,npcm7xx-clock.h>
++#include <dt-bindings/reset/nuvoton,npcm7xx-reset.h>
+ #include <dt-bindings/gpio/gpio.h>
+ 
+ / {
+@@ -76,12 +77,18 @@
+ 			reg = <0x800000 0x1000>;
+ 		};
+ 
+-		rst: rst@f0801000 {
++		rst: rst@801000 {
+ 			compatible = "nuvoton,npcm750-rst", "syscon",
+ 			"simple-mfd";
+ 			reg = <0x801000 0x6C>;
+ 		};
+ 
++		fuse:fuse@18a000 {
++			compatible = "nuvoton,npcm750-fuse", "syscon",
++				"simple-mfd";
++			reg = <0x18a000 0x1000>;
++		};
++
+ 		scu: scu@3fe000 {
+ 			compatible = "arm,cortex-a9-scu";
+ 			reg = <0x3fe000 0x1000>;
+@@ -95,6 +102,10 @@
+ 			cache-level = <2>;
+ 			clocks = <&clk NPCM7XX_CLK_AXI>;
+ 			arm,shared-override;
++			arm,prefetch-data = <1>;
++			arm,prefetch-instr = <1>;
++			arm,tag-latency = <1 1 1>;
++			arm,data-latency = <1 1 1>;
+ 		};
+ 
+ 		gic: interrupt-controller@3ff000 {
+@@ -113,6 +124,12 @@
+ 		interrupt-parent = <&gic>;
+ 		ranges;
+ 
++		rstc: rstc@f0801000 {
++			compatible = "nuvoton,npcm750-reset";
++			reg = <0xf0801000 0x70>;
++			#reset-cells = <2>;
++		};
++
+ 		clk: clock-controller@f0801000 {
+ 			compatible = "nuvoton,npcm750-clk", "syscon";
+ 			#clock-cells = <1>;
+@@ -145,6 +162,7 @@
+ 					<GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+ 			clocks = <&clk NPCM7XX_CLK_AHB>;
+ 			clock-names = "clk_emc";
++			resets = <&rstc NPCM7XX_RESET_IPSRST1 NPCM7XX_RESET_EMC1>;
+ 			pinctrl-names = "default";
+ 			pinctrl-0 = <&r1_pins
+ 					&r1err_pins
+@@ -236,8 +254,8 @@
+ 			#size-cells = <0>;
+ 			reg = <0xc0000000 0x1000>, <0xA0000000 0x20000000>;
+ 			reg-names = "control", "memory";
+-			clocks = <&clk NPCM7XX_CLK_AHB>;
+-			clock-names = "clk_ahb";
++			clocks = <&clk NPCM7XX_CLK_SPI3>;
++			clock-names = "clk_spi3";
+ 			pinctrl-names = "default";
+ 			pinctrl-0 = <&spi3_pins>;
+ 			status = "disabled";
+@@ -263,8 +281,7 @@
+ 		vcd: vcd@f0810000 {
+ 			compatible = "nuvoton,npcm750-vcd";
+ 			reg = <0xf0810000 0x10000>;
+-			mem-addr = <0x3e200000>;
+-			mem-size = <0x600000>;
++			phy-memory = <0x3e200000 0x600000>;
+ 			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+ 			status = "disabled";
+ 		};
+@@ -272,8 +289,7 @@
+ 		ece: ece@f0820000 {
+ 			compatible = "nuvoton,npcm750-ece";
+ 			reg = <0xf0820000 0x2000>;
+-			mem-addr = <0x3e800000>;
+-			mem-size = <0x600000>;
++			phy-memory = <0x3e800000 0x600000>;
+ 			interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+ 			status = "disabled";
+ 		};
+@@ -281,7 +297,7 @@
+ 		pcimbox: pcimbox@f0848000 {
+ 			compatible = "nuvoton,npcm750-pci-mbox",
+ 					"simple-mfd", "syscon";
+-			reg = <0xf084C000 0x8
++			reg = <0xf084C000 0xC
+ 				0xf0848000 0x3F00>;
+ 			interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+@@ -362,6 +378,7 @@
+ 				interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+ 				clocks = <&clk NPCM7XX_CLK_APB5>;
+ 				clock-names = "clk_apb5";
++				resets = <&rstc NPCM7XX_RESET_IPSRST2 NPCM7XX_RESET_PSPI1>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -375,6 +392,7 @@
+ 				interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+ 				clocks = <&clk NPCM7XX_CLK_APB5>;
+ 				clock-names = "clk_apb5";
++				resets = <&rstc NPCM7XX_RESET_IPSRST2 NPCM7XX_RESET_PSPI2>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -447,9 +465,7 @@
+ 
+ 			rng: rng@b000 {
+ 				compatible = "nuvoton,npcm750-rng";
+-				reg = <0xb000 0x1000>;
+-				clocks = <&clk NPCM7XX_CLK_APB1>;
+-				clock-names = "clk_apb1";
++				reg = <0xb000 0x8>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -458,6 +474,7 @@
+ 				reg = <0xc000 0x8>;
+ 				interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
+ 				clocks = <&clk NPCM7XX_CLK_ADC>;
++				resets = <&rstc NPCM7XX_RESET_IPSRST1 NPCM7XX_RESET_ADC>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -683,7 +700,7 @@
+ 			gfxi: gfxi@f000e000 {
+ 				compatible = "nuvoton,npcm750-gfxi", "syscon",
+ 						"simple-mfd";
+-				reg = <0xf000e000 0x100>;
++				reg = <0xe000 0x100>;
+ 			};
+ 
+ 		};
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-evb.dts b/arch/arm/boot/dts/nuvoton-npcm750-evb.dts
+old mode 100644
+new mode 100755
+index e02c04910..a776c0df9
+--- a/arch/arm/boot/dts/nuvoton-npcm750-evb.dts
++++ b/arch/arm/boot/dts/nuvoton-npcm750-evb.dts
+@@ -165,6 +165,7 @@
+ 			status = "okay";
+ 			spi-nor@0 {
+ 				compatible = "jedec,spi-nor";
++				spi-max-frequency = <5000000>;
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				spi-rx-bus-width = <2>;
+@@ -225,6 +226,7 @@
+ 			status = "okay";
+ 			spi-nor@0 {
+ 				compatible = "jedec,spi-nor";
++				spi-max-frequency = <5000000>;
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				spi-rx-bus-width = <2>;
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-gpio.dtsi b/arch/arm/boot/dts/nuvoton-npcm750-gpio.dtsi
+old mode 100644
+new mode 100755
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus-pincfg.dtsi b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus-pincfg.dtsi
+old mode 100644
+new mode 100755
+index 230cb344b..f3390dd71
+--- a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus-pincfg.dtsi
++++ b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus-pincfg.dtsi
+@@ -388,6 +388,11 @@
+ 			bias-disable;
+ 			input-enable;
+ 		};
++		gpio192o_pins: gpio192o-pins {
++			pins = "GPIO192";
++			bias-disable;
++			output-high;
++		};
+ 		gpio196_pins: gpio196-pins {
+ 			pins = "GPIO196/SMB0CSCL";
+ 			bias-disable;
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+old mode 100644
+new mode 100755
+index 71b384676..9c0de9f2f
+--- a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
++++ b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+@@ -140,6 +140,7 @@
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				reg = <0>;
++				spi-max-frequency = <5000000>;
+ 				spi-rx-bus-width = <2>;
+ 				partitions@80000000 {
+ 					compatible = "fixed-partitions";
+@@ -151,7 +152,7 @@
+ 					};
+ 					u-boot@0 {
+ 						label = "u-boot";
+-						reg = <0x0000000 0x80000>;
++						reg = <0x0000000 0xC0000>;
+ 						read-only;
+ 					};
+ 					u-boot-env@100000{
+@@ -177,7 +178,8 @@
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				reg = <1>;
+-				npcm,fiu-rx-bus-width = <2>;
++				spi-max-frequency = <5000000>;
++				spi,npcm,fiu-rx-bus-width = <2>;
+ 				partitions@88000000 {
+ 					compatible = "fixed-partitions";
+ 					#address-cells = <1>;
+@@ -202,18 +204,15 @@
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				reg = <0>;
++				spi-max-frequency = <5000000>;
+ 				spi-rx-bus-width = <2>;
+ 				partitions@A0000000 {
+ 					compatible = "fixed-partitions";
+ 					#address-cells = <1>;
+ 					#size-cells = <1>;
+-					system1@0 {
+-						label = "spi3-system1";
+-						reg = <0x0 0x800000>;
+-					};
+-					system2@800000 {
+-						label = "spi3-system2";
+-						reg = <0x800000 0x0>;
++					bios@0 {
++						label = "bios";
++						reg = <0x0 0x2000000>;
+ 					};
+ 				};
+ 			};
+@@ -358,7 +357,6 @@
+ 					reg = <0x71>;
+ 					#address-cells = <1>;
+ 					#size-cells = <0>;
+-					i2c-mux-idle-disconnect;
+ 
+ 					i2c_m2_s1: i2c-bus@0 {
+ 						#address-cells = <1>;
+@@ -395,7 +393,7 @@
+ 					reg = <0x4c>;
+ 				};
+ 				power-supply@58 {
+-					compatible = "delta,dps800";
++					compatible = "flexpower";
+ 					reg = <0x58>;
+ 				};
+ 			};
+@@ -423,10 +421,10 @@
+ 				#size-cells = <0>;
+ 				bus-frequency = <100000>;
+ 				status = "okay";
+-				slave_mqueue: i2c-slave-mqueue@40000010 {
+-					compatible = "i2c-slave-mqueue";
++				ipmb@40000010 {
++					compatible = "ipmb-dev";
+ 					reg = <0x40000010>;
+-					status = "okay";
++					i2c-protocol;
+ 				};
+ 			};
+ 
+@@ -762,18 +760,6 @@
+ 						input;
+ 						line-name = "RST_BMC_RTCRST";
+ 					};
+-					G2A_P0_3 {
+-						gpio-hog;
+-						gpios = <3 0>;
+-						output-high;
+-						line-name = "FM_BMC_PWRBTN_OUT_N";
+-					};
+-					G2A_P0_4 {
+-						gpio-hog;
+-						gpios = <4 0>;
+-						output-high;
+-						line-name = "RST_BMC_SYSRST_BTN_OUT_N";
+-					};
+ 					G2A_P0_5 {
+ 						gpio-hog;
+ 						gpios = <5 0>;
+@@ -966,16 +952,19 @@
+ 					reg = <0x00>;
+ 					fan-tach-ch = /bits/ 8 <0x00 0x01>;
+ 					cooling-levels = <127 255>;
++					fan_filter_en;
+ 				};
+ 				fan@1 {
+ 					reg = <0x01>;
+ 					fan-tach-ch = /bits/ 8 <0x02 0x03>;
+ 					cooling-levels = /bits/ 8 <127 255>;
++					fan_filter_en;
+ 				};
+ 				fan@2 {
+ 					reg = <0x02>;
+ 					fan-tach-ch = /bits/ 8 <0x04 0x05>;
+ 					cooling-levels = /bits/ 8 <127 255>;
++					fan_filter_en;
+ 				};
+ 				fan@3 {
+ 					reg = <0x03>;
+@@ -1004,30 +993,13 @@
+ 				};
+ 			};
+ 
+-			peci: peci-bus@100000 {
+-				cmd-timeout-ms = <1000>;
+-				pull-down = <0>;
+-				host-neg-bit-rate = <15>;
+-				status = "okay";
+-				intel-peci-dimmtemp@30 {
+-					compatible = "intel,peci-client";
+-					reg = <0x30>;
+-					status = "okay";
+-				};
+-				intel-peci-dimmtemp@31 {
+-					compatible = "intel,peci-client";
+-					reg = <0x31>;
+-					status = "okay";
+-				};
+-			};
+-
+ 			spi0: spi@200000 {
+ 				cs-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
+ 				status = "okay";
+ 			};
+ 
+ 			spi1: spi@201000 {
+-				status = "okay";
++				status = "disabled";
+ 			};
+ 		};
+ 	};
+@@ -1123,6 +1095,7 @@
+ 				&gpio169o_pins
+ 				&gpio188o_pins
+ 				&gpio189_pins
++				&gpio192o_pins
+ 				&gpio196_pins
+ 				&gpio197_pins
+ 				&gpio198o_pins
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750.dtsi b/arch/arm/boot/dts/nuvoton-npcm750.dtsi
+old mode 100644
+new mode 100755

@@ -1,0 +1,22 @@
+# Validate number of watches created for the object path
+#
+# Expecting one watch created for the object path
+- name: errorlog path group
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst1
+
+- name: pathwatch errorlog
+  description: >
+  class: pathwatch
+  pathwatch: path
+  paths: errorlog path group
+  pathcallback: create errorlog event
+
+- name: create errorlog event
+  class: pathcallback
+  pathcallback: eventpath
+  paths: errorlog path group
+  eventType: ErrorNotification

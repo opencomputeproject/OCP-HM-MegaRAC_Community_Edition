@@ -1,0 +1,30 @@
+# Validate paths are not duplicated when
+# they exist in multiple groups, and
+# validate the same name can be used
+# in different config files.
+
+- name: test path group
+  class: group
+  group: path
+  members:
+    - meta: PATH1
+      path: /xyz/openbmc_project/testing/inst1
+    - meta: PATH1
+      path: /xyz/openbmc_project/testing/inst2
+    - meta: PATH1
+      path: /xyz/openbmc_project/testing/inst5
+    - meta: PATH1
+      path: /xyz/openbmc_project/testing/inst6
+
+- name: test path group 2
+  class: group
+  group: path
+  members:
+    - meta: PATH2
+      path: /xyz/openbmc_project/testing/inst4
+    - meta: PATH2
+      path: /xyz/openbmc_project/testing/inst3
+    - meta: PATH2
+      path: /xyz/openbmc_project/testing/inst2
+    - meta: PATH2
+      path: /xyz/openbmc_project/testing/inst1

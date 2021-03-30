@@ -1,0 +1,189 @@
+diff -Naur a/include/sensorcommands.hpp b/include/sensorcommands.hpp
+--- a/include/sensorcommands.hpp	2020-08-29 10:25:38.020922162 +0530
++++ b/include/sensorcommands.hpp	2020-08-29 10:26:01.996928270 +0530
+@@ -118,6 +118,19 @@
+     ipmiCmdSetSensorReadingAndEventStatus = 0x30,
+ };
+ 
++struct VariantToUnsignedIntVisitor
++{
++    template <typename T>
++    unsigned int operator()(const T& t) const
++    {
++        if constexpr (std::is_arithmetic_v<T>)
++        {
++            return static_cast<unsigned int>(t);
++        }
++        throw std::invalid_argument("Cannot translate type to unsigned int");
++    }
++};
++
+ namespace ipmi
+ {
+ extern SensorSubTree sensorTree;
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-08-29 10:26:54.440949194 +0530
++++ b/src/sensorcommands.cpp	2020-08-29 10:27:07.088955707 +0530
+@@ -1366,22 +1366,129 @@
+     {
+         return ipmi::responseResponseError();
+     }
++
++
++    auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
++    if (sensorObject == sensorMap.end())
++    {
++        return ipmi::responseResponseError();
++    }
++
++    auto EntityIdobj = sensorObject->second.find("EntityId");
++    uint8_t EntityId ;
++    if (EntityIdobj != sensorObject->second.end())
++    {
++        EntityId = std::visit(VariantToUnsignedIntVisitor(), EntityIdobj->second);
++    }
++
++    auto SensorInitobj = sensorObject->second.find("SensorInit");
++    uint8_t SensorInit ;
++    if (SensorInitobj != sensorObject->second.end())
++    {
++        SensorInit = std::visit(VariantToUnsignedIntVisitor(), SensorInitobj->second);
++    }
++
++    auto EntityInstanceobj = sensorObject->second.find("EntityInstance");
++    uint8_t EntityInstance ;
++    if (EntityInstanceobj != sensorObject->second.end())
++    {
++        EntityInstance = std::visit(VariantToUnsignedIntVisitor(), EntityInstanceobj->second);
++    }
++
++    auto SensorCapobj = sensorObject->second.find("SensorCap");
++    uint8_t SensorCap ;
++    if (SensorCapobj != sensorObject->second.end())
++    {
++        SensorCap = std::visit(VariantToUnsignedIntVisitor(), SensorCapobj->second);
++    }
++
++    auto OwnerIdobj = sensorObject->second.find("OwnerId");
++    uint8_t OwnerId ;
++    if (OwnerIdobj != sensorObject->second.end())
++    {
++        OwnerId = std::visit(VariantToUnsignedIntVisitor(), OwnerIdobj->second);
++    }
++
++    auto OwnerLunobj = sensorObject->second.find("OwnerLun");
++    uint8_t OwnerLun ;
++    if (OwnerLunobj != sensorObject->second.end())
++    {
++        OwnerLun = std::visit(VariantToUnsignedIntVisitor(), OwnerLunobj->second);
++    }
++
++    auto SdrVersionobj = sensorObject->second.find("SdrVersion");
++    uint8_t ipmiSdrVersion ;
++    if (SdrVersionobj != sensorObject->second.end())
++    {
++        ipmiSdrVersion = std::visit(VariantToUnsignedIntVisitor(), SdrVersionobj->second);
++    }
++     auto RecordTypeobj = sensorObject->second.find("RecordType");
++    uint8_t RecordType ;
++    if (RecordTypeobj != sensorObject->second.end())
++    {
++        RecordType = std::visit(VariantToUnsignedIntVisitor(), RecordTypeobj->second);
++    }
++
++    auto SensorTypeobj = sensorObject->second.find("SensorType");
++    uint8_t SensorType ;
++    if (SensorTypeobj != sensorObject->second.end())
++    {
++        SensorType = std::visit(VariantToUnsignedIntVisitor(), SensorTypeobj->second);
++    }
++
++     auto SensorUnit2obj = sensorObject->second.find("SensorUnit2");
++    uint8_t SensorUnit2 ;
++    if (SensorUnit2obj != sensorObject->second.end())
++    {
++        SensorUnit2 = std::visit(VariantToUnsignedIntVisitor(), SensorUnit2obj->second);
++    }
++
++    auto NominalReadingobj = sensorObject->second.find("NominalReading");
++    uint8_t NominalReading ;
++    if (NominalReadingobj != sensorObject->second.end())
++    {
++        NominalReading = std::visit(VariantToUnsignedIntVisitor(), NominalReadingobj->second);
++    }
++    auto NormalMaxobj = sensorObject->second.find("NormalMax");
++    uint8_t NormalMax ;
++    if (NormalMaxobj != sensorObject->second.end())
++    {
++        NormalMax = std::visit(VariantToUnsignedIntVisitor(), NormalMaxobj->second);
++    }
++
++    auto NormalMinobj = sensorObject->second.find("NormalMin");
++    uint8_t NormalMin ;
++    if (NormalMinobj != sensorObject->second.end())
++    {
++        NormalMin = std::visit(VariantToUnsignedIntVisitor(), NormalMinobj->second);
++    }
++
++
+     uint8_t sensornumber = (recordID & 0xFF);
+     get_sdr::SensorDataFullRecord record = {0};
+ 
+     record.header.record_id_msb = recordID << 8;
+     record.header.record_id_lsb = recordID & 0xFF;
+     record.header.sdr_version = ipmiSdrVersion;
+-    record.header.record_type = get_sdr::SENSOR_DATA_FULL_RECORD;
++  //  record.header.record_type = get_sdr::SENSOR_DATA_FULL_RECORD;
++    record.header.record_type = RecordType;
+     record.header.record_length = sizeof(get_sdr::SensorDataFullRecord) -
+-                                  sizeof(get_sdr::SensorDataRecordHeader);
+-    record.key.owner_id = 0x20;
+-    record.key.owner_lun = 0x0;
++    	    sizeof(get_sdr::SensorDataRecordHeader);
++    record.key.owner_id = OwnerId;
++    record.key.owner_lun = OwnerLun;
++
+     record.key.sensor_number = sensornumber;
+ 
+-    record.body.sensor_capabilities = 0x68; // auto rearm - todo hysteresis
+-    record.body.sensor_type = getSensorTypeFromPath(path);
++    record.body.sensor_capabilities = SensorCap; // auto rearm - todo hysteresis 
++    //record.body.sensor_type = getSensorTypeFromPath(path);
++    record.body.sensor_type = SensorType;
++    record.body.sensor_initialization = SensorInit;
+     std::string type = getSensorTypeStringFromPath(path);
++    record.body.sensor_units_2_base = SensorUnit2;
++    record.body.nominal_reading = NominalReading;
++    record.body.normal_max = NormalMax;
++    record.body.normal_min = NormalMin;
++
+     auto typeCstr = type.c_str();
+     //auto findUnits = sensorUnits.find(typeCstr);
+     //if (findUnits != sensorUnits.end())
+@@ -1392,12 +1499,6 @@
+ 
+    // record.body.event_reading_type = getSensorEventTypeFromPath(path);
+ 
+-    auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
+-    if (sensorObject == sensorMap.end())
+-    {
+-        return ipmi::responseResponseError();
+-    }
+-
+        //auto SensorUnitObj = sensorObject->second.find("Unit");
+     //std::string sensorUnitStr;
+     //if (SensorUnitObj != sensorObject->second.end())
+@@ -1459,8 +1560,11 @@
+     // entityInstance
+     updateIpmiFromAssociation(path, sensorMap, entityId, entityInstance);
+ 
+-    record.body.entity_id = entityId;
+-    record.body.entity_instance = entityInstance;
++//    record.body.entity_id = entityId;
++  //  record.body.entity_instance = entityInstance;
++      record.body.entity_id = EntityId;
++      record.body.entity_instance = EntityInstance;
++
+ 
+     auto maxObject = sensorObject->second.find("MaxValue");
+     auto minObject = sensorObject->second.find("MinValue");

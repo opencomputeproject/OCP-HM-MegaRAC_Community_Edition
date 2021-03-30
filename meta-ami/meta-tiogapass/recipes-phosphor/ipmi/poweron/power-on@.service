@@ -1,0 +1,13 @@
+[Unit]
+Description="Tiogaspass power on"
+After=phosphor-ipmi-kcs@.service
+
+[Service]
+ExecStart=/usr/bin/env /usr/sbin/poweron.sh
+SyslogIdentifier=poweron.sh
+Type=oneshot
+RemainAfterExit=no
+
+[Install]
+RequiredBy=chassis-poweron@0.target
+WantedBy=multi-user.target

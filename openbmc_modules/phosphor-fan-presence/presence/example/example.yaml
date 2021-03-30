@@ -1,0 +1,85 @@
+# Phosphor Fan Presence (PFP) example configuration file.
+#
+# The configuration represents an array of fans the application
+# should check for presence.  The name attribute is required
+# and is used as the PrettyName attribute for the
+# xyz.openbmc_project.Inventory.Item interface.  Path is required
+# and is the location where the fan inventory object will be
+# created.  Additional configuration directives described below
+# in the examples.
+
+- name: Example Fan0
+  description: >
+    'Example fan with tach feedback detection method.
+
+    Fans without any special presence detection hardware
+    can use one or more tach speed sensor feedbacks as
+    an indicator of presence.  Listed sensors are expected to
+    be found in the /xyz/openbmc_project/sensors/fan_tach
+    namespace as required by the OpenBMC DBus API.
+
+    Supported policy types are fallback or anyof.'
+  path: /system/chassis/motherboard/fan0
+  methods:
+    - type: tach
+      sensors:
+        - fan0
+
+- name: Example Fan1
+  description: >
+    'Example fan with gpio detection method.
+
+    Fans with dedicated gpios can use the gpio detection
+    method.  The gpio detection uses Linux gpio-keys: the
+    event number must be provided via the key property.'
+  path: /system/chassis/motherboard/fan1
+  methods:
+    - type: gpio
+      key: 123
+      physpath: /sys/devices/foo/bar
+      devpath: /dev/input/by-path/platform-gpio-keys-event
+
+- name: Example Fan2
+  description: >
+    'Example fan with fallback redundancy policy.
+
+    Multiple detection methods for a single fan are allowed.
+    When multiple detection methods are provided a redundancy
+    algorithm must be specified with the rpolicy attribute.
+
+    Note that the redundancy policy algorithm may or may not
+    factor the order the detection methods are listed into
+    its logic.
+
+    The fallback algorithm falls back to subsequently listed
+    detection methods when the first method does not detect
+    a fan and the second method does.'
+  path: /system/chassis/motherboard/fan2
+  methods:
+    - type: gpio
+      key: 124
+      physpath: /sys/devices/foo/bar
+      devpath: /dev/input/by-path/platform-gpio-keys-polled-event
+    - type: tach
+      sensors:
+        - fan2
+  rpolicy:
+    type: fallback
+
+- name: Example Fan3
+  description: >
+    'Example fan with anyof redundancy policy.
+
+    The anyof algorithm reports true if any redundancy set
+    component sensors report true.'
+  path: /system/chassis/motherboard/fan3
+  methods:
+    - type: gpio
+      key: 125
+      physpath: /sys/devices/foo/bar
+      devpath: /dev/input/by-path/platform-gpio-keys-polled-event
+    - type: tach
+      sensors:
+        - fan3
+  rpolicy:
+    type: anyof

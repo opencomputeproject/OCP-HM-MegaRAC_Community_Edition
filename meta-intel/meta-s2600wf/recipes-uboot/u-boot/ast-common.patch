@@ -1,0 +1,23 @@
+--- a/include/configs/ast-common.h	2020-11-07 23:59:02.419890809 -0500
++++ b/include/configs/ast-common.h	2020-11-07 23:59:56.327849302 -0500
+@@ -103,15 +103,15 @@
+ #define CONFIG_SYS_MAX_FLASH_BANKS 	(CONFIG_FMC_CS)
+ #define CONFIG_SYS_MAX_FLASH_SECT	(8192)		/* max number of sectors on one chip */
+ #define CONFIG_ENV_IS_IN_FLASH		1
+-#define CONFIG_ENV_ADDR			(AST_FMC_CS0_BASE + 0x60000)
+-#define CONFIG_ENV_ADDR_REDUND		(AST_FMC_CS0_BASE + 0x70000)
++#define CONFIG_ENV_ADDR			(AST_FMC_CS0_BASE + 0x80000)
++#define CONFIG_ENV_ADDR_REDUND		(AST_FMC_CS0_BASE + 0x90000)
+ 
+-#define CONFIG_ENV_OFFSET		0x60000	/* environment starts here  */
+-#define CONFIG_ENV_OFFSET_REDUND	0x70000
++#define CONFIG_ENV_OFFSET		0x80000	/* environment starts here  */
++#define CONFIG_ENV_OFFSET_REDUND	0x90000
+ #define CONFIG_ENV_SIZE			0x10000	/* Total Size of Environment Sector */
+ #define CONFIG_ENV_SIZE_REDUND		0x10000
+ 
+-#define CONFIG_BOOTCOMMAND		"bootm 20080000"
++#define CONFIG_BOOTCOMMAND		"bootm 200a0000"
+ #define CONFIG_ENV_OVERWRITE
+ 
+ #define ASPEED_ENV_SETTINGS \

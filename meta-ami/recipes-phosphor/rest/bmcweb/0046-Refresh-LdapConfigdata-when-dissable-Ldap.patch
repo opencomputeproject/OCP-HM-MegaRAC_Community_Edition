@@ -1,0 +1,61 @@
+diff -Naur a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+--- a/redfish-core/lib/account_service.hpp	2021-03-02 16:31:31.632138974 +0530
++++ b/redfish-core/lib/account_service.hpp	2021-03-02 16:28:01.138730456 +0530
+@@ -171,7 +171,7 @@
+ {
+     std::string service =
+         (ldapType == "LDAP") ? "LDAPService" : "ActiveDirectoryService";
+-    nlohmann::json ldap = {
++/*    nlohmann::json ldap = {
+         {"ServiceEnabled", confData.serviceEnabled},
+         {"ServiceAddresses", nlohmann::json::array({confData.uri})},
+         {"Authentication",
+@@ -185,6 +185,48 @@
+             {"UsernameAttribute", confData.userNameAttribute},
+             {"GroupsAttribute", confData.groupAttribute}}}}},
+     };
++*/
++     // added ami 2.1 osp patch
++    nlohmann::json ldap ;
++    if(confData.serviceEnabled == false)
++    {
++//       nlohmann::json ldap = {
++                        ldap = {
++           {"AccountProviderType", service},
++           {"ServiceEnabled", confData.serviceEnabled},
++           {"ServiceAddresses", nlohmann::json::array({""})},
++           {"Authentication",
++            {{"AuthenticationType", "UsernameAndPassword"},
++             {"Username", ""},
++             {"Password", nullptr}}},
++           {"LDAPService",
++            {{"SearchSettings",
++              {{"BaseDistinguishedNames",
++                nlohmann::json::array({""})},
++               {"UsernameAttribute", ""},
++               {"GroupsAttribute", ""}}}}},
++       };
++
++    }
++    else
++    {
++//       nlohmann::json ldap = {
++                        ldap = {
++           {"AccountProviderType", service},
++           {"ServiceEnabled", confData.serviceEnabled},
++           {"ServiceAddresses", nlohmann::json::array({confData.uri})},
++           {"Authentication",
++            {{"AuthenticationType", "UsernameAndPassword"},
++             {"Username", confData.bindDN},
++             {"Password", nullptr}}},
++           {"LDAPService",
++            {{"SearchSettings",
++              {{"BaseDistinguishedNames",
++                nlohmann::json::array({confData.baseDN})},
++               {"UsernameAttribute", confData.userNameAttribute},
++               {"GroupsAttribute", confData.groupAttribute}}}}},
++       };
++    }
+ 
+     json_response[ldapType].update(std::move(ldap));
+ 

@@ -1,0 +1,183 @@
+$btn-primary__bg: $base-01--03;
+$btn-primary__bg--hover: $base-01--04;
+$btn-primary__bg--disabled: $base-02--04;
+$btn-primary__txt: $base-02--08;
+$btn-primary__txt--disabled: $base-02--03;
+
+$btn-secondary__bg: $base-02--08;
+$btn-secondary__txt: $base-01--03;
+$btn-secondary__txt--hover: $base-01--04;
+$btn-secondary__txt--disabled: $base-02--03;
+
+$btn-tertiary__bg: transparent;
+$btn-tertiary__txt: $base-01--03;
+$btn-tertiary__txt--hover: $base-01--04;
+$btn-tertiary__txt--disabled: $base-02--03;
+
+/***
+Include .btn class in addition to the button type.
+These styles provide structural and base properties
+shared across all buttons. The additional button
+type (.btn-primary, .btn-secondary) will provide color
+properties
+***/
+button,
+.btn,
+[type='button'] {
+  @include fontFamilyBold;
+  @include fastTransition-all;
+  border-style: solid;
+  border-width: 2px;
+  border-color: transparent;
+  font-size: 1em;
+  text-transform: none;
+  border-radius: 0;
+  padding: .5em 1em;
+  line-height: 1;
+  display: inline-block;
+  cursor: pointer;
+  &[disabled],
+  &.disabled {
+    opacity: 1;
+    cursor: default;
+  }
+  &.full-width {
+    width: 100%;
+  }
+  .icon,
+  i {
+    //button symbol
+    font-style: normal;
+    font-weight: normal;
+    text-transform: none;
+    display: inline-block;
+    margin-right: 0.3em;
+    vertical-align: bottom;
+  }
+  img {
+    width: 1.5em;
+    height: 1.5em;
+    display: inline-block;
+    margin-right: 0.5em;
+  }
+  svg {
+    height: 1.2em;
+    width: auto;
+    max-width: 100%;
+  }
+
+  // Override for specific icons
+  .icon-add {
+    margin-right: 0;
+  }
+}
+
+/***
+Use for the primary use-case/s that is non-destructive.
+e.g. directing to a new page, a call to action
+***/
+.btn-primary {
+  background-color: $btn-primary__bg;
+  border-color: $btn-primary__bg;
+  color: $btn-primary__txt;
+  &:hover {
+    background-color: $btn-primary__bg--hover;
+    border-color: $btn-primary__bg--hover;
+  }
+  &[disabled],
+  &.disabled {
+    background: $btn-primary__bg--disabled;
+    border-color: $btn-primary__bg--disabled;
+    color: $btn-primary__txt--disabled;
+      .icon {
+        fill: $btn-primary__txt--disabled;
+      }
+  }
+  .icon {
+    fill: $btn-primary__txt;
+  }
+}
+
+/***
+Secondary buttons are actions that fall secondary or
+of less priority to primary buttons.
+These usually come coupled with a primary.
+***/
+.btn-secondary {
+  background-color: $btn-secondary__bg;
+  border-color: $btn-secondary__txt;
+  color: $btn-secondary__txt;
+  &:hover {
+    background-color: $btn-secondary__bg;
+    border-color: $btn-secondary__txt--hover;
+    color: $btn-secondary__txt--hover;
+    .icon {
+      fill: $btn-secondary__txt--hover;
+    }
+  }
+  &[disabled],
+  &.disabled {
+    background-color: $btn-secondary__bg;
+    border-color: $btn-secondary__txt--disabled;
+    color: $btn-secondary__txt--disabled;
+    .icon {
+      fill: $btn-secondary__txt--disabled;
+    }
+  }
+  .icon {
+    fill: $btn-secondary__txt;
+  }
+}
+
+/***
+Tertiary text buttons are used to identify less pressing or
+optional actions given on a page.
+***/
+.btn-tertiary {
+  background-color: $btn-tertiary__bg;
+  border-color: $btn-tertiary__bg;
+  color: $btn-tertiary__txt;
+  &:hover {
+    color: $btn-tertiary__txt--hover;
+    .icon {
+      fill: $btn-tertiary__txt--hover;
+    }
+  }
+  &[disabled],
+  &.disabled {
+    color: $btn-tertiary__txt--disabled;
+    .icon {
+      fill: $btn-tertiary__txt--disabled;
+    }
+  }
+  .icon {
+    fill: $btn-tertiary__txt;
+  }
+}
+
+.btn-password-toggle {
+  position: absolute;
+  right: 0;
+  margin-top: -34px;
+  height: 32px;
+  width: 52px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-right: 0;
+  .icon {
+    margin-right: 0;
+  }
+  &.password-visible {
+    .icon {
+      fill: $btn-tertiary__txt--disabled;
+    }
+  }
+  &.password-hidden {
+    .icon {
+      // Adding tweaks to make sure the icons
+      // are in the same place when toggling show/hide
+      margin-right: 1px;
+      width: 20px;
+    }
+  }
+}

@@ -1,0 +1,22 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2020-12-24 13:31:57.266414081 +0530
++++ b/dcmihandler.cpp	2020-12-24 13:28:41.674506540 +0530
+@@ -35,6 +35,7 @@
+ constexpr auto DCMI_RAND_BACK_OFF_MASK = 0x80;
+ constexpr auto DCMI_OPTION_60_43_MASK = 0x02;
+ constexpr auto DCMI_OPTION_12_MASK = 0x01;
++constexpr auto DCMI_SET_CONF_PARAM2_RESERVED_MASK = 0x01;
+ constexpr auto DCMI_ACTIVATE_DHCP_MASK = 0x01;
+ constexpr auto DCMI_ACTIVATE_DHCP_REPLY = 0x00;
+ constexpr auto DCMI_SET_CONF_PARAM_REQ_PACKET_MAX_SIZE = 0x04;
+@@ -1137,6 +1138,10 @@
+                     return IPMI_CC_REQ_DATA_LEN_INVALID;
+                 }
+ 
++		if((requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 6)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 5)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 4)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 3)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 2)))
++		{
++		    return IPMI_CC_INVALID_FIELD_REQUEST;
++		}
+ 
+                 if (requestData->data[0] & DCMI_OPTION_12_MASK)
+                 {

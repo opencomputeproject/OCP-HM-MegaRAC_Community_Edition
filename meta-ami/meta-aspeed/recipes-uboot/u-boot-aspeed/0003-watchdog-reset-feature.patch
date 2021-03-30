@@ -1,0 +1,154 @@
+From 5fb1c2f0850dd99452aab6d814db585c1780c3da Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Fri, 18 Sep 2020 12:24:29 -0400
+Subject: [PATCH] watchdog reset feature
+
+%% original patch: 0003-watchdog-reset-feature.patch
+---
+ Kconfig                                     |  3 ++
+ arch/arm/mach-aspeed/ast2600/board_common.c | 40 +++++++++++++++++++++
+ common/autoboot.c                           | 16 +++++++++
+ oem/ami/Kconfig                             | 11 ++++++
+ 4 files changed, 70 insertions(+)
+ create mode 100644 oem/ami/Kconfig
+
+diff --git a/Kconfig b/Kconfig
+index 305b265e..1f51510b 100644
+--- a/Kconfig
++++ b/Kconfig
+@@ -9,6 +9,9 @@ config UBOOTVERSION
+ 	string
+ 	option env="UBOOTVERSION"
+ 
++# AMI Vendor Configuration
++source "oem/ami/Kconfig"
++
+ # Allow defaults in arch-specific code to override any given here
+ source "arch/Kconfig"
+ 
+diff --git a/arch/arm/mach-aspeed/ast2600/board_common.c b/arch/arm/mach-aspeed/ast2600/board_common.c
+index f527ce1e..25449656 100644
+--- a/arch/arm/mach-aspeed/ast2600/board_common.c
++++ b/arch/arm/mach-aspeed/ast2600/board_common.c
+@@ -12,6 +12,27 @@
+ #include <linux/err.h>
+ #include <dm/uclass.h>
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++/*
++ * Default watchdog timeout
++ */
++#define CONFIG_AST_WDT_TIMEOUT          3e8 /* 5 minutes, microseconds */
++#define RESET_WDT                       1
++
++#define AST_WDT_3_BASE                  0x1E785080
++
++#define WDT3_CNT_STATUS_REG             (AST_WDT_3_BASE)
++#define WDT3_RELOAD_REG                 (AST_WDT_3_BASE + 0x4)
++#define WDT3_CNT_RESTART_REG            (AST_WDT_3_BASE + 0x8)
++#define WDT3_CONTROL_REG                (AST_WDT_3_BASE + 0xC)
++
++#define WDT_TRIGGER_PASS                0x4755
++#define WDT_RESET_CPU                   0x60
++#define WDT_RESET_SYSTEM                0x2
++#define WDT_ENABLE                      0x1
++
++#endif /* CONFIG_OSP_WATCHDOG_TIMEOUT */
++
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ /*
+@@ -51,6 +72,21 @@ void reset_eth_phy(void)
+ }
+ #endif
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++
++void hw_watchdog_reset(void)
++{
++}
++
++void hw_watchdog_init(void)
++{
++        writel((u32)CONFIG_AST_WDT_TIMEOUT, WDT3_RELOAD_REG);
++        writel((u32)WDT_TRIGGER_PASS , WDT3_CNT_RESTART_REG);
++        writel((u32)(WDT_RESET_CPU | WDT_RESET_SYSTEM | WDT_ENABLE), WDT3_CONTROL_REG);
++}
++
++#endif /* CONFIG_OSP_WATCHDOG_TIMEOUT */
++
+ __weak int board_init(void)
+ {
+ 	struct udevice *dev;
+@@ -76,6 +112,10 @@ __weak int board_init(void)
+ 			break;
+ 	}
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++        hw_watchdog_init();
++#endif /* CONFIG_OSP_WATCHDOG_TIMEOUT */
++
+ 	return 0;
+ }
+ 
+diff --git a/common/autoboot.c b/common/autoboot.c
+index 94133eae..04701f6c 100644
+--- a/common/autoboot.c
++++ b/common/autoboot.c
+@@ -19,6 +19,9 @@ DECLARE_GLOBAL_DATA_PTR;
+ 
+ #define MAX_DELAY_STOP_STR 32
+ 
++#define AST_WDT_3_BASE                  0x1E785080
++#define WDT3_CONTROL_REG                (AST_WDT_3_BASE + 0xC)
++
+ #ifndef DEBUG_BOOTKEYS
+ #define DEBUG_BOOTKEYS 0
+ #endif
+@@ -255,6 +258,15 @@ static int __abortboot(int bootdelay)
+ }
+ # endif	/* CONFIG_AUTOBOOT_KEYED */
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++
++void disable_watchdog(void)
++{
++	writel((u32)0x00, WDT3_CONTROL_REG);
++}
++
++#endif /* CONFIG_OSP_WATCHDOG_TIMEOUT */
++
+ static int abortboot(int bootdelay)
+ {
+ 	int abort = 0;
+@@ -266,6 +278,10 @@ static int abortboot(int bootdelay)
+ 	if (abort)
+ 		gd->flags &= ~GD_FLG_SILENT;
+ #endif
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++	if (abort)
++		disable_watchdog();
++#endif /* CONFIG_OSP_WATCHDOG_TIMEOUT */
+ 
+ 	return abort;
+ }
+diff --git a/oem/ami/Kconfig b/oem/ami/Kconfig
+new file mode 100644
+index 00000000..cbaee44c
+--- /dev/null
++++ b/oem/ami/Kconfig
+@@ -0,0 +1,11 @@
++menu "AMI"
++
++config OSP_WATCHDOG_TIMEOUT
++	bool "Set a watchdog timer on boot."
++	default y
++	help
++	  Set a 5 minute watchdog timer when uboot initializes,
++	  preffering WDT3 if available.  Userspace is responsible for
++	  disabling this timer when the system finishes booting.
++
++endmenu
+-- 
+2.17.1
+

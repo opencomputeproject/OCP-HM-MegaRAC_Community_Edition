@@ -1,0 +1,48 @@
+diff -Naur a/ipmi-whitelist.conf b/ipmi-whitelist.conf
+--- a/ipmi-whitelist.conf	2020-10-15 19:35:01.208199188 +0530
++++ b/ipmi-whitelist.conf	2020-10-15 19:28:43.282912391 +0530
+@@ -155,6 +155,10 @@
+ 0x2c:0x03:0xff7f   //<Group Extension>:<Get Power Limit>
+ 0x2c:0x04:0x7f7f   //<Group Extension>:<Set Power Limit>
+ 0x2c:0x05:0x7f7f   //<Group Extension>:<Activate/Deactivate Power Limit>
++0x2c:0x06:0x7f7f   //<Group Extension>:<Get Asset Tag>
++0x2c:0x07:0x7f7f   //<Group Extension>:<Get DCMI Sensor Info>
++0x2c:0x08:0x7f7f   //<Group Extension>:<Set Asset Tag>
++0x2c:0x10:0x7f7f   //<Group Extension>:<Get Temperature Reading>
+ 0x2c:0x1f:0xff7f   //<Group Extension>:<Get CPU PECI Package Config Data>
+ 0x2c:0x20:0xff7f   //<Group Extension>:<Get MDR Data Region Status>
+ 0x2c:0x21:0x7f7f   //<Group Extension>:<Get MDR Region Update Complete>
+diff -Naur a/src/chassiscommands.cpp b/src/chassiscommands.cpp
+--- a/src/chassiscommands.cpp	2020-10-15 19:35:47.592822520 +0530
++++ b/src/chassiscommands.cpp	2020-10-15 19:40:12.924320246 +0530
+@@ -648,14 +648,17 @@
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnChassis,
+                           ipmi::chassis::cmdChassisIdentify,
+                           ipmi::Privilege::Operator, ipmiChassisIdentify);
++#if 0
+     // <Get Chassis Status>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnChassis,
+                           ipmi::chassis::cmdGetChassisStatus,
+                           ipmi::Privilege::User, ipmiGetChassisStatus);
++			  
+     // <Get System Restart Cause>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnChassis,
+                           ipmi::chassis::cmdGetSystemRestartCause,
+                           ipmi::Privilege::User, ipmiGetSystemRestartCause);
++#endif
+     // <Set Front Panel Enables>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnChassis,
+                           ipmi::chassis::cmdSetFrontPanelButtonEnables,
+diff -Naur a/ipmi-whitelist.conf b/ipmi-whitelist.conf
+--- a/ipmi-whitelist.conf       2020-11-17 14:43:28.012905971 +0530
++++ b/ipmi-whitelist.conf       2020-11-17 14:57:42.683097378 +0530
+@@ -159,6 +159,8 @@
+ 0x2c:0x07:0x7f7f   //<Group Extension>:<Get DCMI Sensor Info>
+ 0x2c:0x08:0x7f7f   //<Group Extension>:<Set Asset Tag>
+ 0x2c:0x10:0x7f7f   //<Group Extension>:<Get Temperature Reading>
++0x2c:0x12:0x7f7f   //<Group Extension>:<Set Dcmi Configuration Parameters>
++0x2c:0x13:0x7f7f   //<Group Extension>:<Get Dcmi Configuration Parameters>
+ 0x2c:0x1f:0xff7f   //<Group Extension>:<Get CPU PECI Package Config Data>
+ 0x2c:0x20:0xff7f   //<Group Extension>:<Get MDR Data Region Status>
+ 0x2c:0x21:0x7f7f   //<Group Extension>:<Get MDR Region Update Complete>
+

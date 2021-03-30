@@ -1,0 +1,42 @@
+description: >
+    Interface to get Nvme info.
+properties:
+    - name: SmartWarnings
+      type: string
+      description: >
+          Indicates smart warnings for the state.
+    - name: StatusFlags
+      type: string
+      description: >
+          Indicates the status of the drives.
+    - name: DriveLifeUsed
+      type: string
+      description: >
+          A vendor specific estimate of the percentage.
+    - name: CapacityFault
+      type: boolean
+      default: false
+      description: >
+          Represent the available spare capacity has fallen below the threshold.
+    - name: TemperatureFault
+      type: boolean
+      default: false
+      description: >
+          Represent a temperature is above an over temperature threshold or below an under temperature
+          threshold
+    - name: DegradesFault
+      type: boolean
+      default: false
+      description: >
+          Represent  the NVM subsystem reliability has been degraded due to
+          significant media related errors or any internal error that degrades NVM subsystem reliability
+    - name: MediaFault
+      type: boolean
+      default: false
+      description: >
+          Represent the media has been placed in read only mode
+    - name: BackupDeviceFault
+      type: boolean
+      default: false
+      description: >
+          Represent the volatile memory backup device has failed.

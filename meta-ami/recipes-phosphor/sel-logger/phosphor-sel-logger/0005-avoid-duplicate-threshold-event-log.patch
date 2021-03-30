@@ -1,0 +1,158 @@
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2020-12-15 00:12:31.333534217 +0530
++++ b/include/threshold_event_monitor.hpp	2020-12-16 17:09:50.875444797 +0530
+@@ -21,6 +21,9 @@
+ 
+ #include <string_view>
+ #include <variant>
++#include <fstream>
++#include <vector>
++#include <mutex>
+ 
+ enum class thresholdEventOffsets : uint8_t
+ {
+@@ -39,6 +42,106 @@
+ static constexpr const uint8_t thresholdEventDataTriggerReadingByte3 = (1 << 4);
+ 
+ static const std::string openBMCMessageRegistryVersion("0.1");
++std::string line,insertLine;
++std::string logFile = "/var/event/threshold";
++std::string tmpLogFile = "/var/event/tmp_threshold.txt";
++
++std::mutex insmtx;
++std::mutex delmtx;
++
++static int insertLog(std::string assertLogPath,std::string assertLogEvent)
++{
++	insmtx.lock();
++	std::string assertedEvt = assertLogPath + " " + assertLogEvent;
++        if(!std::filesystem::exists(logFile.c_str()))
++	{
++		std::ofstream createLogfile;
++	        createLogfile.open(logFile);
++        	if(createLogfile.fail())
++        	{	
++            		createLogfile.close();
++            		insmtx.unlock();
++            		return -1;
++        	}
++        	createLogfile.close();
++	}	
++	std::ifstream Insfile;
++	Insfile.open(logFile,std::ifstream::in | std::ifstream::out);
++	if(Insfile.fail())
++	{
++		Insfile.close();
++		insmtx.unlock();
++		return -1;
++	}
++        while (getline(Insfile, insertLine))
++        {
++	   if(insertLine == assertedEvt)
++	   {
++		   Insfile.close();
++		   insmtx.unlock();
++		   return -1;
++	   }
++        }
++        Insfile.close();
++	std::ofstream tmpLog;
++	tmpLog.open(logFile,std::ofstream::out | std::ofstream::app);
++	if(tmpLog.fail())
++        {
++            tmpLog.close();
++	    insmtx.unlock();
++            return -1;
++        }
++	tmpLog << assertedEvt  << std::endl;
++	tmpLog.close();
++	insmtx.unlock();
++	return 0;
++}
++
++static int deleteLog(std::string DeassertLogPath,std::string DeassertLogEvent)
++{
++	delmtx.lock();
++	std::string DeassertedEvt = DeassertLogPath + " " + DeassertLogEvent;
++	bool evterase = false;
++	std::ifstream delFile;
++	delFile.open(logFile,std::ifstream::in);
++	if(delFile.fail())
++        {
++                delFile.close();
++		delmtx.unlock();
++                return -1;
++        }
++	std::ofstream tmpDelFile;
++	tmpDelFile.open(tmpLogFile);
++        if(tmpDelFile.fail())
++        {
++                tmpDelFile.close();
++		delmtx.unlock();
++                return -1;
++        }
++
++	while (getline(delFile, line))
++        {
++            if(line != DeassertedEvt)
++	    {
++		tmpDelFile << line << "\n";
++	    }
++	    if(line == DeassertedEvt)
++	    {
++		evterase = true;
++	    }
++        }
++	delFile.close();
++	tmpDelFile.close();
++        remove(logFile.c_str());
++        rename(tmpLogFile.c_str(),logFile.c_str());
++	if(evterase == false)
++	{
++		delmtx.unlock();
++		return -1;
++	}
++	delmtx.unlock();
++	return 0;
++}
+ 
+ inline static sdbusplus::bus::match::match startThresholdAssertMonitor(
+     std::shared_ptr<sdbusplus::asio::connection> conn)
+@@ -76,21 +179,29 @@
+         if (assert)
+         {
+             // For asserts, add the event to the set and only log it if it's new
+-            if (assertedEvents.insert(pathAndEvent).second == false)
+-            {
++            //if (assertedEvents.insert(pathAndEvent).second == false)
++            //{
+                 // event is already in the set
+-                return;
+-            }
++              //  return;
++            //}
++	    if((insertLog(std::string(msg.get_path()), event)) < 0)
++	    {
++		return;
++	    }
+         }
+         else
+         {
+             // For deasserts, remove the event and only log the deassert if it
+             // was asserted
+-            if (assertedEvents.erase(pathAndEvent) == 0)
+-            {
++            //if (assertedEvents.erase(pathAndEvent) == 0)
++            //{
+                 // asserted event was not in the set
+-                return;
+-            }
++              //  return;
++            //}
++	    if((deleteLog(std::string(msg.get_path()), event)) < 0)
++	    {
++		return;
++	    }
+         }
+ 
+         // Set the IPMI threshold event type based on the event details from the

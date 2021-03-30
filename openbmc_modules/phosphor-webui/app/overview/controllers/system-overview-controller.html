@@ -1,0 +1,227 @@
+<loader loading="loading"></loader>
+<div class="page overview">
+  <h1 class="page-title inline">{{ dataService.hostname }}</h1>
+  <button class="btn  btn-tertiary" ng-click="edit_hostname = !edit_hostname" aria-label="edit host name">
+    <icon class="nav-icon" aria-hidden="true" file="icon-edit.svg"></icon>
+  </button>
+  <div class="row">
+    <div class="small-12 large-8">
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title h3">Server information</h2>
+        </div>
+        <div class="section-content row">
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Model</dt>
+              <dd>{{ server_info.Model  || "N/A"  }}</dd>
+            </dl>
+            <dl class="list-pair">
+              <dt>Serial number</dt>
+              <dd>{{ server_info.SerialNumber || "N/A"  }}</dd>
+            </dl>
+          </div>
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Manufacturer</dt>
+              <dd>{{ server_info.Manufacturer || "N/A" }}</dd>
+            </dl>
+            <dl class="list-pair">
+              <dt>Firmware version</dt>
+              <dd>{{ server_firmware }}</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title h3">BMC information</h2>
+        </div>
+        <div class="section-content row">
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Hostname</dt>
+              <dd class="overview__hostname">
+                {{ dataService.hostname }}
+              </dd>
+            </dl>
+            <dl class="list-pair">
+              <dt>IP addresses</dt>
+              <dd class="courier-bold" ng-repeat="ip_address in bmc_ip_addresses">
+                {{ ip_address }}
+              </dd>
+            </dl>
+          </div>
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Mac address</dt>
+              <dd class="courier-bold">{{ dataService.mac_address }}</dd>
+            </dl>
+            <dl class="list-pair">
+              <dt>Firmware Version</dt>
+              <dd class="courier-bold">{{ bmc_firmware }}</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title h3">Power Consumption</h2>
+        </div>
+        <div class="section-content row">
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Power Consumption</dt>
+              <dd class="courier-bold">{{ power_consumption }}</dd>
+            </dl>
+          </div>
+          <div class="column large-6">
+            <dl class="list-pair">
+              <dt>Power Cap</dt>
+              <dd class="courier-bold">{{ power_cap }}</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="small-12 large-4">
+      <div class="quick-links">
+        <a href="#/server-health/event-log/high" class="quick-links__item quick-links__events event-log__events"
+          ng-show="logs.length">
+          <!-- link to event log filtered to the high priority events -->
+          <span class="inline quick-links__event-copy">
+            View {{ logs.length }} high priority events
+          </span>
+        </a>
+        <dl class="quick-links__item no-icon">
+          <dt class="inline quick-links__label">BMC time</dt>
+          <dd class="bmc-time">{{ bmc_time | localeDate }}</dd>
+        </dl>
+        <div class="quick-links__item no-icon">
+          <p class="inline quick-links__label">
+            Turn <span ng-if="dataService.LED_state == 'off'">on</span>
+            <span ng-if="dataService.LED_state == 'on'">off</span> server LED
+          </p>
+          <div class="toggle-container">
+            <div class="toggle">
+              <input id="toggle__switch-round" class="toggle-switch toggle-switch__round-flat" type="checkbox"
+                tabindex="0" ng-click="toggleLED()" ng-checked="dataService.LED_state == 'on'"
+                ng-disabled="dataService.server_unreachable" />
+              <label for="toggle__switch-round" tabindex="0">Server LED is
+                <span class="uid-switch__status">{{
+                  dataService.LED_state
+                }}</span></label>
+            </div>
+            <span>
+              {{ dataService.LED_state == "on" ? "On" : "Off" }}
+            </span>
+          </div>
+        </div>
+        <a href="#/server-control/remote-console" class="quick-links__item">
+          <span class="inline quick-links__label">Serial over LAN console</span>
+          <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+        </a>
+        <a href="#/configuration/network" class="quick-links__item">
+          <span class="inline quick-links__label">Edit network settings</span>
+          <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="section overview__event-log event-log__events" ng-show="logs.length">
+    <div class="section-header">
+      <h2 class="section-title h3">High priority events ({{ logs.length }})</h2>
+      <a href="#/server-health/event-log/">
+        View all event logs
+      </a>
+    </div>
+
+    <!-- single event -->
+    <a href="#/server-health/event-log/high" ng-repeat="event in logs|orderBy:'-Id'|limitTo : 5">
+      <div class="row column event-log__single-event">
+        <div class="row">
+          <!-- click will go to specific event in event log page-->
+          <div class="column small-10 large-11 event-log__event-info" ng-click="">
+            <div class="row">
+              <div class="column large-1 small-1">
+                <p class="inline event__id">#{{ event.Id }}</p>
+              </div>
+              <div class="column large-4 small-11">
+                <p class="inline event__priority high-priority">High</p>
+                <p class="inline event__severity high-priority">
+                  {{ event.severity_code }}
+                </p>
+              </div>
+              <div class="column large-7 large-offset-0 small-11 small-offset-1">
+                <p class="inline event__timestamp">
+                  {{ event.Timestamp | localeDate }}
+                </p>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="column large-12 small-11 small-offset-1">
+                <p class="inline event__description">
+                  {{ getEventLogTitle(event) }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="column small-2 large-1">
+            <span class="accord-trigger" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="section overview__event-log event-log__events" ng-show="!logs.length">
+    <div class="section-header">
+      <h2 class="section-title h3">High priority events</h2>
+    </div>
+    <p class="section-content">
+      There are no high priority events to display at this time.
+    </p>
+  </div>
+</div>
+<!-- edit server name modal -->
+<section class="modal" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalDescription" role="dialog"
+  ng-class="{'active': edit_hostname}">
+  <div class="modal__upload" role="document">
+    <!-- accessibility only; used for screen readers -->
+    <div class="screen-reader-offscreen modal-description">Edit hostname</div>
+    <div class="page-header ">
+      <h2 class="modal-title">
+        <icon class="icon__info" file="icon-information.svg"></icon>Edit
+        hostname
+      </h2>
+    </div>
+    <div class="modal__content">
+      <form name="edit_hostname_text">
+        <label for="editServerName">Hostname</label>
+        <p class="label__helper-text">
+          Hostname must be less than 64 characters and must not contain spaces.
+        </p>
+        <input id="editServerName" class="modal__edit-server-name" type="text" ng-model="newHostname" ng-trim="false"
+          name="hostname" ng-pattern="/^\S{0,64}$/" required autofocus />
+        <span class="modal__error" ng-show="edit_hostname_text.hostname.$error.pattern">Invalid format. Remove
+          spaces.</span>
+        <span class="modal__char-count"
+          ng-hide="edit_hostname_text.hostname.$error.pattern">{{ 0 + newHostname.length }}/64</span>
+      </form>
+    </div>
+    <div class="modal__button-wrapper">
+      <button class="btn  btn-secondary" ng-click="edit_hostname= false; newHostname = dataService.hostname">
+        Cancel
+      </button>
+      <button class="btn  btn-primary" ng-click="saveHostname(newHostname);" ng-disabled="edit_hostname_text.$invalid"
+        ng-class="{'disabled' : edit_hostname_text.$invalid}">
+        Save
+      </button>
+    </div>
+  </div>
+</section>
+<div class="modal-overlay" tabindex="-1" ng-class="{'active': edit_hostname}"></div>

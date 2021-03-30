@@ -1,0 +1,137 @@
+.inline {
+  display: inline-block;
+}
+
+.disabled {
+  &:hover {
+    cursor: default;
+    text-decoration: none;
+  }
+}
+
+.float-right {
+  float: right;
+}
+.clear-float {
+  &::after {
+    content: " ";
+    display: block;
+    clear: both;
+  }
+}
+.error {
+  color: $status-error;
+}
+
+.hide {
+  display: none;
+}
+
+.show {
+  display: block;
+}
+
+.close {
+  color: $primary-accent;
+  font-size: 1.5em;
+  padding: 1em;
+  box-sizing: border-box;
+  line-height: 0;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  background: transparent;
+  border: 0px;
+  margin: 0;
+  &:hover {
+    color: $text-03;
+    background: transparent;
+  }
+}
+
+.fixed {
+  position:fixed;
+  top:130px;
+  z-index:200;
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.no-margin {
+  margin: 0 !important;
+}
+
+.no-padding {
+  padding:0 !important;
+}
+
+.no-bottom-margin {
+  margin-bottom: 0 !important;
+}
+
+.no-top-margin {
+  margin-top: 0 !important;
+}
+
+.transitionAll {
+  transition: all .5s ease;
+}
+
+//Uploading
+.uploading {
+  @include indeterminate-bar;
+  font-weight: 700;
+  padding: .2em 6em .2em 1em;
+  margin: .8em 0;
+  width: 100%;
+}
+
+.accessible-text {
+  clip: rect(1px, 1px, 1px, 1px);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+}
+
+.show-scroll {
+  // Force scrollbar to always be visible in webkit browsers
+  &::-webkit-scrollbar {
+    background-color: $background-03;
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background-color: rgba(0,0,0,.5);
+    -webkit-box-shadow: 0 0 1px rgba(255,255,255,.5);
+  }
+}
+
+.flash {
+  animation-name: flash;
+  animation-timing-function: ease-out;
+  animation-duration: 1s;
+  -webkit-animation-name: flash;
+  -webkit-animation-timing-function: ease-out;
+  -webkit-animation-duration: 1s;
+  color: $primary-light;
+}
+@-webkit-keyframes flash {
+  from { background: $primary-accent; }
+  to  { background: none; }
+}
+
+@keyframes flash {
+  0% { background: $primary-accent; }
+  100% { background: none; }
+}
+
+.nowrap {
+  white-space: nowrap!important;
+}

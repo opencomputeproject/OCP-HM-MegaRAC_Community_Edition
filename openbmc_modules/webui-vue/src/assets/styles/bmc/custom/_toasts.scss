@@ -1,0 +1,44 @@
+.b-toaster {
+  top: 75px!important; // make sure toasts do not hide top header
+}
+
+.toast {
+  padding: $spacer/2 $spacer/2 $spacer/2 $spacer;
+  border-width: 0 0 0 3px;
+  .close {
+    font-weight: 300;
+    opacity: 1;
+  }
+}
+
+.toast-header {
+  background-color: inherit!important; //override specificity
+  border: none;
+  color: theme-color("dark")!important; //override specificity
+  padding-bottom: 0;
+}
+
+.toast-body {
+  color: theme-color("dark");
+  padding-top: 0;
+}
+
+.b-toast-success .toast {
+  border-left-color: theme-color("success")!important;
+  background-color: $success-light;
+}
+
+.b-toast-info .toast {
+  border-left-color: theme-color("info")!important;
+  background-color: $info-light;
+}
+
+.b-toast-danger .toast {
+  border-left-color: theme-color("danger")!important;
+  background-color: $danger-light;
+}
+
+.b-toast-warning .toast {
+  border-left-color: theme-color("warning")!important;
+  background-color: $warning-light;
+}

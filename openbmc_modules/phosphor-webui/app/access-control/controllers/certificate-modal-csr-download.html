@@ -1,0 +1,41 @@
+<div class="uib-modal__content">
+  <div class="modal-header">
+    <h2 class="modal-title" id="modal_label">
+      Certificate Signing Request (CSR)
+    </h2>
+    <button
+      type="button"
+      class="btn  btn--close"
+      ng-click="$dismiss()"
+      aria-label="close">
+      <icon file="icon-close.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+    <div class="modal-body">
+      <span id="csrCode" class="add-csr__container-csr-code">{{ csrCode }}</span>
+    </div>
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        clipboard
+        text="csrCode"
+        on-copied="copySuccess(event)"
+        on-error="copyfailed(err)">
+        <span ng-if="!copied">Copy</span>
+        <span ng-if="copied">
+          <icon aria-hidden="true" file="icon-check.svg"></icon>
+          <span>Copied</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary">
+        <a ng-href="data:text/json;charset=utf-8,{{ csrCode }}"
+          download="csrCode.txt"
+          class="add-csr__text-download">
+          Download
+        </a>
+      </button>
+    </div>
+  </div>

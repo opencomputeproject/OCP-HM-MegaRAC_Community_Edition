@@ -1,0 +1,74 @@
+.inventory__container {
+  h3,
+  h4{
+    margin-bottom: 0;
+  }
+  h4{
+    font-size: 1rem;
+    font-weight: bold;
+  }
+  padding-bottom: 5em;
+  .content__search {
+    margin-right: 0;
+  }
+  .inventory__table {
+    .hardware__header {
+      padding:1.2em 1.5em 1.2em 1.5em;
+      background: $background-05;
+      font-weight: 700;
+      color: $primary-light;
+    }
+    .ng-hide {
+      height: 0;
+    }
+    .harware__details {
+       background: $background-02;
+      .hardware__title {
+        border-left: 1px solid $border-color-01;
+        border-right: 1px solid $border-color-01;
+        position: relative;
+        font-weight: 700;
+        text-transform: capitalize;
+        padding: 1em 1.5em 1em 1.5em;
+        border-bottom: 1px solid $border-color-01;
+        background-color: $primary-light;
+        &:hover {
+          background: $background-02;
+          cursor: pointer;
+        }
+        &.expanded {
+          background: $background-02;
+        }
+      }
+      .hardware__items {
+        background: $background-02;
+        border-right: 1px solid $border-color-01;
+        border-left: 1px solid $border-color-01;
+        display: block;
+        overflow: hidden;
+        @include fastTransition-all;
+        &.expanded {
+          height: 100%;
+          border-bottom: 1px solid $border-color-01;
+        }
+        .items {
+          max-height: 320px;
+          padding: 1em 1.5em 1em 1.5em;
+          overflow:auto;
+          overflow-wrap: break-word;
+        }
+        .subcomponents {
+          max-height: 320px;
+          padding: 1em 1.5em 1em 1.5em;
+          overflow: auto;
+          border-top:1px solid $border-color-01;
+          @include mediaQuery(medium) {
+            border-top:0;
+            border-left:1px solid $border-color-01;
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,13 @@
+[Unit]
+Description=Phosphor Buttons
+
+[Service]
+Restart=always
+RestartSec=3
+ExecStart=/usr/bin/buttons
+SyslogIdentifier=buttons
+Type=dbus
+BusName=xyz.openbmc_project.Chassis.Buttons
+
+[Install]
+WantedBy=multi-user.target

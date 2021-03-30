@@ -1,0 +1,62 @@
+# Validate two callbacks that share an index
+# and a single callback with its own index.
+#
+# Expecting three callbacks pointing at two indices.
+
+- name: test path group 1
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+
+- name: test path group 2
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst6
+
+- name: test property group 1
+  class: group
+  group: property
+  type: int32
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface1
+      meta: PROPERTY
+      property: Value
+
+- name: test property group 2
+  class: group
+  group: property
+  type: string
+  members:
+    - interface: xyz.openbmc_project.Sensor.Iface3
+      meta: PROPERTY
+      property: Value2
+
+- name: test journal callback 1
+  class: callback
+  callback: journal
+  paths: test path group 1
+  properties: test property group 1
+  severity: INFO
+  message: Hello world from PDM!
+
+- name: test journal callback 2
+  class: callback
+  callback: journal
+  paths: test path group 1
+  properties: test property group 1
+  severity: INFO
+  message: Hello world from PDM!
+
+- name: test journal callback 3
+  class: callback
+  callback: journal
+  paths: test path group 2
+  properties: test property group 2
+  severity: INFO
+  message: Hello world from PDM!

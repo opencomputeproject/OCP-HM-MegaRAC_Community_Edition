@@ -1,0 +1,89 @@
+description: >
+    Implement to provide DBus service lookup features.
+
+    Any OpenBMC implementation must provide exactly one implementation of
+    xyz.openbmc_project.ObjectMapper on /xyz/openbmc_project/ObjectMapper.
+methods:
+    - name: GetObject
+      description: >
+          Obtain a dictionary of service -> implemented interface(s)
+          for the given path.
+      parameters:
+        - name: path
+          type: path
+          description: >
+            The object path for which the result should be fetched.
+        - name: interfaces
+          type: array[string]
+          description: >
+            An array of result set constraining interfaces.
+      returns:
+        - name: services
+          type: dict[string,array[string]]
+          description: >
+            A dictionary of service -> implemented interface(s).
+    - name: GetAncestors
+      description: >
+          Obtain a dictionary of ancestor -> services where ancestor is an
+          ancestor of path and services is of the type returned by the
+          GetObject method.
+      parameters:
+        - name: path
+          type: path
+          description: >
+            The path for which the result should be fetched.
+        - name: interfaces
+          type: array[string]
+          description: >
+            An array of result set constraining interfaces.
+      returns:
+        - name: ancestors
+          type: dict[path,dict[string,array[string]]]
+          description: >
+            A dictionary of ancestor -> services.
+    - name: GetSubTree
+      description: >
+          Obtain a dictionary of path -> services where path is in
+          sutbtree and services is of the type returned by the
+          GetObject method.
+      parameters:
+        - name: subtree
+          type: path
+          description: >
+            The subtree path for which the result should be fetched.
+        - name: depth
+          type: int32
+          description: >
+            The maximum subtree depth for which results should be fetched.
+            For unconstrained fetches use a depth of zero.
+        - name: interfaces
+          type: array[string]
+          description: >
+            An array of result set constraining interfaces.
+      returns:
+        - name: objects
+          type: dict[path,dict[string,array[string]]]
+          description: >
+            A dictionary of path -> services.
+    - name: GetSubTreePaths
+      description: >
+          Obtain an array of paths where array elements are in subtree.
+      parameters:
+        - name: subtree
+          type: path
+          description: >
+            The subtree path for which the result should be fetched.
+        - name: depth
+          type: int32
+          description: >
+            The maximum subtree depth for which results should be fetched.
+            For unconstrained fetches use a depth of zero.
+        - name: interfaces
+          type: array[string]
+          description: >
+            An array of result set constraining interfaces.
+      returns:
+        - name: paths
+          type: array[path]
+          description: >
+            An array of paths.

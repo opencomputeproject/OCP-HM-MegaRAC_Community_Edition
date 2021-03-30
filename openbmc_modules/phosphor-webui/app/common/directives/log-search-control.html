@@ -1,0 +1,13 @@
+<section id="event-search" class="row column" aria-label="event log search">
+  <p class="content-label">Filter events</p>
+  <div class="content__search">
+    <label for="content__search-input">Event Log Search</label>
+    <input id="content__search-input" type="text" ng-model="customSearch" ng-keydown="doSearchOnEnter($event)"/>
+    <div class="search-submit__wrapper">
+      <button class="btn" type="button" aria-label="clear filter" ng-click="clear()">
+          <icon file="icon-close.svg" aria-hidden="true"></icon>
+      </button>
+      <input id="content__search-submit" type="submit" class="btn btn-primary content__search-submit" value="Filter" ng-click="doSearchOnClick()"/>
+    </div>
+  </div>
+</section>

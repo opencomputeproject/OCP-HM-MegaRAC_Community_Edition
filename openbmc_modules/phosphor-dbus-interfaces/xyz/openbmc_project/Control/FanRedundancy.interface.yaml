@@ -1,0 +1,37 @@
+description: >
+    An interface to set whether fans are redundant.
+properties:
+    - name: AllowedFailures
+      type: byte
+      flags:
+        - const
+      description: >
+          Number of fans in error state before redundancy is lost.
+    - name: Collection
+      type: array[path]
+      flags:
+        - const
+      description: >
+          The group of fans tracked by this redundancy object.
+    - name: Status
+      type: enum[self.State]
+      flags:
+        - const
+      description: >
+          The current redundancy status.
+
+enumerations:
+    - name: State
+      description: >
+          Possible redundancy states.
+      values:
+        - name: Full
+          description: >
+              System is in a fully redundant state.
+        - name: Degraded
+          description: >
+              Redundancy is in a degraded state.
+        - name: Failed
+          description: >
+              System has lost redundancy.
+

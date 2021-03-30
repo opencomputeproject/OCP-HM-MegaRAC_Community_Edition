@@ -1,0 +1,31 @@
+diff -Naur b/redfish-core/lib/managers.hpp a/redfish-core/lib/managers.hpp
+--- b/redfish-core/lib/managers.hpp	2020-08-11 12:08:58.769169244 +0530
++++ a/redfish-core/lib/managers.hpp	2020-08-11 13:47:32.377227730 +0530
+@@ -1702,7 +1702,7 @@
+ #endif // BMCWEB_ENABLE_VM_NBDPROXY
+ 
+         // default oem data
+-        nlohmann::json& oem = res.jsonValue["Oem"];
++/*        nlohmann::json& oem = res.jsonValue["Oem"];
+         nlohmann::json& oemOpenbmc = oem["OpenBmc"];
+         oem["@odata.type"] = "#OemManager.Oem";
+         oem["@odata.id"] = "/redfish/v1/Managers/bmc#/Oem";
+@@ -1710,6 +1710,7 @@
+         oemOpenbmc["@odata.id"] = "/redfish/v1/Managers/bmc#/Oem/OpenBmc";
+         oemOpenbmc["Certificates"] = {
+             {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
++*/
+ 
+         // Manager.Reset (an action) can be many values, OpenBMC only supports
+         // BMC reboot.
+@@ -1758,8 +1759,8 @@
+ 
+         getLastResetTime(asyncResp);
+ 
+-        auto pids = std::make_shared<GetPIDValues>(asyncResp);
+-        pids->run();
++//        auto pids = std::make_shared<GetPIDValues>(asyncResp);
++//        pids->run();
+ 
+         getMainChassisId(asyncResp, [](const std::string& chassisId,
+                                        const std::shared_ptr<AsyncResp> aRsp) {

@@ -1,0 +1,466 @@
+#!/usr/bin/python
+
+##
+# Copyright c 2016 IBM Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+###############################################################################
+# @file commit-tracker
+# @brief Prints out all commits on the master branch of the specified
+#        repository, as well as all commits on linked submodule
+#        repositories
+###############################################################################
+
+import argparse
+import git
+import json
+import logging
+import os
+import re
+import requests
+import sys
+import time
+
+class CommitReportEncoder(json.JSONEncoder):
+    def default(self, i_obj):
+        return i_obj.__dict__
+
+###############################################################################
+# @class CommitReport
+# @brief A class representing information about a commit and all commits in
+#        relevant subrepos
+###############################################################################
+class CommitReport:
+    def __init__(self, i_repo_uri, i_repo_name,  i_sha, i_nice_name,
+                 i_summary, i_insertions, i_deletions, i_closed_issues):
+        self.repo_uri = i_repo_uri
+        self.repo_name = i_repo_name
+        self.sha = i_sha
+        self.nice_name = i_nice_name
+        self.summary = i_summary
+        self.insertions = i_insertions
+        self.deletions = i_deletions
+        self.closed_issues = i_closed_issues
+        self.subreports = []
+
+    def to_cl_string(self, i_level=0):
+        # Define colors for the console
+        RED = '\033[31m'
+        BLUE = '\033[94m'
+        ENDC = '\033[0m'
+        # Put the string together
+        l_cl_string = ('  ' * i_level) + RED + self.repo_name + ENDC  + ' ' \
+            + BLUE + self.nice_name + ENDC + ' ' \
+            + re.sub('\s+', ' ', self.summary)
+        # Do the same for every subreport
+        for l_report in self.subreports:
+            l_cl_string += '\n' + l_report.to_cl_string(i_level + 1)
+        return l_cl_string
+
+    def to_html(self, i_level=0):
+        l_repo_url = re.sub('git://', 'http://', self.repo_uri)
+        # Get HTML for this commit
+        l_html = \
+            '<div style="margin-left: ' + str(i_level * 20) + 'px">' \
+            + '<a href="' + l_repo_url + '" target="_blank" ' \
+            + 'style="color: red">' + self.repo_name + '</a>&nbsp;' \
+            + '<a href="' + l_repo_url + '/commit/' + self.sha \
+            + '" target="_blank" style="color: blue">' + self.nice_name \
+            + '</a>&nbsp;' \
+            + '<span>' + re.sub('\s+', ' ', self.summary) + '</span>' \
+            + '</div>\n'
+        # Get the HTML for all subcommits
+        for l_commit in self.subreports:
+            l_html += l_commit.to_html(i_level + 1)
+        return l_html
+
+    def get_total_insertions(self):
+        l_insertions = self.insertions
+        for l_commit in self.subreports:
+            l_insertions += l_commit.get_total_insertions()
+        return l_insertions
+
+    def get_total_deletions(self):
+        l_deletions = self.deletions
+        for l_commit in self.subreports:
+            l_deletions += l_commit.get_total_deletions()
+        return l_deletions
+
+    def get_all_closed_issues(self):
+        l_closed_issues = self.closed_issues
+        for l_commit in self.subreports:
+            l_closed_issues.extend(l_commit.get_all_closed_issues())
+        return l_closed_issues
+
+###############################################################################
+# @brief Main function for the script
+#
+# @param i_args : Command line arguments
+###############################################################################
+def main(i_args):
+    # Parse the arguments
+    l_args = parse_arguments(i_args)
+
+    # Set the logger level
+    logging.basicConfig(level=logging.ERROR)
+
+    # Generate the commit reports
+    print 'Getting report for ' + l_args.repo_dir
+    l_reports = generate_commit_reports(
+        l_args.repo_uri,
+        l_args.repo_dir,
+        l_args.latest_commit,
+        l_args.earliest_commit)
+
+    # Compile issues, insertions, and deletions
+    l_issues = []
+    l_total_deletions = 0
+    l_total_insertions = 0
+    for l_report in l_reports:
+        l_total_deletions += l_report.get_total_deletions()
+        l_total_insertions += l_report.get_total_insertions()
+        l_issues.extend(l_report.get_all_closed_issues())
+
+    # Print commit information to the console
+    print 'Commits...'
+    for l_report in l_reports:
+        print l_report.to_cl_string()
+    print 'Closed issues...'
+    for l_issue in l_issues:
+        print '  ' + str(l_issue[0]) + ' ' + str(l_issue[1])
+    print 'Insertions and deletions...'
+    print str(l_total_insertions) + ' insertions'
+    print str(l_total_deletions) + ' deletions'
+
+    # Write to the HTML file if the user set the flag
+    if l_args.html_file:
+        print 'Writing to HTML file...'
+        l_html_file = open(l_args.html_file, 'w+')
+        l_html_file.write('<html><body>\n')
+        for l_report in l_reports:
+            l_html_file.write(l_report.to_html())
+        l_html_file.write('<p>' + str(l_total_insertions) \
+                          + ' insertions and ' + str(l_total_deletions) \
+                          + ' deletions</p>')
+        l_html_file.write('<div>Closed Issues</div>')
+        for l_issue in l_issues:
+            l_html_file.write('<div><a href="http://www.github.com/' \
+                              + re.sub('#', '/issues/', l_issue[0]) \
+                              + '" target="_blank">' + l_issue[0] + '</a> ' \
+                              + l_issue[1] + '</div>')
+        l_html_file.write('</body></html>')
+        l_html_file.close()
+
+    # Write to the JSON file if the user set the flag
+    if l_args.json_file:
+        print 'Writing to JSON file...'
+        l_json_file = open(l_args.json_file, 'w+')
+        l_json_file.write(CommitReportEncoder().encode(l_reports))
+        l_json_file.close()
+
+###############################################################################
+# @brief Parses the arguments from the command line
+#
+# @param i_args : The list of arguments from the command line, excluding the
+#                 name of the script
+#
+# @return An object representin the parsed arguments
+###############################################################################
+def parse_arguments(i_args):
+    l_parser = argparse.ArgumentParser(
+        description='Prints commit information from the given repo and all ' \
+                    +'sub-repos specified with SRC_REV, starting from the ' \
+                    +'most recent commit specified going back to the ' \
+                    +'earliest commit specified.')
+    l_parser.add_argument(
+        'repo_uri',
+        help='The URI of the repo to get commit information for')
+    l_parser.add_argument(
+        'repo_dir',
+        help='The directory of the repo to get commit information for')
+    l_parser.add_argument(
+        'latest_commit',
+        help='A reference (branch name, HEAD, SHA, etc.) to the most ' \
+             +'recent commit to get information for')
+    l_parser.add_argument(
+        'earliest_commit',
+        help='A reference to the earliest commit to get information for')
+    l_parser.add_argument(
+        '--html_file',
+        default=None,
+        help='If set to a file path, this script will write an HTML ' \
+             +'version of the console output to the file path given')
+    l_parser.add_argument(
+        '--json_file',
+        default=None,
+        help='If set to a file path, this script will write a JSON version ' \
+            +'of the generated report to the file path given')
+    return l_parser.parse_args(i_args)
+
+###############################################################################
+# @brief Generates a list of CommitReport objects, each one
+#        representing a commit in the given repo URI and path,
+#        starting at the beginning commit inclusive, ending at the
+#        end commit exclusive
+#
+# @param i_repo_uri     : The URI to the repo to get reports for
+# @param i_repo_path    : The path to the repo to get reports for
+# @param i_begin_commit : A reference to the most recent commit. The
+#                         most recent commit to get a report for
+# @param i_end_commit   : A reference to the commit farthest in the
+#                         past. The next youngest commit will be
+#                         the last one to get a report for
+#
+# @return A list of CommitReport objects in order from newest to
+#         oldest commit
+###############################################################################
+def generate_commit_reports(i_repo_uri, i_repo_path, i_begin_commit,
+                            i_end_commit):
+    # Get the repo that the user requested
+    clone_or_update(i_repo_uri, i_repo_path)
+    try:
+        l_repo = git.Repo(i_repo_path)
+    except git.exc.InvalidGitRepositoryError:
+        logging.error(str(i_repo_path) + ' is not a valid git repository')
+        return
+
+    # Get commits between the beginning and end references
+    try:
+        l_commits = l_repo.iter_commits(rev=(i_begin_commit + '...'
+                                             + i_end_commit))
+        # Go through each commit, generating a report
+        l_reports = []
+        for l_commit in l_commits:
+            # Get the insertion and deletion line counts
+            l_insertions, l_deletions = get_line_count(
+                    l_repo,str(l_commit.hexsha),
+                    str(l_commit.hexsha) + '~1')
+            # Construct a new commit report
+            l_report = CommitReport(
+                i_repo_uri,
+                i_repo_path.split('/')[-1].replace('.git', ''),
+                str(l_commit.hexsha),
+                to_prefix_name_rev(l_commit.name_rev),
+                l_commit.summary,
+                l_insertions,
+                l_deletions,
+                get_closed_issues(l_commit))
+
+            # Search the diffs for any bumps of submodule versions
+            l_diffs = l_commit.diff(str(l_commit.hexsha) + '~1')
+            for l_diff in l_diffs:
+                # If we have two files to compare with diff...
+                if l_diff.a_path and l_diff.b_path:
+                    # ... get info about the change, log it...
+                    l_subrepo_uri, l_subrepo_new_hash, l_subrepo_old_hash \
+                        = get_bump_info(l_repo, str(l_commit.hexsha),
+                                          i_repo_path, l_diff.b_path)
+                    logging.debug('Found diff...')
+                    logging.debug('  Subrepo URI: ' + str(l_subrepo_uri))
+                    logging.debug('  Subrepo new hash: '
+                                  + str(l_subrepo_new_hash))
+                    logging.debug('  Subrepo old hash: '
+                                  + str(l_subrepo_old_hash))
+                    logging.debug('  Found in: ' + str(l_diff.b_path))
+                    # ... and print the commits for the subrepo if this was a
+                    #     version bump
+                    if l_subrepo_new_hash \
+                            and l_subrepo_old_hash \
+                            and l_subrepo_uri \
+                            and l_subrepo_uri.startswith('git'):
+                        logging.debug('  Bumped')
+                        l_subrepo_path = l_subrepo_uri.split('/')[-1]
+                        l_subreports = generate_commit_reports(
+                            l_subrepo_uri,
+                            l_subrepo_path,
+                            l_subrepo_new_hash,
+                            l_subrepo_old_hash)
+                        l_report.subreports.extend(l_subreports)
+
+            # Put the report on the end of the list
+            l_reports.append(l_report)
+
+    except git.exc.GitCommandError as e:
+        logging.error(e)
+        logging.error(str(i_begin_commit) + ' and ' + str(i_end_commit)
+                      + ' are invalid revisions')
+    return l_reports
+
+###############################################################################
+# @brief Gets the repo URI, the updated SHA, and the old SHA from a
+#        given repo, commit SHA and file
+# 
+# @param i_repo      : The Repo object to get version bump information
+#                      from
+# @param i_hexsha    : The hex hash for the commit to search for
+#                      version bumps
+# @param i_repo_path : The path to the repo containing the file to
+#                      get bump information from
+# @param i_file      : The path, starting at the base of the repo,
+#                      to the file to get bump information from
+#
+# @return Returns the repo URI, the updatedS SHA, and the old SHA in
+#         a tuple in that order
+###############################################################################
+def get_bump_info(i_repo, i_hexsha, i_repo_path, i_file):
+    # Checkout the old repo
+    i_repo.git.checkout(i_hexsha)
+    # Get the diff text
+    l_diff_text = i_repo.git.diff(i_hexsha, i_hexsha + '~1', '--', i_file)
+    logging.debug('Hash: ' + i_hexsha)
+    logging.debug('File: ' + i_repo_path + '/' + i_file)
+    logging.debug('Diff Text: ' + l_diff_text)
+
+    # Get the new and old version hashes
+    l_old_hash = None
+    l_new_hash = None
+    l_old_hash_match = re.search('-[A-Z_]*SRCREV[+=? ]+"([a-f0-9]+)"',
+                                 l_diff_text)
+    l_new_hash_match = re.search('\+[A-Z_]*SRCREV[+=? ]+"([a-f0-9]+)"',
+                                 l_diff_text)
+    if l_old_hash_match:
+        l_old_hash = l_old_hash_match.group(1)
+    if l_new_hash_match:
+        l_new_hash = l_new_hash_match.group(1)
+
+    # Get the URI of the subrepo
+    l_uri = None
+    if os.path.isfile(i_repo_path + '/' + i_file):
+        l_changed_file = open(i_repo_path + '/' + i_file, 'r')
+        for l_line in l_changed_file:
+            l_uri_match = re.search('_URI[+=? ]+"([-a-zA-Z0-9/:\.]+)"', l_line)
+            if l_uri_match:
+                l_uri = l_uri_match.group(1)
+                break
+    else:
+        logging.debug(i_repo_path + '/' + i_file)
+
+    # Go back to master
+    i_repo.git.checkout('master')
+    return l_uri, l_new_hash, l_old_hash
+
+###############################################################################
+# @brief Updates the repo under the given path or clones it from the
+#        uri if it doesn't yet exist
+#
+# @param i_uri  : The URI to the remote repo to clone
+# @param i_path : The file path to where the repo currently exists or
+#                 where it will be created
+###############################################################################
+def clone_or_update(i_uri, i_path):
+    # If the repo exists, just update it
+    if os.path.isdir(i_path):
+        l_repo = git.Repo(i_path)
+        l_repo.remotes[0].pull()
+
+    # If it doesn't exist, clone it
+    else:
+        os.mkdir(i_path)
+        l_repo = git.Repo.init(i_path)
+        origin = l_repo.create_remote('origin', i_uri)
+        origin.fetch()
+        l_repo.create_head('master', origin.refs.master) \
+            .set_tracking_branch(origin.refs.master)
+        origin.pull()
+
+###############################################################################
+# @brief Gets the number of changed lines between two commits
+#
+# @param i_repo         : The Repo object these commits are in
+# @param i_begin_commit : A git reference to the beginning commit
+# @param i_end_commit   : A git reference to the end commit
+#
+# @return A two-tuple containing the number of insertions and the number of
+#         deletions between the begin and end commit
+###############################################################################
+def get_line_count(i_repo, i_begin_commit, i_end_commit):
+    diff_output = i_repo.git.diff(i_end_commit, i_begin_commit, shortstat=True)
+    insertions = 0
+    deletions = 0
+    insertion_match = re.search('([0-9]+) insertion', diff_output)
+    deletion_match = re.search('([0-9]+) deletion', diff_output)
+    if insertion_match:
+        insertions = int(insertion_match.group(1))
+    if deletion_match:
+        deletions = int(deletion_match.group(1))
+    return insertions, deletions
+
+###############################################################################
+# @brief Gets closed issues from the commit message
+#
+# @param i_commit : The commit to get closed issues for
+#
+# @return A list of tuples, the first element being the ID of the issue, the
+#         second being the title from GitHub
+###############################################################################
+def get_closed_issues(i_commit):
+    l_closed_issues = []
+
+    # Set up the regex
+    l_close_regex = re.compile(
+        '((F|f)ix((es|ed)?)|(C|c)lose((s|d)?)|(R|r)esolve((s|d)?)) '
+        + '+(?P<issue>[a-zA-Z0-9#]+\/[a-zA-Z0-9#]+)')
+    l_matches = l_close_regex.finditer(i_commit.message)
+
+    # Loop through all the matches getting each issue name
+    for l_match in l_matches:
+        l_issue_id = l_match.group('issue')
+        l_issue_title = get_issue_title(l_issue_id)
+        l_closed_issues.append((l_issue_id, l_issue_title))
+
+    return l_closed_issues
+
+###############################################################################
+# @brief Gets the title of an issue based on the issue ID
+#
+# @param i_issue_id : The ID of the issue to get the title for
+#
+# @return The title of the issue
+###############################################################################
+def get_issue_title(i_issue_id):
+    # Construct the URL
+    l_url_tail = re.sub('#', '/issues/', i_issue_id)
+    l_full_url = 'https://api.github.com/repos/' + l_url_tail
+    l_title = ''
+
+    # Send in the web request
+    l_response = requests.get(l_full_url)
+    if 200 == l_response.status_code:
+        l_issue = l_response.json()
+        l_title = l_issue['title']
+    else:
+        logging.error(l_response.text)
+        logging.error('Recieved status code ' \
+                      + str(l_response.status_code) \
+                      + ' when getting issue titles.')
+    return l_title
+
+##############################################################################
+# @brief Cuts the hash in commit revision names down to its 7 digit prefix
+#
+# @param i_name_rev : The name of the revision to change
+#
+# @return The same revision name but with the hash its 7 digit prefix instead
+###############################################################################
+def to_prefix_name_rev(i_name_rev):
+    l_name_rev = i_name_rev
+    l_hash, l_name = l_name_rev.split()
+    l_name_rev = l_hash[0:7] + ' ' + l_name
+    return l_name_rev
+
+# Only run main if run as a script
+if __name__ == '__main__':
+    main(sys.argv[1:])
+

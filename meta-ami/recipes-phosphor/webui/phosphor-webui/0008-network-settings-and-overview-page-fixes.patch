@@ -1,0 +1,740 @@
+diff -Naur a/app/common/directives/app-header.html b/app/common/directives/app-header.html
+--- a/app/common/directives/app-header.html	2020-09-01 12:25:51.712658893 -0400
++++ b/app/common/directives/app-header.html	2020-09-01 12:31:40.834390852 -0400
+@@ -33,7 +33,7 @@
+       >
+         <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+       </button>
+-      <a href="#/server-health/event-log" class="header__action">
++      <a href="#/server-health/sensors-overview" class="header__action">
+         Server health
+         <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+         <span>
+diff -Naur a/app/common/directives/app-navigation.html b/app/common/directives/app-navigation.html
+--- a/app/common/directives/app-navigation.html	2020-09-01 12:25:51.712658893 -0400
++++ b/app/common/directives/app-navigation.html	2020-09-01 12:32:01.938012007 -0400
+@@ -1,5 +1,5 @@
+ <nav class="nav__wrapper">
+-  <ul id="nav__top-level" ng-style="navStyle">
++  <ul id="nav__top-level" ng-style="dataService.navStyle">
+     <li>
+       <button ng-click="change('overview')">
+         <icon class="nav-icon" file="icon-overview.svg" aria-hidden="true"></icon>
+@@ -116,4 +116,4 @@
+       </ul>
+     </li>
+   </ul>
+-</nav>
+\ No newline at end of file
++</nav>
+diff -Naur a/app/common/directives/app-navigation.js b/app/common/directives/app-navigation.js
+--- a/app/common/directives/app-navigation.js	2020-09-01 12:25:51.712658893 -0400
++++ b/app/common/directives/app-navigation.js	2020-09-01 12:32:22.489734472 -0400
+@@ -45,12 +45,19 @@
+                 $scope.showSubMenu = true;
+               });
+               $scope.$watch('showNavigation', function() {
++                var paddingTop = 0;
+                 var urlRoot = $location.path().split('/')[1];
+                 if (urlRoot != '') {
+                   $scope.firstLevel = urlRoot;
+                 } else {
+                   $scope.firstLevel = 'overview';
+                 }
++
++                if ($scope.showNavigation) {
++                  //paddingTop = document.getElementById('header').offsetHeight;
++                }
++                dataService.bodyStyle = {'padding-top': paddingTop + 'px'};
++                dataService.navStyle = {'top': paddingTop + 'px'};
+               });
+             }
+           ],
+@@ -68,4 +75,4 @@
+           }
+         };
+       });
+-})(window.angular);
+\ No newline at end of file
++})(window.angular);
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-09-01 12:25:51.728658605 -0400
++++ b/app/common/services/api-utils.js	2020-09-01 12:38:22.236518285 -0400
+@@ -9,8 +9,9 @@
+ window.angular && (function(angular) {
+   'use strict';
+   angular.module('app.common.services').factory('APIUtils', [
+-    '$http', '$cookies', 'Constants', '$q', 'dataService', '$interval',
+-    function($http, $cookies, Constants, $q, DataService, $interval) {
++    '$http', '$cookies', 'Constants', '$q', 'dataService', '$interval','$location',
++    function($http, $cookies, Constants, $q, DataService, $interval, $location) {
++      var poll_interval;
+       var getScaledValue = function(value, scale) {
+         scale = scale + '';
+         scale = parseInt(scale, 10);
+@@ -50,6 +51,39 @@
+                     console.log(JSON.stringify(error));
+                   });
+         },
++        getHostStatus: function(){
++          // To avoid the duplicate poll call initiating.
++          $interval.cancel(poll_interval);
++          poll_interval = undefined;
++
++          poll_interval = $interval(function(){
++            // stop the poll call if landing in login page.
++            if(window.location.hash.indexOf("login") != -1){
++                $interval.cancel(poll_interval);
++                poll_interval = undefined;
++            }else{
++              return $http({
++                    method: 'GET',
++                    url: DataService.getHost(),
++                    timeout:6000,
++                    global:false,
++                    withCredentials: true
++              }).then(function(response){
++              },function(event, request, settings){
++                if(event.status == -1) {
++                  var temp = Constants.API_CREDENTIALS.host_storage_key;
++                  $interval.cancel(poll_interval);
++                  poll_interval = undefined;
++                  sessionStorage.removeItem('LOGIN_ID');
++                  sessionStorage.removeItem(temp);
++                  $location.path('/logout');
++                  window.location.reload();
++                }
++              });
++            }
++          },6000);
++        },
++
+         getSystemLogs: function(recordType) {
+           var uri = '/redfish/v1/Systems/' + DataService.systemName +
+               '/LogServices/EventLog/Entries';
+@@ -448,6 +482,19 @@
+                 return response.data;
+               });
+         },
++        deleteAllIP: function(interfaceName) {
++          return $http({
++                   method: 'POST',
++                   url: DataService.getHost() +
++                       '/xyz/openbmc_project/network/' + interfaceName +
++                       '/action/DeleteAll',
++                   withCredentials: true,
++                   data: JSON.stringify({'data': []})
++                 })
++              .then(function(response) {
++                return response.data;
++              });
++        },
+         addIPV4: function(
+             interfaceName, ipAddress, netmaskPrefixLength, gateway) {
+           return $http({
+@@ -496,6 +543,9 @@
+           })
+               .then(
+                   function(response) {
++		    // clear the poll call after logout
++                    $interval.cancel(poll_interval);
++                    poll_interval = undefined;
+                     if (callback) {
+                       callback(response.data);
+                     }
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2020-09-01 12:25:51.744658318 -0400
++++ b/app/common/services/dataService.js	2020-09-01 12:41:02.809998515 -0400
+@@ -22,6 +22,7 @@
+       this.server_unreachable = false;
+       this.showNavigation = false;
+       this.bodyStyle = {};
++      this.navStyle = {};
+       this.path = '';
+ 
+       this.hostname = '';
+@@ -74,6 +75,21 @@
+         this.hostname = data.hostname;
+         this.defaultgateway = data.defaultgateway;
+         this.mac_address = data.mac_address;
++        // set mac address for default
++        this.macaddress_for_interface = data.mac_address;
++
++        //check all the available interface's mac address
++        for ( var key in data.formatted_data.interfaces) {
++          var length = data.formatted_data.interfaces[key].ipv4.values.length;
++          if(length > 0){
++              for(var i=0; i < length; i++){
++                  // Check logged in WEBUI IP with matched Interface and set the mac address
++                  if(data.formatted_data.interfaces[key].ipv4.values[i].Address == window.location.host) {
++                      this.macaddress_for_interface = data.formatted_data.interfaces[key].MACAddress;
++                  }
++              }
++          }
++      }
+       };
+ 
+       this.setPowerOnState = function() {
+@@ -139,6 +155,14 @@
+         return vmDevice;
+       }
+ 
++      this.validate_hostname = function(value){
++        var reg_check = /^[\-]*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
++        if((!(reg_check.test(value))) || !(value != "") || !(value.length <= 63) || !(value.charAt(0) != "-") || !(value.charAt(value.length-1) != "-") || !(value.charAt(0) != ".") || !(value.charAt(value.length-1) != ".")){
++          return false;
++        }else{
++          return true;
++        }
++      }
+     }
+   ]);
+ })(window.angular);
+diff -Naur a/app/common/services/toastService.js b/app/common/services/toastService.js
+--- a/app/common/services/toastService.js	2020-09-01 12:25:51.724658678 -0400
++++ b/app/common/services/toastService.js	2020-09-01 12:41:22.381685819 -0400
+@@ -33,7 +33,7 @@
+       };
+ 
+       this.error = function(message) {
+-        initToast('danger', 'Error', message);
++        initToast('danger', 'Error', message,  true);
+       };
+ 
+       this.success = function(message) {
+@@ -41,11 +41,11 @@
+       };
+ 
+       this.warn = function(message) {
+-        initToast('warning', 'Warning', message);
++        initToast('warning', 'Warning', message,  true);
+       };
+ 
+       this.info = function(title, message) {
+-        initToast('info', title, message);
++        initToast('info', title, message, true);
+       };
+     }
+   ]);
+diff -Naur a/app/common/styles/layout/header.scss b/app/common/styles/layout/header.scss
+--- a/app/common/styles/layout/header.scss	2020-09-01 12:25:51.780657672 -0400
++++ b/app/common/styles/layout/header.scss	2020-09-01 12:41:49.769246467 -0400
+@@ -75,13 +75,18 @@
+     height: 100%;
+     background: transparent;
+     max-width: 600px;
+-    white-space: nowrap;
++    //white-space: nowrap;
+     overflow: hidden;
++    word-break: break-all;
++    overflow-wrap: break-word;
++    width: 37%;
+     .header__hostname {
+       color: $primary-dark;
+       font-size: 1.2rem;
+       font-weight: 700;
+       margin-bottom: 0;
++      word-break: break-all;
++      overflow-wrap: break-word;
+     }
+     .header__server-ip {
+       font-size: 1rem;
+@@ -91,6 +96,10 @@
+     padding-top: 0.5em;
+   }
+ 
++ .overview__hostname {
++    word-break: break-word;
++ }
++
+   .header__logo {
+     vertical-align: middle;
+     margin: 1em;
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2020-09-01 12:25:51.784657600 -0400
++++ b/app/configuration/controllers/network-controller.html	2020-09-01 12:43:02.428071632 -0400
+@@ -3,7 +3,8 @@
+   <div class="row column">
+     <h1>BMC network settings</h1>
+   </div>
+-  <form class="net-config__form" role="form" action="">
++  <!--form class="net-config__form" role="form" action=""-->
++  <form name ="network_form" class="net-config__form" role="form" action="">
+     <fieldset class="net-config__fieldset row column">
+       <legend class="column small-12 page-header h2">
+         Common settings
+@@ -11,7 +12,9 @@
+       <div class="net-config__fieldset-content">
+         <div class="column small-12 large-3">
+           <label for="net-config__mac">Hostname</label>
+-          <input id="net-config__mac" type="text" ng-model="hostname" />
++	  <!--<input id="net-config__mac" type="text" ng-model="hostname" />-->
++	  <input id="net-config__mac" type="text" ng-model="hostname" name="hostname" ng-pattern="validateHostname" set-focus-on-new-input required/>
++          <span class="modal__error" ng-show="network_form.hostname.$error.pattern">Invalid format.</span>
+         </div>
+         <div class="column small-12 large-3">
+           <label for="netinterface-select">Network interface</label>
+@@ -27,11 +30,15 @@
+         </div>
+         <div class="column small-12 large-3">
+           <label for="net-config__host">MAC address</label>
+-          <input id="net-config__host" type="text" ng-model="interface.MACAddress" />
++          <!--input id="net-config__host" type="text" ng-model="interface.MACAddress" /-->
++          <input name="mac_address" id="net-config__host" type="text" ng-model="interface.MACAddress" ng-change="validate_mac_address()"/>
++          <span class="modal__error" ng-show="false_mac_address">Invalid MAC Address.</span>
+         </div>
+         <div class="column small-12 large-3">
+           <label for="net-config__domain">Default Gateway</label>
+-          <input id="net-config__domain" type="text" ng-model="defaultGateway" />
++          <!--<input id="net-config__domain" type="text" ng-model="defaultGateway" />-->
++	  <input id="net-config__domain" type="text" name = "defaultGateway" ng-model="defaultGateway"  ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++          <span class="modal__error" ng-show="network_form.defaultGateway.$error.pattern">Invalid IPv4 format.</span>
+         </div>
+       </div>
+     </fieldset>
+@@ -58,27 +65,30 @@
+           <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv4 in interface.ipv4.values track by $index" ng-if="$index < 2" >
+             <div class="column small-12 large-3">
+               <label for="ipv4-address-{{$index+1}}">IPV4 address</label>
+-              <input id="ipv4-address-{{$index+1}}" ng-change="ipv4.updateAddress = true" type="text"
+-                ng-disabled="interface.DHCPEnabled" ng-model="ipv4.Address" />
++              <input id="ipv4-address-{{$index+1}}" name="netipv4{{$index+1}}" ng-change="ipv4.updateAddress = true" type="text"
++                ng-disabled="interface.DHCPEnabled" ng-model="ipv4.Address" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/" set-focus-on-new-input ng-required="!interface.DHCPEnabled"/>
++	      <span class="modal__error" ng-show="network_form.netipv4{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <div class="column small-12 large-3">
+               <label for="ipv4-gateway-{{$index+1}}">Gateway</label>
+-              <input id="ipv4-gateway-{{$index+1}}" ng-change="ipv4.updateGateway = true" type="text"
+-                ng-disabled="interface.DHCPEnabled" value="" ng-model="ipv4.Gateway" />
++              <input id="ipv4-gateway-{{$index+1}}" name="netipv4gateway{{$index+1}}" ng-change="ipv4.updateGateway = true" type="text"
++                ng-disabled="interface.DHCPEnabled" value="" ng-model="ipv4.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++	       <span class="modal__error" ng-show="network_form.netipv4gateway{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <!-- This netmask prefix length max only works with IPV4 -->
+             <div class="column small-12 large-6">
+               <label for="ipv4-prefix-{{$index+1}}">Netmask Prefix Length</label>
+               <input id="ipv4-prefix-{{$index+1}}" class="column small-6" ng-change="ipv4.updatePrefix = true"
+                 type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled"
+-                ng-model="ipv4.PrefixLength" />
+-              <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)"
+-		ng-disabled="interface.DHCPEnabled">Remove</button>
++                ng-model="ipv4.PrefixLength" ng-required="!interface.DHCPEnabled"/>
++              <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)" 
++                 ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length == 1">Remove</button>
+             </div>
+           </fieldset>
+           <div class="row column">
+             <div class="column small-12">
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled">Add IPV4 address</button>
++              <!--button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled">Add IPV4 address</button-->
++              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length >= 2">Add IPV4 address</button>
+             </div>
+           </div>
+         </div>
+@@ -90,17 +100,19 @@
+       </legend>
+       <div class="net-config__fieldset-content">
+         <!-- Call Nameservers "DNS Servers" on the GUI -->
+-        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.Nameservers track by $index" ng-if="$index < 2">
++        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.Nameservers track by $index" ng-if="$index < 1">
+           <div class="column small-12">
+             <label for="net-config__prime-dns{{$index+1}}">DNS Server {{$index+1}}</label>
+-            <input id="net-config__prime-dns{{$index+1}}" class="network-input column small-6 large-4 inline"
+-              type="text" ng-model="dns" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input />
++            <!--input id="net-config__prime-dns{{$index+1}}" class="network-input column small-6 large-4 inline"
++              type="text" ng-model="dns" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input /-->
++            <input id="net-config__prime-dns{{$index+1}}" name="netdns{{$index+1}}" class="network-input column small-6 large-4 inline" type="text" ng-model="dns"ng-pattern="/^[a-zA-Z0-9\\.-]{0,64}$/" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input />
++            <span class="modal__error" ng-show="network_form.netdns{{$index+1}}.$error.pattern">Invalid format.</span>
+             <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="removeDNSField($index)">Remove</button>
+           </div>
+         </div>
+         <div class="row column">
+           <div class="column small-12">
+-            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()">Add DNS server</button>
++            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()" ng-disabled="interface.Nameservers.length >= 1" >Add DNS server</button>
+           </div>
+         </div>
+       </div>
+@@ -109,7 +121,8 @@
+       <div class="network-config__submit-wrapper column">
+         <div class="float-right">
+           <button type="button" class="btn  btn-secondary" ng-click="refresh()">Cancel</button>
+-          <button type="button" class="btn  btn-primary" ng-click="confirmSettings=true;">Save settings</button>
++          <!--button type="button" class="btn  btn-primary" ng-click="confirmSettings=true;">Save settings</button-->
++          <button type="button" class="btn  btn-primary" ng-click="saveConfirm()" ng-disabled="network_form.$invalid" ng-class="{'disabled' : network_form.$invalid}">Save settings</button>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2020-09-01 12:25:51.780657672 -0400
++++ b/app/configuration/controllers/network-controller.js	2020-09-01 12:44:41.710447186 -0400
+@@ -19,6 +19,7 @@
+       $scope.network = {};
+       $scope.oldInterface = {};
+       $scope.interface = {};
++      $scope.selectedinterfaceId = '';
+       $scope.networkDevice = false;
+       $scope.hostname = '';
+       $scope.defaultGateway = '';
+@@ -30,14 +31,43 @@
+       loadNetworkInfo();
+ 
+       $scope.selectInterface = function(interfaceId) {
++        $scope.selectedinterfaceId = interfaceId;
+         $scope.interface = $scope.network.interfaces[interfaceId];
+         // Copy the interface so we know later if changes were made to the page
+         $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+         $scope.selectedInterface = interfaceId;
+         $scope.networkDevice = false;
++        $scope.removeLinkAddress();
+       };
+ 
++      $scope.removeLinkAddress = function(){
++        var removeindex = -1;
++        for (var i = 0; i < $scope.interface.ipv4.values.length; i++) {
++          if($scope.interface.ipv4.values[i].Origin.indexOf("LinkLocal") != -1){
++            removeindex = i;
++            //$scope.interface.ipv4.values.splice(i, 1);
++          }else{
++            $scope.interface.ipv4.values[i].id = $scope.interface.ipv4.ids[i];
++          }
++        }
++        if(removeindex > -1){
++          $scope.interface.ipv4.values.splice(removeindex, 1);
++          $scope.interface.ipv4.ids.splice(removeindex, 1);
++        }
++      };
++
++      $scope.validateHostname = (function(){
++        return {
++          test: function(value){
++            return dataService.validate_hostname(value);
++          }
++        }
++      })();
++
+       $scope.addDNSField = function() {
++        if($scope.interface.Nameservers.length == 1){
++          toastService.warn('Cannot Add more than one DNS Servers!!');
++        }
+         $scope.interface.Nameservers.push('');
+       };
+ 
+@@ -59,6 +89,66 @@
+         $scope.interface.ipv4.values.splice(index, 1);
+       };
+ 
++      $scope.validate_mac_address = function(){
++        if(!(/^[0-9a-f]{1,2}([\.:-])(?:[0-9a-f]{1,2}\1){4}[0-9a-f]{1,2}$/i).test($scope.interface.MACAddress)){
++          $scope.false_mac_address = true;
++          return false;
++        }else{
++          var check_msb = $scope.interface.MACAddress.charAt(1);
++          var stringtocheck = 'ae26';
++          if(stringtocheck.indexOf(check_msb.toLowerCase()) != -1){
++            $scope.false_mac_address = false;
++            return true;
++          }else{
++            $scope.false_mac_address = true;
++            return false;
++          }
++        }
++      };
++
++      $scope.checkduplicateIPv4address = function() {
++        if(!$scope.interface.DHCPEnabled){
++          // Get the selected Interface IPv4 address to check with other interfaces
++          for(var i=0;i < $scope.interface.ipv4.values.length; i++){
++            // Get all the available Interfaces IPv4 Address
++            for(var j=0; j < $scope.network.interface_ids.length; j++){
++              // Skip the selected interface to check duplicate
++              if($scope.network.interface_ids[j] != $scope.selectedinterfaceId){
++                // check the other interface having ipv4 address
++                if($scope.network.interfaces[$scope.network.interface_ids[j]].ipv4.values.length){
++                  // If more than one IP present in other interface, Check duplicate for each.
++                  if($scope.network.interfaces[$scope.network.interface_ids[j]].ipv4.values.length > 1){
++                    for(var k=0;k < $scope.network.interfaces[$scope.network.interface_ids[j]].ipv4.values.length; k++){
++                      if($scope.interface.ipv4.values[i].Address == $scope.network.interfaces[$scope.network.interface_ids[j]].ipv4.values[k].Address){
++                        toastService.error('Unable to save network settings. Because the same IPv4 address has been configured in different interface.');
++                        return false;
++                      }
++                    }
++                  }else{
++                    // If only one IPv4 address present skip the loop and check the 0th index directly.
++                    if($scope.interface.ipv4.values[i].Address == $scope.network.interfaces[$scope.network.interface_ids[j]].ipv4.values[0].Address){
++                      toastService.error('Unable to save network settings. Because the same IPv4 address has been configured in different interface.');
++                      return false;
++                    }
++                  }
++                }
++              }
++            }
++          }
++          // No duplicates found.
++          return true;
++        }else{
++          // Skip the dupilcate check If DHCP selected
++          return true;
++        }
++      }
++
++      $scope.saveConfirm = function() {
++        if($scope.validate_mac_address() && $scope.checkduplicateIPv4address()){
++          $scope.confirmSettings = true;
++        }
++      };
++
+       $scope.setNetworkSettings = function() {
+         // Hides the confirm network settings modal
+         $scope.confirmSettings = false;
+@@ -73,9 +163,7 @@
+         if ($scope.defaultGateway != dataService.defaultgateway) {
+           promises.push(setDefaultGateway());
+         }
+-        if ($scope.hostname != dataService.hostname) {
+-          promises.push(setHostname());
+-        }
++
+         if ($scope.interface.DHCPEnabled != $scope.oldInterface.DHCPEnabled) {
+           promises.push(setDHCPEnabled());
+         }
+@@ -91,6 +179,12 @@
+           promises.push(setNameservers());
+         }
+ 
++	// If switched from static to dhcp
++	// then delete the object. 
++        if ($scope.interface.DHCPEnabled) {
++	    promises.push(removeAllIPs());
++        }
++
+         // Set IPV4 IP Addresses, Netmask Prefix Lengths, and Gateways
+         if (!$scope.interface.DHCPEnabled) {
+           // Delete existing IPV4 addresses that were removed
+@@ -138,6 +232,12 @@
+           }
+         }
+ 
++        $timeout(function() {
++          if ($scope.hostname != dataService.hostname) {
++            promises.push(setHostname());
++          }
++        }, 9000);
++
+         if (promises.length) {
+           $q.all(promises).then(
+               function(response) {
+@@ -155,7 +255,7 @@
+                   loadNetworkInfo();
+                   $scope.loading = false;
+                   toastService.success('Network settings saved');
+-                }, 4000);
++                }, 10000);
+               },
+               function(error) {
+                 $scope.loading = false;
+@@ -234,6 +334,17 @@
+         });
+       }
+ 
++      function removeAllIPs() {
++        return APIUtils
++            .deleteAllIP($scope.selectedInterface)
++            .then(
++                function(data) {},
++                function(error) {
++                  console.log(JSON.stringify(error));
++                  return $q.reject();
++                });
++      }
++
+       function addIPV4(index) {
+         return APIUtils
+             .addIPV4(
+@@ -300,11 +411,21 @@
+             $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+           }
+           // Add id values and update flags to corresponding IPV4 objects
++          var removeindex = -1;
+           for (var i = 0; i < $scope.interface.ipv4.values.length; i++) {
+-            $scope.interface.ipv4.values[i].id = $scope.interface.ipv4.ids[i];
+-            $scope.interface.ipv4.values[i].updateAddress = false;
+-            $scope.interface.ipv4.values[i].updateGateway = false;
+-            $scope.interface.ipv4.values[i].updatePrefix = false;
++            if($scope.interface.ipv4.values[i].Origin.indexOf("LinkLocal") == -1){
++              $scope.interface.ipv4.values[i].id = $scope.interface.ipv4.ids[i];
++              $scope.interface.ipv4.values[i].updateAddress = false;
++              $scope.interface.ipv4.values[i].updateGateway = false;
++              $scope.interface.ipv4.values[i].updatePrefix = false;
++            }else{
++              removeindex = i;
++              //$scope.interface.ipv4.values.splice(i, 1);
++            }
++          }
++          if(removeindex > -1){
++            $scope.interface.ipv4.values.splice(removeindex, 1);
++            $scope.interface.ipv4.ids.splice(removeindex, 1);
+           }
+         });
+       }
+diff -Naur a/app/configuration/styles/network.scss b/app/configuration/styles/network.scss
+--- a/app/configuration/styles/network.scss	2020-09-01 12:25:51.784657600 -0400
++++ b/app/configuration/styles/network.scss	2020-09-01 12:44:55.566218925 -0400
+@@ -10,9 +10,9 @@
+     margin-top: 0;
+     text-align: left;
+   }
+-  input {
+-    margin-bottom: 2em;
+-  }
++//  input {
++//    margin-bottom: 2em;
++//  }
+ 
+   .net-config__fieldset {
+     legend {
+diff -Naur a/app/overview/controllers/system-overview-controller.html b/app/overview/controllers/system-overview-controller.html
+--- a/app/overview/controllers/system-overview-controller.html	2020-09-01 12:25:51.784657600 -0400
++++ b/app/overview/controllers/system-overview-controller.html	2020-09-01 12:45:58.585176471 -0400
+@@ -1,9 +1,13 @@
+ <loader loading="loading"></loader>
+ <div class="page overview">
+-  <h1 class="page-title inline">{{ dataService.hostname }}</h1>
+-  <button class="btn  btn-tertiary" ng-click="edit_hostname = !edit_hostname" aria-label="edit host name">
+-    <icon class="nav-icon" aria-hidden="true" file="icon-edit.svg"></icon>
+-  </button>
++  <div class="row">
++    <div class="small-12 large-8" id="hostname_in_system_overview">
++      <h1 class="page-title inline" >{{ dataService.hostname }}</h1>
++      <button class="btn  btn-tertiary" ng-click="edit_hostname = !edit_hostname" aria-label="edit host name">
++        <icon class="nav-icon" aria-hidden="true" file="icon-edit.svg"></icon>
++      </button>
++    </div>
++  </div>
+   <div class="row">
+     <div class="small-12 large-8">
+       <section class="section">
+@@ -42,13 +46,13 @@
+           <div class="column large-6">
+             <dl class="list-pair">
+               <dt>Hostname</dt>
+-              <dd class="overview__hostname">
++              <dd class="overview__hostname" id="hostname_information">
+                 {{ dataService.hostname }}
+               </dd>
+             </dl>
+             <dl class="list-pair">
+               <dt>IP addresses</dt>
+-              <dd class="courier-bold" ng-repeat="ip_address in bmc_ip_addresses">
++              <dd class="courier-bold" ng-repeat="ip_address in bmc_ip_addresses track by $index">
+                 {{ ip_address }}
+               </dd>
+             </dl>
+@@ -56,7 +60,7 @@
+           <div class="column large-6">
+             <dl class="list-pair">
+               <dt>Mac address</dt>
+-              <dd class="courier-bold">{{ dataService.mac_address }}</dd>
++              <dd class="courier-bold">{{ dataService.macaddress_for_interface }}</dd>
+             </dl>
+             <dl class="list-pair">
+               <dt>Firmware Version</dt>
+@@ -203,14 +207,13 @@
+       <form name="edit_hostname_text">
+         <label for="editServerName">Hostname</label>
+         <p class="label__helper-text">
+-          Hostname must be less than 64 characters and must not contain spaces.
++          Hostname must be less than 63 characters and must not contain spaces and special characters except dot .
+         </p>
+         <input id="editServerName" class="modal__edit-server-name" type="text" ng-model="newHostname" ng-trim="false"
+-          name="hostname" ng-pattern="/^\S{0,64}$/" required autofocus />
+-        <span class="modal__error" ng-show="edit_hostname_text.hostname.$error.pattern">Invalid format. Remove
+-          spaces.</span>
++          name="hostname" ng-pattern="validateHostnameinOverview" required autofocus />
++        <span class="modal__error" ng-show="edit_hostname_text.hostname.$error.pattern">Invalid format.</span>
+         <span class="modal__char-count"
+-          ng-hide="edit_hostname_text.hostname.$error.pattern">{{ 0 + newHostname.length }}/64</span>
++          ng-hide="edit_hostname_text.hostname.$error.pattern">{{ 0 + newHostname.length }}/63</span>
+       </form>
+     </div>
+     <div class="modal__button-wrapper">
+@@ -224,4 +227,4 @@
+     </div>
+   </div>
+ </section>
+-<div class="modal-overlay" tabindex="-1" ng-class="{'active': edit_hostname}"></div>
+\ No newline at end of file
++<div class="modal-overlay" tabindex="-1" ng-class="{'active': edit_hostname}"></div>
+diff -Naur a/app/overview/controllers/system-overview-controller.js b/app/overview/controllers/system-overview-controller.js
+--- a/app/overview/controllers/system-overview-controller.js	2020-09-01 12:25:51.784657600 -0400
++++ b/app/overview/controllers/system-overview-controller.js	2020-09-01 12:46:42.164451782 -0400
+@@ -10,8 +10,8 @@
+   'use strict';
+ 
+   angular.module('app.overview').controller('systemOverviewController', [
+-    '$scope', '$window', 'APIUtils', 'dataService', 'Constants', '$q',
+-    function($scope, $window, APIUtils, dataService, Constants, $q) {
++    '$scope', '$window', 'APIUtils', 'dataService', 'Constants', '$q', '$timeout',
++    function($scope, $window, APIUtils, dataService, Constants, $q, $timeout) {
+       $scope.dataService = dataService;
+       $scope.dropdown_selected = false;
+       $scope.logs = [];
+@@ -30,7 +30,7 @@
+ 
+       function loadOverviewData() {
+         $scope.loading = true;
+-
++        APIUtils.getHostStatus();
+         var getLogsPromise = APIUtils.getLogs().then(
+             function(data) {
+               $scope.logs = data.data.filter(function(log) {
+@@ -150,7 +150,17 @@
+             function(error) {
+               console.log(error);
+             });
+-        $scope.loading = false;
++            $scope.loading = false;
++            $timeout(function(){
++              $scope.setNavStyle();
++            },1000)
++      };
++
++      $scope.setNavStyle = function(){
++        var paddingTop = 0;
++        //paddingTop = document.getElementById('header').offsetHeight;
++        dataService.bodyStyle = {'padding-top': paddingTop + 'px'};
++        dataService.navStyle = {'top': paddingTop + 'px'};
+       };
+ 
+       $scope.getEventLogTitle = function(event) {
+@@ -160,6 +170,15 @@
+         }
+         return title;
+       };
++
++      $scope.validateHostnameinOverview = (function(){
++        return {
++          test: function(value){
++            return dataService.validate_hostname(value);
++          }
++        }
++      })();
++
+     }
+   ]);
+ })(angular);
+diff -Naur a/app/overview/styles/system-overview.scss b/app/overview/styles/system-overview.scss
+--- a/app/overview/styles/system-overview.scss	2020-09-01 12:25:51.792657457 -0400
++++ b/app/overview/styles/system-overview.scss	2020-09-01 12:46:51.708292692 -0400
+@@ -32,3 +32,11 @@
+ .modal__error {
+   color: $status-error;
+ }
++
++#hostname_information, #hostname_in_system_overview{
++  word-break: break-all;
++  overflow-wrap: break-word;
++  button{
++    position: absolute;
++  }
++}

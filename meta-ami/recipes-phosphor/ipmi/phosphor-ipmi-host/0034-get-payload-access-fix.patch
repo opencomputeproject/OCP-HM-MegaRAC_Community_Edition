@@ -1,0 +1,62 @@
+--- a/user_channel/channel_layer.cpp    2020-12-03 15:36:51.853615172 -0500
++++ b/user_channel/channel_layer.cpp    2021-01-07 15:53:03.693754027 -0500
+@@ -30,8 +30,16 @@
+     // associated with ethernet interface as the channel number to
+     // eth association is not done. Need to revisit later
+     struct stat fileStat = {0};
+-    std::string devName("/sys/class/net/" + getChannelName(chNum));
+-
++    std::string channelName = getChannelName(chNum);
++    if(channelName.empty())
++    {
++       phosphor::logging::log<phosphor::logging::level::DEBUG>(
++            "Ethernet device not found");
++        return false;
++    }
++
++    std::string devName("/sys/class/net/" + channelName);
++
+     if (stat(devName.data(), &fileStat) != 0)
+     {
+         phosphor::logging::log<phosphor::logging::level::DEBUG>(
+
+--- a/user_channel/channel_mgmt.cpp     2020-12-03 15:36:51.853615172 -0500
++++ b/user_channel/channel_mgmt.cpp     2021-01-07 14:52:16.398503807 -0500
+@@ -139,11 +139,12 @@
+
+ std::string ChannelConfig::getChannelName(const uint8_t chNum)
+ {
++
+     if (!isValidChannel(chNum))
+     {
+         log<level::ERR>("Invalid channel number.",
+                         entry("CHANNEL_ID=%d", chNum));
+-        throw std::invalid_argument("Invalid channel number");
++       return std::string();
+     }
+
+     return channelData[chNum].chName;
+
+--- a/user_channel/channelcommands.cpp  2020-12-03 15:36:51.853615172 -0500
++++ b/user_channel/channelcommands.cpp  2021-01-07 14:52:25.390566945 -0500
+@@ -324,12 +324,17 @@
+     uint8_t chNum =
+         convertCurrentChannelNum(static_cast<uint8_t>(channel), ctx->channel);
+
+-    if (!doesDeviceExist(chNum) || !isValidChannel(chNum) || reserved)
++    if (!doesDeviceExist(chNum))
+     {
+-        log<level::DEBUG>("Get channel payload - Invalid field in request");
++        log<level::DEBUG>("Get channel payload - device does not exist");
+         return responseInvalidFieldRequest();
+     }
+-
++    if (reserved)
++    {
++        log<level::DEBUG>("Get channel payload - Invalid reserved bit");
++        return responseInvalidFieldRequest();
++    }
++
+     // Session support is available in active LAN channels.
+     if (getChannelSessionSupport(chNum) == EChannelSessSupported::none)
+     {

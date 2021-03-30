@@ -1,0 +1,30 @@
+--- a/user_channel/user_layer.cpp	2020-12-04 18:10:56.736822649 -0500
++++ b/user_channel/user_layer.cpp	2020-12-04 18:14:35.135429124 -0500
+@@ -192,6 +192,13 @@
+                                 const PayloadAccess& payloadAccess)
+ {
+ 
++    std::string userName;
++    ipmiUserGetUserName(userId,userName);
++    if(userName.empty())
++    {
++       return ccInvalidFieldRequest;
++    }
++
+     if (!UserAccess::isValidChannel(chNum))
+     {
+         return ccInvalidFieldRequest;
+@@ -209,6 +216,13 @@
+                                 PayloadAccess& payloadAccess)
+ {
+ 
++    std::string userName;
++    ipmiUserGetUserName(userId,userName);
++    if(userName.empty())
++    {
++       return ccInvalidFieldRequest;
++    }
++
+     if (!UserAccess::isValidChannel(chNum))
+     {
+         return ccInvalidFieldRequest;

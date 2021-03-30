@@ -1,0 +1,55 @@
+description: >
+    Provides properties for IPMI RMCP+ session objects.
+    Provides RMCP+ session information as session objects
+    with sessionID_sessionHandle(unique identifier)as path suffix.
+
+properties:
+    - name: SessionHandle
+      type: byte
+      description: >
+          Session Handle,unique number to locate the session.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: ChannelNum
+      type: byte
+      description: >
+          channelnumber which session is created.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: CurrentPrivilege
+      type: byte
+      description: >
+          Privilege of the session.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: RemoteIPAddr
+      type: uint32
+      description: >
+          Remote IP address.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: RemotePort
+      type: uint16
+      description: >
+          Remote IP Port.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: RemoteMACAddress
+      type: array[byte]
+      description: >
+          Remote MAC address.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: UserID
+      type: byte
+      description: >
+           Session created by given user ID.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: State
+      type: byte
+      default: 0
+      description: >
+          Session state.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure

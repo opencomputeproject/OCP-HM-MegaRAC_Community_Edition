@@ -1,0 +1,8 @@
+[Unit]
+Description=Write image %I to BMC storage
+OnFailure=obmc-flash-mmc-remove@%i.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/bin/obmc-flash-bmc mmc %i @IMG_UPLOAD_DIR@

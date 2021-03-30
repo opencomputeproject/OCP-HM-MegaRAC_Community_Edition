@@ -1,0 +1,86 @@
+description: >
+    Implement to update LDAP mandatory properties.
+    Any service implementing User.Ldap.Config interface on one or more
+    objects must implement Object.Enable interface on the object.
+
+properties:
+    - name: LDAPServerURI
+      type: string
+      description: >
+          Specifies the LDAP URI of the server to connect to.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.Common.Error.NoCACertificate
+    - name: LDAPBindDN
+      type: string
+      description: >
+          Specifies the distinguished name with which to bind to the directory
+          server for lookups.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+    - name: LDAPBindDNPassword
+      type: string
+      description: >
+          Specifies the credentials with which to bind,Implementation should
+          consider changing the permissions of the underlying file to
+          only grant access to the root user.
+          This property value should not be reflected on the D-bus object itself.
+          Implementation can use the given value and update the service
+          implementing the LDAP client.This is just to facilitate the support
+          for changing the bin dn password if needed.
+          Currently this property is over D-bus, There are security concerns
+          for the same, but once we find better way to update the ldap password
+          we would fix it.
+    - name: LDAPBaseDN
+      type: string
+      description: >
+          Specifies the base distinguished name to use as search base.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+    - name: LDAPSearchScope
+      type: enum[self.SearchScope]
+      description: >
+          Specifies the search scope:subtree, one level or base object.
+      default: sub
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+    - name: LDAPType
+      type: enum[self.Type]
+      description: >
+          Specifies the the configured server is ActiveDirectory(AD) or
+          OpenLdap. It's just an indication for the LDAP stack running on
+          the BMC, in case the app is implemented in such a way that it has
+          to react differently for AD vs openldap.
+          This property is readonly, Once the D-Bus object gets created then
+          this property should not be modifiable.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.NotAllowed
+    - name: GroupNameAttribute
+      type: string
+      description: >
+          The value of this property shall be the attribute name
+          that contains the name of the Group in the LDAP server.
+    - name: UserNameAttribute
+      type: string
+      description: >
+          The value of this property shall be the attribute name
+          that contains the username in the LDAP server.
+enumerations:
+    - name: SearchScope
+      description: >
+          Possible base scopes.
+      values:
+        - name: sub
+        - name: one
+        - name: base
+
+    - name: Type
+      description: >
+          Possible LDAP Types.
+      values:
+        - name: ActiveDirectory
+        - name: OpenLdap

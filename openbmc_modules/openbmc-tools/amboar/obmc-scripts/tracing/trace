@@ -1,0 +1,77 @@
+#!/bin/bash
+#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2018 IBM Corp.
+
+set -eou pipefail
+
+if [ $# -lt 2 ]
+then
+	echo Usage: $0 [USER@]HOST EVENTSET [EVENTSET...]
+	echo
+	echo Valid EVENTSETs: fsi, occ, sbefifo, timer, sched
+	exit 1
+fi
+
+TRACE_TARGET="$1"
+shift 1
+TRACE_EVENT_SET="$@"
+
+TRACESCRIPT_PATH="$(mktemp obmc-fsi-trace.XXXXXX)"
+TRACESCRIPT="$(basename "${TRACESCRIPT_PATH}")"
+
+on_exit() {
+	rm -f "${TRACESCRIPT_PATH}"
+}
+
+trap on_exit EXIT
+
+cat > "${TRACESCRIPT_PATH}" <<-EOF
+set -eou pipefail
+
+set -x
+
+# Look Ma! Associative arrays in ash!
+EVENT_fsi="fsi fsi_master_gpio"
+EVENT_occ="occ hwmon_occ"
+EVENT_sbefifo="sbefifo"
+EVENT_timer="timer/timer_start timer/timer_cancel timer/timer_expire_entry timer/timer_expire_exit"
+EVENT_sched="sched/sched_switch sched/sched_wakeup sched/sched_wakeup_new sched/sched_waking"
+
+on_exit() {
+for elem in ${TRACE_EVENT_SET}
+do
+	# Abuse eval(1) to extract the list of tracepoints to enable from our
+	# fake associative arrays
+	eval 'trace=\\\${EVENT_\${elem}}'
+	for event in \$(eval echo \${trace})
+	do
+		echo 0 > /sys/kernel/debug/tracing/events/\${event}/enable
+	done
+done
+	echo 0 > /sys/kernel/debug/tracing/tracing_on
+}
+
+trap on_exit EXIT
+
+cat /sys/kernel/debug/tracing/per_cpu/cpu0/trace_pipe &
+CAT_PID=\$!
+
+for elem in ${TRACE_EVENT_SET}
+do
+	# See comment in the disable path
+	eval 'trace=\\\${EVENT_\${elem}}'
+	for event in \$(eval echo \${trace})
+	do
+		echo 1 > /sys/kernel/debug/tracing/events/\${event}/enable
+	done
+done
+echo 1 > /sys/kernel/debug/tracing/tracing_on
+
+read
+
+kill \${CAT_PID}
+EOF
+
+scp "${TRACESCRIPT_PATH}" "${TRACE_TARGET}":/tmp/"${TRACESCRIPT}"
+ssh "${TRACE_TARGET}" "/bin/sh -x /tmp/'${TRACESCRIPT}'"

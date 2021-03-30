@@ -1,0 +1,38 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-09-01 22:24:09.503222554 +0530
++++ b/src/sensorcommands.cpp	2020-09-01 22:50:37.225107194 +0530
+@@ -46,6 +46,7 @@
+ 
+ namespace ipmi
+ {
++#define MAXREADING 127
+ using ManagedObjectType =
+     std::map<sdbusplus::message::object_path,
+              std::map<std::string, std::map<std::string, DbusVariant>>>;
+@@ -586,6 +587,7 @@
+     uint8_t upperCritical, uint8_t upperNonRecoverable)
+ {
+     constexpr uint8_t thresholdMask = 0xFF;
++    std::vector<std::string> split_path;
+ 
+     if (reserved)
+     {
+@@ -614,6 +616,18 @@
+     {
+         return ipmi::response(status);
+     }
++
++     boost::split(split_path, path , boost::is_any_of("/"));
++    std::string SensorName = split_path.back() ;
++    if(SensorName == "BMC_Temp" && upperNonCritical > MAXREADING )
++    {
++       upperNonCritical = MAXREADING;
++    }
++    if(SensorName == "BMC_Temp" && upperCritical > MAXREADING )
++    {
++       upperCritical = MAXREADING;
++    }
++
+     SensorMap sensorMap;
+     if (!getSensorMap(yield, connection, path, sensorMap))
+     {

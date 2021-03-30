@@ -1,0 +1,36 @@
+description: >
+  Implement the Soft Power Off function.
+  On receiving the SMS_ATTN from BMC, Host will respond with a
+  GetMessageFlags command and the BMC will respond with a static
+  data indicating that Event Message Buffer is full. Host then sends
+  'ReadEvent' command and BMC responds with an architected packet
+  mentioning that the type is SOFT_OFF. Host then goes ahead and starts
+  to quiesce. Once that is done, Host will send a hard
+  power off command to BMC and then BMC will issue a hard power off.
+
+properties:
+    - name: ResponseReceived
+      type: enum[self.HostResponse]
+      default: NotApplicable
+      description: >
+        When the response is received for 'SMS_ATN', this is set to
+        'SoftOffReceived' and is set to 'HostShutdown' when Host
+        sends a Power Off request.
+
+enumerations:
+    - name: HostResponse
+      description: >
+        Possible response types from Host for a Soft Power Off function.
+      values:
+        - name: NotApplicable
+          description: >
+            Default initial value.
+        - name: SoftOffReceived
+          description: >
+            Host has received the SMS_ATN from BMC indicating that
+            Host needs to do a Soft Power Off.
+        - name: HostShutdown
+          description: >
+            Host has sufficiently quiesced and acknowledged the shutdown
+            request such that the hardware shutdown sequence can safely
+            be performed.

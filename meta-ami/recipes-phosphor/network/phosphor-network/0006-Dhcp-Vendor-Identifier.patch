@@ -1,0 +1,103 @@
+--- a/dhcp_configuration.cpp	2020-12-29 01:12:04.373539262 -0500
++++ b/dhcp_configuration.cpp	2020-12-29 01:55:18.150839392 -0500
+@@ -31,6 +31,20 @@
+     return name;
+ }
+ 
++bool Configuration::vendorClassIdentifierEnabled(bool value)
++{
++    if (value == vendorClassIdentifierEnabled())
++    {
++        return value;
++    }
++
++    auto name = ConfigIntf::vendorClassIdentifierEnabled(value);
++    manager.writeToConfigurationFile();
++
++    return name;
++}
++
++
+ bool Configuration::hostNameEnabled(bool value)
+ {
+     if (value == hostNameEnabled())
+
+--- a/dhcp_configuration.hpp	2020-12-29 01:12:04.373539262 -0500
++++ b/dhcp_configuration.hpp	2020-12-29 02:04:09.222959823 -0500
+@@ -50,7 +50,9 @@
+         ConfigIntf::dNSEnabled(getDHCPPropFromConf("UseDNS"));
+         ConfigIntf::nTPEnabled(getDHCPPropFromConf("UseNTP"));
+         ConfigIntf::hostNameEnabled(getDHCPPropFromConf("UseHostname"));
++
+         ConfigIntf::sendHostNameEnabled(getDHCPPropFromConf("SendHostname"));
++	ConfigIntf::vendorClassIdentifierEnabled(getDHCPPropFromConf("VendorClassIdentifier"));
+         emit_object_added();
+     }
+ 
+@@ -84,6 +86,13 @@
+      */
+     bool sendHostNameEnabled(bool value) override;
+ 
++   /** @brief if true then it will cause an Option 60 field, i.e machine's
++     *         Vendor Class Identifier, will be included in the DHCP packet.
++     *  @param[in] value - true if machine's Vendor Class Identifier needs to be included
++     *         in the DHCP packet.
++     */
++
++    bool vendorClassIdentifierEnabled(bool value) override;
+     /** @brief read the DHCP Prop value from the configuration file
+      *  @param[in] prop - DHCP Prop name.
+      */
+@@ -98,7 +107,7 @@
+     using ConfigIntf::hostNameEnabled;
+     using ConfigIntf::nTPEnabled;
+     using ConfigIntf::sendHostNameEnabled;
+-
++    using ConfigIntf::vendorClassIdentifierEnabled;
+   private:
+     /** @brief sdbusplus DBus bus connection. */
+     sdbusplus::bus::bus& bus;
+
+--- a/ethernet_interface.cpp	2020-12-29 02:29:15.630316457 -0500
++++ b/ethernet_interface.cpp	2020-12-29 02:39:37.365374488 -0500
+@@ -43,6 +43,7 @@
+ constexpr auto PROPERTY_INTERFACE = "org.freedesktop.DBus.Properties";
+ constexpr auto RESOLVED_SERVICE_PATH = "/org/freedesktop/resolve1/link/";
+ constexpr auto METHOD_GET = "Get";
++constexpr auto VENDOR_CLASS_IDENTIFIER = "DCMI36465:1.5";
+ 
+ struct EthernetIntfSocket
+ {
+@@ -183,6 +184,7 @@
+ 
+ void EthernetInterface::createIPAddressObjects()
+ {
++    
+     addrs.clear();
+ 
+     auto addrs = getInterfaceAddrs()[interfaceName()];
+@@ -251,7 +253,7 @@
+ ObjectPath EthernetInterface::iP(IP::Protocol protType, std::string ipaddress,
+                                  uint8_t prefixLength, std::string gateway)
+ {
+-
++    
+     if (dhcpIsEnabled(protType))
+     {
+         log<level::INFO>("DHCP enabled on the interface"),
+@@ -1010,6 +1012,15 @@
+         value =
+             manager.getDHCPConf()->sendHostNameEnabled() ? "true"s : "false"s;
+         stream << "SendHostname="s + value + "\n";
++	
++	value =
++            manager.getDHCPConf()->vendorClassIdentifierEnabled() ? "true"s : "false"s;
++
++	if(value == "true")
++	    stream << "VendorClassIdentifier="s + VENDOR_CLASS_IDENTIFIER + "\n";
++	if(value == "false")
++	    stream << "\n";
++
+     }
+ }
+ 

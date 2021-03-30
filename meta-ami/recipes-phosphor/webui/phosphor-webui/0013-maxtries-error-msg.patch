@@ -1,0 +1,45 @@
+diff -Naur a/app/login/controllers/login-controller.html b/app/login/controllers/login-controller.html
+--- a/app/login/controllers/login-controller.html	2020-10-28 19:18:42.592202616 +0530
++++ b/app/login/controllers/login-controller.html	2020-10-28 19:13:29.279428208 +0530
+@@ -11,6 +11,10 @@
+             <b>Invalid username or password.</b>
+             <br>Please try again.
+           </div>
++	  <div class="alert alert-danger" role="alert" ng-if="userLocked">
++            <b>User locked.</b>
++            <br>Please try after sometimes.
++          </div>
+           <label for="host">BMC Host or BMC IP Address</label>
+           <input type="text" id="host" name="host" class="validate-input" ng-model="host" has-error="serverUnreachable && login__form.host.$pristine" required  autofocus ng-keydown="tryLogin(host, username, password, $event)">
+           <div ng-messages="login__form.host.$error" class="form-error" ng-class="{'visible' : login__form.host.$touched || submitted}">
+diff -Naur a/app/login/controllers/login-controller.js b/app/login/controllers/login-controller.js
+--- a/app/login/controllers/login-controller.js	2020-10-28 19:18:49.436329515 +0530
++++ b/app/login/controllers/login-controller.js	2020-10-28 19:13:37.779524409 +0530
+@@ -19,6 +19,7 @@
+       $scope.dataService = dataService;
+       $scope.serverUnreachable = false;
+       $scope.invalidCredentials = false;
++      $scope.userLocked = false;
+       $scope.host = $scope.dataService.host.replace(/^https?\:\/\//ig, '');
+ 
+       $scope.tryLogin = function(host, username, password, event) {
+@@ -31,6 +32,7 @@
+       $scope.login = function(host, username, password) {
+         $scope.serverUnreachable = false;
+         $scope.invalidCredentials = false;
++        $scope.userLocked = false;
+         if (!username || username == '' || !password || password == '' ||
+             !host || host == '') {
+           return false;
+@@ -50,7 +52,10 @@
+             } else {
+               if (description === 'Unauthorized') {
+                 $scope.invalidCredentials = true;
+-              } else {
++              }else if (description === 'Locked') {
++                $scope.userLocked = true;
++	      }
++              else {
+                 $scope.serverUnreachable = true;
+               }
+             }

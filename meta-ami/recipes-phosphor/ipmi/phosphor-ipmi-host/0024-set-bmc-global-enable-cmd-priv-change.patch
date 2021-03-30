@@ -1,0 +1,12 @@
+diff -Naur a/systemintfcmds.cpp b/systemintfcmds.cpp
+--- a/systemintfcmds.cpp	2020-12-09 00:29:14.149724523 +0530
++++ b/systemintfcmds.cpp	2020-12-09 00:29:46.490028610 +0530
+@@ -170,7 +170,7 @@
+     // <Set BMC Global Enables>
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
+                           ipmi::app::cmdSetBmcGlobalEnables,
+-                          ipmi::Privilege::Admin, ipmiAppSetBMCGlobalEnable);
++                          ipmi::Privilege::sys_iface, ipmiAppSetBMCGlobalEnable);
+ 
+     // <Get BMC Global Enables>
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,

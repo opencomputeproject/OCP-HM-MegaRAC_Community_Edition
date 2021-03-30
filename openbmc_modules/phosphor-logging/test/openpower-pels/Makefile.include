@@ -1,0 +1,392 @@
+TESTS += $(check_PROGRAMS)
+
+check_PROGRAMS += \
+	additional_data_test \
+	ascii_string_test \
+	bcd_time_test \
+	device_callouts_test \
+	event_logger_test \
+	extended_user_header_test \
+	failing_mtms_test \
+	fru_identity_test \
+	generic_section_test \
+	host_notifier_test \
+	json_utils_test \
+	log_id_test \
+	mru_test \
+	mtms_test \
+	pce_identity_test \
+	pel_manager_test \
+	pel_rules_test \
+	pel_test \
+	pel_values_test \
+	private_header_test \
+	real_pel_test \
+	registry_test \
+	repository_test \
+	section_header_test \
+	severity_test \
+	src_test \
+	src_callout_test \
+	src_callouts_test \
+	stream_test \
+	user_data_test \
+	user_header_test
+
+pel_objects = \
+	$(top_builddir)/extensions/openpower-pels/ascii_string.o \
+	$(top_builddir)/extensions/openpower-pels/callout.o \
+	$(top_builddir)/extensions/openpower-pels/callouts.o \
+	$(top_builddir)/extensions/openpower-pels/device_callouts.o \
+	$(top_builddir)/extensions/openpower-pels/extended_user_header.o \
+	$(top_builddir)/extensions/openpower-pels/failing_mtms.o \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/generic.o \
+	$(top_builddir)/extensions/openpower-pels/json_utils.o \
+	$(top_builddir)/extensions/openpower-pels/log_id.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/mru.o \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/pel.o \
+	$(top_builddir)/extensions/openpower-pels/pel_rules.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o \
+	$(top_builddir)/extensions/openpower-pels/private_header.o \
+	$(top_builddir)/extensions/openpower-pels/registry.o \
+	$(top_builddir)/extensions/openpower-pels/section_factory.o \
+	$(top_builddir)/extensions/openpower-pels/severity.o \
+	$(top_builddir)/extensions/openpower-pels/src.o \
+	$(top_builddir)/extensions/openpower-pels/user_data.o \
+	$(top_builddir)/extensions/openpower-pels/user_header.o
+
+pel_test_utils_ldadd = \
+	$(top_builddir)/extensions/openpower-pels/bcd_time.o \
+	$(top_builddir)/test/openpower-pels/pel_utils.o \
+	$(top_builddir)/test/openpower-pels/paths.o
+
+additional_data_test_SOURCES = %reldir%/additional_data_test.cpp
+additional_data_test_CPPFLAGS = $(test_cppflags)
+additional_data_test_CXXFLAGS = $(test_cxxflags)
+additional_data_test_LDADD = $(test_ldadd)
+additional_data_test_LDFLAGS = $(test_ldflags)
+
+stream_test_SOURCES = %reldir%/stream_test.cpp
+stream_test_CPPFLAGS = $(test_cppflags)
+stream_test_CXXFLAGS = $(test_cxxflags)
+stream_test_LDADD = $(test_ldadd)
+stream_test_LDFLAGS = $(test_ldflags)
+
+bcd_time_test_SOURCES = \
+	%reldir%/bcd_time_test.cpp
+bcd_time_test_CPPFLAGS = $(test_cppflags)
+bcd_time_test_CXXFLAGS = $(test_cxxflags)
+bcd_time_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/bcd_time.o
+bcd_time_test_LDFLAGS = $(test_ldflags)
+
+section_header_test_SOURCES = \
+	%reldir%/section_header_test.cpp
+section_header_test_CPPFLAGS = $(test_cppflags)
+section_header_test_CXXFLAGS = $(test_cxxflags)
+section_header_test_LDADD = $(test_ldadd)
+section_header_test_LDFLAGS = $(test_ldflags)
+
+private_header_test_SOURCES = \
+	%reldir%/private_header_test.cpp
+private_header_test_CPPFLAGS = $(test_cppflags)
+private_header_test_CXXFLAGS = $(test_cxxflags)
+private_header_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(pel_objects)
+private_header_test_LDFLAGS = $(test_ldflags)
+
+user_header_test_SOURCES = \
+	%reldir%/user_header_test.cpp
+user_header_test_CPPFLAGS = $(test_cppflags)
+user_header_test_CXXFLAGS = $(test_cxxflags)
+user_header_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(pel_objects)
+user_header_test_LDFLAGS = $(test_ldflags)
+
+log_id_test_SOURCES = \
+	%reldir%/log_id_test.cpp
+log_id_test_CPPFLAGS = $(test_cppflags)
+log_id_test_CXXFLAGS = $(test_cxxflags)
+log_id_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/log_id.o
+log_id_test_LDFLAGS = $(test_ldflags)
+
+pel_test_SOURCES = \
+	%reldir%/pel_test.cpp
+pel_test_CPPFLAGS = $(test_cppflags)
+pel_test_CXXFLAGS = $(test_cxxflags)
+pel_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(pel_objects)
+pel_test_LDFLAGS = $(test_ldflags)
+
+real_pel_test_SOURCES = \
+	%reldir%/real_pel_test.cpp
+real_pel_test_CPPFLAGS = $(test_cppflags)
+real_pel_test_CXXFLAGS = $(test_cxxflags)
+real_pel_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(pel_objects)
+real_pel_test_LDFLAGS = $(test_ldflags)
+
+repository_test_SOURCES = \
+	%reldir%/repository_test.cpp
+repository_test_CPPFLAGS = $(test_cppflags)
+repository_test_CXXFLAGS = $(test_cxxflags)
+repository_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_objects) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/repository.o
+repository_test_LDFLAGS = $(test_ldflags)
+
+pel_manager_test_SOURCES = \
+	%reldir%/pel_manager_test.cpp
+pel_manager_test_CPPFLAGS = $(test_cppflags)
+pel_manager_test_CXXFLAGS = \
+	$(test_cxxflags) \
+	$(SDEVENTPLUS_CFLAGS)
+pel_manager_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_objects) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/data_interface.o \
+	$(top_builddir)/extensions/openpower-pels/host_notifier.o \
+	$(top_builddir)/extensions/openpower-pels/manager.o \
+	$(top_builddir)/extensions/openpower-pels/repository.o
+pel_manager_test_LDFLAGS = \
+	$(test_ldflags) \
+	$(SDEVENTPLUS_LIBS)
+
+registry_test_SOURCES = \
+	%reldir%/registry_test.cpp
+registry_test_CPPFLAGS = $(test_cppflags)
+registry_test_CXXFLAGS = $(test_cxxflags)
+registry_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/registry.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+registry_test_LDFLAGS = $(test_ldflags)
+
+severity_test_SOURCES = %reldir%/severity_test.cpp
+severity_test_CPPFLAGS = $(test_cppflags)
+severity_test_CXXFLAGS = $(test_cxxflags)
+severity_test_LDADD = \
+	$(test_ldflags) \
+	$(top_builddir)/extensions/openpower-pels/severity.o
+severity_test_LDFLAGS = $(test_ldflags)
+
+mtms_test_SOURCES = %reldir%/mtms_test.cpp
+mtms_test_CPPFLAGS = $(test_cppflags)
+mtms_test_CXXFLAGS = $(test_cxxflags)
+mtms_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/mtms.o
+mtms_test_LDFLAGS = $(test_ldflags)
+
+failing_mtms_test_SOURCES = %reldir%/failing_mtms_test.cpp
+failing_mtms_test_CPPFLAGS = $(test_cppflags)
+failing_mtms_test_CXXFLAGS = $(test_cxxflags)
+failing_mtms_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/failing_mtms.o \
+	$(top_builddir)/extensions/openpower-pels/json_utils.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+failing_mtms_test_LDFLAGS = $(test_ldflags)
+
+pel_values_test_SOURCES = %reldir%/pel_values_test.cpp
+pel_values_test_CPPFLAGS = $(test_cppflags)
+pel_values_test_CXXFLAGS = $(test_cxxflags)
+pel_values_test_LDADD = \
+	$(test_ldflags) \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+pel_values_test_LDFLAGS = $(test_ldflags)
+
+generic_section_test_SOURCES = \
+	%reldir%/generic_section_test.cpp
+generic_section_test_CPPFLAGS = $(test_cppflags)
+generic_section_test_CXXFLAGS = $(test_cxxflags)
+generic_section_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/generic.o
+generic_section_test_LDFLAGS = $(test_ldflags)
+
+user_data_test_SOURCES = \
+	%reldir%/user_data_test.cpp
+user_data_test_CPPFLAGS = $(test_cppflags)
+user_data_test_CXXFLAGS = $(test_cxxflags)
+user_data_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/user_data.o
+user_data_test_LDFLAGS = $(test_ldflags)
+
+ascii_string_test_SOURCES = %reldir%/ascii_string_test.cpp
+ascii_string_test_CPPFLAGS = $(test_cppflags)
+ascii_string_test_CXXFLAGS = $(test_cxxflags)
+ascii_string_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/ascii_string.o
+ascii_string_test_LDFLAGS = $(test_ldflags)
+
+fru_identity_test_SOURCES = %reldir%/fru_identity_test.cpp
+fru_identity_test_CPPFLAGS = $(test_cppflags)
+fru_identity_test_CXXFLAGS = $(test_cxxflags)
+fru_identity_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+fru_identity_test_LDFLAGS = $(test_ldflags)
+
+pce_identity_test_SOURCES = %reldir%/pce_identity_test.cpp
+pce_identity_test_CPPFLAGS = $(test_cppflags)
+pce_identity_test_CXXFLAGS = $(test_cxxflags)
+pce_identity_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o
+pce_identity_test_LDFLAGS = $(test_ldflags)
+
+mru_test_SOURCES = %reldir%/mru_test.cpp
+mru_test_CPPFLAGS = $(test_cppflags)
+mru_test_CXXFLAGS = $(test_cxxflags)
+mru_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/mru.o
+mru_test_LDFLAGS = $(test_ldflags)
+
+src_callout_test_SOURCES = \
+	%reldir%/src_callout_test.cpp
+src_callout_test_CPPFLAGS = $(test_cppflags)
+src_callout_test_CXXFLAGS = $(test_cxxflags)
+src_callout_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/callout.o \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/mru.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+src_callout_test_LDFLAGS = $(test_ldflags)
+
+src_callouts_test_SOURCES = \
+	%reldir%/src_callouts_test.cpp
+src_callouts_test_CPPFLAGS = $(test_cppflags)
+src_callouts_test_CXXFLAGS = $(test_cxxflags)
+src_callouts_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/callout.o \
+	$(top_builddir)/extensions/openpower-pels/callouts.o \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/mru.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o
+src_callouts_test_LDFLAGS = $(test_ldflags)
+
+src_test_SOURCES = \
+	%reldir%/src_test.cpp
+src_test_CPPFLAGS = $(test_cppflags)
+src_test_CXXFLAGS = $(test_cxxflags)
+src_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/ascii_string.o \
+	$(top_builddir)/extensions/openpower-pels/callout.o \
+	$(top_builddir)/extensions/openpower-pels/callouts.o \
+	$(top_builddir)/extensions/openpower-pels/device_callouts.o \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/json_utils.o \
+	$(top_builddir)/extensions/openpower-pels/mru.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o \
+	$(top_builddir)/extensions/openpower-pels/registry.o \
+	$(top_builddir)/extensions/openpower-pels/src.o
+src_test_LDFLAGS = $(test_ldflags)
+
+extended_user_header_test_SOURCES = \
+	%reldir%/extended_user_header_test.cpp
+extended_user_header_test_CPPFLAGS = $(test_cppflags)
+extended_user_header_test_CXXFLAGS = $(test_cxxflags)
+extended_user_header_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/ascii_string.o \
+	$(top_builddir)/extensions/openpower-pels/callout.o \
+	$(top_builddir)/extensions/openpower-pels/callouts.o \
+	$(top_builddir)/extensions/openpower-pels/device_callouts.o \
+	$(top_builddir)/extensions/openpower-pels/data_interface.o \
+	$(top_builddir)/extensions/openpower-pels/extended_user_header.o \
+	$(top_builddir)/extensions/openpower-pels/fru_identity.o \
+	$(top_builddir)/extensions/openpower-pels/json_utils.o \
+	$(top_builddir)/extensions/openpower-pels/mru.o \
+	$(top_builddir)/extensions/openpower-pels/mtms.o \
+	$(top_builddir)/extensions/openpower-pels/pel_values.o \
+	$(top_builddir)/extensions/openpower-pels/pce_identity.o \
+	$(top_builddir)/extensions/openpower-pels/registry.o \
+	$(top_builddir)/extensions/openpower-pels/src.o
+extended_user_header_test_LDFLAGS = $(test_ldflags)
+
+pel_rules_test_SOURCES = %reldir%/pel_rules_test.cpp
+pel_rules_test_CPPFLAGS = $(test_cppflags)
+pel_rules_test_CXXFLAGS = $(test_cxxflags)
+pel_rules_test_LDADD = \
+	$(test_ldflags) \
+	$(top_builddir)/extensions/openpower-pels/pel_rules.o
+pel_rules_test_LDFLAGS = $(test_ldflags)
+
+host_notifier_test_SOURCES = \
+	%reldir%/host_notifier_test.cpp
+host_notifier_test_CPPFLAGS = $(test_cppflags)
+host_notifier_test_CXXFLAGS = $(test_cxxflags) $(SDEVENTPLUS_CFLAGS)
+host_notifier_test_LDADD = \
+	$(test_ldflags) \
+	$(pel_objects) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/host_notifier.o \
+	$(top_builddir)/extensions/openpower-pels/repository.o
+host_notifier_test_LDFLAGS = $(test_ldflags) $(SDEVENTPLUS_LIBS)
+
+json_utils_test_SOURCES = %reldir%/json_utils_test.cpp
+json_utils_test_CPPFLAGS = $(test_cppflags)
+json_utils_test_CXXFLAGS = $(test_cxxflags)
+json_utils_test_LDADD = \
+	$(test_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/json_utils.o
+json_utils_test_LDFLAGS = $(test_ldflags)
+
+event_logger_test_SOURCES = \
+	%reldir%/event_logger_test.cpp
+event_logger_test_CPPFLAGS = $(test_cppflags)
+event_logger_test_CXXFLAGS = $(test_cxxflags) $(SDEVENTPLUS_CFLAGS)
+event_logger_test_LDADD = \
+	$(test_ldadd)
+event_logger_test_LDFLAGS = $(test_ldflags) $(SDEVENTPLUS_LIBS)
+
+device_callouts_test_SOURCES = \
+	%reldir%/device_callouts_test.cpp
+device_callouts_test_CPPFLAGS = $(test_cppflags)
+device_callouts_test_CXXFLAGS = $(test_cxxflags)
+device_callouts_test_LDADD = \
+	$(test_ldadd) \
+	$(pel_test_utils_ldadd) \
+	$(top_builddir)/extensions/openpower-pels/device_callouts.o
+device_callouts_test_LDFLAGS = $(test_ldflags)

@@ -1,0 +1,40 @@
+--- a/dcmihandler.cpp	2020-12-29 01:18:46.784947591 -0500
++++ b/dcmihandler.cpp	2020-12-29 02:50:15.048337950 -0500
+@@ -48,6 +48,7 @@
+ // added into n/w configuration file and the parameter
+ // SendHostNameEnabled will set to true.
+ constexpr auto DHCP_OPT12_ENABLED = "SendHostNameEnabled";
++constexpr auto DHCP_OPT60_ENABLED = "VendorClassIdentifierEnabled";
+ 
+ constexpr auto SENSOR_VALUE_INTF = "xyz.openbmc_project.Sensor.Value";
+ constexpr auto SENSOR_VALUE_PROP = "Value";
+@@ -1147,6 +1148,16 @@
+                     dcmi::setDHCPOption(DHCP_OPT12_ENABLED, false);
+                 }
+ 
++
++		if (requestData->data[0] & DCMI_OPTION_60_43_MASK)
++		{
++			 dcmi::setDHCPOption(DHCP_OPT60_ENABLED, true);
++		}
++		else 
++                {
++                         dcmi::setDHCPOption(DHCP_OPT60_ENABLED, false);
++                }
++
+                 // Systemd-networkd doesn't support Random Back off
+                 if (requestData->data[0] & DCMI_RAND_BACK_OFF_MASK)
+                 {
+@@ -1206,6 +1217,12 @@
+                 {
+                     responseData->data[0] |= DCMI_OPTION_12_MASK;
+                 }
++
++	        if(dcmi::getDHCPOption(DHCP_OPT60_ENABLED))
++		{
++			responseData->data[0] |= DCMI_OPTION_60_43_MASK;
++    	        } 
++
+                 *data_len = sizeof(dcmi::GetConfParamsResponse) + 1;
+                 break;
+             // Get below values from Systemd-networkd source code

@@ -1,0 +1,74 @@
+diff -Naur a/app/common/services/constants.js b/app/common/services/constants.js
+--- a/app/common/services/constants.js	2020-12-15 10:11:10.566261069 -0500
++++ b/app/common/services/constants.js	2020-12-15 11:50:14.522126499 -0500
+@@ -112,7 +112,7 @@
+       CERTIFICATE: {
+         KEY_BIT_LENGTH: [2048],
+         KEY_PAIR_ALGORITHM: ['EC', 'RSA'],
+-        KEY_CURVE_ID: ['prime256v1', 'secp521r1', 'secp384r1']
++        KEY_CURVE_ID: ['prime256v1', 'secp384r1']
+       },
+       COUNTRIES: [
+         {Name: 'Afghanistan', code: 'AF'},
+diff -Naur a/app/configuration/controllers/date-time-controller.js b/app/configuration/controllers/date-time-controller.js
+--- a/app/configuration/controllers/date-time-controller.js	2020-12-15 10:11:10.570260997 -0500
++++ b/app/configuration/controllers/date-time-controller.js	2020-12-15 11:50:44.769561943 -0500
+@@ -140,27 +140,21 @@
+           return;
+         }
+         $scope.loading = true;
+-        if ($scope.time.mode == 'Manual' || $scope.time.owner == 'Split') {
+-          setTimeMode()
++        if ($scope.time.mode == 'Manual') {
++          // if($scope.time.mode == $scope.oldTimeMode){
++            setTimeMode()
+               // .then(setTimeOwner)
+-              .then(setNTPServers)
+-              .then($timeout(setDateTime, 20000));
++              .then($timeout(setDateTime, 15000));
++          // }else{
++          //   setTimeMode()
++          //     // .then(setTimeOwner)
++          //     .then(setNTPServers)
++          //     .then($timeout(setDateTime, 20000));
++          // }
+         } else {
+           setTimeMode()
+-              // .then(setTimeOwner)
+-              .then(setNTPServers)
+-              .then(
+-                  function() {
+-                    toastService.success('Date and time settings saved');
+-                  },
+-                  function(errors) {
+-                    console.log(JSON.stringify(errors));
+-                    toastService.error(
+-                        'Date and time settings could not be saved');
+-                  })
+-              .finally(function() {
+-                $scope.loading = false;
+-              });
++            // .then(setTimeOwner)
++            .then($timeout(setNTPServers, 15000));
+         }
+       };
+ 
+@@ -232,7 +226,17 @@
+         // user doesn't fill out the field, we don't want to add.
+         $scope.ntp.servers = $scope.ntp.servers.filter(Boolean);
+ 
+-        return APIUtils.setNTPServers($scope.ntp.servers);
++        return APIUtils.setNTPServers($scope.ntp.servers).then(
++          function() {
++            toastService.success('Date and time settings saved');
++          },
++          function(errors) {
++            console.log(JSON.stringify(errors));
++            toastService.error('Date and time settings could not be saved');
++          })
++          .finally(function() {
++            $scope.loading = false;
++          });
+       }
+ 
+       function setTimeMode() {

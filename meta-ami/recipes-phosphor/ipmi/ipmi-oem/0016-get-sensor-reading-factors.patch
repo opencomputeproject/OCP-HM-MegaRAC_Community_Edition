@@ -1,0 +1,162 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2020-09-14 17:56:33.002978724 +0530
++++ b/src/sensorcommands.cpp	2020-09-14 17:54:14.593275977 +0530
+@@ -1641,6 +1641,146 @@
+ }
+ /* end storage commands */
+ 
++/** @brief implements the Get Sensor Reading factor command
++ *  @returns the factord based on Max and Min Value
++ */
++
++ipmi::RspType<  uint8_t, // Next Reading Byte
++                uint8_t, // m_lsb
++                uint8_t, // m_msb
++                uint8_t, // b_lsb
++                uint8_t, // bMsb, b_msb_and_accuracy_lsb
++                uint8_t, // b_msb_and_accuracy_lsb
++                uint8_t  // r_b_exponents
++                >
++                ipmiSenGetSensorReadingFactors(ipmi::Context::ptr ctx,uint8_t SensorNum , uint8_t readByte)
++{
++
++    constexpr uint16_t lastRecordIndex = 0xFFFF;
++    if (sensorTree.empty() && !getSensorSubtree(sensorTree))
++    {
++        return ipmi::responseResponseError();
++    }
++
++    size_t fruCount = 0;
++    ipmi_ret_t ret = ipmi::storage::getFruSdrCount(ctx , fruCount);
++    if (ret != IPMI_CC_OK)
++    {
++        return ipmi::response(ret);
++    }
++    size_t lastRecord = sensorTree.size() + fruCount - 1;
++    if (SensorNum == lastRecordIndex)
++    {
++        SensorNum = lastRecord;
++    }
++
++    if ( SensorNum > lastRecord)
++    {
++        return ipmi::responseInvalidFieldRequest();
++    }
++
++    std::string connection;
++    std::string path;
++    uint16_t sensorIndex = SensorNum;
++    for (const auto &sensor : sensorTree)
++    {
++        if (sensorIndex-- == 0)
++        {
++            if (!sensor.second.size())
++            {
++                return ipmi::responseResponseError();
++            }
++            connection = sensor.second.begin()->first;
++            path = sensor.first;
++            break;
++        }
++    }
++
++    SensorMap sensorMap;
++    if (!getSensorMap(ctx->yield, connection, path, sensorMap))
++    {
++        return ipmi::responseResponseError();
++    }
++
++    auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
++    if (sensorObject == sensorMap.end())
++    {
++        return ipmi::responseResponseError();
++    }
++
++    auto maxObject = sensorObject->second.find("MaxValue");
++    auto minObject = sensorObject->second.find("MinValue");
++    double max = 128;
++    double min = -127;
++    if (maxObject != sensorObject->second.end())
++    {
++        max = std::visit(VariantToDoubleVisitor(), maxObject->second);
++    }
++
++    if (minObject != sensorObject->second.end())
++    {
++        min = std::visit(VariantToDoubleVisitor(), minObject->second);
++    }
++
++    int16_t mValue = 0;
++    int8_t rExp = 0;
++    int16_t bValue = 0;
++    int8_t bExp = 0;
++    bool bSigned = false;
++    uint8_t next_reading = 0;
++
++   // ipmi::sensor::GetSensorReadingFactor *r_fac/;
++    if (!getSensorAttributes(max, min, mValue, rExp, bValue, bExp, bSigned))
++    {
++        return ipmi::responseResponseError();
++    }
++
++    // apply M, B, and exponents, M and B are 10 bit values, exponents are 4
++    uint8_t m_lsb = mValue & 0xFF;
++
++    // move the smallest bit of the MSB into place (bit 9)
++    // the MSbs are bits 7:8 in m_msb_and_tolerance
++    uint8_t mMsb = (mValue & (1 << 8)) > 0 ? (1 << 6) : 0;
++
++    // assign the negative
++    if (mValue < 0)
++    // assign the negative
++    if (mValue < 0)
++    {
++        mMsb |= (1 << 7);
++    }
++    //r_fact->m_msb_and_tolerance = mMsb;
++
++    uint8_t b_lsb = bValue & 0xFF;
++
++    // move the smallest bit of the MSB into place
++    // the MSbs are bits 7:8 in b_msb_and_accuracy_lsb
++    uint8_t bMsb = (bValue & (1 << 8)) > 0 ? (1 << 6) : 0;
++
++    // assign the negative
++    if (bValue < 0)
++    {
++        bMsb |= (1 << 7);
++    }
++
++    uint8_t b_msb_and_accuracy_lsb = bMsb;
++
++    uint8_t r_b_exponents = bExp & 0x7;
++    if (bExp < 0)
++    {
++        r_b_exponents |= 1 << 3;
++    }
++    r_b_exponents = (rExp & 0x7) << 4;
++
++     if (rExp < 0)
++    {
++        r_b_exponents |= 1 << 7;
++    }
++    return
++            ipmi::responseSuccess(next_reading, m_lsb, mMsb, b_lsb, bMsb, b_msb_and_accuracy_lsb,r_b_exponents);
++}
++
++
+ void registerSensorFunctions()
+ {
+     // <Platform Event>
+@@ -1706,5 +1846,11 @@
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdGetSdr, ipmi::Privilege::User,
+                           ipmiStorageGetSDR);
++    // <Get Sensor Reading Factors>
++    ipmi::registerHandler(
++        ipmi::prioOemBase, ipmi::netFnSensor,
++        ipmi::sensor_event::cmdGetSensorReadingFactors,
++        ipmi::Privilege::User, ipmiSenGetSensorReadingFactors);
++
+ }
+ } // namespace ipmi

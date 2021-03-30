@@ -1,0 +1,110 @@
+diff -Naur a/watchdog.cpp b/watchdog.cpp
+--- a/watchdog.cpp	2020-06-19 10:29:29.055926599 +0530
++++ b/watchdog.cpp	2020-06-25 19:09:06.460710807 +0530
+@@ -6,6 +6,7 @@
+ #include <phosphor-logging/log.hpp>
+ #include <sdbusplus/exception.hpp>
+ #include <xyz/openbmc_project/Common/error.hpp>
++#include <iostream>
+ 
+ namespace phosphor
+ {
+@@ -144,6 +145,8 @@
+         }
+     }
+ 
++    addWatchdogSEL(action,expiredTimerUse());
++
+     tryFallbackOrDisable();
+ }
+ 
+@@ -170,5 +173,76 @@
+     WatchdogInherits::enabled(false);
+ }
+ 
++void Watchdog::addWatchdogSEL(Base::Watchdog::Action action,Base::Watchdog::TimerUse timeUse){
++
++    static constexpr auto SEN_WATCHDOG_SERVICE =
++        "xyz.openbmc_project.Eventsensor";
++    static constexpr auto SEN_WATCHDOG_ROOT =
++        "/xyz/openbmc_project/sensors/eventsensor/WATCHDOG2";
++    static constexpr auto SEN_WATCHDOG_INTERFACE =
++        "xyz.openbmc_project.Sensor.Discrete.State";
++    static constexpr auto SEN_SET_INTERFACE = "org.freedesktop.DBus.Properties";
++    static constexpr auto SEN_WATCHDOG_PROP = "ActiveAlarmState";
++    static constexpr const uint16_t ipmiBMCSlaveAddr = 0x20;
++
++    uint8_t eventData1=0xff;
++    uint8_t eventData2=0xff;
++    switch (action)
++    {
++        case Action::None:
++            eventData1 = 0;
++            break;
++        case Action::HardReset:
++            eventData1 = 1;
++            break;
++        case Action::PowerOff:
++            eventData1 = 2;
++            break;
++        case Action::PowerCycle:
++            eventData1 = 3;
++            break;
++    }
++
++    switch (timeUse)
++    {
++        case TimerUse::Reserved:
++            eventData2 = 0;
++            break;
++        case TimerUse::BIOSFRB2:
++            eventData2 = 1;
++            break;
++        case TimerUse::BIOSPOST:
++            eventData2 = 2;
++            break;
++        case TimerUse::OSLoad:
++            eventData2 = 3;
++            break;
++        case TimerUse::SMSOS:
++            eventData2 = 4;
++            break;
++        case TimerUse::OEM:
++            eventData2 = 5;
++            break;
++    }
++
++    std::vector<std::uint8_t> al = {eventData1, eventData2, 0xFF };
++
++	std::cerr << "Set status call \n";
++
++    try
++    {
++        auto method =
++            bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_WATCHDOG_INTERFACE,SEN_WATCHDOG_PROP,std::variant<std::vector<std::uint8_t>>{al});
++        bus.call_noreply(method);
++    }
++    catch (const SdBusError& e)
++    {
++	std::cerr << "Set status error \n";
++        log<level::ERR>(e.what());
++    }
++}
++
+ } // namespace watchdog
+ } // namespace phosphor
+diff -Naur a/watchdog.hpp b/watchdog.hpp
+--- a/watchdog.hpp	2020-06-19 10:29:35.397284682 +0530
++++ b/watchdog.hpp	2020-06-19 10:59:20.885430275 +0530
+@@ -170,6 +170,9 @@
+ 
+     /** @brief Attempt to enter the fallback watchdog or disables it */
+     void tryFallbackOrDisable();
++
++    /** @brief Add a watchdog SEL to SEL list  */
++    void addWatchdogSEL(Base::Watchdog::Action action,Base::Watchdog::TimerUse timeUse);
+ };
+ 
+ } // namespace watchdog

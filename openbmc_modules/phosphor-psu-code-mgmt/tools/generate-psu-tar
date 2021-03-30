@@ -1,0 +1,185 @@
+#!/bin/bash
+set -eo pipefail
+
+help=$'Generate Tarball with PSU image and MANIFEST Script
+usage: generate-psu-tar [OPTION] <parameter>...
+Options:
+   --image        <file>          PSU FW image
+   --version      <version>       PSU FW version
+   --model        <model>         PSU FW model
+   --manufacture  <version>       PSU FW manufacture
+   --machineName  <machineName>   Optionally specify the target machine name of this image.
+   --outfile      <filename>      Outfile name
+		                  For example : -o psufw.tar
+                                  The default outfile name is image.tar,and
+                                  "image" is what you input.
+   --sign         <path>          Sign the image. The optional path argument specifies
+                                  the private key file. Defaults to the bash variable
+                                  PRIVATE_KEY_PATH if available, or else uses the
+                                  open-source private key in this script.
+   --help                         Display this help text and exit.
+'
+
+private_key=$'-----BEGIN PRIVATE KEY-----
+MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAPvSDLu6slkP1gri
+PaeQXL9ysD69J/HjbBCIQ0RPfeWBb75US1tRTjPP0Ub8CtH8ExVf8iF1ulsZA78B
+zIjBYZVp9pyD6LbpZ/hjV7rIH6dTNhoVpdA+F8LzmQ7cyhHG8l2JMvdunwF2uX5k
+D4WDcZt/ITKZNQNavPtmIyD5HprdAgMBAAECgYEAuQkTSi5ZNpAoWz76xtGRFSwU
+zUT4wQi3Mz6tDtjKTYXasiQGa0dHC1M9F8fDu6BZ9W7W4Dc9hArRcdzEighuxoI/
+nZI/0uL89iUEywnDEIHuS6D5JlZaj86/nx9YvQnO8F/seM+MX0EAWVrd5wC7aAF1
+h6Fu7ykZB4ggUjQAWwECQQD+AUiDOEO+8btLJ135dQfSGc5VFcZiequnKWVm6uXt
+rX771hEYjYMjLqWGFg9G4gE3GuABM5chMINuQQUivy8tAkEA/cxfy19XkjtqcMgE
+x/UDt6Nr+Ky/tk+4Y65WxPRDas0uxFOPk/vEjgVmz1k/TAy9G4giisluTvtmltr5
+DCLocQJBAJnRHx9PiD7uVhRJz6/L/iNuOzPtTsi+Loq5F83+O6T15qsM1CeBMsOw
+cM5FN5UeMcwz+yjfHAsePMkcmMaU7jUCQHlg9+N8upXuIo7Dqj2zOU7nMmkgvSNE
+5yuNImRZabC3ZolwaTdd7nf5r1y1Eyec5Ag5yENV6JKPe1Xkbb1XKJECQDngA0h4
+6ATvfP1Vrx4CbP11eKXbCsZ9OGPHSgyvVjn68oY5ZP3uPsIattoN7dE2BRfuJm7m
+F0nIdUAhR0yTfKM=
+-----END PRIVATE KEY-----
+'
+
+do_sign=false
+private_key_path="${PRIVATE_KEY_PATH}"
+image=""
+outfile=""
+version=""
+model=""
+manufacture=""
+machineName=""
+declare -a partitions=()
+
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    --image)
+      image="$2"
+      shift 2
+      ;;
+    --version)
+      version="$2"
+      shift 2
+      ;;
+    --model)
+      model="$2"
+      shift 2
+      ;;
+    --manufacture)
+      manufacture="$2"
+      shift 2
+      ;;
+    --machineName)
+      machineName="$2"
+      shift 2
+      ;;
+    --outfile)
+      outfile="$2"
+      shift 2
+      ;;
+    --sign)
+      do_sign=true
+      if [[ ! -z "${2}"  && "${2}" != -* ]]; then
+        private_key_path="$2"
+        shift 2
+      else
+        shift 1
+      fi
+      ;;
+    --help)
+      echo "$help"
+      exit
+      ;;
+    *)
+      echo "Please enter the correct parameters."
+      echo "$help"
+      exit 1
+      ;;
+  esac
+done
+
+if [ ! -f "${image}" ]; then
+  echo "Please enter a valid PSU FW image file."
+  echo "$help"
+  exit 1
+fi
+
+if [  -z "${version}" ]; then
+  echo "Please enter a valid PSU FW image version."
+  echo "$help"
+  exit 1
+fi
+
+
+if [  -z "${model}" ]; then
+  echo "Please enter a valid PSU FW image model."
+  echo "$help"
+  exit 1
+fi
+
+if [  -z "${manufacture}" ]; then
+  echo "Please enter a valid PSU FW image manufacture."
+  echo "$help"
+  exit 1
+fi
+
+if [  -z "${outfile}" ]; then
+  outfile=`pwd`/$image.tar
+else
+  outfile=`pwd`/$outfile
+fi
+
+scratch_dir=`mktemp -d`
+trap "{ rm -r ${scratch_dir}; }" EXIT
+
+if [[ "${do_sign}" == true ]]; then
+  if [[ -z "${private_key_path}" ]]; then
+    private_key_path=${scratch_dir}/OpenBMC.priv
+    echo "${private_key}" > "${private_key_path}"
+    echo "Image is NOT secure!! Signing with the open private key!"
+  else
+    if [[ ! -f "${private_key_path}" ]]; then
+      echo "Couldn't find private key ${private_key_path}."
+      exit 1
+    fi
+
+    echo "Signing with ${private_key_path}."
+  fi
+
+  public_key_file=publickey
+  public_key_path=${scratch_dir}/$public_key_file
+  openssl pkey -in "${private_key_path}" -pubout -out "${public_key_path}"
+
+  cp ${private_key_path} ${scratch_dir}/private_key
+
+fi
+
+manifest_location="MANIFEST"
+files_to_sign="$manifest_location $public_key_file $image"
+
+cp ${image} ${scratch_dir}
+cd "${scratch_dir}"
+
+echo "Creating MANIFEST for the image"
+echo -e "purpose=xyz.openbmc_project.Software.Version.VersionPurpose.PSU\nversion=$version\n\
+extended_version=model=$model,manufacture=$manufacture" > $manifest_location
+
+if [[ ! -z "${machineName}" ]]; then
+    echo -e "MachineName=${machineName}" >> $manifest_location
+fi
+
+if [[ "${do_sign}" == true ]]; then
+  private_key_name=$(basename "${private_key_path}")
+  key_type="${private_key_name%.*}"
+  echo KeyType="${key_type}" >> $manifest_location
+  echo HashType="RSA-SHA256" >> $manifest_location
+
+  for file in $files_to_sign; do
+    openssl dgst -sha256 -sign private_key -out "${file}.sig" $file
+  done
+
+  additional_files="*.sig"
+fi
+
+tar -cvf $outfile $files_to_sign $additional_files
+echo "PSU FW tarball at $outfile"
+exit

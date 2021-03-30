@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# config: 123 20
+# @brief: Collect host's logs
+#
+
+. ${DREPORT_INCLUDE}/functions
+
+DESCRIPTION="Host logs"
+LOGS_PATH="/var/lib/obmc/hostlogs"
+
+if [[ -d ${LOGS_PATH} ]]; then
+  # Manual flush of the log buffer for all service instances
+  INSTANCES="$(systemctl list-units --type=service --state=running --full | \
+               awk '/hostlogger@/{print $1}')"
+  for SVC in ${INSTANCES}; do
+    log_info "Flush ${SVC}..."
+    if ! systemctl kill --signal SIGUSR1 ${SVC}; then
+      log_warning "Unable to flush ${SVC}"
+    fi
+  done
+
+  # Copy log directory
+  add_copy_file "${LOGS_PATH}" "${DESCRIPTION}"
+fi

@@ -1,0 +1,648 @@
+diff -Naur a/include/ipmi_to_redfish_hooks.hpp b/include/ipmi_to_redfish_hooks.hpp
+--- a/include/ipmi_to_redfish_hooks.hpp	2020-11-26 18:50:55.725771045 +0530
++++ b/include/ipmi_to_redfish_hooks.hpp	2020-11-26 18:46:12.883339490 +0530
+@@ -38,6 +38,38 @@
+                        uint8_t eventData2, uint8_t eventData3);
+ namespace redfish_hooks
+ {
++
++
++enum class EventTypeCode
++{
++    threshold = 0x1,
++    //generic range is 0x2 - 0xc ,TODO: should be added according to requirement
++    generic = 0x3,
++    sensor_specific = 0x6f,
++    oem = 0x2,
++};
++
++
++enum class SensorTypeCode
++{
++    temperature = 0x1,
++    voltage = 0x2,
++    current = 0x3,
++    fan = 0x4,
++    power = 0xB,
++    dimmA_presence = 0xC,
++    hdd_presence = 0xD,
++    chassis_intrusion = 0x5,
++    sel = 0x10,
++    acpi_state = 0x22,
++    watchdog2 = 0x23,
++    cpu_missing = 0x7,
++    bmc_thremaltrip = 0x1,
++    SampleSensor1 = 0x30,
++    SampleSensor2 = 0x60,
++    SampleSensor3 = 0x53,
++};
++
+ struct SELData
+ {
+     int generatorID;
+diff -Naur a/src/ipmi_to_redfish_hooks.cpp b/src/ipmi_to_redfish_hooks.cpp
+--- a/src/ipmi_to_redfish_hooks.cpp	2020-11-26 18:50:39.884791762 +0530
++++ b/src/ipmi_to_redfish_hooks.cpp	2020-11-26 18:45:28.042882043 +0530
+@@ -13,7 +13,6 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ */
+-
+ #include <boost/beast/core/span.hpp>
+ #include <ipmi_to_redfish_hooks.hpp>
+ #include <me_to_redfish_hooks.hpp>
+@@ -28,8 +27,9 @@
+ #include <boost/container/flat_map.hpp>
+ #include <boost/container/flat_set.hpp>
+ #include <boost/algorithm/string.hpp>
+-
+-
++#include <sdrutils.hpp>
++#include "types.hpp"
++#include "host-ipmid/ipmid-api.h"
+ 
+ namespace intel_oem::ipmi::sel
+ {
+@@ -839,8 +839,131 @@
+     return true;
+ }
+ 
++static constexpr int sensorMapUpdatePeriod = 10;
++using Association = std::tuple<std::string, std::string, std::string>;
++
++using DbusVariant =
++    std::variant<std::string, bool, uint8_t, uint16_t, int16_t, uint32_t,
++                 int32_t, uint64_t, int64_t, double, std::vector<std::uint8_t> , std::vector<Association>>;
++
++using GetSubTreeType = std::vector<
++    std::pair<std::string,
++              std::vector<std::pair<std::string, std::vector<std::string>>>>>;
++
++using SensorMap = std::map<std::string, std::map<std::string, DbusVariant>>;
++
++using ManagedObjectType =
++    std::map<sdbusplus::message::object_path,
++             std::map<std::string, std::map<std::string, DbusVariant>>>;
++
++static boost::container::flat_map<std::string, ManagedObjectType> SensorCache;
++
++static bool getSensorMap(std::string sensorConnection, std::string sensorPath,
++                         SensorMap &sensorMap)
++{
++    static boost::container::flat_map<
++        std::string, std::chrono::time_point<std::chrono::steady_clock>>
++        updateTimeMap;
++
++    auto updateFind = updateTimeMap.find(sensorConnection);
++    auto lastUpdate = std::chrono::time_point<std::chrono::steady_clock>();
++    if (updateFind != updateTimeMap.end())
++    {
++        lastUpdate = updateFind->second;
++    }
++
++    auto now = std::chrono::steady_clock::now();
++
++    if (std::chrono::duration_cast<std::chrono::seconds>(now - lastUpdate)
++            .count() > sensorMapUpdatePeriod)
++    {
++        updateTimeMap[sensorConnection] = now;
++
++        std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++        auto managedObj = dbus->new_method_call(
++            sensorConnection.c_str(), "/", "org.freedesktop.DBus.ObjectManager",
++            "GetManagedObjects");
++
++        ManagedObjectType managedObjects;
++        try
++        {
++            auto reply = dbus->call(managedObj);
++            reply.read(managedObjects);
++        }
++        catch (sdbusplus::exception_t &)
++        {
++            phosphor::logging::log<phosphor::logging::level::ERR>(
++                "Error getting managed objects from connection",
++                phosphor::logging::entry("CONNECTION=%s",
++                                         sensorConnection.c_str()));
++            return false;
++        }
++
++        SensorCache[sensorConnection] = managedObjects;
++    }
++    auto connection = SensorCache.find(sensorConnection);
++    if (connection == SensorCache.end())
++    {
++        return false;
++    }
++    auto path = connection->second.find(sensorPath);
++    if (path == connection->second.end())
++    {
++        return false;
++    }
++    sensorMap = path->second;
++
++    return true;
++}
++
++std::string getMsgId(uint8_t offset)
++{
++        std::string messageID;
++
++        switch(offset)
++        {
++                case 0x00:
++                        messageID = ".IpmiSensorThresholdWarningLowGoingLow";
++                        break;
++                case 0x01:
++                        messageID = ".IpmiSensorThresholdWarningLowGoingHigh";
++                        break;
++                case 0x02:
++                        messageID = ".IpmiSensorThresholdCriticalLowGoingLow";
++                        break;
++                case 0x03:
++                        messageID = "IpmiSensorThresholdCriticalLowGoingHigh";
++                        break;
++                case 0x06:
++                        messageID = ".IpmiSensorThresholdWarningHighGoingLow";
++                        break;
++                case 0x07:
++                        messageID = ".IpmiSensorThresholdWarningHighGoingHigh";
++                        break;
++                case 0x08:
++                        messageID = ".IpmiSensorThresholdCriticalHighGoingLow";
++                        break;
++                case 0x09:
++                        messageID = ".IpmiSensorThresholdCriticalHighGoingHigh";
++                        break;
++        }
++        return messageID;
++}
++
++SensorSubTree sensorTree;
+ static bool startRedfishHook(const SELData& selData, const std::string& ipmiRaw)
+ {
++
++   static const std::string openBMCMessageRegistryVersion("0.1");
++    std::string messageID = "OpenBMC." + openBMCMessageRegistryVersion;
++    std::string SensorName;
++    std::string path;
++    std::string connection;
++    uint8_t sensorType;
++    uint8_t eventType;
++
++    //TODO: Enabled below events once implemented
++#if 0
+     switch (selData.generatorID)
+     {
+         case 0x01: // Check if this message is from the BIOS Generator ID
+@@ -857,9 +980,448 @@
+             return me::messageHook(selData, ipmiRaw);
+             break;
+     }
++#endif
+ 
+-    // No hooks handled the request, so let it go to default
+-    return defaultMessageHook(ipmiRaw);
++    if(selData.sensorNum == 0x30 )
++    {
++	eventType = 0x30;
++        SensorName = "SampleSensor1";
++    }
++    else if(selData.sensorNum == 0x60 )
++    {
++	eventType = 0x60;
++        SensorName = "SampleSensor2";
++    }
++    else if(selData.sensorNum == 0x53 )
++    {
++	eventType = 0x53;
++        SensorName = "SampleSensor3";
++    }
++ 
++    else{
++
++       getSensorSubtree(sensorTree);
++        uint16_t sensorIndex = selData.sensorNum;
++        for (const auto &sensor : sensorTree)
++        {
++                if (sensorIndex-- == 0)
++                {
++                        if (!sensor.second.size())
++                        {
++                                return false;
++                        }
++                        path = sensor.first;
++			connection = sensor.second.begin()->first;
++                        break;
++                }
++        }
++
++//	sensorType = getSensorTypeFromPath(path);
++        std::vector<std::string> split_path;
++        boost::split(split_path, path, boost::is_any_of("/"));
++        SensorName = split_path.back() ;
++
++        SensorMap sensorMap;
++        if(!getSensorMap( connection, path, sensorMap ))
++           {
++              return IPMI_CC_RESPONSE_ERROR ;
++           }
++
++        auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
++        auto SensorTypeObj = sensorObject->second.find("SensorType");
++        if (SensorTypeObj != sensorObject->second.end())
++        {
++            sensorType =  std::get<uint8_t>(SensorTypeObj->second);
++
++        }
++        else 
++        {
++        	sensorType = 0;
++        }
++        auto EventTypeObj = sensorObject->second.find("EventType");
++        if (EventTypeObj != sensorObject->second.end())
++        {
++            eventType =  std::get<uint8_t>(EventTypeObj->second);
++
++        }
++        else
++        {
++            eventType = 0;
++        }
++    }
++
++    syslog(LOG_WARNING,"### eventType :: %x \n",eventType);
++    syslog(LOG_WARNING,"### SensorType :: %x \n",sensorType);
++    syslog(LOG_WARNING,"### selData.offset : %x \n",selData.offset);
++    switch(eventType)
++    {
++	    case (uint8_t)EventTypeCode::threshold:
++
++   		 switch(sensorType)
++   		 {
++			 case  (uint8_t)SensorTypeCode::temperature:
++   		             switch( (uint8_t)selData.offset )
++   		             {
++   		               case 0x04:
++   		                     messageID += ".TempLowerNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x05:
++   		                     messageID += ".TempLowerNonRecoverableGoingHigh";
++   		                     break;
++   		               case 0x0a:
++   		                     messageID += ".TempUpperNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x0b:
++   		                     messageID += ".TempUpperNonRecoverableGoingHigh";
++   		                     break;
++   		                default :
++   		                     messageID += getMsgId(selData.offset);
++				     break;
++   		              }
++   		              break;
++   		       case  (uint8_t)SensorTypeCode::voltage:
++   		     	
++   		             	switch( (uint8_t)selData.offset )
++   		                     {
++   		                       case 0x04:
++   		                             messageID += ".VoltLowerNonRecoverableGoingLow";
++   		                             break;
++   		                       case 0x05:
++   		                             messageID += ".VoltLowerNonRecoverableGoingHigh";
++   		                             break;
++   		                       case 0x0a:
++   		                             messageID += ".VoltUpperNonRecoverableGoingLow";
++   		                             break;
++   		                       case 0x0b:
++   		                             messageID += ".VoltUpperNonRecoverableGoingHigh";
++   		                             break;
++   		                        default :
++   		                             messageID += getMsgId(selData.offset);
++					     break;
++   		                     }
++   		                     break;
++
++
++   		     case  (uint8_t)SensorTypeCode::current:
++
++   		                    switch( (uint8_t)selData.offset )
++   		                           {
++   		                             case 0x04:
++   		                                   messageID += ".CurrLowerNonRecoverableGoingLow";
++   		                                   break;
++   		                             case 0x05:
++   		                                   messageID += ".CurrLowerNonRecoverableGoingHigh";
++   		                                   break;
++   		                             case 0x0a:
++   		                                   messageID += ".CurrUpperNonRecoverableGoingLow";
++   		                                   break;
++   		                             case 0x0b:
++   		                                   messageID += ".CurrUpperNonRecoverableGoingHigh";
++   		                                   break;
++   		                              default :
++   		                                   messageID += getMsgId(selData.offset);
++						   break;
++   		                           }
++   		                           break;
++
++   		     case  (uint8_t)SensorTypeCode::fan:
++   		     	switch( (uint8_t)selData.offset )
++   		             {
++   		               case 0x04:
++   		                     messageID += ".FanLowerNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x05:
++   		                     messageID += ".FanLowerNonRecoverableGoingHigh";
++   		                     break;
++   		               case 0x0a:
++   		                     messageID += ".FanUpperNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x0b:
++   		                     messageID += ".FanUpperNonRecoverableGoingHigh";
++   		                     break;
++   		                default :
++   		                     messageID += getMsgId(selData.offset);
++				     break;
++   		             }
++   		             break;
++
++   		     case  (uint8_t)SensorTypeCode::power:
++   		     	switch( (uint8_t)selData.offset )
++   		             {
++   		               case 0x04:
++   		                     messageID += ".PwrLowerNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x05:
++   		                     messageID += ".PwrLowerNonRecoverableGoingHigh";
++   		                     break;
++   		               case 0x0a:
++   		                     messageID += ".PwrUpperNonRecoverableGoingLow";
++   		                     break;
++   		               case 0x0b:
++   		                     messageID += ".PwrUpperNonRecoverableGoingHigh";
++   		                     break;
++   		                default :
++   		                     messageID += getMsgId(selData.offset);
++				     break;
++   		             }
++   		             break;
++   		     }
++		    break;
++
++	case (uint8_t)EventTypeCode::sensor_specific:
++		 switch(sensorType)
++		 {
++			case  (uint8_t)SensorTypeCode::chassis_intrusion:
++		                switch( (uint8_t)selData.offset )
++				{
++					case 0x0:
++						messageID += ".GenChassisIntrusion"	;
++						break;
++					case 0x1:
++						messageID += ".DriveBayIntrusion";
++						break;
++					case 0x2:
++						messageID += ".IOCardAreaIntrusion";	
++						break;
++					case 0x3:
++						messageID += ".ProcessorAreaIntrusion";	
++						break;
++					case 0x4:
++						messageID += ".LanLost";
++						break;
++					case 0x5:
++						messageID += ".UnauthorizedDock";	
++						break;
++					case 0x6:
++						messageID += ".FanAreaIntrusion";	
++						break;
++				}
++				break;
++		
++			case  (uint8_t)SensorTypeCode::sel:
++		                switch( (uint8_t)selData.offset )
++		                {
++		                        case 0x0:
++		                                messageID += ".Correctablememoryerror"     ;
++		                                break;
++		                        case 0x1:
++		                                messageID += ".Eventloggingdisabled";
++		                                break;
++		                        case 0x2:
++		                                messageID += ".Logareareset";
++		                                break;
++		                        case 0x3:
++		                                messageID += ".Alleventloggingdisabled";
++		                                break;
++		                        case 0x4:
++		                                messageID += ".Logfull";
++		                                break;
++		                        case 0x5:
++		                                messageID += ".Logalmostfull";
++		                                break;
++		                }
++		                break;
++		
++			case  (uint8_t)SensorTypeCode::watchdog2:
++		                switch( (uint8_t)selData.offset )
++		                {	
++		                        case 0x0:
++		                                messageID += ".Timerexpired"     ;
++		                                break;
++		                        case 0x1:
++		                                messageID += ".Hardreset";
++		                                break;
++		                        case 0x2:
++		                                messageID += ".Powerdown";
++		                                break;
++		                        case 0x3:
++		                                messageID += ".Powercycle";
++		                                break;
++		                        case 0x8:
++		                                messageID += ".Timerinterrupt";
++		                                break;
++		                        default:
++		                                messageID += ".reserved";
++		                                break;
++		                }
++		                break;
++		
++			case  (uint8_t)SensorTypeCode::acpi_state:
++		                switch( (uint8_t)selData.offset )
++		                {
++		                        case 0x0:
++		                                messageID += ".S0_G0" ;
++		                                break;
++		                        case 0x1:
++		                                messageID += ".S1";
++		                                break;
++		                        case 0x2:
++		                                messageID += ".S2";
++		                                break;
++		                        case 0x3:
++		                                messageID += ".S3";
++		                                break;
++		                        case 0x4:
++		                                messageID += ".S4";
++		                                break;
++		                        case 0x5:
++		                                messageID += ".S5_G2";
++		                                break;
++					case 0x6:
++						messageID += ".S4_S5";
++		                                break;
++					case 0x7:
++						messageID += ".G3";
++		                                break;
++					case 0x8:
++						messageID += ".S1_S2_S3";
++		                                break;
++					case 0x9:
++						messageID += ".G1";
++		                                break;
++					case 0xA:
++						messageID += ".S5";
++		                                break;
++					case 0xB:
++						messageID += ".LegacyOn";
++		                                break;
++					case 0xC:
++						messageID += ".LegacyOff";
++		                                break;
++					case 0xE:
++						messageID += ".ACPI_Unknown";
++		                                break;
++		                }
++		                break;
++			
++			case  (uint8_t)SensorTypeCode::dimmA_presence:
++		                switch( (uint8_t)selData.offset )
++		                {
++		                        case 0x0:
++		                                messageID += ".CorrectableECC"     ;
++		                                break;
++		                        case 0x1:
++		                                messageID += ".UncorrectableECC";
++		                                break;
++		                        case 0x2:
++		                                messageID += ".Parity";
++		                                break;
++		                        case 0x3:
++		                                messageID += ".MemoryScrubFailed";
++		                                break;
++		                        case 0x4:
++		                                messageID += ".MemoryDeviceDisabled";
++		                                break;
++		                        case 0x5:
++		                                messageID += ".CorrectableECClogging";
++		                                break;
++		                        case 0x6:
++		                                messageID += ".PresenceDetected";
++		                                break;
++		                        case 0x7:
++		                                messageID += ".ConfigurationError";
++		                                break;
++		                        case 0x8:
++		                                messageID += ".Spare";
++		                                break;
++		                        case 0x9:
++		                                messageID += ".Throttled";
++		                                break;
++		                        case 0xa:
++		                                messageID += ".CriticalOvertemp";
++		                                break;
++		                }
++		                break;
++		
++			case  (uint8_t)SensorTypeCode::hdd_presence:
++		                switch( (uint8_t)selData.offset )
++		                {
++		                        case 0x0:
++		                                messageID += ".DrivePresent" ;
++		                                break;
++		                        case 0x1:
++		                                messageID += ".DriveFault";
++		                                break;
++		                        case 0x2:
++		                                messageID += ".PredictiveFailure";
++		                                break;
++		                        case 0x3:
++		                                messageID += ".HotSpare";
++		                                break;
++		                        case 0x4:
++		                                messageID += ".ParityCheck";
++		                                break;
++		                        case 0x5:
++		                                messageID += ".InCriticalArray";
++		                                break;
++		                        case 0x6:
++		                                messageID += ".InFailedArray";
++		                                break;
++		                        case 0x7:
++		                                messageID += ".RebuildInProgress";
++		                                break;
++		                        case 0x8:
++		                                messageID += ".RebuildAborted";
++		                                break;
++		                }
++		                break;
++		 }
++		 break;
++	    case (uint8_t)EventTypeCode::generic:
++		 switch(sensorType)
++		 {
++		     case 0x1:
++			 switch( (uint8_t)selData.offset )
++                          {
++                               case 0x0:
++                                  messageID += ".ActiveStateLow";
++                                  break;
++                               case 0x1:
++                                   messageID += ".ActiveStateHigh";
++                                   break;
++                          }
++			 break;
++		     case 0x2:
++			  switch( (uint8_t)selData.offset )
++                          {
++                               case 0x0:
++                                  messageID += ".ActiveStateLow";
++                                  break;
++                               case 0x1:
++                                   messageID += ".ActiveStateHigh";
++                                   break;
++                          }
++			  break;
++		 }
++		 break;
++
++            case  (uint8_t)SensorTypeCode::SampleSensor1:
++                   messageID += ".SampleEvent1";
++                   SensorName = "Unknown";
++                            break;
++            case  (uint8_t)SensorTypeCode::SampleSensor2:
++                   messageID += ".SampleEvent2";
++                   SensorName = "Unknown";
++                            break;
++            case  (uint8_t)SensorTypeCode::SampleSensor3:
++                   messageID += ".SampleEvent3";
++                   SensorName = "Unknown";
++                            break;
++
++            default:
++                    return defaultMessageHook(ipmiRaw);
++                    break;
++
++	 }
++
++    // Log the Redfish message to the journal with the appropriate metadata
++    std::string journalMsg = "SEL Entry Added: " + ipmiRaw;
++    phosphor::logging::log<phosphor::logging::level::INFO>(
++        journalMsg.c_str(),
++        phosphor::logging::entry("REDFISH_MESSAGE_ID=%s", messageID.c_str()),
++        phosphor::logging::entry("REDFISH_MESSAGE_ARGS=%s",
++                                 SensorName.c_str()));
++        return true;
+ }
+ } // namespace redfish_hooks
+ 

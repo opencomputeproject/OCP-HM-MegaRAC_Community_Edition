@@ -1,0 +1,1303 @@
+--- a/CMakeLists.txt	2020-08-28 18:45:42.769554201 +0530
++++ b/CMakeLists.txt	2020-08-28 18:46:05.705739213 +0530
+@@ -57,30 +57,30 @@
+ 
+ project (sensors CXX)
+ 
+-set (ADC_SRC_FILES src/Utils.cpp src/ADCSensor.cpp src/Thresholds.cpp)
++set (ADC_SRC_FILES src/Utils.cpp src/ADCSensor.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+-set (CPU_SRC_FILES src/Utils.cpp src/CPUSensor.cpp src/Thresholds.cpp)
++set (CPU_SRC_FILES src/Utils.cpp src/CPUSensor.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+-set (DIG_GPIO_SRC_FILES src/Utils.cpp src/GpioSensor.cpp)
++set (DIG_GPIO_SRC_FILES src/Utils.cpp src/GpioSensor.cpp src/SdrRecord.cpp)
+ 
+-set (DISC_EVENT_SRC_FILES src/Utils.cpp src/EventSensor.cpp)
++set (DISC_EVENT_SRC_FILES src/Utils.cpp src/EventSensor.cpp src/SdrRecord.cpp)
+ 
+-set (EXIT_AIR_SRC_FILES src/Utils.cpp src/Thresholds.cpp)
++set (EXIT_AIR_SRC_FILES src/Utils.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+ set (FAN_SRC_FILES src/TachSensor.cpp src/PwmSensor.cpp src/Utils.cpp
+-     src/Thresholds.cpp)
++     src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+ set (HWMON_TEMP_SRC_FILES src/Utils.cpp src/HwmonTempSensor.cpp
+-     src/Thresholds.cpp)
++     src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+-set (INTRUSION_SRC_FILES src/Utils.cpp src/ChassisIntrusionSensor.cpp)
++set (INTRUSION_SRC_FILES src/Utils.cpp src/ChassisIntrusionSensor.cpp src/SdrRecord.cpp)
+ 
+-set (IPMB_SRC_FILES src/Utils.cpp src/Thresholds.cpp)
++set (IPMB_SRC_FILES src/Utils.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+-set (MCUTEMP_SRC_FILES src/Utils.cpp src/Thresholds.cpp)
++set (MCUTEMP_SRC_FILES src/Utils.cpp src/Thresholds.cpp src/SdrRecord.cpp)
+ 
+ set (PSU_SRC_FILES src/Utils.cpp src/PSUSensor.cpp src/Thresholds.cpp
+-     src/PwmSensor.cpp src/PSUEvent.cpp)
++     src/PwmSensor.cpp src/PSUEvent.cpp src/SdrRecord.cpp)
+ 
+ set (NVME_SRC_FILES src/Utils.cpp src/NVMeSensorMain.cpp src/NVMeSensor.cpp src/Thresholds.cpp)
+ 
+diff -Naur a/include/ADCSensor.hpp b/include/ADCSensor.hpp
+--- a/include/ADCSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/ADCSensor.hpp	2020-08-28 18:47:51.802529800 +0530
+@@ -12,6 +12,7 @@
+ #include <string>
+ #include <vector>
+ 
++using namespace sdr;
+ class BridgeGpio
+ {
+   public:
+@@ -68,7 +69,7 @@
+               std::vector<thresholds::Threshold>&& thresholds,
+               const double scaleFactor, PowerState readState,
+               const std::string& sensorConfiguration,
+-              std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat ,const std::string& sensorUnit);
++              std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat ,const std::string& sensorUnit, struct sdr::SdrRecord sdrRecord);
+     ~ADCSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/ChassisIntrusionSensor.hpp b/include/ChassisIntrusionSensor.hpp
+--- a/include/ChassisIntrusionSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/ChassisIntrusionSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -6,6 +6,7 @@
+ #include <memory>
+ #include <string>
+ 
++#include <SdrRecord.hpp>
+ enum IntrusionSensorType
+ {
+     pch,
+@@ -22,7 +23,13 @@
+     ~ChassisIntrusionSensor();
+ 
+     void start(IntrusionSensorType type, int busId, int slaveAddr,
+-               bool gpioInverted, uint8_t dtype, uint8_t eventType, uint8_t evStat);
++              bool gpioInverted, uint8_t dtype, uint8_t eventType, uint8_t evStat,
++              uint8_t sdrVersion,uint8_t recordType, uint8_t recordLen,uint8_t ownerId,uint8_t ownerLun,
++              uint8_t entityId,uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
++              uint8_t sensorUnit1,uint8_t modifierUnit,uint8_t maxReading,uint8_t minReading,uint8_t sensorUnit2,
++              uint8_t linearization,uint8_t nominalReading,uint8_t normalMax,uint8_t normalMin,
++              uint8_t positiveHysteris,uint8_t negativeHysteresis,uint8_t idStringLen);
++
+ 
+   private:
+     std::shared_ptr<sdbusplus::asio::dbus_interface> mIface;
+@@ -43,6 +50,11 @@
+     // valid if it is via GPIO
+     bool mGpioInverted;
+     uint8_t mdtype, meventType, mevStat;
++    uint8_t msdrVersion, mrecordType,mrecordLen,mownerId,mownerLun,mentityId,
++           mentityInstance,msensorInit,msensorCap,msensorType,
++           msensorUnit1,mmodifierUnit,mmaxReading,mminReading,msensorUnit2,
++           mlinearization,mnominalReading,mnormalMax,mnormalMin,
++           mpositiveHysteris,mnegativeHysteresis,midStringLen;
+     std::string mPinName = "CHASSIS_INTRUSION";
+     gpiod::line mGpioLine;
+     boost::asio::posix::stream_descriptor mGpioFd;
+diff -Naur a/include/CPUSensor.hpp b/include/CPUSensor.hpp
+--- a/include/CPUSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/CPUSensor.hpp	2020-08-28 18:47:51.802529800 +0530
+@@ -25,7 +25,7 @@
+               boost::asio::io_service& io, const std::string& sensorName,
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& configuration, int cpuId, bool show,
+-              double dtsOffset,uint16_t EvStat,const std::string& sensorUnit);
++              double dtsOffset,uint16_t EvStat,const std::string& sensorUnit, struct sdr::SdrRecord sdrRecord);
+     ~CPUSensor();
+     static constexpr unsigned int sensorScaleFactor = 1000;
+     static constexpr unsigned int sensorPollMs = 1000;
+diff -Naur a/include/EventSensor.hpp b/include/EventSensor.hpp
+--- a/include/EventSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/EventSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType,uint8_t EventType,uint8_t EventOffset);
++    uint8_t DType/*,uint8_t EventType*/,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord);
+ 
+     ~EventSensor();
+ 
+diff -Naur a/include/ExitAirTempSensor.hpp b/include/ExitAirTempSensor.hpp
+--- a/include/ExitAirTempSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/ExitAirTempSensor.hpp	2020-08-28 18:47:51.802529800 +0530
+@@ -26,7 +26,7 @@
+               const std::string& name, const std::string& sensorConfiguration,
+               sdbusplus::asio::object_server& objectServer,
+               std::vector<thresholds::Threshold>&& thresholds,
+-              std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit);
++              std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~CFMSensor();
+ 
+     bool calculate(double&);
+@@ -68,7 +68,7 @@
+                       const std::string& name,
+                       const std::string& sensorConfiguration,
+                       sdbusplus::asio::object_server& objectServer,
+-                      std::vector<thresholds::Threshold>&& thresholds,uint16_t EvStat,const std::string& sensorUnit);
++                      std::vector<thresholds::Threshold>&& thresholds,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~ExitAirTempSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/GpioSensor.hpp b/include/GpioSensor.hpp
+--- a/include/GpioSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/GpioSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType,uint8_t EventType,uint8_t EventOffset);
++    uint8_t DType/*,uint8_t EventType*/,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
+ 
+     ~GpioSensor();
+ 
+diff -Naur a/include/HwmonTempSensor.hpp b/include/HwmonTempSensor.hpp
+--- a/include/HwmonTempSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/HwmonTempSensor.hpp	2020-08-28 18:47:51.802529800 +0530
+@@ -19,7 +19,7 @@
+                     boost::asio::io_service& io, const std::string& fanName,
+                     std::vector<thresholds::Threshold>&& thresholds,
+                     const std::string& sensorConfiguration,
+-                    const PowerState powerState,uint16_t EvStat,const std::string& sensorUnit);
++                    const PowerState powerState,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~HwmonTempSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/IpmbSensor.hpp b/include/IpmbSensor.hpp
+--- a/include/IpmbSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/IpmbSensor.hpp	2020-08-28 18:47:51.802529800 +0530
+@@ -44,7 +44,7 @@
+                const std::string& sensorConfiguration,
+                sdbusplus::asio::object_server& objectServer,
+                std::vector<thresholds::Threshold>&& thresholds,
+-               uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit);
++               uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~IpmbSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/MCUTempSensor.hpp b/include/MCUTempSensor.hpp
+--- a/include/MCUTempSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/MCUTempSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -17,7 +17,7 @@
+                   const std::string& sensorConfiguration,
+                   sdbusplus::asio::object_server& objectServer,
+                   std::vector<thresholds::Threshold>&& thresholds,
+-                  uint8_t busId, uint8_t mcuAddress, uint8_t tempReg,uint16_t EvStat,const std::string& sensorUnit);
++                  uint8_t busId, uint8_t mcuAddress, uint8_t tempReg,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~MCUTempSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/PSUSensor.hpp b/include/PSUSensor.hpp
+--- a/include/PSUSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/PSUSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -19,7 +19,7 @@
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& sensorConfiguration,
+               std::string& sensorTypeName, unsigned int factor, double max,
+-              double min, const std::string& label, size_t tSize,uint16_t EvStat,const std::string& sensorUnit);
++              double min, const std::string& label, size_t tSize,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~PSUSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/SdrRecord.hpp b/include/SdrRecord.hpp
+--- a/include/SdrRecord.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/include/SdrRecord.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -0,0 +1,33 @@
++#pragma once
++
++#include <sdbusplus/asio/object_server.hpp>
++
++namespace sdr
++{
++struct SdrRecord
++{
++        uint8_t SdrVersion;
++        uint8_t RecordType;
++        uint8_t RecordLen;
++        uint8_t OwnerId;
++        uint8_t OwnerLun;
++        uint8_t EntityId;
++        uint8_t EntityInstance;
++        uint8_t SensorInit;
++        uint8_t SensorCap;
++        uint8_t SensorType;
++        uint8_t EventType;
++        uint8_t SensorUnit1;
++        uint8_t SensorUnit2;
++        uint8_t ModifierUnit;
++        uint8_t MaxReading;
++        uint8_t MinReading;
++        uint8_t Linearization;
++        uint8_t NominalReading;
++        uint8_t NormalMax;
++        uint8_t NormalMin;
++        uint8_t PositiveHysteris;
++        uint8_t NegativeHysteresis;
++        uint8_t IdStringLen;
++};
++}
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/sensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -3,12 +3,13 @@
+ #include "Thresholds.hpp"
+ #include "Utils.hpp"
+ 
+-#include <sdbusplus/asio/object_server.hpp>
++//#include <sdbusplus/asio/object_server.hpp>
+ 
+ #include <limits>
+ #include <memory>
+ #include <string>
+ #include <vector>
++#include <SdrRecord.hpp>
+ 
+ constexpr size_t sensorFailedPollTimeMs = 5000;
+ 
+@@ -24,14 +25,22 @@
+     Sensor(const std::string& name,
+            std::vector<thresholds::Threshold>&& thresholdData,
+            const std::string& configurationPath, const std::string& objectType,
+-           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit,
++           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord,
+            PowerState readState = PowerState::always) :
+         name(std::regex_replace(name, std::regex("[^a-zA-Z0-9_/]+"), "_")),
+         configurationPath(configurationPath), objectType(objectType),
+         maxValue(max), minValue(min), thresholds(std::move(thresholdData)),
+         hysteresisTrigger((max - min) * 0.01),
+         hysteresisPublish((max - min) * 0.0001), readState(readState),
+-        errCount(0),eventStat(EvStat), Unit(sensorUnit)
++        errCount(0),eventStat(EvStat), Unit(sensorUnit),SdrVersion(sdrRecord.SdrVersion),
++	 RecordType(sdrRecord.RecordType),RecordLen(sdrRecord.RecordLen),OwnerId(sdrRecord.OwnerId),
++       OwnerLun(sdrRecord.OwnerLun),EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
++       SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),SensorType(sdrRecord.SensorType),
++       EventType(sdrRecord.EventType),SensorUnit1(sdrRecord.SensorUnit1),ModifierUnit(sdrRecord.ModifierUnit),
++       MaxReading(sdrRecord.MaxReading),MinReading(sdrRecord.MinReading),SensorUnit2(sdrRecord.SensorUnit2),
++       Linearization(sdrRecord.Linearization),NominalReading(sdrRecord.NominalReading),NormalMax(sdrRecord.NormalMax),
++       NormalMin(sdrRecord.NormalMin),PositiveHysteris(sdrRecord.PositiveHysteris),
++       NegativeHysteresis(sdrRecord.NegativeHysteresis),IdStringLen(sdrRecord.IdStringLen)
+     {}
+     virtual ~Sensor() = default;
+     virtual void checkThresholds(void) = 0;
+@@ -42,6 +51,30 @@
+     double minValue;
+     std::string Unit;
+     uint16_t eventStat;
++    uint8_t SdrVersion;
++    uint8_t RecordType;
++    uint8_t RecordLen;
++    uint8_t OwnerId;
++    uint8_t OwnerLun;
++    uint8_t EntityId;
++    uint8_t EntityInstance;
++    uint8_t SensorInit;
++    uint8_t SensorCap;
++    uint8_t SensorType;
++    uint8_t EventType;
++    uint8_t SensorUnit1;
++    uint8_t SensorUnit2;
++    uint8_t ModifierUnit;
++    uint8_t MaxReading;
++    uint8_t MinReading;
++    uint8_t Linearization;
++    uint8_t NominalReading;
++    uint8_t NormalMax;
++    uint8_t NormalMin;
++    uint8_t PositiveHysteris;
++    uint8_t NegativeHysteresis;
++    uint8_t IdStringLen;
++
+     std::vector<thresholds::Threshold> thresholds;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> thresholdInterfaceWarning;
+@@ -90,6 +123,28 @@
+         sensorInterface->register_property("MinValue", minValue);
+ 	sensorInterface->register_property("EvStat", eventStat);
+         sensorInterface->register_property("Unit", Unit);
++        sensorInterface->register_property("SdrVersion", SdrVersion);
++        sensorInterface->register_property("RecordType",RecordType );
++        sensorInterface->register_property("RecordLen",RecordLen );
++        sensorInterface->register_property("OwnerId", OwnerId );
++        sensorInterface->register_property("OwnerLun", OwnerLun);
++        sensorInterface->register_property("EntityId",EntityId );
++        sensorInterface->register_property("EntityInstance",EntityInstance );
++        sensorInterface->register_property("SensorInit",SensorInit );
++        sensorInterface->register_property("SensorCap",SensorCap );
++        sensorInterface->register_property("SensorType",SensorType );
++        sensorInterface->register_property("EventType",EventType );
++        sensorInterface->register_property("SensorUnit1", SensorUnit1 );
++        sensorInterface->register_property("SensorUnit2", SensorUnit2 );
++        sensorInterface->register_property("ModifierUnit", ModifierUnit );
++        sensorInterface->register_property("Linearization", Linearization );
++        sensorInterface->register_property("NominalReading", NominalReading );
++        sensorInterface->register_property("NormalMax", NormalMax );
++        sensorInterface->register_property("NormalMin", NormalMin );
++        sensorInterface->register_property("PositiveHysteris", PositiveHysteris );
++        sensorInterface->register_property("NegativeHysteresis",NegativeHysteresis );
++        sensorInterface->register_property("IdStringLen", IdStringLen );
++
+         sensorInterface->register_property(
+             "Value", value, [&](const double& newValue, double& oldValue) {
+                 return setSensorValue(newValue, oldValue);
+@@ -337,11 +392,20 @@
+ {
+     DiscSensor(const std::string& name,
+            const std::string& configurationPath, const std::string& objectType,
+-           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit) :
++           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+         name(name),
+         configurationPath(configurationPath), objectType(objectType),
+         maxValue(max), minValue(min),
+-        hysteresis((max - min) * 0.01), eventStat(EvStat), Unit(sensorUnit)
++        hysteresis((max - min) * 0.01), eventStat(EvStat), Unit(sensorUnit),SdrVersion(sdrRecord.SdrVersion),
++	RecordType(sdrRecord.RecordType),RecordLen(sdrRecord.RecordLen),OwnerId(sdrRecord.OwnerId),
++        OwnerLun(sdrRecord.OwnerLun),EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
++        SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),SensorType(sdrRecord.SensorType),
++        EventType(sdrRecord.EventType),SensorUnit1(sdrRecord.SensorUnit1),ModifierUnit(sdrRecord.ModifierUnit),
++        MaxReading(sdrRecord.MaxReading),MinReading(sdrRecord.MinReading),SensorUnit2(sdrRecord.SensorUnit2),
++        Linearization(sdrRecord.Linearization),NominalReading(sdrRecord.NominalReading),NormalMax(sdrRecord.NormalMax),
++        NormalMin(sdrRecord.NormalMin),PositiveHysteris(sdrRecord.PositiveHysteris),NegativeHysteresis(sdrRecord.NegativeHysteresis),
++        IdStringLen(sdrRecord.IdStringLen)
++
+     {
+     }
+     virtual ~DiscSensor() = default;
+@@ -352,6 +416,30 @@
+     double maxValue;
+     double minValue;
+     uint16_t eventStat;
++    uint8_t SdrVersion;
++    uint8_t RecordType;
++    uint8_t RecordLen;
++    uint8_t OwnerId;
++    uint8_t OwnerLun;
++    uint8_t EntityId;
++    uint8_t EntityInstance;
++    uint8_t SensorInit;
++    uint8_t SensorCap;
++    uint8_t SensorType;
++    uint8_t EventType;
++    uint8_t SensorUnit1;
++    uint8_t SensorUnit2;
++    uint8_t ModifierUnit;
++    uint8_t MaxReading;
++    uint8_t MinReading;
++    uint8_t Linearization;
++    uint8_t NominalReading;
++    uint8_t NormalMax;
++    uint8_t NormalMin;
++    uint8_t PositiveHysteris;
++    uint8_t NegativeHysteresis;
++    uint8_t IdStringLen;
++
+     std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> discreteInterfaceState;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> association;
+@@ -384,6 +472,7 @@
+     void
+         setInitialProperties(std::shared_ptr<sdbusplus::asio::connection>& conn)
+     {
++	conn = NULL;
+         createAssociation(association, configurationPath);
+ 
+         sensorInterface->register_property("MaxValue", maxValue);
+@@ -391,6 +480,27 @@
+         sensorInterface->register_property("EvStat", eventStat);
+         sensorInterface->register_property("SensorStat",false);
+        sensorInterface->register_property("Unit", Unit);
++        sensorInterface->register_property("SdrVersion", SdrVersion);
++        sensorInterface->register_property("RecordType",RecordType );
++        sensorInterface->register_property("RecordLen",RecordLen );
++        sensorInterface->register_property("OwnerId", OwnerId );
++        sensorInterface->register_property("OwnerLun", OwnerLun);
++        sensorInterface->register_property("EntityId",EntityId );
++        sensorInterface->register_property("EntityInstance",EntityInstance );
++        sensorInterface->register_property("SensorInit",SensorInit );
++        sensorInterface->register_property("SensorCap",SensorCap );
++        sensorInterface->register_property("SensorType",SensorType );
++//        sensorInterface->register_property("EventType",EventType );
++        sensorInterface->register_property("SensorUnit1", SensorUnit1 );
++        sensorInterface->register_property("SensorUnit2", SensorUnit2 );
++        sensorInterface->register_property("ModifierUnit", ModifierUnit );
++        sensorInterface->register_property("Linearization", Linearization );
++        sensorInterface->register_property("NominalReading", NominalReading );
++        sensorInterface->register_property("NormalMax", NormalMax );
++        sensorInterface->register_property("NormalMin", NormalMin );
++        sensorInterface->register_property("PositiveHysteris", PositiveHysteris );
++        sensorInterface->register_property("NegativeHysteresis",NegativeHysteresis );
++        sensorInterface->register_property("IdStringLen", IdStringLen );
+         sensorInterface->register_property(
+             "Value", value, [&](const double& newValue, double& oldValue) {
+                 return setSensorValue(newValue, oldValue);
+@@ -428,4 +538,4 @@
+         }
+     }
+ };
+-
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord );
+diff -Naur a/include/TachSensor.hpp b/include/TachSensor.hpp
+--- a/include/TachSensor.hpp	2020-08-28 18:47:23.246326889 +0530
++++ b/include/TachSensor.hpp	2020-08-28 18:47:51.806529828 +0530
+@@ -71,7 +71,7 @@
+                boost::asio::io_service& io, const std::string& fanName,
+                std::vector<thresholds::Threshold>&& thresholds,
+                const std::string& sensorConfiguration,
+-               const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit);
++               const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
+     ~TachSensor();
+ 
+   private:
+diff -Naur a/src/ADCSensor.cpp b/src/ADCSensor.cpp
+--- a/src/ADCSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/ADCSensor.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -51,10 +51,10 @@
+                      std::vector<thresholds::Threshold>&& _thresholds,
+                      const double scaleFactor, PowerState readState,
+                      const std::string& sensorConfiguration,
+-                     std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat,const std::string& sensorUnit) :
++                     std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration,
+-           "xyz.openbmc_project.Configuration.ADC", maxReading, minReading, EvStat, sensorUnit,
++           "xyz.openbmc_project.Configuration.ADC", maxReading, minReading, EvStat, sensorUnit, sdrRecord,
+            readState),
+     std::enable_shared_from_this<ADCSensor>(), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
+diff -Naur a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+--- a/src/ADCSensorMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/ADCSensorMain.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -218,6 +218,13 @@
+                         continue;
+                     }
+                 }
++		 struct sdr::SdrRecord sdrRecord;
++
++               if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++                {
++                    std::cerr << "error getting sdr record for " << sensorName << std::endl;
++                 }
++
+                 std::vector<thresholds::Threshold> sensorThresholds;
+                 if (!parseThresholdsFromConfig(*sensorData, sensorThresholds))
+                 {
+@@ -296,7 +303,7 @@
+                 sensor = std::make_shared<ADCSensor>(
+                     path.string(), objectServer, dbusConnection, io, sensorName,
+                     std::move(sensorThresholds), scaleFactor, readState,
+-                    *interfacePath, std::move(bridgeGpio),EvStat,sensorUnit);
++                    *interfacePath, std::move(bridgeGpio),EvStat,sensorUnit,sdrRecord);
+                 sensor->setupRead();
+             }
+         }));
+diff -Naur a/src/ChassisIntrusionSensor.cpp b/src/ChassisIntrusionSensor.cpp
+--- a/src/ChassisIntrusionSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/ChassisIntrusionSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -30,7 +30,7 @@
+ #include <memory>
+ #include <string>
+ #include <thread>
+-
++#include <SdrRecord.hpp>
+ extern "C"
+ {
+ #include <i2c/smbus.h>
+@@ -275,7 +275,13 @@
+ }
+ 
+ void ChassisIntrusionSensor::start(IntrusionSensorType type, int busId,
+-                                   int slaveAddr, bool gpioInverted, uint8_t dtype, uint8_t eventType, uint8_t evStat)
++                                  int slaveAddr, bool gpioInverted, uint8_t dtype, uint8_t eventType, uint8_t evStat,
++				  uint8_t sdrVersion,uint8_t recordType, uint8_t recordLen,uint8_t ownerId,uint8_t ownerLun,uint8_t entityId,
++				  uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
++         			  uint8_t sensorUnit1,uint8_t modifierUnit,uint8_t maxReading,uint8_t minReading,
++                                  uint8_t sensorUnit2,uint8_t linearization,uint8_t nominalReading,uint8_t normalMax,
++                                  uint8_t normalMin,uint8_t positiveHysteris,uint8_t negativeHysteresis,uint8_t idStringLen)
++
+ {
+     if (DEBUG)
+     {
+@@ -308,6 +314,29 @@
+     mdtype = dtype;
+     meventType = eventType;
+     mevStat = evStat;
++    msdrVersion = sdrVersion;
++    mrecordType = recordType;
++    mrecordLen = recordLen;
++    mownerId = ownerId ;
++    mownerLun = ownerLun;
++    mentityId = entityId;
++    mentityInstance = entityInstance;
++    msensorInit = sensorInit ;
++    msensorCap = sensorCap;
++    msensorType = sensorType;
++    msensorUnit1 = sensorUnit1;
++    mmodifierUnit = modifierUnit;
++    mmaxReading = maxReading;
++    mminReading = minReading;
++    msensorUnit2 = sensorUnit2;
++    mlinearization = linearization;
++    mnominalReading = nominalReading;
++    mnormalMax =  normalMax;
++    mnormalMin = normalMin;
++    mpositiveHysteris = positiveHysteris;
++    mnegativeHysteresis = negativeHysteresis;
++    midStringLen = idStringLen;
++
+     double v = 0;
+     std::vector<uint8_t> al = {0xFF,0xFF,0xFF};
+ 
+@@ -327,6 +356,27 @@
+            mIface->register_property("DType", mdtype);
+            mIface->register_property("EventType", meventType);
+            mIface->register_property("EvStat", mevStat);
++           mIface->register_property("SdrVersion",msdrVersion );
++           mIface->register_property("RecordType", mrecordType );
++           mIface->register_property("RecordLen",mrecordLen );
++           mIface->register_property("OwnerId",mownerId );
++           mIface->register_property("OwnerLun",mownerLun );
++           mIface->register_property("EntityId",mentityId );
++           mIface->register_property("EntityInstance",mentityInstance );
++           mIface->register_property("SensorInit",msensorInit );
++           mIface->register_property("SensorCap",msensorCap );
++           mIface->register_property("SensorType",msensorType );
++           mIface->register_property("SensorUnit1",msensorUnit1 );
++           mIface->register_property("ModifierUnit",mmodifierUnit );
++           mIface->register_property("SensorUnit2",msensorUnit2 );
++           mIface->register_property("Linearization",mlinearization );
++           mIface->register_property("NominalReading",mnominalReading );
++           mIface->register_property("NormalMax",mnormalMax );
++           mIface->register_property("NormalMin",mnormalMin );
++           mIface->register_property("PositiveHysteris",mpositiveHysteris );
++           mIface->register_property("NegativeHysteresis",mnegativeHysteresis );
++           mIface->register_property("IdStringLen",midStringLen );
++
+ 
+             mIface->initialize();
+ 
+diff -Naur a/src/CPUSensor.cpp b/src/CPUSensor.cpp
+--- a/src/CPUSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/CPUSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -40,10 +40,10 @@
+                      boost::asio::io_service& io, const std::string& sensorName,
+                      std::vector<thresholds::Threshold>&& _thresholds,
+                      const std::string& sensorConfiguration, int cpuId,
+-                     bool show, double dtsOffset,uint16_t EvStat,const std::string& sensorUnit) :
++                     bool show, double dtsOffset,uint16_t EvStat,const std::string& sensorUnit, struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat,sensorUnit,PowerState::on),
++           minReading,EvStat,sensorUnit,sdrRecord,PowerState::on),
+     objServer(objectServer), inputDev(io), waitTimer(io), path(path),
+     privTcontrol(std::numeric_limits<double>::quiet_NaN()),
+     dtsOffset(dtsOffset), show(show), pollTime(CPUSensor::sensorPollMs)
+diff -Naur a/src/CPUSensorMain.cpp b/src/CPUSensorMain.cpp
+--- a/src/CPUSensorMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/CPUSensorMain.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -386,6 +386,11 @@
+                                            findThrOffset->second);
+                 }
+             }
++             struct sdr::SdrRecord sdrRecord;
++                   if( !parseSdrRecordFromConfig(*sensorData ,sdrRecord))
++            {
++               std::cerr << "error getting sdr record for " << sensorName << std::endl;
++            }
+ 
+             std::vector<thresholds::Threshold> sensorThresholds;
+             std::string labelHead = label.substr(0, label.find(" "));
+@@ -407,7 +412,7 @@
+             sensorPtr = std::make_unique<CPUSensor>(
+                 inputPathStr, sensorType, objectServer, dbusConnection, io,
+                 sensorName, std::move(sensorThresholds), *interfacePath, cpuId,
+-                show, dtsOffset,EvStat,sensorUnit);
++                show, dtsOffset,EvStat,sensorUnit,sdrRecord);
+             createdSensors.insert(sensorName);
+             if (DEBUG)
+             {
+diff -Naur a/src/EventMain.cpp b/src/EventMain.cpp
+--- a/src/EventMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/EventMain.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -73,8 +73,10 @@
+        sensorData = &(sensor.second);
+        for (const char* type : sensorTypes)
+         {
+-               auto sensorBase = sensorData->find(type);
+-                if (sensorBase != sensorData->end())
++              // auto sensorBase = sensorData->find(type);
++                //if (sensorBase != sensorData->end())
++		auto sensorBase = sensor.second.find(type);
++		if (sensorBase != sensor.second.end())
+                 {
+                     baseConfiguration = &(*sensorBase);
+                     sensorType = type;
+@@ -136,7 +138,7 @@
+         uint8_t sensorDType =  std::visit(VariantToUnsignedIntVisitor(), findSensorDType->second);
+ 
+         //Digital Event Type
+-        auto findSensorEventType = baseConfiguration->second.find("EventType");
++      /*  auto findSensorEventType = baseConfiguration->second.find("EventType");
+         if (findSensorEventType == baseConfiguration->second.end())
+         {
+             std::cerr << "could not determine configuration EventType for "
+@@ -144,6 +146,7 @@
+             continue;
+         }
+         uint8_t sensorEventType = std::visit(VariantToUnsignedIntVisitor(), findSensorEventType->second);
++	*/
+         //Digital Event Offset
+         auto findSensorEventOffset = baseConfiguration->second.find("EventOffset");
+         if (findSensorEventOffset == baseConfiguration->second.end())
+@@ -154,6 +157,7 @@
+         }
+         uint8_t sensorEventOffset = std::visit(VariantToUnsignedIntVisitor(), findSensorEventOffset->second);
+ 
++
+         // on rescans, only update sensors we were signaled by
+         auto findSensor = sensors.find(sensorName);
+         if (!firstScan && findSensor != sensors.end())
+@@ -175,6 +179,13 @@
+                 continue;
+             }
+         }
++	
++       struct sdr::SdrRecord sdrRecord;
++        if( !parseSdrRecordFromConfig(*sensorData ,sdrRecord))
++        {
++            std::cerr << "error getting sdr record for " << sensorName << std::endl;
++        }
++
+ //        std::vector<discretes::Discrete> sensorDiscretes;
+ //        if (!parseDiscretesFromConfig(*sensorData, sensorDiscretes))
+ //        {
+@@ -188,7 +199,7 @@
+         sensors[sensorName] = std::make_unique<EventSensor>(
+             sensorPath, sensorType, objectServer,
+             dbusConnection, io, sensorName,
+-           *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset);
++           *interfacePath,EvStat,sensorUnit,sensorDType,/*sensorEventType,*/sensorEventOffset,sdrRecord);
+     }
+ }
+ int main()
+diff -Naur a/src/EventSensor.cpp b/src/EventSensor.cpp
+--- a/src/EventSensor.cpp	2020-08-28 18:49:12.291067053 +0530
++++ b/src/EventSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -28,10 +28,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType, uint8_t EventType,uint8_t EventOffset) :
++    uint8_t DType/*, uint8_t EventType*/,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) : EventType( sdrRecord.EventType ),
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat, sensorUnit),
++           minReading,EvStat, sensorUnit,sdrRecord),
+     path(path), objServer(objectServer),
+     /*inputDev(io, open(path.c_str(), O_RDONLY)),*/ waitTimer(io), errCount(0)
+ {
+diff -Naur a/src/ExitAirTempSensor.cpp b/src/ExitAirTempSensor.cpp
+--- a/src/ExitAirTempSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/ExitAirTempSensor.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -162,11 +162,11 @@
+                      const std::string& sensorConfiguration,
+                      sdbusplus::asio::object_server& objectServer,
+                      std::vector<thresholds::Threshold>&& thresholdData,
+-                     std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit) :
++                     std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", cfmMaxReading,
+-           cfmMinReading,EvStat,sensorUnit, PowerState::on),
++           cfmMinReading,EvStat,sensorUnit,sdrRecord, PowerState::on),
+     std::enable_shared_from_this<CFMSensor>(), parent(parent),
+     dbusConnection(conn), objServer(objectServer)
+ {
+@@ -490,11 +490,11 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     const std::string& sensorName, const std::string& sensorConfiguration,
+     sdbusplus::asio::object_server& objectServer,
+-    std::vector<thresholds::Threshold>&& thresholdData,uint16_t EvStat , const std::string& sensorUnit) :
++    std::vector<thresholds::Threshold>&& thresholdData,uint16_t EvStat , const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", exitAirMaxReading,
+-           exitAirMinReading,EvStat,sensorUnit,PowerState::on),
++           exitAirMinReading,EvStat,sensorUnit,sdrRecord,PowerState::on),
+     std::enable_shared_from_this<ExitAirTempSensor>(), dbusConnection(conn),
+     objServer(objectServer)
+ {
+@@ -843,6 +843,13 @@
+                 {
+                     if (entry.first == exitAirIface)
+                     {
++		      struct sdr::SdrRecord sdrRecord;
++
++                       if( !parseSdrRecordFromConfig(pathPair.second,sdrRecord))
++                       {
++                               std::cerr << "error getting sdr record" << std::endl;
++                        }
++
+                         // thresholds should be under the same path
+                         std::vector<thresholds::Threshold> sensorThresholds;
+                         parseThresholdsFromConfig(pathPair.second,
+@@ -857,7 +864,7 @@
+ 
+                         exitAirSensor = std::make_shared<ExitAirTempSensor>(
+                             dbusConnection, name, pathPair.first.str,
+-                            objectServer, std::move(sensorThresholds),EvStat,sensorUnit);
++                            objectServer, std::move(sensorThresholds),EvStat,sensorUnit,sdrRecord);
+                         exitAirSensor->powerFactorMin =
+                             loadVariant<double>(entry.second, "PowerFactorMin");
+                         exitAirSensor->powerFactorMax =
+@@ -874,6 +881,14 @@
+                     else if (entry.first == cfmIface)
+ 
+                     {
++			 struct sdr::SdrRecord sdrRecord;
++
++                        if( !parseSdrRecordFromConfig(pathPair.second,sdrRecord))
++                        {
++                                std::cerr << "error getting sdr record " << std::endl;
++                        }
++
++
+                         // thresholds should be under the same path
+                         std::vector<thresholds::Threshold> sensorThresholds;
+                         parseThresholdsFromConfig(pathPair.second,
+@@ -887,7 +902,7 @@
+                         auto sensor = std::make_shared<CFMSensor>(
+                             dbusConnection, name, pathPair.first.str,
+                             objectServer, std::move(sensorThresholds),
+-                            exitAirSensor,EvStat,sensorUnit);
++                            exitAirSensor,EvStat,sensorUnit,sdrRecord);
+                         loadVariantPathArray(entry.second, "Tachs",
+                                              sensor->tachs);
+                         sensor->maxCFM =
+diff -Naur a/src/FanMain.cpp b/src/FanMain.cpp
+--- a/src/FanMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/FanMain.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -273,6 +273,12 @@
+                         continue;
+                     }
+                 }
++		struct sdr::SdrRecord sdrRecord;
++              if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++              {
++                 std::cerr << "error getting sdr record for " << sensorName << std::endl;
++              }
++
+                 std::vector<thresholds::Threshold> sensorThresholds;
+                 if (!parseThresholdsFromConfig(*sensorData, sensorThresholds))
+                 {
+@@ -329,7 +335,7 @@
+                 tachSensors[sensorName] = std::make_unique<TachSensor>(
+                     path.string(), baseType, objectServer, dbusConnection,
+                     std::move(presenceSensor), redundancy, io, sensorName,
+-                    std::move(sensorThresholds), *interfacePath, limits,EvStat,sensorUnit);
++                    std::move(sensorThresholds), *interfacePath, limits,EvStat,sensorUnit,sdrRecord);
+ 
+                 auto connector =
+                     sensorData->find(baseType + std::string(".Connector"));
+diff -Naur a/src/GpioMain.cpp b/src/GpioMain.cpp
+--- a/src/GpioMain.cpp	2020-08-28 18:49:12.291067053 +0530
++++ b/src/GpioMain.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -94,8 +94,10 @@
+             sensorData = &(sensor.second);
+             for (const char* type : sensorTypes)
+             {
+-               auto sensorBase = sensorData->find(type);
+-                if (sensorBase != sensorData->end())
++             //  auto sensorBase = sensorData->find(type);
++               // if (sensorBase != sensorData->end())
++	       auto sensorBase = sensor.second.find(type);
++	       if (sensorBase != sensor.second.end())
+                 {
+                     baseConfiguration = &(*sensorBase);
+                     sensorType = type;
+@@ -169,7 +171,7 @@
+         uint8_t sensorDType =  std::visit(VariantToUnsignedIntVisitor(), findSensorDType->second);
+ 
+         //Digital Event Type
+-        auto findSensorEventType = baseConfiguration->second.find("EventType");
++       /* auto findSensorEventType = baseConfiguration->second.find("EventType");
+         if (findSensorEventType == baseConfiguration->second.end())
+         {
+             std::cerr << "could not determine configuration EventType for "
+@@ -177,7 +179,7 @@
+             continue;
+         }
+ uint8_t sensorEventType = std::visit(VariantToUnsignedIntVisitor(), findSensorEventType->second);
+-
++*/
+         //Digital Event Offset
+         auto findSensorEventOffset = baseConfiguration->second.find("EventOffset");
+         if (findSensorEventOffset == baseConfiguration->second.end())
+@@ -209,6 +211,16 @@
+                 continue;
+             }
+         }
++
++	
++       struct sdr::SdrRecord sdrRecord;
++
++        if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++        {
++              std::cerr << "error getting sdr record for " << sensorName << std::endl;
++        }
++
++
+ //        std::vector<discretes::Discrete> sensorDiscretes;
+ //        if (!parseDiscretesFromConfig(*sensorData, sensorDiscretes))
+ //        {
+@@ -221,7 +233,7 @@
+         sensors[sensorName] = std::make_unique<GpioSensor>(
+             sensorPath, sensorType, objectServer,
+             dbusConnection, io, sensorName,
+-            *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset);
++            *interfacePath,EvStat,sensorUnit,sensorDType/*,sensorEventType*/,sensorEventOffset,sdrRecord);
+     }
+ }
+ 
+diff -Naur a/src/GpioSensor.cpp b/src/GpioSensor.cpp
+--- a/src/GpioSensor.cpp	2020-08-28 18:49:12.291067053 +0530
++++ b/src/GpioSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -30,10 +30,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType, uint8_t EventType,uint8_t EventOffset) :
++    uint8_t DType/*, uint8_t EventType*/,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord) :
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat, sensorUnit),
++           minReading,EvStat, sensorUnit, sdrRecord),
+     path(path), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), errCount(0)
+ {
+diff -Naur a/src/HwmonTempMain.cpp b/src/HwmonTempMain.cpp
+--- a/src/HwmonTempMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/HwmonTempMain.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -223,6 +223,15 @@
+                         continue;
+                     }
+                 }
++
++		 struct sdr::SdrRecord sdrRecord;
++
++                if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++                {
++                  std::cerr << "error getting sdr record for " << sensorName << std::endl;
++                }
++
++
+                 std::vector<thresholds::Threshold> sensorThresholds;
+                 if (!parseThresholdsFromConfig(*sensorData, sensorThresholds))
+                 {
+@@ -242,7 +251,7 @@
+                 sensor = std::make_shared<HwmonTempSensor>(
+                     directory.string() + "/temp1_input", sensorType,
+                     objectServer, dbusConnection, io, sensorName,
+-                    std::move(sensorThresholds), *interfacePath, readState,EvStat,sensorUnit);
++                    std::move(sensorThresholds), *interfacePath, readState,EvStat,sensorUnit,sdrRecord);
+                 sensor->setupRead();
+                 // Looking for keys like "Name1" for temp2_input,
+                 // "Name2" for temp3_input, etc.
+@@ -266,7 +275,7 @@
+                             "_input",
+                         sensorType, objectServer, dbusConnection, io,
+                         sensorName, std::vector<thresholds::Threshold>(),
+-                        *interfacePath, readState,EvStat,sensorUnit);
++                        *interfacePath, readState,EvStat,sensorUnit,sdrRecord);
+                     sensor->setupRead();
+                 }
+             }
+diff -Naur a/src/HwmonTempSensor.cpp b/src/HwmonTempSensor.cpp
+--- a/src/HwmonTempSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/HwmonTempSensor.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -44,10 +44,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     std::vector<thresholds::Threshold>&& _thresholds,
+-    const std::string& sensorConfiguration, const PowerState powerState,uint16_t EvStat , const std::string& sensorUnit) :
++    const std::string& sensorConfiguration, const PowerState powerState,uint16_t EvStat , const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, maxReading,
+-           minReading, EvStat, sensorUnit, powerState),
++           minReading, EvStat, sensorUnit, sdrRecord ,powerState),
+     std::enable_shared_from_this<HwmonTempSensor>(), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path)
+ {
+diff -Naur a/src/IntrusionSensorMain.cpp b/src/IntrusionSensorMain.cpp
+--- a/src/IntrusionSensorMain.cpp	2020-08-28 18:49:12.291067053 +0530
++++ b/src/IntrusionSensorMain.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -51,11 +51,19 @@
+ static constexpr std::array<const char*, 1> nicTypes = {nicType};
+ 
+ namespace fs = std::filesystem;
+-
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord );
+ static bool getIntrusionSensorConfig(
+     std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
+     IntrusionSensorType* pType, int* pBusId, int* pSlaveAddr,
+-    bool* pGpioInverted, uint8_t *pDtype, uint8_t *pEventType, uint8_t *pEvState)
++    bool* pGpioInverted, uint8_t *pDtype, uint8_t *pEventType, uint8_t *pEvState,
++    uint8_t *psdrVersion,
++    uint8_t *precordType,uint8_t *precordLen, uint8_t *pownerId,uint8_t *pownerLun,
++    uint8_t *pentityId,uint8_t *pentityInstance,uint8_t *psensorInit,uint8_t *psensorCap,
++    uint8_t *psensorType,uint8_t *psensorUnit1,uint8_t *pmodifierUnit,
++    uint8_t *pmaxReading,uint8_t *pminReading,uint8_t *psensorUnit2,uint8_t *plinearization,
++    uint8_t *pnominalReading,uint8_t *pnormalMax,uint8_t *pnormalMin,uint8_t *ppositiveHysteris,
++    uint8_t *pnegativeHysteresis,uint8_t *pidStringLen)
++
+ {
+     // find matched configuration according to sensor type
+     ManagedObjectType sensorConfigurations;
+@@ -120,6 +128,12 @@
+                 std::cerr << "error finding gpio polarity in configuration \n";
+                 continue;
+             }
++	    struct sdr::SdrRecord sdrRecord;
++
++           if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++           {
++              std::cerr << "error getting sdr record "  << std::endl;
++           }
+ 
+             try
+             {
+@@ -135,6 +149,30 @@
+                     findEvState->second);*/
+                std::visit(VariantToUnsignedIntVisitor(), findEvState->second);
+ 
++	       *psdrVersion = sdrRecord.SdrVersion;
++               *precordType = sdrRecord.RecordType;
++               *precordLen = sdrRecord.RecordLen;
++               *pownerId = sdrRecord.OwnerId;
++               *pownerLun = sdrRecord.OwnerLun;
++               *pentityId = sdrRecord.EntityId;
++               *pentityInstance = sdrRecord.EntityInstance;
++               *psensorInit = sdrRecord.SensorInit;
++               *psensorCap = sdrRecord.SensorCap;
++               *psensorType = sdrRecord.SensorType;
++               *psensorUnit1 = sdrRecord.SensorUnit1;
++               *pmodifierUnit  = sdrRecord.ModifierUnit;
++               *pmaxReading = sdrRecord.MaxReading;
++               *pminReading = sdrRecord.MinReading;
++               *psensorUnit2 = sdrRecord.SensorUnit2;
++               *plinearization = sdrRecord.Linearization;
++               *pnominalReading = sdrRecord.NominalReading;
++               *pnormalMax = sdrRecord.NormalMax;
++               *pnormalMin = sdrRecord.NormalMin;
++               *ppositiveHysteris = sdrRecord.PositiveHysteris;
++               *pnegativeHysteresis = sdrRecord.NegativeHysteresis;
++               *pidStringLen  = sdrRecord.IdStringLen;
++
++
+             }
+             catch (const std::bad_variant_access& e)
+             {
+@@ -461,6 +499,10 @@
+     int slaveAddr = -1;
+     uint8_t dtype, eventType, evStat;
+     bool gpioInverted = false;
++    uint8_t sdrVersion,recordType,recordLen,ownerId,ownerLun,entityId,
++            entityInstance,sensorInit,sensorCap,SensorType,
++            sensorUnit1,sensorUnit2,modifierUnit,maxReading,minReading,linearization,
++           nominalReading,normalMax,normalMin,positiveHysteris,negativeHysteresis,idStringLen;
+     IntrusionSensorType type = IntrusionSensorType::gpio;
+ 
+     // setup connection to dbus
+@@ -484,9 +526,18 @@
+     ChassisIntrusionSensor chassisIntrusionSensor(io, ifaceChassis, ifaceDiscrete);
+ 
+     if (getIntrusionSensorConfig(systemBus, &type, &busId, &slaveAddr,
+-                                 &gpioInverted, &dtype, &eventType, &evStat))
++                                 &gpioInverted, &dtype, &eventType, &evStat,
++                         	  &sdrVersion,&recordType,&recordLen,&ownerId,&ownerLun,
++                               &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
++                                &sensorUnit1,&modifierUnit,&maxReading,&minReading,&sensorUnit2,
++                                &linearization,&nominalReading,&normalMax,&normalMin,&positiveHysteris,
++                                &negativeHysteresis,&idStringLen))
++
+     {
+-        chassisIntrusionSensor.start(type, busId, slaveAddr, gpioInverted, dtype, eventType, evStat);
++        chassisIntrusionSensor.start(type, busId, slaveAddr, gpioInverted, dtype, eventType, evStat,sdrVersion,
++			             recordType,recordLen,ownerId,ownerLun,entityId,entityInstance,sensorInit,sensorCap,
++				     SensorType,sensorUnit1,modifierUnit,maxReading,minReading,sensorUnit2,linearization,nominalReading,
++				     normalMax,normalMin,positiveHysteris,negativeHysteresis, idStringLen);
+     }
+ 
+     // callback to handle configuration change
+@@ -500,10 +551,22 @@
+ 
+             std::cout << "rescan due to configuration change \n";
+             if (getIntrusionSensorConfig(systemBus, &type, &busId, &slaveAddr,
+-                                         &gpioInverted, &dtype, &eventType, &evStat))
++                                         &gpioInverted, &dtype, &eventType, &evStat ,
++					 &sdrVersion,&recordType,&recordLen,&ownerId,&ownerLun,
++                                         &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
++                                         &sensorUnit1,&modifierUnit,&maxReading,&minReading,&sensorUnit2,
++                                         &linearization,&nominalReading,&normalMax,&normalMin,&positiveHysteris,
++                                         &negativeHysteresis,&idStringLen))
++
+             {
+                 chassisIntrusionSensor.start(type, busId, slaveAddr,
+-                                             gpioInverted, dtype, eventType, evStat);
++                                             gpioInverted, dtype, eventType, evStat ,
++					     sdrVersion,recordType,recordLen,ownerId,ownerLun,entityId,
++                                             entityInstance,sensorInit,sensorCap,SensorType,sensorUnit1,
++                                             modifierUnit,maxReading,minReading, sensorUnit2,linearization,
++                                             nominalReading,normalMax,normalMin,positiveHysteris,negativeHysteresis,
++                                             idStringLen);
++
+             }
+         };
+ 
+diff -Naur a/src/IpmbSensor.cpp b/src/IpmbSensor.cpp
+--- a/src/IpmbSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/IpmbSensor.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -65,11 +65,11 @@
+                        const std::string& sensorConfiguration,
+                        sdbusplus::asio::object_server& objectServer,
+                        std::vector<thresholds::Threshold>&& thresholdData,
+-                       uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit) :
++                       uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", ipmbMaxReading,
+-           ipmbMinReading, EvStat, sensorUnit, PowerState::on),
++           ipmbMinReading, EvStat, sensorUnit, sdrRecord,  PowerState::on),
+     deviceAddress(deviceAddress), objectServer(objectServer),
+     dbusConnection(conn), waitTimer(io)
+ {
+@@ -371,6 +371,13 @@
+                      std::string sensorUnit =
+                         loadVariant<std::string>(entry.second, "Unit");
+ 
++		   struct sdr::SdrRecord sdrRecord;
++
++                   if( !parseSdrRecordFromConfig(pathPair.second,sdrRecord))
++                   {
++                        std::cerr << "error getting sdr record for " << name << std::endl;
++                   }
++
+                     std::vector<thresholds::Threshold> sensorThresholds;
+                     if (!parseThresholdsFromConfig(pathPair.second,
+                                                    sensorThresholds))
+@@ -398,7 +405,7 @@
+                     sensor = std::make_unique<IpmbSensor>(
+                         dbusConnection, io, name, pathPair.first, objectServer,
+                         std::move(sensorThresholds), deviceAddress,
+-                        sensorTypeName,EvStat,sensorUnit);
++                        sensorTypeName,EvStat,sensorUnit,sdrRecord);
+ 
+                     /* Initialize scale and offset value */
+                     sensor->scaleVal = 1;
+diff -Naur a/src/MCUTempSensor.cpp b/src/MCUTempSensor.cpp
+--- a/src/MCUTempSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/MCUTempSensor.cpp	2020-08-28 18:49:38.179229891 +0530
+@@ -59,11 +59,11 @@
+                              sdbusplus::asio::object_server& objectServer,
+                              std::vector<thresholds::Threshold>&& thresholdData,
+                              uint8_t busId, uint8_t mcuAddress,
+-                             uint8_t tempReg,uint16_t EvStat ,const std::string& sensorUnit) :
++                             uint8_t tempReg,uint16_t EvStat ,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", mcuTempMaxReading,
+-           mcuTempMinReading,EvStat,sensorUnit),
++           mcuTempMinReading,EvStat,sensorUnit,sdrRecord),
+     busId(busId), mcuAddress(mcuAddress), tempReg(tempReg),
+     objectServer(objectServer), dbusConnection(conn), waitTimer(io)
+ {
+@@ -226,6 +226,12 @@
+ 
+                    std::string sensorUnit =
+                         loadVariant<std::string>(entry.second, "Unit");
++                     struct sdr::SdrRecord sdrRecord;
++
++                           if( !parseSdrRecordFromConfig(pathPair.second,sdrRecord))
++                           {
++                                 std::cerr << "error getting sdr record for " << name << std::endl;
++                           }
+ 
+ 
+                     uint16_t EvStat = loadVariant<uint16_t>(entry.second, "EvStat");
+@@ -267,7 +273,7 @@
+                     sensor = std::make_unique<MCUTempSensor>(
+                         dbusConnection, io, name, pathPair.first, objectServer,
+                         std::move(sensorThresholds), busId, mcuAddress,
+-                        tempReg,EvStat, sensorUnit);
++                        tempReg,EvStat, sensorUnit,sdrRecord);
+ 
+                     sensor->init();
+                 }
+diff -Naur a/src/PSUSensor.cpp b/src/PSUSensor.cpp
+--- a/src/PSUSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/PSUSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -43,9 +43,9 @@
+                      const std::string& sensorConfiguration,
+                      std::string& sensorTypeName, unsigned int factor,
+                      double max, double min, const std::string& label,
+-                     size_t tSize,uint16_t EvStat,const std::string& sensorUnit) :
++                     size_t tSize,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+-           std::move(_thresholds), sensorConfiguration, objectType, max, min,EvStat,sensorUnit),
++           std::move(_thresholds), sensorConfiguration, objectType, max, min,EvStat,sensorUnit,sdrRecord),
+     std::enable_shared_from_this<PSUSensor>(), objServer(objectServer),
+     inputDev(io), waitTimer(io), path(path), sensorFactor(factor)
+ {
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/PSUSensorMain.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -368,7 +368,6 @@
+                           << "\n";
+                 continue;
+             }
+-
+             std::vector<thresholds::Threshold> confThresholds;
+             if (!parseThresholdsFromConfig(*sensorData, confThresholds))
+             {
+@@ -740,8 +739,12 @@
+            uint16_t EvStat =
+                 std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
+ 
++              struct sdr::SdrRecord sdrRecord;
+ 
+-
++           if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++           {
++                 std::cerr << "error getting sdr record for " << sensorNameSubStr << std::endl;
++           }
+ 
+             std::vector<thresholds::Threshold> sensorThresholds;
+             if (!parseThresholdsFromConfig(*sensorData, sensorThresholds,
+@@ -806,7 +809,7 @@
+                 sensorPathStr, sensorType, objectServer, dbusConnection, io,
+                 sensorName, std::move(sensorThresholds), *interfacePath,
+                 findSensorType->second, factor, psuProperty->maxReading,
+-                psuProperty->minReading, labelHead, thresholdConfSize,EvStat,sensorUnit);
++                psuProperty->minReading, labelHead, thresholdConfSize,EvStat,sensorUnit,sdrRecord);
+             sensors[sensorName]->setupRead();
+             ++numCreated;
+             if constexpr (DEBUG)
+diff -Naur a/src/SdrRecord.cpp b/src/SdrRecord.cpp
+--- a/src/SdrRecord.cpp	1970-01-01 05:30:00.000000000 +0530
++++ b/src/SdrRecord.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -0,0 +1,96 @@
++#include <syslog.h>
++#include <SdrRecord.hpp>
++#include <VariantVisitors.hpp>
++#include <boost/algorithm/string/case_conv.hpp>
++#include <boost/algorithm/string/predicate.hpp>
++#include <boost/algorithm/string/replace.hpp>
++#include <boost/container/flat_set.hpp>
++#include <filesystem>
++#include <fstream>
++#include <optional>
++#include <regex>
++#include <sdbusplus/asio/connection.hpp>
++#include <sdbusplus/asio/object_server.hpp>
++#include <Utils.hpp>
++#include <syslog.h>
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord )
++{
++   for (const auto& item : sensorData)
++    {
++        if (item.first.find("SdrInfo") == std::string::npos)
++        {
++            continue;
++        }
++auto SdrVersionFind = item.second.find("SdrVersion");
++        auto RecordTypeFind = item.second.find("RecordType");
++        auto RecordLenFind = item.second.find("RecordLen");
++        auto OwnerIdFind = item.second.find("OwnerId");
++        auto OwnerLunFind = item.second.find("OwnerLun");
++        auto entityidFind = item.second.find("EntityId");
++        auto EntityInstanceFind = item.second.find("EntityInstance");
++        auto SensorInitFind = item.second.find("SensorInit");
++        auto SensorCapFind = item.second.find("SensorCap");
++        auto SensorTypeFind = item.second.find("SensorType");
++        auto EventTypeFind = item.second.find("EventType");
++        auto SensorUnit1Find = item.second.find("SensorUnit1");
++        auto SensorUnit2Find = item.second.find("SensorUnit2");
++        auto ModifierUnitFind = item.second.find("ModifierUnit");
++        auto LinearizationFind = item.second.find("Linearization");
++        auto NominalReadingFind = item.second.find("NominalReading");
++        auto NormalMaxFind = item.second.find("NormalMax");
++        auto NormalMinFind = item.second.find("NormalMin");
++        auto MaxReadingFind = item.second.find("MaxReading");
++        auto MinReadingFind = item.second.find("MinReading");
++        auto PositiveHysterisFind = item.second.find("PositiveHysteris");
++        auto NegativeHysteresisFind = item.second.find("NegativeHysteresis");
++        auto IdStringLenFind = item.second.find("IdStringLen");
++
++
++         if ( SdrVersionFind == item.second.end() || RecordTypeFind == item.second.end() ||
++             RecordLenFind == item.second.end() || OwnerIdFind ==  item.second.end() ||
++             OwnerLunFind == item.second.end() || entityidFind == item.second.end() ||
++             EntityInstanceFind == item.second.end() || SensorInitFind == item.second.end() ||
++             SensorCapFind ==  item.second.end() || SensorTypeFind == item.second.end() ||
++             EventTypeFind == item.second.end() || SensorUnit2Find  == item.second.end() ||
++             ModifierUnitFind == item.second.end() || MaxReadingFind == item.second.end() ||
++             MinReadingFind == item.second.end() || LinearizationFind == item.second.end() ||
++            NominalReadingFind == item.second.end() ||SensorUnit1Find == item.second.end() ||
++            NormalMaxFind == item.second.end() || NormalMinFind == item.second.end() ||
++            PositiveHysterisFind == item.second.end () || NegativeHysteresisFind == item.second.end () ||
++            IdStringLenFind == item.second.end () )
++
++        {
++            std::cerr << "Malformed SdrRecord in configuration\n";
++	    return false;
++        }
++        sdrRecord.SdrVersion = std::visit(VariantToUnsignedIntVisitor(),SdrVersionFind->second);
++        sdrRecord.RecordType = std::visit(VariantToUnsignedIntVisitor(),RecordTypeFind->second);
++        sdrRecord.RecordLen = std::visit(VariantToUnsignedIntVisitor(),RecordLenFind->second);
++        sdrRecord.OwnerId = std::visit(VariantToUnsignedIntVisitor(), OwnerIdFind->second);
++        sdrRecord.OwnerLun = std::visit(VariantToUnsignedIntVisitor(),OwnerLunFind->second);
++        sdrRecord.EntityId = std::visit(VariantToUnsignedIntVisitor(),entityidFind->second);
++        sdrRecord.EntityInstance = std::visit(VariantToUnsignedIntVisitor(),EntityInstanceFind->second);
++        sdrRecord.SensorInit = std::visit(VariantToUnsignedIntVisitor(),SensorInitFind->second);
++        sdrRecord.SensorInit = std::visit(VariantToUnsignedIntVisitor(),SensorInitFind->second);
++        sdrRecord.SensorCap = std::visit(VariantToUnsignedIntVisitor(),SensorCapFind->second);
++        sdrRecord.SensorType = std::visit(VariantToUnsignedIntVisitor(),SensorTypeFind->second);
++        sdrRecord.EventType = std::visit(VariantToUnsignedIntVisitor(),EventTypeFind->second);
++        sdrRecord.SensorUnit1 = std::visit(VariantToUnsignedIntVisitor(),SensorUnit1Find->second);
++        sdrRecord.SensorUnit2 = std::visit(VariantToUnsignedIntVisitor(),SensorUnit2Find->second);
++        sdrRecord.ModifierUnit = std::visit(VariantToUnsignedIntVisitor(),ModifierUnitFind->second);
++        sdrRecord.NominalReading = std::visit(VariantToUnsignedIntVisitor(),NominalReadingFind->second);
++        sdrRecord.Linearization = std::visit(VariantToUnsignedIntVisitor(),LinearizationFind->second);
++        sdrRecord.NominalReading = std::visit(VariantToUnsignedIntVisitor(),NominalReadingFind->second);
++        sdrRecord.NormalMax = std::visit(VariantToUnsignedIntVisitor(),NormalMaxFind->second);
++        sdrRecord.NormalMin = std::visit(VariantToUnsignedIntVisitor(),NormalMinFind->second);
++        sdrRecord.MaxReading = std::visit(VariantToUnsignedIntVisitor(),MaxReadingFind->second);
++        sdrRecord.MinReading = std::visit(VariantToUnsignedIntVisitor(),MinReadingFind->second);
++        sdrRecord.PositiveHysteris = std::visit(VariantToUnsignedIntVisitor(),PositiveHysterisFind->second);
++        sdrRecord.NegativeHysteresis = std::visit(VariantToUnsignedIntVisitor(),NegativeHysteresisFind->second);
++        sdrRecord.IdStringLen = std::visit(VariantToUnsignedIntVisitor(),IdStringLenFind->second);
++   }
++
++   return true;
++
++}
++
+diff -Naur a/src/TachSensor.cpp b/src/TachSensor.cpp
+--- a/src/TachSensor.cpp	2020-08-28 18:49:12.287067028 +0530
++++ b/src/TachSensor.cpp	2020-08-28 18:49:38.183229916 +0530
+@@ -49,9 +49,9 @@
+                        boost::asio::io_service& io, const std::string& fanName,
+                        std::vector<thresholds::Threshold>&& _thresholds,
+                        const std::string& sensorConfiguration,
+-                       const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit) :
++                       const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+     Sensor(boost::replace_all_copy(fanName, " ", "_"), std::move(_thresholds),
+-           sensorConfiguration, objectType, limits.second, limits.first, EvStat , sensorUnit,
++           sensorConfiguration, objectType, limits.second, limits.first, EvStat , sensorUnit,sdrRecord,
+            PowerState::on),
+     objServer(objectServer), redundancy(redundancy),
+     presence(std::move(presenceSensor)),

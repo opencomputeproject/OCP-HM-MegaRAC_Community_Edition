@@ -1,0 +1,22 @@
+--- a/CMakeLists.txt	2020-08-18 12:33:59.577403984 +0530
++++ b/CMakeLists.txt	2020-08-18 12:34:37.397367246 +0530
+@@ -37,7 +37,7 @@
+ option (HUNTER_ENABLED "Enable hunter package pulling" OFF)
+ 
+ option (DISABLE_ADC "Disable installing ADC sensor" OFF)
+-option (DISABLE_CPU "Disable installing CPU sensor" OFF)
++option (DISABLE_CPU "Disable installing CPU sensor" ON)
+ option (DISABLE_EXIT_AIR "Disable installing Exit Air Temp sensor" OFF)
+ option (DISABLE_FAN "Disable installing fan sensor" OFF)
+ option (DISABLE_HWMON_TEMP "Disable installing hwmon temp sensor" OFF)
+--- a/service_files/xyz.openbmc_project.adcsensor.service	2020-08-18 12:41:02.885389938 +0530
++++ b/service_files/xyz.openbmc_project.adcsensor.service	2020-08-18 12:41:29.949411804 +0530
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Adc Sensor
+ StopWhenUnneeded=false
+-Before=xyz.openbmc_project.cpusensor.service
++#Before=xyz.openbmc_project.cpusensor.service
+ Requires=xyz.openbmc_project.EntityManager.service
+ After=xyz.openbmc_project.EntityManager.service
+ 

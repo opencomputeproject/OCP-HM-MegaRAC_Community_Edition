@@ -1,0 +1,31 @@
+description: >
+    Power control service
+methods:
+    - name: forcePowerOff
+      description: >
+        Force power off the host.
+      returns:
+        - name: status
+          type: boolean
+          description: >
+            The result of power off command.
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+properties:
+    - name: PGood
+      type: boolean
+      default: false
+      description: >
+       PSU Power good property
+       It is a read-only property.
+    - name: State
+      type: int32
+      default: 0
+      description: >
+       System power status
+       0: power is off
+       1: power is on
+       Setting its value to change the system state
+       Read its value to get the system state.

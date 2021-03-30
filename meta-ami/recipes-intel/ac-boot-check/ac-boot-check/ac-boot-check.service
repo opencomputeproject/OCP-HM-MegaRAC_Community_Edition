@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for AC boot
+After=xyz.openbmc_project.Settings.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ac-boot-check.sh
+
+[Install]
+WantedBy=multi-user.target

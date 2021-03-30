@@ -1,0 +1,38 @@
+--- null	1969-12-31 19:00:00.000000000 -0500
++++ b/npcm7xx-readme	2020-05-05 15:24:28.793362672 -0400
+@@ -0,0 +1,35 @@
++Requirements:
++=============
++- linux ARM cross compiler
++- git installed
++
++Building:
++=========
++- make sure you have in your path arm toolchain e.g:
++	/usr/sbin/cross_compiler/arm-2014.05/bin
++  that contains arm-none-linux-gnueabi-gcc and other arm tools
++- Choose a directory
++- run:
++	NUVOTON_MAJOR=<xx>	# choose nuvoton major patch version
++	NUVOTON_MINOR=<yy>	# choose nuvoton minor patch version
++	git clone https://github.com/Nuvoton-Israel/u-boot.git -b npcm7xx-v2019.01
++	cd u-boot
++	make PolegSVB_config CROSS_COMPILE=arm-linux-gnueabi- PATCHLEVEL=$NUVOTON_MAJOR.$NUVOTON_MINOR
++	make all CROSS_COMPILE=arm-linux-gnueabi- dtbs PATCHLEVEL=$NUVOTON_MAJOR.$NUVOTON_MINOR
++
++NPCM7xx Features and Drivers:
++=============================
++- uart
++- flash
++- gmac/emc
++- sd/emmc
++- gpio
++- I2C master
++- pspi
++- USB host
++- USB mass storage
++- USB device controller
++- fuse
++- aes
++- rng
++- sha

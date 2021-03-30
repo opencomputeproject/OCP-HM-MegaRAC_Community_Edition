@@ -1,0 +1,98 @@
+description: >
+    Implement to provide host state management
+
+properties:
+    - name: RequestedHostTransition
+      type: enum[self.Transition]
+      default: 'Off'
+      description: >
+          The desired host transition.  This will be preserved across AC
+          power cycles of the BMC.
+
+    - name: CurrentHostState
+      type: enum[self.HostState]
+      description: >
+          A read-only property describing the current state of the host
+          firmware. A user can determine if a system is in transition by
+          comparing the CurrentHostState and the RequestedHostTransition
+          properties.
+
+    - name: RestartCause
+      type: enum[self.RestartCause]
+      default: 'Unknown'
+      description: >
+          A property to define restart cause of a host.
+
+enumerations:
+    - name: Transition
+      description: >
+        The desired transition for host firmware
+      values:
+        - name: 'Off'
+          description: >
+            Host firmware should be off
+        - name: 'On'
+          description: >
+            Host firmware should be on
+        - name: 'Reboot'
+          description: >
+            Host firmware should be rebooted. Chassis power will be cycled from
+            off to on during this reboot
+        - name: 'GracefulWarmReboot'
+          description: >
+            Host firmware be will notified to shutdown and once complete, the
+            host firmware will be rebooted. Chassis power will remain on
+            throughout the reboot
+        - name: 'ForceWarmReboot'
+          description: >
+            Host firmware will be rebooted without notification and chassis
+            power will remain on throughout the reboot
+
+    - name: HostState
+      description: >
+        The current state of the host firmware
+      values:
+        - name: 'Off'
+          description: >
+            Host firmware is not running
+        - name: 'Running'
+          description: >
+            Host firmware is running
+        - name: 'Quiesced'
+          description: >
+            Host firmware is quiesced
+        - name: 'DiagnosticMode'
+          description: >
+            Host firmware is capturing debug information. Powering off your
+            system while the host is in this state will prevent the debug data
+            from being properly collected. The host will move to one of the
+            other states once complete.
+
+    - name: RestartCause
+      description: >
+        The reason for host restart.
+      values:
+        - name: 'Unknown'
+          description: >
+            Reason Unknown
+        - name: 'RemoteCommand'
+          description: >
+            Remote command issued
+        - name: 'ResetButton'
+          description: >
+            Reset button pressed
+        - name: 'PowerButton'
+          description: >
+            Power button pressed
+        - name: 'WatchdogTimer'
+          description: >
+            Watchdog Timer expired
+        - name: 'PowerPolicyAlwaysOn'
+          description: >
+            Power Policy Host Always on
+        - name: 'PowerPolicyPreviousState'
+          description: >
+            Power Policy Previous State of Host
+        - name: 'SoftReset'
+          description: >
+            Soft reset of Host

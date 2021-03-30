@@ -1,0 +1,32 @@
+
+// inline confirmation message
+.inline__confirm {
+  position: absolute;
+  top: 0;
+  transform: translateY(-103%);
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  background: $background-04;
+  color: $primary-light;
+  padding: 2em 2em 1.55em 2em;
+  overflow: hidden;
+  @include fastTransition-all;
+  &.active {
+    transform: translateY(0);
+    @include fastTransition-all;
+  }
+}
+
+// Power confirmation buttons
+.inline__confirm-buttons {
+  @media (min-width: 900px) {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .btn {
+    min-width: 100px!important;
+  }
+}

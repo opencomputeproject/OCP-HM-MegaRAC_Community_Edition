@@ -1,0 +1,109 @@
+.icon {
+  display: inline-block;
+  width: 1.5em;
+  height: auto;
+}
+
+.icon__more {
+  fill: $primary-accent;
+  stroke: $primary-accent;
+  background: transparent;
+  overflow: visible;
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.icon__more-dropdown {
+  background: $background-02;
+  position: absolute;
+  right: 3px;
+  white-space: normal;
+  word-wrap: normal;
+  z-index: 200;
+  padding: 1em;
+  font-size: 1em;
+  box-shadow: 2px 4px 5px $box-shadow-color;
+}
+
+.icon__bar-arrow {
+  font-style: normal;
+  &:before {
+    content: '\21E5';
+    position: absolute;
+    font-size: 1.7em;
+    vertical-align: middle;
+    transform: rotate(90deg);
+    display: inline-block;
+    left: 0px;
+    top: -5px;
+  }
+}
+
+.icon-angle {
+  font-style: normal;
+  &:before {
+    content: '\276F';
+    display: inline-block;
+    font-size: 1em;
+    margin-left: 1em;
+    color: $text-02;
+  }
+}
+
+.icon__info{
+  margin-top: -4px;
+  margin-right: .5em;
+  width: 25px;
+  height: 25px;
+  fill: $primary-accent;
+  float: left;
+}
+
+.icon__up-arrow {
+  margin-right: .4em;
+  margin-bottom: -15px;
+  background: url(../assets/images/icon-arrow-blue.svg) center center no-repeat;
+  height: 40px;
+  width: 30px;
+  &.icon-as-spacer {
+    background: url(../assets/images/icon-arrow-gray.svg) center center no-repeat;
+  }
+}
+
+.icon__down-arrow {
+  @extend .icon__up-arrow;
+  transform: rotate(180deg);
+}
+
+.icon__info-tooltip {
+  fill: $primary-accent;
+}
+
+.status-icon {
+  width: 1rem;
+  vertical-align: text-bottom;
+  margin-right: 0.25em;
+}
+
+.icon__info-tooltip {
+  fill: $primary-accent;
+}
+
+.tooltip {
+  @include fontFamily;
+  font-weight: normal;
+  line-height: 1.3;
+}
+
+.tooltip-inner {
+  color: $text-01;
+  background-color: $primary-light;
+  border-radius: 0;
+  border: 1px solid $primary-dark;
+  text-align: left;
+}
+
+.tooltip.in {
+  opacity: 1!important;
+}

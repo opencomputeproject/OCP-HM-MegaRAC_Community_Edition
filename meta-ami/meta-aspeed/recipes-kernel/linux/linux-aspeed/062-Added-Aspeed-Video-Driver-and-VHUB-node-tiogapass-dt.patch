@@ -1,0 +1,29 @@
+From dcbfe765f7818b2bd5cbc1acdcbed5c101716d5f Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Fri, 19 Mar 2021 12:14:22 +0000
+Subject: [PATCH 62/62] Added-Aspeed-Video-Driver-and-VHUB-node-tiogapass-dts
+
+---
+ arch/arm/boot/dts/aspeed-bmc-facebook-tiogapass.dts | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/arch/arm/boot/dts/aspeed-bmc-facebook-tiogapass.dts b/arch/arm/boot/dts/aspeed-bmc-facebook-tiogapass.dts
+index f676985b3..c965676f5 100644
+--- a/arch/arm/boot/dts/aspeed-bmc-facebook-tiogapass.dts
++++ b/arch/arm/boot/dts/aspeed-bmc-facebook-tiogapass.dts
+@@ -549,3 +549,12 @@
+ &astpeci{
+     status = "okay";
+ };
++
++&video {
++        status = "okay";
++//        memory-region = <&video_engine_memory>;
++};
++
++&vhub {
++        status = "okay";
++};
+-- 
+2.17.1
+

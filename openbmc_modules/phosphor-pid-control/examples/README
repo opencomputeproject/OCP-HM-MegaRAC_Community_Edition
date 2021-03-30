@@ -1,0 +1,82 @@
+# Sensor Config
+
+This program is only meant to control fans given thermal sensor readings.
+
+All sensors in phosphor-dbus-interfaces for OpenBMC use Sensor.Value as their
+accessor.  This provides read-only access to information.  The goal of the
+configuration is to specify how it can be read and if it's a fan, how the PID
+output can be written.  Initially there'll only be sysfs and passive dbus
+access.  If a writePath for a sensor is a dbus path, then the system will need
+to verify which Control.Fan* interfaces is registered and send values to the
+Target property of that interface.
+
+The min/max specified are to range a writePercent to the sensor.  The current
+FanController object outputs the new fan speed goal as a PWM percentage.  Other
+fan PID control objects may not, and they can leave the fields as 0 & 0.
+
+The only requirement for a sensor is that it isn't writeonly.  Only fans are
+expected to have a writePath set, and in this current version non-fan sensors
+are assumed readonly.
+
+The sensor names are unique across all zones.
+
+"sensors" : [
+  {
+    "name": "fan1",  /* Name of the sensor. */
+    "type": "fan",   /* Type of sensor, fan, temp, margin */
+    "readPath": "",  /* How the sensor can be read[1] */
+    "writePath": "", /* How the sensor can be set[2] */
+    "min": 0,        /* The minimum value used for scaling writes (int64) */
+    "max": 255,      /* The maximum value used for scaling writes (int64) */
+    "timeout": 0     /* The timeout value for the sensor, used for failsafe, 0
+                      * means no timeout (int64) */
+  },
+]
+
+[1] readPath has multiple options:
+* If it has "/xyz/openbmc_project/extsensors/" in it, it's an EXTERNAL or
+  host-provided sensor.
+* If it has "/xyz/openbmc_project/" in it, it's a sensor whose value is
+  received passively over dbus.
+* If it has "/sys/" in it, it's a sensor read directly from sysfs.
+
+[2]
+* This can be left blank if the sensor is read-only.
+* If it has "/sys/" in it, it's a sensor written to sysfs.
+  * If min and max are non-zero, it'll convert the value to within the range.
+    and output that modified value.  So, if it receives a value of .90 and min
+    is 0, and max is 255, it'll convert that to a value of 229.5 that is then
+    cast to int64_t.
+
+# PID Config
+
+The PID configuration is a list of PIDs per zone.
+
+"zones" : [
+  {
+    "id": 1, /* zone id. */
+    "minThermalOutput": 3000.0, /* The minimum thermal RPM value. (double) */
+    "failsafePercent": 75.0, /* The percent to use when the zone is in fail-safe mode. (double) */
+    "pids": [
+      {
+        "name": "fan1-5",           /* PID name */
+        "type": "fan",              /* Type of PID, fan, temp, or margin. */
+        "inputs": ["fan1", "fan5"], /* Sensor names that are inputs for the PID */
+        "setpoint": 90.0,           /* For temp/margin PIDs this is the setpoint, ignored otherwise (double) */
+        "pid": {
+          "samplePeriod": 0.1,          /* The input sample period. (double) */
+          "proportionalCoeff": 0.0,     /* The proportional coefficient. (double) */
+          "integralCoeff": 0.0,         /* The integral coefficient. (double) */
+          "feedFwdOffsetCoeff": 0.0, /* The feed-forward offset coefficient. (double) */
+          "feedFwdGainCoeff": 0.010,    /* The feed-forward gain coefficient. (double) */
+          "integralLimit_min": 0.0,     /* The integral limit clamp, min, max (double) */
+          "integralLimit_max": 0.0,
+          "outLim_min": 30.0,           /* the PID output clamp, min, max (double) */
+          "outLim_max": 100.0,
+          "slewNeg": 0.0, /* The slew negative value. (double) */
+          "slewPos": 0.0  /* The slew positive value. (double) */
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,62 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ${deploy_name}
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: ${deploy_name}
+  template:
+    metadata:
+      labels:
+        app: ${deploy_name}
+    spec:
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ${w_claim}
+      nodeSelector:
+        beta.kubernetes.io/arch: ${ARCH}
+      securityContext:
+        runAsUser: 0
+      containers:
+      - image: ${img_name}
+        name: ${pod_name}
+        command: [\"${OBMC_BUILD_DIR}/boot-qemu.sh\"]
+        tty: true
+        workingDir: ${OBMC_BUILD_DIR}
+        env:
+        - name: QEMU_RUN_TIME
+          value: \"${QEMU_RUN_TIMER}\"
+        - name: QEMU_ARCH
+          value: \"${QEMU_ARCH}\"
+        - name: HOME
+          value: \"${OBMC_BUILD_DIR}\"
+        ports:
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 4000
+          name: rest-api
+          protocol: TCP
+        - containerPort: 22
+          name: ssh
+          protocol: TCP
+        resources:
+          requests:
+            memory: "600Mi"
+            cpu: "400m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: workspace
+          subPath: ${jenkins_subpath}
+          mountPath: ${OBMC_BUILD_DIR}
+      imagePullSecrets:
+      - name: ${img_pl_sec}

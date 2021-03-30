@@ -1,0 +1,175 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "definitions": {
+        "EMExposesElement": {
+            "description": [
+                "The exposes property element schema.  An element of the exposes ",
+                "property is always an array where elements are of type exposes ",
+                "entry."
+            ],
+            "oneOf": [
+                {
+                    "$ref": "Pid.json#/definitions/Pid"
+                },
+                {
+                    "$ref": "Pid.Zone.json#/definitions/PidZone"
+                },
+                {
+                    "$ref": "Stepwise.json#/definitions/Stepwise"
+                },
+                {
+                    "$ref": "legacy.json#/definitions/Aggregate"
+                },
+                {
+                    "description": [
+                        "Ensure the parent oneOf schema does not validate ",
+                        "when an element does not define a type property."
+                    ],
+                    "not": {
+                        "required": [
+                            "Type"
+                        ]
+                    },
+                    "title": "Missing Type"
+                },
+                {
+                    "description": [
+                        "Ensure the parent oneOf schema does not validate ",
+                        "when an element does not define a name property."
+                    ],
+                    "not": {
+                        "required": [
+                            "Name"
+                        ]
+                    },
+                    "title": "Missing Name"
+                }
+            ],
+            "title": "Exposes Property Element"
+        },
+        "EMConfig": {
+            "title": "Entity Manager Configuration",
+            "description": [
+                "The schema for an entity manager configuration.  An entity ",
+                "manager configuration describes an association between a ",
+                "match condition, also known as a probe, and an array of ",
+                "heterogeneous configuration data.  When a probe match ",
+                "occurs, the configuration data is exported to DBus."
+            ],
+            "additionalProperties": false,
+            "type": "object",
+            "properties": {
+                "Bus": {
+                    "type": "string"
+                },
+                "Exposes": {
+                    "description": [
+                        "The schema for the exposes property.  The exposes ",
+                        "property must be an array where elements are of ",
+                        "type EMExposesElement.  The exposes property is the ",
+                        "heterogeneous configuration data exported to DBus ",
+                        "upon a probe match."
+                    ],
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/EMExposesElement"
+                    }
+                },
+                "Logging": {
+                    "enum": [
+                        "Off"
+                    ]
+                },
+                "Name": {
+                    "description": [
+                        "The schema for the name property.  The name property ",
+                        "identifies the configuration.  When exported, the ",
+                        "configuration will be instantiated at: ",
+                        "/xyz/openbmc_project/configuration/<Type>/<Name>"
+                    ],
+                    "type": "string"
+                },
+                "Probe": {
+                    "description": [
+                        "The schema for an entity manager probe statement. ",
+                        "Probes can be a single string or an array.  Probes ",
+                        "describe a match condition, for example when a DBus ",
+                        "property has a specific value.  When the match condition",
+                        " occurs, the information described by the Exposes ",
+                        "property is exported onto the DBus."
+                    ],
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                },
+                "Type": {
+                    "title": "Configuration Type",
+                    "description": [
+                        "The schema for the type property.  The type property",
+                        "identifies the type of the configuration.  When exported,",
+                        "configurations will be instantiated as children of: ",
+                        "/xyz/openbmc_project/configuration/<Type>"
+                    ],
+                    "enum": [
+                        "Board",
+                        "Chassis",
+                        "NVMe",
+                        "PowerSupply"
+                    ]
+                },
+                "xyz.openbmc_project.Inventory.Decorator.Asset": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Decorator/Asset"
+                },
+                "ProductId": {
+                    "type": "number"
+                },
+                "xyz.openbmc_project.Inventory.Decorator.AssetTag": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Decorator/AssetTag"
+                },
+                "xyz.openbmc_project.Inventory.Item.Board.Motherboard": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Item/Board/Motherboard"
+                },
+                "xyz.openbmc_project.Inventory.Item.Chassis": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Item/Chassis"
+                },
+                "xyz.openbmc_project.Inventory.Item.Panel": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Item/Panel"
+                },
+                "xyz.openbmc_project.Inventory.Item.System": {
+                    "$ref": "openbmc-dbus.json#/definitions/xyz/openbmc_project/Inventory/Item/System"
+                }
+            },
+            "required": [
+                "Exposes",
+                "Name",
+                "Probe",
+                "Type"
+            ]
+        }
+    },
+    "title": "Entity Manager Configuration File",
+    "description": [
+        "The schema for an entity manager configuration file.  An entity ",
+        "mananger configuration file can consist of a single object, or an ",
+        "array of objects.  Objects must be of type EMConfig."
+    ],
+    "anyOf": [
+        {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/EMConfig"
+            }
+        },
+        {
+            "$ref": "#/definitions/EMConfig"
+        }
+    ]
+}

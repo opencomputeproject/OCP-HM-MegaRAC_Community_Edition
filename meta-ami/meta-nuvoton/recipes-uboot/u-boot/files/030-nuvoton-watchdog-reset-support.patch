@@ -1,0 +1,106 @@
+From bfb9ebbd91c2e5ec094892c755fe41ef1278beba Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Thu, 3 Dec 2020 14:25:29 -0500
+Subject: [PATCH] nuvoton watchdog reset support
+
+---
+ Kconfig                     |  3 +++
+ board/nuvoton/poleg/poleg.c | 14 ++++++++++++++
+ common/autoboot.c           |  9 +++++++++
+ oem/ami/Kconfig             | 11 +++++++++++
+ 4 files changed, 37 insertions(+)
+ create mode 100644 oem/ami/Kconfig
+
+diff --git a/Kconfig b/Kconfig
+index 305b265..1f51510 100644
+--- a/Kconfig
++++ b/Kconfig
+@@ -9,6 +9,9 @@ config UBOOTVERSION
+ 	string
+ 	option env="UBOOTVERSION"
+ 
++# AMI Vendor Configuration
++source "oem/ami/Kconfig"
++
+ # Allow defaults in arch-specific code to override any given here
+ source "arch/Kconfig"
+ 
+diff --git a/board/nuvoton/poleg/poleg.c b/board/nuvoton/poleg/poleg.c
+index 3fa3fb1..ce108d5 100644
+--- a/board/nuvoton/poleg/poleg.c
++++ b/board/nuvoton/poleg/poleg.c
+@@ -20,6 +20,13 @@
+ #include <spi_flash.h>
+ #include <spi.h>
+ 
++#define TMR2_BA 		0xF000A000
++#define WTCR_OFFSET 		0x1C
++#define WTCR_WTCLK_65536 	0xC00
++#define WTCR_WTE 		0x80
++#define WTCR_WITS_2_16 		0x10
++#define WTCR_WTRE 		0x2
++
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ static int board_sd_clk_init(const char *name)
+@@ -240,6 +247,13 @@ int board_init(void)
+ 	gd->bd->bi_arch_number = CONFIG_MACH_TYPE;
+ 	gd->bd->bi_boot_params = (PHYS_SDRAM_1 + 0x100UL);
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++	/* timeout on watchdog (TMR1) 172 seconds */
++	writel(WTCR_WTCLK_65536 | WTCR_WTE | WTCR_WITS_2_16 | WTCR_WTRE,
++	       (unsigned long *)(TMR2_BA + WTCR_OFFSET));
++	unsigned long int wd = readl((unsigned long *)(TMR2_BA + WTCR_OFFSET));
++#endif
++
+ 	return 0;
+ }
+ 
+diff --git a/common/autoboot.c b/common/autoboot.c
+index 94133ea..0aa48d0 100644
+--- a/common/autoboot.c
++++ b/common/autoboot.c
+@@ -19,6 +19,10 @@ DECLARE_GLOBAL_DATA_PTR;
+ 
+ #define MAX_DELAY_STOP_STR 32
+ 
++#define TMR2_BA         0xF000A000
++#define WTCR_OFFSET     0x1C
++#define WTCR_WTR        0x1
++
+ #ifndef DEBUG_BOOTKEYS
+ #define DEBUG_BOOTKEYS 0
+ #endif
+@@ -267,6 +271,11 @@ static int abortboot(int bootdelay)
+ 		gd->flags &= ~GD_FLG_SILENT;
+ #endif
+ 
++#ifdef CONFIG_OSP_WATCHDOG_TIMEOUT
++        if (abort)
++		writel(WTCR_WTR, (unsigned long *)(TMR2_BA + WTCR_OFFSET));
++#endif
++
+ 	return abort;
+ }
+ 
+diff --git a/oem/ami/Kconfig b/oem/ami/Kconfig
+new file mode 100644
+index 0000000..32063f5
+--- /dev/null
++++ b/oem/ami/Kconfig
+@@ -0,0 +1,11 @@
++menu "AMI"
++
++config OSP_WATCHDOG_TIMEOUT
++	bool "Set a watchdog timer on boot."
++	default y
++	help
++	  Set a 3-minute watchdog timer on TMR2 when uboot initializes.
++	  Userspace is responsible for disabling this timer
++	  when the system finishes booting.
++
++endmenu
+-- 
+2.17.1
+

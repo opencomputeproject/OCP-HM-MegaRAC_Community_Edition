@@ -1,0 +1,10 @@
+[Unit]
+Description=phosphor systemd target monitor
+After=dbus.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/phosphor-systemd-target-monitor -f /etc/phosphor-systemd-target-monitor/phosphor-target-monitor-default.json
+
+[Install]
+WantedBy=multi-user.target

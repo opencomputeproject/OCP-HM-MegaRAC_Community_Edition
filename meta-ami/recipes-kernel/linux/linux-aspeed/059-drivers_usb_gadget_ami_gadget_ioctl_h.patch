@@ -1,0 +1,149 @@
+--- linux/drivers/usb/gadget/function/ami_gadget_ioctl.h	1970-01-01 08:00:00.000000000 +0800
++++ linux_new/drivers/usb/gadget/function/ami_gadget_ioctl.h	2020-01-15 15:45:16.443046000 +0800
+@@ -0,0 +1,146 @@
++/****************************************************************
++ **                                                            **
++ **    (C)Copyright 2006-2022, American Megatrends Inc.        **
++ **                                                            **
++ **            All Rights Reserved.                            **
++ **                                                            **
++ **        5555 Oakbrook Pkwy Suite 200, Norcross,             **
++ **                                                            **
++ **        Georgia - 30093, USA. Phone-(770)-246-8600.         **
++ **                                                            **
++****************************************************************/
++
++#ifndef __AMI_GADGET_IOCTL_H__
++#define __AMI_GADGET_IOCTL_H__
++
++#include "coreTypes.h"
++
++/* Note :All Length Fields used in IUSB are Little Endian */
++
++#ifdef __GNUC__
++#define PACKED __attribute__ ((packed))
++#else
++#define PACKED
++#pragma pack( 1 )
++#endif
++#define AMI_USB_GADGET_MODE	(1)
++
++/*Ioctls */
++#define USB_CDROM_REQ		_IOC(_IOC_READ, 'U',0x31,0x3FFF)
++#define USB_CDROM_RES		_IOC(_IOC_WRITE,'U',0x32,0x3FFF)
++#define USB_CDROM_EXIT		_IOC(_IOC_WRITE,'U',0x33,0x3FFF)
++#define USB_CDROM_ACTIVATE	_IOC(_IOC_WRITE,'U',0x34,0x3FFF)
++
++#define USB_HDISK_REQ		_IOC(_IOC_READ, 'U',0x41,0x3FFF)
++#define USB_HDISK_RES		_IOC(_IOC_WRITE,'U',0x42,0x3FFF)
++#define USB_HDISK_EXIT		_IOC(_IOC_WRITE,'U',0x43,0x3FFF)
++#define USB_HDISK_ACTIVATE	_IOC(_IOC_WRITE,'U',0x44,0x3FFF)
++#define USB_HDISK_SET_TYPE	_IOC(_IOC_WRITE,'U',0x45,0x3FFF)
++#define USB_HDISK_GET_TYPE	_IOC(_IOC_READ, 'U',0x46,0x3FFF)
++
++#define USB_VENDOR_REQ		_IOC(_IOC_READ, 'U',0x61,0x3FFF)
++#define USB_VENDOR_RES		_IOC(_IOC_WRITE,'U',0x62,0x3FFF)
++#define USB_VENDOR_EXIT		_IOC(_IOC_WRITE,'U',0x63,0x3FFF)
++
++// Indicate the redirect_mode for gadget mass-storage;
++// 0: file-backed mode(handle SCSI command via origin gadget functions).
++// 1: virtual device mode(bypass SCSI command to remote client).
++#define USB_LUN_GET_REDIRECT_MODE	_IOC(_IOC_READ,'U',0x71,0x3FFF)
++#define USB_LUN_SET_REDIRECT_MODE	_IOC(_IOC_WRITE,'U',0x72,0x3FFF)
++
++/***************************************************/
++
++/* SCSI Command Packets */
++typedef struct
++{
++	uint8		OpCode;
++	uint8		Lun;
++	uint32		Lba;
++	union
++	{
++		struct
++		{
++			uint8		Reserved6;
++			uint16		Length;
++			uint8		Reserved9[3];
++		} PACKED Cmd10;
++		struct Len32
++		{
++			uint32		Length32;
++			uint8		Reserved10[2];
++		} PACKED Cmd12;
++	} PACKED CmdLen;
++} PACKED SCSI_COMMAND_PACKET;
++
++
++
++/**************** Values for Direction Field of IUSB Header ****************/
++#define TO_REMOTE	0x00
++#define FROM_REMOTE	0x80
++
++#define FLEXIBLE_DISK_PAGE_CODE	(0x05)
++typedef struct
++{
++	uint16 ModeDataLen;
++#define MEDIUM_TYPE_DEFAULT	(0x00)
++#define MEDIUM_TYPE_720KB	(0x1e)
++#define MEDIUM_TYPE_125_MB	(0x93)
++#define MEDIUM_TYPE_144_MB	(0x94)
++	uint8 MediumTypeCode;
++	uint8 WriteProtect; // bit(7):write protect, bit(6-5):reserved, bit(4):DPOFUA which should be zero, bit(3-0) reserved
++	uint8 Reserved[4];
++} PACKED MODE_SENSE_RESP_HDR;
++
++typedef struct
++{
++	MODE_SENSE_RESP_HDR	ModeSenseRespHdr;
++#define MAX_MODE_SENSE_RESP_DATA_LEN	(72)
++#define FLEXIBLE_DISK_PAGE_LEN	(32)
++	uint8	PageData[MAX_MODE_SENSE_RESP_DATA_LEN];
++} PACKED MODE_SENSE_RESPONSE;
++
++typedef struct
++{
++	uint8	PageCode;
++	uint8	PageLength; //1Eh
++	uint16	TransferRate;
++	uint8	NumberofHeads;
++	uint8	SectorsPerTrack;
++	uint16	DataBytesPerSector;
++	uint16	NumberofCylinders;
++	uint8	Reserved1[9];
++	uint8	MotorONDelay;
++	uint8	MotorOFFDelay;
++	uint8	Reserved2[7];
++	uint16	MediumRotationRate;
++	uint8	Reserved3;
++	uint8	Reserved4;
++} PACKED FLEXIBLE_DISK_PAGE;
++
++/******************* AMI Scsi Request/ResponsePacket ************************/
++#if (1 == AMI_USB_GADGET_MODE)
++typedef struct
++{
++	uint32	ReadLen;				/* Set by Initiator*/	// Determine the data length that host expected.
++	uint8		CurrentLUN;			// Determine the current USB mass-storage LUN(logic unit number) from remote client for data responded or commands of setup.
++									// Some SCSI CDB not include lun for request, so need to assign this for remote client.
++	SCSI_COMMAND_PACKET	CommandPkt;	/* Set by Initiator*/ // SCSI CDB from host to remote client.
++	uint32	DataLen;				/* Set by Initiator and Target */ // Host: Data length to client(WRITE 6/10/12...). Remote client: Actual data length send to host for request(READ 6/10/12...).
++	uint8	Data;					/* Set by Initiator and Target */ // Data for host/remote client.
++} PACKED GADGET_SCSI_PACKET;	// Instead of IUSB_SCSI_PACKET for gadget driver.
++
++#endif	// end #if (1 == AMI_USB_GADGET_MODE)
++
++/* Values for DataDir in ScsiRequest Packet */
++#define READ_DEVICE		0x01
++#define WRITE_DEVICE	0x02
++
++
++
++
++#ifndef __GNUC__
++#pragma pack()
++#endif
++
++#endif	// end #ifndef __AMI_GADGET_IOCTL_H__
++

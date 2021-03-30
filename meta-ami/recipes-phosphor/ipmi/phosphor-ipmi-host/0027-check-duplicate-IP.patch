@@ -1,0 +1,45 @@
+--- a/transporthandler.cpp	2020-12-11 17:21:58.323869351 +0800
++++ b/transporthandler.cpp	2020-12-11 17:27:58.321727747 +0800
+@@ -1520,6 +1520,9 @@
+         {
+             EthernetInterface::DHCPConf dhcp =
+                 channelCall<getDHCPProperty>(channel);
++            uint8_t i;
++            uint8_t sameip=0;
++            ChannelInfo chInfo{};       
+             if ((dhcp == EthernetInterface::DHCPConf::v4) ||
+                 (dhcp == EthernetInterface::DHCPConf::both))
+             {
+@@ -1533,7 +1536,31 @@
+             {
+                 return responseReqDataLenInvalid();
+             }
+-            copyInto(ip, bytes);
++            copyInto(ip, bytes);                    
++            for(i=0;i<maxIpmiChannels;i++)
++            {				
++				if (!isValidChannel(i))
++					continue;
++				getChannelInfo(i, chInfo);
++				if (static_cast<EChannelMediumType>(chInfo.mediumType) ==
++					EChannelMediumType::lan8032)				
++				{
++				
++					auto ifaddr = channelCall<getIfAddr4>(i);
++					if (ifaddr)
++					{
++						if(ifaddr->address.s_addr==ip.s_addr)	
++						{
++							sameip=1;
++							break;
++						}
++					}
++				}	
++			}
++            if(sameip == 1)
++            {				
++				return responseCommandNotAvailable();
++			}
+             channelCall<reconfigureIfAddr4>(channel, ip, std::nullopt);
+             return responseSuccess();
+         }

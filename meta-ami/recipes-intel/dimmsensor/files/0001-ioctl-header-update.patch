@@ -1,0 +1,39 @@
+diff -Naur a/DimmSensor.cpp b/DimmSensor.cpp
+--- a/DimmSensor.cpp	2021-03-03 19:15:45.773619344 +0530
++++ b/DimmSensor.cpp	2021-03-03 19:14:50.140138671 +0530
+@@ -10,7 +10,7 @@
+ #include <iostream>
+ #include <memory>
+ #include <vector>
+-#include <linux/aspeed_peci_ioctl.h>
++#include <linux/peci-ioctl.h>
+ 
+ #define PECI_DIMM_TEMP_REG 0x150
+ #define DIMM_DEFAULT_VALUE 0x55
+@@ -78,11 +78,11 @@
+   u32Address |= u8device << 15;
+   u32Address |= u8bus << 20;
+ 
+-  msg->client_addr = u8target;
+-  msg->tx_len = RDPCICFGLOCAL_WRITE_LEN;
+-  msg->rx_len = RDPCICFGLOCAL_READ_LEN_BASE + u8readlen;
++  msg->addr = u8target;
++  msg->tx_len = PECI_RDPCICFGLOCAL_WRITE_LEN;
++  msg->rx_len = PECI_RDPCICFGLOCAL_READ_LEN_BASE + u8readlen;
+ 
+-  msg->tx_buf[0] = RDPCICFGLOCAL_PECI_CMD;
++  msg->tx_buf[0] = PECI_RDPCICFGLOCAL_CMD;
+   msg->tx_buf[2] = u32Address & 0xFF;
+   msg->tx_buf[3] = (u32Address >> 8) & 0xFF;
+   msg->tx_buf[4] = (u32Address >> 16) & 0xFF;
+@@ -91,8 +91,8 @@
+   if (fd >= 0) {
+     int success = ioctl(fd, PECI_IOC_XFER, msg.get());
+     if (success == 0) {
+-      if (DEV_PECI_CC_SUCCESS == msg->rx_buf[0]) {
+-        ret.resize(RDPCICFGLOCAL_READ_LEN_BASE + u8readlen - 1);
++      if (PECI_DEV_CC_SUCCESS == msg->rx_buf[0]) {
++        ret.resize(PECI_RDPCICFGLOCAL_READ_LEN_BASE + u8readlen - 1);
+         memcpy(ret.data(), &(msg->rx_buf[1]), ret.size());
+       }
+     }

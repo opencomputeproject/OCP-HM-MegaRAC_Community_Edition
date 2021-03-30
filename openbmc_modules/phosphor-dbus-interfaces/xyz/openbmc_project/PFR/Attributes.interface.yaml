@@ -1,0 +1,20 @@
+description: >
+    Provides the object attributes needed for resiliency of platform
+    firmware, recommended by NIST SP 800-193.
+
+properties:
+    - name: Provisioned
+      type: boolean
+      description: >
+          Indicates platform firmware provisioned state. Provisioned
+          platform may provide resiliency features.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Locked
+      type: boolean
+      description: >
+          Indicates the platform firmware provisioning locked state.
+          Once the provisioning is locked, it can't be re-provisioned.
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure

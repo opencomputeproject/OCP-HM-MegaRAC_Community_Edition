@@ -1,0 +1,59 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2020-12-07 16:04:47.345638599 +0530
++++ b/dcmihandler.cpp	2020-12-07 15:49:03.969132316 +0530
+@@ -1179,7 +1179,6 @@
+         *data_len = 0;
+         return IPMI_CC_INVALID_FIELD_REQUEST;
+     }
+-    *data_len = 0;
+ 
+     try
+     {
+@@ -1188,6 +1187,14 @@
+             static_cast<dcmi::DCMIConfigParameters>(requestData->paramSelect))
+         {
+             case dcmi::DCMIConfigParameters::ActivateDHCP:
++		if (*data_len != DCMI_SET_CONF_PARAM_REQ_PACKET_MIN_SIZE)
++	        {
++        	    log<level::ERR>("Invalid Requested Packet size",
++                            entry("PACKET SIZE=%d", *data_len));
++		    *data_len = 0;
++        	    return IPMI_CC_REQ_DATA_LEN_INVALID;
++    		}
++
+ 
+                 if ((requestData->data[0] & DCMI_ACTIVATE_DHCP_MASK) &&
+                     dcmi::getDHCPEnabled())
+@@ -1202,6 +1209,15 @@
+ 
+             case dcmi::DCMIConfigParameters::DiscoveryConfig:
+ 
++		if (*data_len != DCMI_SET_CONF_PARAM_REQ_PACKET_MIN_SIZE)
++                {
++                    log<level::ERR>("Invalid Requested Packet size",
++                            entry("PACKET SIZE=%d", *data_len));
++                    *data_len = 0;
++                    return IPMI_CC_REQ_DATA_LEN_INVALID;
++                }
++
++
+                 if (requestData->data[0] & DCMI_OPTION_12_MASK)
+                 {
+                     dcmi::setDHCPOption(DHCP_OPT12_ENABLED, true);
+@@ -1230,6 +1246,7 @@
+         log<level::ERR>(e.what());
+         return IPMI_CC_UNSPECIFIED_ERROR;
+     }
++    *data_len = 0;
+     return IPMI_CC_OK;
+ }
+ 
+@@ -1249,7 +1266,7 @@
+     {
+         log<level::ERR>("Invalid Requested Packet size",
+                         entry("PACKET SIZE=%d", *data_len));
+-        return IPMI_CC_INVALID_FIELD_REQUEST;
++        return IPMI_CC_REQ_DATA_LEN_INVALID;
+     }
+ 
+     *data_len = 0;

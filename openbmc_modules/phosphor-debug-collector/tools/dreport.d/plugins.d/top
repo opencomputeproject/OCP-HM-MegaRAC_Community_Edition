@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 123 10
+# @brief: Collect top command output.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="top"
+file_name="top.log"
+command="top -n 1 -b"
+
+add_cmd_output "$command" "$file_name" "$desc"

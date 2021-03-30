@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 1234 5
+# @brief: Collect current hostname settings.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="hostnamectl"
+file_name="hostnamectl.log"
+command="hostnamectl status"
+
+add_cmd_output "$command" "$file_name" "$desc"

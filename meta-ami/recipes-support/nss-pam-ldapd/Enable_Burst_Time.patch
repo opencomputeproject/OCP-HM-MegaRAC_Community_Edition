@@ -1,0 +1,10 @@
+--- a/nslcd.service	2020-02-17 10:48:41.247795477 -0500
++++ b/nslcd.service	2020-02-17 10:49:21.479787157 -0500
+@@ -5,6 +5,7 @@
+ [Service]
+ Type=forking
+ ExecStart=/usr/sbin/nslcd
++StartLimitBurst=0
+ 
+ [Install]
+ WantedBy=multi-user.target

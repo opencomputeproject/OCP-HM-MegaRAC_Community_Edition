@@ -1,0 +1,72 @@
+#Example fan zone definitions for phosphor-fan-control
+
+#List the properties of the fan zones that are possible in the system.
+#The zones may be conditional based on certain conditions, such as
+#different chassis types or water cooled models.  The fans themselves
+#are not listed in this file.  They are in a separate YAML file so it
+#can be machine generated (i.e. from the MRW) if desired.
+
+#The general structure is a list of groups of zones, where a group
+#contains both the zones and the conditions required for the zones
+#to be valid
+
+#The cooling_profile is used along with the zone number to know
+#which fans in the fan yaml belong in this zone instance.  For
+#example, a fan may only be in zone 0 if it's the air cooled version
+#of the system, but not with the water cooled version.  In that
+#case, the fan yaml would have a cooling_profile of 'air' to match
+#the zone cooling profile.
+
+#manager_configuration:
+#  power_on_delay: [Number of seconds that phosphor-fan-control --init
+#                   should delay after setting fans to full speed on
+#                   a power on.]
+#
+#zone_configuration:
+# - zone_conditions:
+#    - name: [Name of a condition, if any.]
+#
+#   zones:
+#     - zone: [zone number]
+#       cooling_profiles:
+#         - [cooling profile]
+#       full_speed: [Full speed for the zone.]
+#       default_floor: [Default floor speed for the zone that fan speeds can
+#                       not go below.]
+#       increase_delay: [Number of seconds to delay additional speed increases
+#                        that are less than the speed increase that's currently
+#                        occurring.]
+#       decrease_interval: [A repeating number of seconds interval that
+#                           requested speed decreases may occur when no speed
+#                           increase is occurring at that time as well.]
+
+#Example:
+#manager_configuration:
+#  power_on_delay: 20
+#
+#zone_configuration:
+# - zone_conditions:
+#   - name: air_cooled_chassis
+#
+#   zones:
+#     - zone: 0
+#       cooling_profiles:
+#       - air
+#       - all
+#       full_speed: 10500
+#       default_floor: 6000
+#       increase_delay: 5
+#       decrease_interval: 30
+#
+# - zone_conditions:
+#   - name: water_and_air_cooled_chassis
+#
+#   zones:
+#     - zone: 0
+#       cooling_profiles:
+#       - water
+#       - all
+#       full_speed: 4000
+#       default_floor: 2500
+#       increase_delay: 5
+#       decrease_interval: 20

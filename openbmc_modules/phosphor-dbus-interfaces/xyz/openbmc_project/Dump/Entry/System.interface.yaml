@@ -1,0 +1,19 @@
+description: >
+    Implement this to add system dump management.
+
+    System dumps are dump of the host memory and hardware states
+    generated during a failure in the host firmware. This can be a huge
+    dump stored in the host memory, the BMC doesnt store this dump but
+    stream this dump to an external client based on the offload request.
+    Apart from system generated system dump, users can also request for
+    this kind of dump.
+
+properties:
+    - name: SourceDumpId
+      type: uint32
+      description: >
+          The dump id provided by the source of the dump.
+          There are dumps which get generated outside the BMC, like a
+          system dump which gets generated and stored in the host memory.
+          All dumps will have a  unique id  but when communicating
+          to the source of the dump the SourceDumpId will be used.

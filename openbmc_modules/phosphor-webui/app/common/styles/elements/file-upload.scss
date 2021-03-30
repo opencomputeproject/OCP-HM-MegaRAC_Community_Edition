@@ -1,0 +1,44 @@
+// Choose/upload button
+.file-upload-input {
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+.file-upload-input:focus {
+  outline: 0.2rem solid $base-02--04;
+}
+
+.file-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 300px;
+  white-space: nowrap;
+  padding-right: 0.5rem;
+}
+
+.file-upload-error {
+  border-bottom: 2px solid $notification-error--dark;
+}
+
+.file-upload {
+  min-width: 240px;
+  max-width: 330px;
+  .file-upload-container {
+    align-items: center;
+    background: $background-02;
+    display: flex;
+    height: 2.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    .file-upload-reset {
+      padding: 0;
+      icon {
+        margin: 0;
+      }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/peci/peci-client.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Generic Device Tree Bindings for PECI clients
+
+maintainers:
+  - Jae Hyun Yoo <jae.hyun.yoo@linux.intel.com>
+
+properties:
+  compatible:
+    enum:
+      - intel,peci-client
+
+  reg:
+    description: |
+      Address of a client CPU. According to the PECI specification, client
+      addresses start from 0x30.
+    maxItems: 1
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+    #include <dt-bindings/clock/ast2600-clock.h>
+    peci: bus@1e78b000 {
+        compatible = "simple-bus";
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges = <0x0 0x1e78b000 0x60>;
+
+        peci0: peci-bus@0 {
+            compatible = "aspeed,ast2600-peci";
+            reg = <0x0 0x100>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+            interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+            clocks = <&syscon ASPEED_CLK_GATE_REF0CLK>;
+            resets = <&syscon ASPEED_RESET_PECI>;
+            clock-frequency = <24000000>;
+
+            peci-client@30 {
+                compatible = "intel,peci-client";
+                reg = <0x30>;
+            };
+
+            peci-client@31 {
+                compatible = "intel,peci-client";
+                reg = <0x31>;
+            };
+        };
+    };
+...

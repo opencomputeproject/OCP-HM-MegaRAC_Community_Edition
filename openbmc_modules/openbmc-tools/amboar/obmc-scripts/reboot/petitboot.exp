@@ -1,0 +1,12 @@
+#!/usr/bin/expect -df --
+
+set timeout 300
+
+spawn ssh -p2200 {*}[lrange $argv 0 end]
+
+expect {
+	-ex "Petitboot"	{ exit }
+	timeout 	{ exit 1 }
+	eof		{ exit 2 }
+	.*		{ exp_continue }
+}

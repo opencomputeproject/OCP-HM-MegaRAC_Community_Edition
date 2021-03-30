@@ -1,0 +1,43 @@
+.btn {
+  font-weight: $headings-font-weight;
+  padding-top: $spacer / 2;
+  padding-right: $spacer;
+  padding-bottom: $spacer / 2;
+  padding-left: $spacer;
+
+  // Buttons with SVGs and text expect
+  // text to be wrapped in a span element
+  svg + span {
+    margin-left: $spacer / 4;
+  }
+}
+
+.btn-primary {
+  fill: currentColor;
+}
+
+.btn-secondary {
+  fill: currentColor;
+}
+
+.btn-link {
+  fill: theme-color("primary");
+  text-decoration: none !important;
+
+  &:focus {
+    box-shadow: $btn-focus-box-shadow;
+  }
+  &:hover {
+    fill: darken(theme-color("primary"), 15%);
+  }
+}
+
+.btn:disabled {
+  color: gray("600");
+  fill: currentColor;
+
+  &:not(.btn-link) {
+    border-color: gray("400");
+    background-color: gray("400");
+  }
+}

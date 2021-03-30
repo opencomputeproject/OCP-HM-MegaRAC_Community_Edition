@@ -1,0 +1,12 @@
+[Unit]
+Description=Unmount BMC rofs volumes
+After=xyz.openbmc_project.Software.BMC.Updater.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=-/bin/umount @MEDIA_DIR@/rofs-a
+ExecStart=-/bin/umount @MEDIA_DIR@/rofs-b
+
+[Install]
+WantedBy=xyz.openbmc_project.Software.BMC.Updater.service

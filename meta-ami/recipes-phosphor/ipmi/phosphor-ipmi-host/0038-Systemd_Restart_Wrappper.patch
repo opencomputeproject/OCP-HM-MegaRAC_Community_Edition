@@ -1,0 +1,63 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-01-04 13:20:32.749170407 -0500
++++ b/dcmihandler.cpp	2021-01-04 15:21:03.080164896 -0500
+@@ -297,6 +297,24 @@
+     return data;
+ }
+ 
++void restartSystemdUnit(const std::string& unit)
++{
++    sdbusplus::bus::bus bus{ipmid_get_sd_bus_connection()};
++
++    try
++    {
++        auto method = bus.new_method_call(systemBusName, systemPath,
++                                          systemIntf, "RestartUnit");
++        method.append(unit.c_str(), "replace");
++        bus.call_noreply(method);
++    }
++    catch (const sdbusplus::exception::SdBusError& ex)
++    {
++        log<level::ERR>("Failed to restart nslcd service",
++                        entry("ERR=%s", ex.what()));
++        elog<InternalFailure>();
++    }
++}
+ } // namespace dcmi
+ 
+ ipmi_ret_t getPowerLimit(ipmi_netfn_t netfn, ipmi_cmd_t cmd,
+@@ -1124,6 +1142,7 @@
+                     // as per n/w manager design, each time when we update n/w
+                     // parameters, n/w service is restarted. So we no need to
+                     // take any action in this case.
++		    dcmi::restartSystemdUnit(dcmi::networkdService);
+                 }
+                 break;
+ 
+diff -Naur a/dcmihandler.hpp b/dcmihandler.hpp
+--- a/dcmihandler.hpp	2021-01-04 13:20:32.749170407 -0500
++++ b/dcmihandler.hpp	2021-01-04 13:25:54.910106136 -0500
+@@ -61,6 +61,8 @@
+ static constexpr auto gMaxSELEntriesMask = 0xFFF;
+ static constexpr auto gByteBitSize = 8;
+ 
++constexpr auto networkdService = "systemd-networkd.service";
++
+ namespace assettag
+ {
+ 
+@@ -243,6 +245,14 @@
+     uint16_t samplingPeriod; //!< Statistics sampling period in seconds.
+ } __attribute__((packed));
+ 
++
++    /** @brief Restart the systemd unit
++     *  @param[in] unit - systemd unit name which needs to be
++     *                    restarted.
++     */
++void restartSystemdUnit(const std::string& unit);
++
++
+ /** @brief Enable or disable the power capping
+  *
+  *  @param[in] bus - dbus connection

@@ -1,0 +1,413 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "definitions": {
+        "Aggregate": {
+            "description": [
+                "Don't add additional properties to this schema.  Consult ",
+                "README.schema for instructions on adding new Exposes element ",
+                "sub-schema."
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "Address": {
+                    "$ref": "#/definitions/Types/Address"
+                },
+                "AllowedFailures": {
+                    "$ref": "#/definitions/Types/AllowedFailures"
+                },
+                "AlphaF": {
+                    "$ref": "#/definitions/Types/AlphaF"
+                },
+                "AlphaS": {
+                    "$ref": "#/definitions/Types/AlphaS"
+                },
+                "BindConnector": {
+                    "$ref": "#/definitions/Types/BindConnector"
+                },
+                "BindPresence": {
+                    "$ref": "#/definitions/Types/BindPresence"
+                },
+                "BridgeGpio": {
+                    "$ref": "#/definitions/Types/BridgeGpio"
+                },
+                "Bus": {
+                    "$ref": "#/definitions/Types/Bus"
+                },
+                "C1": {
+                    "$ref": "#/definitions/Types/C1"
+                },
+                "C2": {
+                    "$ref": "#/definitions/Types/C2"
+                },
+                "CPURequired": {
+                    "$ref": "#/definitions/Types/CPURequired"
+                },
+                "ChannelNames": {
+                    "$ref": "#/definitions/Types/ChannelNames"
+                },
+                "Class": {
+                    "$ref": "#/definitions/Types/Class"
+                },
+                "Connector": {
+                    "$ref": "#/definitions/Types/Connector"
+                },
+                "CpuID": {
+                    "$ref": "#/definitions/Types/CpuID"
+                },
+                "CurrScaleFactor": {
+                    "$ref": "#/definitions/Types/CurrScaleFactor"
+                },
+                "Direction": {
+                    "$ref": "#/definitions/Types/Direction"
+                },
+                "DtsCritOffset": {
+                    "$ref": "#/definitions/Types/DtsCritOffset"
+                },
+                "FaultIndex": {
+                    "$ref": "#/definitions/Types/FaultIndex"
+                },
+                "FaultType": {
+                    "$ref": "#/definitions/Types/FaultType"
+                },
+                "GpioPins": {
+                    "$ref": "#/definitions/Types/GpioPins"
+                },
+                "GpioPolarity": {
+                    "$ref": "#/definitions/Types/GpioPolarity"
+                },
+                "Index": {
+                    "$ref": "#/definitions/Types/Index"
+                },
+                "Labels": {
+                    "$ref": "#/definitions/Types/Labels"
+                },
+                "LedGpioPins": {
+                    "$ref": "#/definitions/Types/LedGpioPins"
+                },
+                "MaxCFM": {
+                    "$ref": "#/definitions/Types/MaxCFM"
+                },
+                "MaxReading": {
+                    "$ref": "#/definitions/Types/MaxReading"
+                },
+                "Name": {
+                    "$ref": "#/definitions/Types/Name"
+                },
+                "Name1": {
+                    "$ref": "#/definitions/Types/Name1"
+                },
+                "OffsetValue": {
+                    "$ref": "#/definitions/Types/OffsetValue"
+                },
+                "Polarity": {
+                    "$ref": "#/definitions/Types/Polarity"
+                },
+                "Polling": {
+                    "$ref": "#/definitions/Types/Polling"
+                },
+                "PowerFactorMax": {
+                    "$ref": "#/definitions/Types/PowerFactorMax"
+                },
+                "PowerFactorMin": {
+                    "$ref": "#/definitions/Types/PowerFactorMin"
+                },
+                "PowerScaleFactor": {
+                    "$ref": "#/definitions/Types/PowerScaleFactor"
+                },
+                "PowerState": {
+                    "$ref": "#/definitions/Types/PowerState"
+                },
+                "Presence": {
+                    "$ref": "#/definitions/Types/Presence"
+                },
+                "PresenceGpio": {
+                    "$ref": "#/definitions/Types/PresenceGpio"
+                },
+                "Pwm": {
+                    "$ref": "#/definitions/Types/Pwm"
+                },
+                "QMax": {
+                    "$ref": "#/definitions/Types/QMax"
+                },
+                "QMin": {
+                    "$ref": "#/definitions/Types/QMin"
+                },
+                "RedundantCount": {
+                    "$ref": "#/definitions/Types/RedundantCount"
+                },
+                "ScaleFactor": {
+                    "$ref": "#/definitions/Types/ScaleFactor"
+                },
+                "ScaleValue": {
+                    "$ref": "#/definitions/Types/ScaleValue"
+                },
+                "SensorType": {
+                    "$ref": "#/definitions/Types/SensorType"
+                },
+                "Status": {
+                    "$ref": "#/definitions/Types/Status"
+                },
+                "TachMaxPercent": {
+                    "$ref": "#/definitions/Types/TachMaxPercent"
+                },
+                "TachMinPercent": {
+                    "$ref": "#/definitions/Types/TachMinPercent"
+                },
+                "Tachs": {
+                    "$ref": "#/definitions/Types/Tachs"
+                },
+                "Thresholds": {
+                    "$ref": "#/definitions/Types/Thresholds"
+                },
+                "Type": {
+                    "$ref": "#/definitions/Types/Type"
+                }
+            },
+            "required": [
+                "Name",
+                "Type"
+            ],
+            "type": "object"
+        },
+        "Types": {
+            "Address": {
+                "type": [
+                    "string",
+                    "array"
+                ]
+            },
+            "AllowedFailures": {
+                "type": "number"
+            },
+            "AlphaF": {
+                "type": "number"
+            },
+            "AlphaS": {
+                "type": "number"
+            },
+            "BindConnector": {
+                "type": "string"
+            },
+            "BindPresence": {
+                "type": "string"
+            },
+            "BridgeGpio": {
+                "type": [
+                    "number",
+                    "array"
+                ]
+            },
+            "Bus": {
+                "type": [
+                    "string",
+                    "number"
+                ]
+            },
+            "C1": {
+                "type": "number"
+            },
+            "C2": {
+                "type": "number"
+            },
+            "CPURequired": {
+                "type": "number"
+            },
+            "ChannelNames": {
+                "items": {
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "Class": {
+                "type": "string"
+            },
+            "Connector": {
+                "properties": {
+                    "Name": {
+                        "type": "string"
+                    },
+                    "Pwm": {
+                        "type": "number"
+                    },
+                    "Tachs": {
+                        "items": {
+                            "type": "number"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "Name",
+                    "Pwm",
+                    "Tachs"
+                ],
+                "type": "object"
+            },
+            "CpuID": {
+                "type": "number"
+            },
+            "CurrScaleFactor": {
+                "type": "number"
+            },
+            "Direction": {
+                "type": "string"
+            },
+            "DtsCritOffset": {
+                "type": "number"
+            },
+            "FaultIndex": {
+                "type": "number"
+            },
+            "FaultType": {
+                "type": "string"
+            },
+            "GpioPins": {
+                "items": {
+                    "type": "number"
+                },
+                "type": "array"
+            },
+            "GpioPolarity": {
+                "enum": [
+                    "Low"
+                ]
+            },
+            "Index": {
+                "type": "number"
+            },
+            "Labels": {
+                "items": {
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "LedGpioPins": {
+                "items": {
+                    "type": "number"
+                },
+                "type": "array"
+            },
+            "MaxCFM": {
+                "type": "number"
+            },
+            "MaxReading": {
+                "type": "number"
+            },
+            "Name": {
+                "type": "string"
+            },
+            "Name1": {
+                "type": "string"
+            },
+            "OffsetValue": {
+                "type": "number"
+            },
+            "Polarity": {
+                "type": "string"
+            },
+            "Polling": {
+                "type": "object"
+            },
+            "PowerFactorMax": {
+                "type": "number"
+            },
+            "PowerFactorMin": {
+                "type": "number"
+            },
+            "PowerScaleFactor": {
+                "type": "number"
+            },
+            "PowerState": {
+                "type": "string"
+            },
+            "Presence": {
+                "properties": {
+                    "PinName": {
+                        "type": "string"
+                    },
+                    "Polarity": {
+                        "enum": "Low"
+                    }
+                },
+                "type": "object"
+            },
+            "PresenceGpio": {
+                "type": [
+                    "number",
+                    "array"
+                ]
+            },
+            "Pwm": {
+                "type": "number"
+            },
+            "QMax": {
+                "type": "number"
+            },
+            "QMin": {
+                "type": "number"
+            },
+            "RedundantCount": {
+                "type": "number"
+            },
+            "ScaleFactor": {
+                "type": "number"
+            },
+            "ScaleValue": {
+                "type": "number"
+            },
+            "SensorType": {
+                "type": "string"
+            },
+            "Status": {
+                "type": "string"
+            },
+            "TachMaxPercent": {
+                "type": "number"
+            },
+            "TachMinPercent": {
+                "type": "number"
+            },
+            "Tachs": {
+                "items": {
+                    "type": [
+                        "number",
+                        "string"
+                    ]
+                },
+                "type": "array"
+            },
+            "Thresholds": {
+                "items": {
+                    "properties": {
+                        "Direction": {
+                            "type": "string"
+                        },
+                        "Label": {
+                            "type": "string"
+                        },
+                        "Name": {
+                            "type": "string"
+                        },
+                        "Severity": {
+                            "type": "number"
+                        },
+                        "Value": {
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "Direction",
+                        "Name",
+                        "Severity",
+                        "Value"
+                    ],
+                    "type": "object"
+                },
+                "type": "array"
+            },
+            "Type": {
+                "type": "string"
+            }
+        }
+    }
+}

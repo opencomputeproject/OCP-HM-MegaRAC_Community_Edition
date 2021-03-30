@@ -1,0 +1,102 @@
+// Helper text
+.form-text {
+  font-size: $form-label-font-size;
+  line-height: $form-line-height;
+  margin-top: -$spacer / 4;
+  margin-bottom: $spacer / 2;
+  color: gray("700")!important;
+}
+
+// Legend label
+.col-form-label {
+  color: gray("800");
+  font-size: $form-label-font-size;
+  line-height: $form-line-height;
+}
+
+.form-group {
+  margin-bottom: $spacer * 2;
+}
+
+.custom-select,
+.form-control,
+.input-group-text {
+  border-color: gray("500") !important;
+  background-color: gray("100");
+}
+
+.custom-select,
+.form-control {
+  &:active {
+    border: 1px solid $primary!important;
+  }
+  &:focus {
+    color: theme-color("dark");
+    background-color: gray("100");
+    box-shadow: inset 0 0 0 3px gray("100"), inset 0 0 0 5px theme-color("primary") !important;
+  }
+  &:disabled {
+    background-color: gray("400");
+    color: gray("600");
+  }
+  &::placeholder {
+    color: gray("600");
+  }
+  &.is-invalid,
+  &:invalid {
+    border: 1px solid theme-color("danger") !important;
+  }
+}
+
+.custom-select,
+.custom-control-label,
+.form-control {
+  color: theme-color("dark");
+  font-size: 1rem;
+}
+
+// Inverted form colors
+.form-background {
+  background-color: gray("100");
+  .custom-select,
+  .form-control {
+    background-color: $white;
+    &:focus {
+      background-color: $white;
+    }
+    &:disabled {
+      background-color: gray("400");
+      color: gray("600");
+    }
+  }
+}
+
+.invalid-feedback {
+  font-size: $form-label-font-size;
+  line-height: $form-line-height;
+}
+
+.custom-control {
+  .custom-control-input[disabled=disabled] {
+    & + .custom-control-label {
+      // Disabled label for checkbox, radio,
+      // switch bootstrap form components
+      color: gray("600")!important;
+    }
+  }
+}
+
+.b-form-tag-remove {
+  // X button to remove tag
+  font-weight: normal;
+}
+
+.b-form-tags-button {
+  // Add button inside input field
+  white-space: nowrap;
+  margin-right: -$spacer;
+  &.btn-link-primary {
+    color: theme-color("primary");
+    fill: currentColor;
+  }
+}

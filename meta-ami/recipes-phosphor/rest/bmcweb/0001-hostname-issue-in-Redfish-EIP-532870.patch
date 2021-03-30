@@ -1,0 +1,12 @@
+diff -Naur b/redfish-core/lib/network_protocol.hpp a/redfish-core/lib/network_protocol.hpp
+--- b/redfish-core/lib/network_protocol.hpp	2020-08-11 12:08:58.769169244 +0530
++++ a/redfish-core/lib/network_protocol.hpp	2020-08-11 13:01:08.383494647 +0530
+@@ -155,7 +155,7 @@
+     {
+         std::string hostName;
+ 
+-        std::array<char, HOST_NAME_MAX> hostNameCStr;
++        std::array<char, HOST_NAME_MAX+1> hostNameCStr;
+         if (gethostname(hostNameCStr.data(), hostNameCStr.size()) == 0)
+         {
+             hostName = hostNameCStr.data();

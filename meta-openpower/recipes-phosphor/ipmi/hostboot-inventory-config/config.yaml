@@ -1,0 +1,140 @@
+PROC:
+  EntityID: 3
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      BuildDate:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Mfg Date"
+      Manufacturer:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Manufacturer"
+      PartNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Serial Number"
+    xyz.openbmc_project.Inventory.Item:
+      PrettyName:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Name"
+    xyz.openbmc_project.Inventory.Decorator.Revision:
+      Version:
+        IPMIFruSection: Board
+        # Custom Field 2  is EC.
+        IPMIFruProperty: "Custom Field 2"
+        # Delimiter value in ascii as YAML parser
+        # was not allowing certain characters like ":" as value
+        IPMIFruValueDelimiter: "58"
+    xyz.openbmc_project.Inventory.Item.Cpu:
+
+SYS:
+  # same entity ID as it is Associated type of NODE
+  EntityID: 7
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      Model:
+        IPMIFruSection: Chassis
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Chassis
+        IPMIFruProperty: "Serial Number"
+    xyz.openbmc_project.Inventory.Item.System:
+
+NODE:
+  EntityID: 7
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      BuildDate:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Mfg Date"
+      Manufacturer:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Manufacturer"
+      PartNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Serial Number"
+    xyz.openbmc_project.Inventory.Item:
+      PrettyName:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Name"
+    xyz.openbmc_project.Inventory.Item.Board:
+  AssociatedTypes:
+    - SYS
+
+DIMM:
+  EntityID: 32
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      BuildDate:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Mfg Date"
+      Manufacturer:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Manufacturer"
+      PartNumber:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Serial Number"
+      Model:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Model Number"
+    xyz.openbmc_project.Inventory.Item:
+      PrettyName:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Name"
+    xyz.openbmc_project.Inventory.Decorator.Revision:
+      Version:
+        IPMIFruSection: Product
+        IPMIFruProperty: "Version"
+    xyz.openbmc_project.Inventory.Item.Dimm:
+
+MEMBUFF:
+  EntityID: 8
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      BuildDate:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Mfg Date"
+      Manufacturer:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Manufacturer"
+      PartNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Serial Number"
+    xyz.openbmc_project.Inventory.Item:
+      PrettyName:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Name"
+    xyz.openbmc_project.Inventory.Item.MemoryBuffer:
+
+TPM:
+  EntityID: 176
+  Interfaces:
+    xyz.openbmc_project.Inventory.Decorator.Asset:
+      BuildDate:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Mfg Date"
+      Manufacturer:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Manufacturer"
+      PartNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Part Number"
+      SerialNumber:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Serial Number"
+    xyz.openbmc_project.Inventory.Item:
+      PrettyName:
+        IPMIFruSection: Board
+        IPMIFruProperty: "Name"
+    xyz.openbmc_project.Inventory.Item.Tpm:
+

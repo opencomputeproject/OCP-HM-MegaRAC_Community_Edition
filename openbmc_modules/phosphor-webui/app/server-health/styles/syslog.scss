@@ -1,0 +1,330 @@
+// System Logs SCSS
+#sys-log {
+
+  // Dropwdowns filter
+  .dropdown__date.row {
+    padding: .5em;
+  }
+
+  //Timezone select
+  .sys-log__timezone,
+  .sys-log__timezone button {
+    position: relative;
+    text-transform: uppercase;
+    color: $primary-action;
+    font-size: .9em;
+    font-weight: 700;
+    border: 0;
+  }
+  .content__search {
+    float: none;
+    @include mediaQuery(x-large) {
+      @include fastTransition-all;
+    }
+  }
+}
+
+.sort_button_wrapper {
+  padding-top:.3em;
+}
+
+#sys-log-filter {
+  .filter-label {
+    color: $text-02;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: .75em;
+    margin-bottom: 3px;
+  }
+  .sys-log__severity-filter {
+    float:left;
+    margin-right: 2em;
+    margin-bottom: 1em;
+    .btn {
+      width: 100px;
+      font-size: .9em;
+      &:not(:first-of-type) {
+        border-left-width: 1px;
+      }
+    }
+  }
+  .sys-log__date-filter {
+    margin-right: 1em;
+    color: $text-02;
+    float:left;
+    input {
+      width: 170px;
+    }
+    label {
+      height: 0;
+      text-indent: -9999px;
+    }
+  }
+  .sys-log__status-filter {
+    float:left;
+    @include mediaQuery(medium) {
+      width: 25%;
+    }
+    .dropdown__wrapper,
+    .dropdown__button {
+      width: 100%;
+      text-align: left;
+    }
+  }
+}
+
+#sys-log__logs {
+  display: block;
+  position: relative;
+  .header__actions-bar {
+    .btn-export,
+    .btn-delete,
+    .btn-resolve {
+      color: $primary-light;
+    }
+  }
+  .inline__confirm {
+    height: auto;
+    margin-left: 0;
+    left: 0;
+    padding: 1em 2em 1em 2em
+  }
+  .inline__confirm-message {
+    margin-top: 5px;
+    margin-bottom: -10px;
+  }
+  .inline__confirm-buttons .btn-primary {
+    padding: .5em 2em;
+    min-height: 25px;
+    margin-top: .5em;
+    @include mediaQuery(medium) {
+      margin-top: 0;
+    }
+  }
+  .sys-log__col-wrapper {
+    word-wrap: break-word;
+    white-space: initial;
+  }
+  .col-logged-events {
+    span {
+      display: inline-block;
+      font-weight: 700;
+      margin-right: .3em;
+    }
+  }
+  .sys-log__col-id {
+    max-width: 10%;
+  }
+  .sys-log__col-sev {
+    max-width: 12%;
+  }
+  .sys-log__col-desc {
+    min-width: 30%;
+    max-width: 40%;
+  }
+
+  .dropdown__button {
+    margin-bottom: 1.2em;
+  }
+  .dropdown__list {
+    margin-top: -17px;
+  }
+  .dropdown__button {
+    width: 25em;
+    margin-top: 0;
+    text-align: left;
+  }
+  .dropdown__wrapper {
+    width: 25em;
+    margin-top: 0.4em;
+    text-align: left;
+  }
+  //Export log
+  .btn-export, .btn-meta-copy,
+  .btn-delete,
+  .btn-resolve {
+    color: black;
+    font-size: .9em;
+    font-weight: 700;
+    position: relative;
+    padding: 0 0 1em 2em;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  .btn-resolve.disabled:hover,
+  .btn-delete.disabled:hover{
+    cursor: default;
+    text-decoration: none;
+  }
+  .btn-export {
+    margin-top: 7px;
+    padding-bottom: 0;
+  }
+  .btn-export:before {
+    content: '\21E5';
+    position: absolute;
+    font-size: 1.7em;
+    vertical-align: middle;
+    transform: rotate(90deg);
+    display: inline-block;
+    left: 2px;
+    top: -5px;
+  }
+  .btn-meta-copy,
+  .btn-delete,
+  .btn-resolve {
+    margin-left: 5px;
+    padding: .5em .5em;
+  }
+
+  // Single event log card
+  .sys-log__single-event {
+    border: 1px solid $border-color-01;
+    padding: 1em 1em 1em .7em;
+    margin: .5em 0 .5em 0;
+    position: relative;
+    overflow: hidden;
+    @include fastTransition-all;
+    &.active {
+      background-color: $background-02;
+      @include slowTransition-all;
+    }
+  }
+  .sys-log__event-info {
+    &:hover {
+      cursor: pointer;
+    }
+  }
+
+  //Event description
+  .event__description {
+    font-weight: 400;
+    flex:35%;
+    word-break: break-word;
+  }
+
+  //Event ID
+  .event__id {
+    @include fontCourierBold;
+    font-size: .9em;
+    color: $text-02;
+    margin-right: 1em;
+  }
+
+  .event__timestamp {
+    text-align: right;
+    @include fontCourierBold;
+    font-size: .9em;
+    color: $text-02;
+    max-width: 18em;
+    @media (min-width: 1105px) {
+      float: right;
+    }
+  }
+
+  // Event metadata row
+  .event__metadata-row {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .5s linear;
+    &.active {
+      max-height: 1000px;
+      @include mediaQuery(small) {
+        max-height: 1000px;
+      }
+      @include mediaQuery(medium) {
+        max-height: 1000px;
+      }
+    }
+  }
+
+  //Event metadata
+  .event__metadata {
+    height: 200px;
+    overflow-y: scroll;
+    border: 1px solid $border-color-01;
+    padding: .5em .5em 0;
+    background: $primary-light;
+    display: block;
+    margin-bottom: 1.5em;
+    &::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 7px;
+    }
+    &::-webkit-scrollbar-thumb {
+      border-radius: 4px;
+      background-color: rgba(0, 0, 0, .5);
+      -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
+    }
+  }
+
+  //Event Related Items
+  .event__related {
+    width: 100%;
+  }
+  .event__related-label {
+    font-weight: 700;
+    margin-right: 1.2em;
+    padding-top: .3em;
+    float: left;
+  }
+  .event__related-item {
+    margin-right: 1em;
+    padding-top: .3em;
+    display: inline-block;
+    float: left;
+    clear: both;
+  }
+  .event__actions {
+    margin-left: -1em;
+    margin-top: .5em;
+    @include mediaQuery(medium) {
+      float: right;
+      margin-top: -5px;
+    }
+  }
+  .event__icon {
+    width: 20px;
+    height: 20px;
+    font-weight: normal;
+    margin-right: .5em;
+    margin-top: -3px;
+    display: inline-block;
+  }
+  .sort-ascending {
+    display: block;
+    padding: 0;
+    transform: rotate(-90deg);
+    font-size: 1em;
+    color: $text-02;
+    &:hover {
+      color: $primary-action;
+    }
+    &:after {
+      content: '\276F'
+    }
+    &:focus {
+      outline: 0;
+      color: $primary-action;
+    }
+  }
+  .sort-descending {
+    display: block;
+    padding: 0;
+    transform: rotate(-90deg);
+    font-size: 1em;
+    color: $text-02;
+    &:hover {
+      color: $primary-action;
+    }
+    &:after {
+      content: '\276e'
+    }
+    &:focus {
+      outline: 0;
+      color: $primary-action;
+    }
+  }
+}
+//end sys-log__logs

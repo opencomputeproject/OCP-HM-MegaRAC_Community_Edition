@@ -1,0 +1,831 @@
+diff -Naur a/app/access-control/controllers/ldap-controller.html b/app/access-control/controllers/ldap-controller.html
+--- a/app/access-control/controllers/ldap-controller.html	2020-11-12 07:17:22.777009093 -0500
++++ b/app/access-control/controllers/ldap-controller.html	2020-11-12 07:19:49.222157174 -0500
+@@ -13,7 +13,7 @@
+   </div>
+   <div class="row column">
+     <label class="control-check ldap__control-check">
+-      <input type="checkbox" aria-labelledby="ldap-auth-label"
++      <input type="checkbox" ng-disabled="dataService.isNotAdmin()" aria-labelledby="ldap-auth-label"
+       ng-change="updateServiceEnabled(); ldap__configuration.$setUntouched()"
+       ng-model="ldapProperties.ServiceEnabled" />
+       <span class="control__indicator"></span>
+@@ -133,9 +133,9 @@
+                 class="ldap__optional-field" />
+             </div>
+             <div class="column ldap__configuration-buttons">
+-              <button type="submit" class="btn btn-primary" ng-disabled="!ldap__configuration.$valid"
++              <button type="submit" class="btn btn-primary" ng-disabled="!ldap__configuration.$valid || dataService.isNotAdmin()"
+                 ng-click="$parent.submitted=true; ldap__configuration.$valid && saveLdapSettings(); ldap__configuration.$setUntouched()">Save</button>
+-              <button type="button" class="btn btn-secondary"
++              <button type="button" class="btn btn-secondary" ng-disabled="dataService.isNotAdmin()"
+                 ng-click="loadLdap(); ldap__configuration.$setUntouched()">Reset</button>
+             </div>
+       </fieldset>
+@@ -152,4 +152,4 @@
+       </ldap-user-roles>
+     </div>
+   </div>
+-</div>
+\ No newline at end of file
++</div>
+diff -Naur a/app/access-control/controllers/ldap-controller.js b/app/access-control/controllers/ldap-controller.js
+--- a/app/access-control/controllers/ldap-controller.js	2020-11-12 07:17:22.777009093 -0500
++++ b/app/access-control/controllers/ldap-controller.js	2020-11-12 07:19:59.173963135 -0500
+@@ -10,8 +10,8 @@
+   'use strict';
+ 
+   angular.module('app.accessControl').controller('ldapController', [
+-    '$scope', 'APIUtils', '$q', 'toastService',
+-    function($scope, APIUtils, $q, toastService) {
++    '$scope', 'APIUtils', 'dataService', '$q', 'toastService',
++    function($scope, APIUtils, dataService, $q, toastService) {
+       $scope.loading = false;
+       $scope.isSecure = false;
+       $scope.ldapProperties = {};
+diff -Naur a/app/common/directives/app-navigation.html b/app/common/directives/app-navigation.html
+--- a/app/common/directives/app-navigation.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/common/directives/app-navigation.html	2020-11-12 07:20:22.001517947 -0500
+@@ -14,6 +14,11 @@
+       <ul class="nav__second-level btn-health" ng-style="navStyle" ng-class="{opened: (showHealthMenu)}">
+         <li ng-class="{'active': (path == '/server-health/sys-log')}">
+           <a href="#/server-health/sys-log" tabindex="{{(showHealthMenu) ? 0 : -1}}">
++            <span>System log</span>
++          </a>
++        </li>
++        <li ng-class="{'active': (path == '/server-health/event-log')}">
++          <a href="#/server-health/event-log" tabindex="{{(showHealthMenu) ? 0 : -1}}">
+             <span>Event log</span>
+           </a>
+         </li>
+diff -Naur a/app/common/directives/ldap-user-roles.html b/app/common/directives/ldap-user-roles.html
+--- a/app/common/directives/ldap-user-roles.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/common/directives/ldap-user-roles.html	2020-11-12 07:45:40.801499741 -0500
+@@ -3,7 +3,7 @@
+   <button
+     type="button"
+     ng-class="{'disabled' : roleGroupType === '' }"
+-    ng-disabled="roleGroupType === ''"
++    ng-disabled="roleGroupType === '' || dataService.isNotAdmin()"
+     class="btn btn-tertiary"
+     ng-click="addGroupFn(); $parent.newGroup={}"
+   >
+@@ -12,7 +12,7 @@
+   </button>
+   <button
+     type="button"
+-    ng-disabled="roleGroupType === '' || !hasSelectedGroup"
++    ng-disabled="roleGroupType === '' || !hasSelectedGroup || dataService.isNotAdmin()"
+     class="btn btn-tertiary"
+     ng-click="removeMultipleRoleGroupsFn() "
+   >
+@@ -33,7 +33,7 @@
+           <input
+             type="checkbox"
+             aria-labelledby="select-all-groups"
+-            ng-disabled="!enabled || roleGroups.length < 1 "
++            ng-disabled="!enabled || roleGroups.length < 1 || dataService.isNotAdmin()"
+             ng-click="toggleAll()"
+             ng-checked="roleGroupIsSelectedChanged()"
+             ng-model="all"
+@@ -122,6 +122,7 @@
+           class="btn btn-tertiary"
+           type="button"
+           aria-label="edit group {{ group.RemoteGroup }}"
++          ng-disabled="dataService.isNotAdmin()"
+           ng-click="editGroupFn(group.RemoteGroup, group.LocalRole, $index); newGroup.RemoteGroup = group.RemoteGroup; newGroup.LocalRole = group.LocalRole; selectedGroupIndex = $index"
+         >
+           <icon aria-hidden="true" file="icon-edit.svg"></icon>
+@@ -130,6 +131,7 @@
+           class="btn btn-tertiary"
+           type="button"
+           aria-label="delete group {{ group.RemoteGroup }}"
++          ng-disabled="dataService.isNotAdmin()"
+           ng-class="{'disabled' : roleGroups.length < 1}"
+           ng-click="removeGroupFn($index); newGroup.RemoteGroup = group.RemoteGroup; newGroup.LocalRole = group.LocalRole; selectedGroupIndex = $index"
+         >
+diff -Naur a/app/common/directives/ldap-user-roles.js b/app/common/directives/ldap-user-roles.js
+--- a/app/common/directives/ldap-user-roles.js	2020-11-12 07:17:22.781009015 -0500
++++ b/app/common/directives/ldap-user-roles.js	2020-11-12 07:45:51.177287054 -0500
+@@ -9,8 +9,8 @@
+         template: require('./ldap-user-roles.html'),
+         scope: {roleGroups: '=', enabled: '=', roleGroupType: '='},
+         controller: [
+-          '$scope', 'APIUtils', 'toastService', '$q',
+-          function($scope, APIUtils, toastService, $q) {
++          '$scope', 'APIUtils', 'dataService','toastService', '$q',
++          function($scope, APIUtils, dataService, toastService, $q) {
+             $scope.privileges = [];
+             $scope.loading = true;
+             $scope.newGroup = {};
+diff -Naur a/app/common/directives/log-event.html b/app/common/directives/log-event.html
+--- a/app/common/directives/log-event.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/common/directives/log-event.html	2020-11-12 07:46:28.940513396 -0500
+@@ -41,7 +41,7 @@
+         </div>
+         <div>
+           <div class="event__actions">
+-            <button class="btn  btn-tertiary" clipboard text="copyText(event)" on-copied="copySuccess(event)" on-error="copyfailed(err)">
++            <button class="btn  btn-tertiary" clipboard text="copyText(event)" on-copied="copySuccess(event)" ng-disabled="dataService.isNotAdmin()" on-error="copyfailed(err)">
+               <icon file="icon-copy.svg"></icon>
+               <span ng-if="!event.copied">Copy</span>
+               <span ng-if="event.copied">Copied</span>
+@@ -50,10 +50,10 @@
+               class="btn  btn-tertiary"
+               ng-class="{'disabled': multiSelected}"
+               ng-click="event.confirm= ! event.confirm"
+-              ng-disabled="multiSelected">
++              ng-disabled="multiSelected || dataService.isNotAdmin()">
+                 <icon file="icon-trashcan.svg"></icon>Delete
+             </button>
+-            <button class="btn  btn-tertiary" ng-class="{'disabled': (event.Resolved == 1 || multiSelected)}" ng-click="resolveEvent(event)" ng-disabled="event.Resolved == 1 || multiSelected">
++            <button class="btn  btn-tertiary" ng-class="{'disabled': (event.Resolved == 1 || multiSelected)}" ng-click="resolveEvent(event)" ng-disabled="event.Resolved == 1 || multiSelected || dataService.isNotAdmin()">
+               <icon file="icon-check.svg"></icon>Mark as resolved
+           </div>
+           <div class="event__related" ng-show="event.related_items.length">
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-11-12 07:17:22.781009015 -0500
++++ b/app/common/services/api-utils.js	2020-11-12 07:47:40.015059142 -0500
+@@ -1009,6 +1009,23 @@
+                       },
+                           severityText = '', order = 0;
+ 
++		      //replace null values to zero
++                      if(reading.hasOwnProperty('Value') && reading.Value == null){
++                        reading.Value = 0;
++                      }
++                      if(reading.hasOwnProperty('CriticalLow') && reading.CriticalLow == null){
++                        reading.CriticalLow = 0;
++                      }
++                      if(reading.hasOwnProperty('CriticalHigh') && reading.CriticalHigh == null){
++                        reading.CriticalHigh = 0;
++                      }
++                      if(reading.hasOwnProperty('WarningLow') && reading.WarningLow == null){
++                        reading.WarningLow = 0;
++                      }
++                      if(reading.hasOwnProperty('WarningHigh') && reading.WarningHigh == null){
++                        reading.WarningHigh = 0;
++                      } 
++
+                       if (reading.hasOwnProperty('CriticalLow') &&
+                           reading.Value < reading.CriticalLow) {
+                         severityFlags.critical = true;
+@@ -1064,7 +1081,7 @@
+ 
+                         tempKeyParts = key.split('/');
+                         title = tempKeyParts.pop();
+-                        title = tempKeyParts.pop() + '_' + title;
++                        //title = tempKeyParts.pop() + '_' + title;
+                         title = title.split('_')
+                                     .map(function(item) {
+                                       return item.toLowerCase()
+diff -Naur a/app/configuration/controllers/date-time-controller.html b/app/configuration/controllers/date-time-controller.html
+--- a/app/configuration/controllers/date-time-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/configuration/controllers/date-time-controller.html	2020-11-12 07:50:19.575801761 -0500
+@@ -9,7 +9,7 @@
+       <div class="column large-8">
+         <div class="row column">
+           <label class="control-radio" for="ntp-time">Obtain Automatically from a Network Time Protocol (NTP) Server
+-            <input type="radio" id="ntp-time" ng-model="time.mode" value="NTP">
++            <input type="radio" id="ntp-time" ng-model="time.mode" value="NTP" ng-disabled="dataService.isNotAdmin()">
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+@@ -17,18 +17,18 @@
+           <fieldset class="date-time__ntp-servers" ng-repeat="server in ntp.servers track by $index" ng-if="$index < 2">
+             <label for="ntp-server{{$index+1}}">NTP Server Address {{$index+1}} <span ng-if="$first">(Primary)</span><span ng-if="!$first">(Secondary)</span></label>
+             <div class="inline">
+-              <input id="ntp-server{{$index+1}}" name="ntpserver{{$index+1}}" type="text" ng-readonly="time.mode != 'NTP'" ng-model="server" ng-pattern="validateNTPField" ng-blur="ntp.servers[$index] = server" required set-focus-on-new-input/>
++              <input id="ntp-server{{$index+1}}" name="ntpserver{{$index+1}}" type="text" ng-readonly="time.mode != 'NTP'" ng-model="server" ng-pattern="validateNTPField" ng-blur="ntp.servers[$index] = server" ng-disabled="dataService.isNotAdmin()" required set-focus-on-new-input/>
+               <span class="modal__error" ng-show="date_time_form.ntpserver{{$index+1}}.$error.pattern">Invalid format.</span>
+             </div>
+-            <button type="button" class="btn  date-time__dns-remove btn-tertiary" ng-click="removeNTPField($index)">Remove</button>
++            <button type="button" class="btn  date-time__dns-remove btn-tertiary" ng-click="removeNTPField($index)" ng-disabled="dataService.isNotAdmin()">Remove</button>
+           </fieldset>
+         </div>
+         <div class="row column date-time__ntp-servers-wrap">
+-          <button type="button" class="btn btn-primary" ng-click="addNTPField()" ng-disabled="ntp.servers.length >= 2">Add new NTP server</button>
++          <button type="button" class="btn btn-primary" ng-click="addNTPField()" ng-disabled="ntp.servers.length >= 2 || dataService.isNotAdmin()">Add new NTP server</button>
+         </div>
+         <div class="row column">
+           <label class="control-radio" for="manual-time">Manually set date and time
+-            <input type="radio" id="manual-time" ng-model="time.mode" value="Manual"/>
++            <input type="radio" id="manual-time" ng-model="time.mode" value="Manual" ng-disabled="dataService.isNotAdmin()"/>
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+@@ -36,8 +36,8 @@
+           <li class="date-time__metadata-block">
+             <p class="content-label">BMC <span ng-if="time.owner != 'Split'">and Host</span> Time</p>
+             <div class="inline">
+-              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP'" min="2018-01-01" max="2099-12-31"/>
+-              <input type="time" ng-model="bmc.date" ng-readonly="time.mode == 'NTP'" />
++              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="2018-01-01" max="2099-12-31"/>
++              <input type="time" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{bmc.timezone}}</p>
+             </div>
+           </li>
+@@ -45,8 +45,8 @@
+             <p class="content-label">Host Time</p>
+             <div class="inline">
+               <!--- Ideally, would just use one input, datetime-local, but datetime-local is not supported on Firefox.--->
+-              <input type="date" ng-model="host.date" min="2018-01-01" max="2099-12-31"/>
+-              <input type="time" ng-model="host.date"/>
++              <input type="date" ng-model="host.date" ng-readonly="dataService.isNotAdmin()" min="2018-01-01" max="2099-12-31"/>
++              <input type="time" ng-model="host.date" ng-readonly="dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{host.timezone}}</p>
+             </div>
+           </li>
+@@ -60,8 +60,8 @@
+       </div>
+     </fieldset>
+     <div class="time__submit-wrapper">
+-      <button type="button" class="btn  btn-primary" ng-disabled="date_time_form.$invalid" ng-click="saveDateTimeSettings()">Save settings</button>
+-      <button type="button" class="btn  btn-secondary" ng-click="refresh()">Cancel</button>
++      <button type="button" class="btn  btn-primary" ng-disabled="date_time_form.$invalid || dataService.isNotAdmin()" ng-click="saveDateTimeSettings()">Save settings</button>
++      <button type="button" class="btn  btn-secondary" ng-click="refresh() || dataService.isNotAdmin()">Cancel</button>
+     </div>
+   </form>
+ </div>
+diff -Naur a/app/configuration/controllers/firmware-controller.html b/app/configuration/controllers/firmware-controller.html
+--- a/app/configuration/controllers/firmware-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/configuration/controllers/firmware-controller.html	2020-11-12 07:50:55.835062740 -0500
+@@ -21,11 +21,11 @@
+       <h3>Upload image file from workstation</h3>
+       <p>Select the image file saved on the workstation storage medium to upload to the server BMC.</p>
+       <label for="file-upload" class="inline firmware__upload-chooser">
+-        <input id="file-upload" type="file" file="file" class="hide"/>
+-        <span class="btn btn-secondary">Choose a file</span>
++        <input id="file-upload" type="file" file="file" class="hide" ng-disabled="dataService.isNotAdmin()"/>
++        <span class="btn btn-secondary" ng-disabled="dataService.isNotAdmin()">Choose a file</span>
+         <span class="inline firmware__upload-file-name"><span ng-if="!file">No file chosen</span><span ng-if="file.name !== undefined">{{file.name}}</span></span>
+       </label>
+-      <input type="button" value="Upload firmware" class="btn btn-primary float-right" ng-click="upload()"/>
++      <input type="button" value="Upload firmware" class="btn btn-primary float-right" ng-click="upload()" ng-disabled="dataService.isNotAdmin()"/>
+       <div class="inline uploading" ng-show="uploading">Upload in progress...</div>
+     </div>
+     <div class="column firmware__upload-tftp">
+@@ -35,14 +35,14 @@
+         <div class="row">
+           <div class="column small-12 large-4">
+             <label for="tftp-ip">TFTP Server IP address</label>
+-            <input name="tftp-ip" id="tftp-ip" type="text"  ng-model="download_host"/>
++            <input name="tftp-ip" id="tftp-ip" type="text"  ng-model="download_host" ng-disabled="dataService.isNotAdmin()"/>
+           </div>
+           <div class="column small-12 large-4">
+             <label for="tftp-file-name">File name</label>
+-            <input name="tftp-file-name" id="tftp-file-name" type="text"  ng-model="download_filename"/>
++            <input name="tftp-file-name" id="tftp-file-name" type="text"  ng-model="download_filename" ng-disabled="dataService.isNotAdmin()"/>
+           </div>
+           <div class="column small-12 large-4">
+-            <input type="button" value="Download firmware" class="btn btn-primary float-right" ng-click="download()"/>
++            <input type="button" value="Download firmware" class="btn btn-primary float-right" ng-click="download()" ng-disabled="dataService.isNotAdmin()"/>
+           </div>
+         </div>
+         <div class="inline uploading" ng-show="downloading">Downloading in progress...</div>
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/configuration/controllers/network-controller.html	2020-11-12 07:52:08.733578074 -0500
+@@ -13,7 +13,7 @@
+         <div class="column small-12 large-3">
+           <label for="net-config__mac">Hostname</label>
+ 	  <!--<input id="net-config__mac" type="text" ng-model="hostname" />-->
+-	  <input id="net-config__mac" type="text" ng-model="hostname" name="hostname" ng-pattern="validateHostname" set-focus-on-new-input required/>
++	  <input id="net-config__mac" type="text" ng-model="hostname" name="hostname" ng-pattern="validateHostname" ng-disabled="dataService.isNotAdmin()" set-focus-on-new-input required/>
+           <span class="modal__error" ng-show="network_form.hostname.$error.pattern">Invalid format.</span>
+         </div>
+         <div class="column small-12 large-3">
+@@ -31,13 +31,13 @@
+         <div class="column small-12 large-3">
+           <label for="net-config__host">MAC address</label>
+           <!--input id="net-config__host" type="text" ng-model="interface.MACAddress" /-->
+-          <input name="mac_address" id="net-config__host" type="text" ng-model="interface.MACAddress" ng-change="validate_mac_address()"/>
++          <input name="mac_address" id="net-config__host" type="text" ng-model="interface.MACAddress" ng-disabled="dataService.isNotAdmin()" ng-change="validate_mac_address()"/>
+           <span class="modal__error" ng-show="false_mac_address">Invalid MAC Address.</span>
+         </div>
+         <div class="column small-12 large-3">
+           <label for="net-config__domain">Default Gateway</label>
+           <!--<input id="net-config__domain" type="text" ng-model="defaultGateway" />-->
+-	  <input id="net-config__domain" type="text" name = "defaultGateway" ng-model="defaultGateway"  ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++	  <input id="net-config__domain" type="text" name = "defaultGateway" ng-model="defaultGateway" ng-disabled="dataService.isNotAdmin()" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+           <span class="modal__error" ng-show="network_form.defaultGateway.$error.pattern">Invalid IPv4 format.</span>
+         </div>
+       </div>
+@@ -49,14 +49,14 @@
+       <div class="net-config__fieldset-content">
+         <div class="row column">
+           <label class="control-radio" for="dhcp-address">Obtain an IP address automatically using DHCP
+-            <input type="radio" name="ip-address" id="dhcp-address" ng-checked="true" ng-model="interface.DHCPEnabled"
++            <input type="radio" name="ip-address" id="dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin()" ng-model="interface.DHCPEnabled"
+               ng-value="true">
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+         <div class="row column">
+           <label class="control-radio" for="static-ip-address">Assign a static IP address
+-            <input type="radio" name="ip-address" id="static-ip-address" ng-model="interface.DHCPEnabled"
++            <input type="radio" name="ip-address" id="static-ip-address" ng-disabled="dataService.isNotAdmin()" ng-model="interface.DHCPEnabled"
+               ng-value="false" />
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+@@ -66,29 +66,29 @@
+             <div class="column small-12 large-3">
+               <label for="ipv4-address-{{$index+1}}">IPV4 address</label>
+               <input id="ipv4-address-{{$index+1}}" name="netipv4{{$index+1}}" ng-change="ipv4.updateAddress = true" type="text"
+-                ng-disabled="interface.DHCPEnabled" ng-model="ipv4.Address" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/" set-focus-on-new-input ng-required="!interface.DHCPEnabled"/>
++                ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()" ng-model="ipv4.Address" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/" set-focus-on-new-input ng-required="!interface.DHCPEnabled"/>
+ 	      <span class="modal__error" ng-show="network_form.netipv4{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <div class="column small-12 large-3">
+               <label for="ipv4-gateway-{{$index+1}}">Gateway</label>
+               <input id="ipv4-gateway-{{$index+1}}" name="netipv4gateway{{$index+1}}" ng-change="ipv4.updateGateway = true" type="text"
+-                ng-disabled="interface.DHCPEnabled" value="" ng-model="ipv4.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++                ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()" value="" ng-model="ipv4.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+ 	       <span class="modal__error" ng-show="network_form.netipv4gateway{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <!-- This netmask prefix length max only works with IPV4 -->
+             <div class="column small-12 large-6">
+               <label for="ipv4-prefix-{{$index+1}}">Netmask Prefix Length</label>
+               <input id="ipv4-prefix-{{$index+1}}" class="column small-6" ng-change="ipv4.updatePrefix = true"
+-                type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled"
++                type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()"
+                 ng-model="ipv4.PrefixLength" ng-required="!interface.DHCPEnabled"/>
+               <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)" 
+-                 ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length == 1">Remove</button>
++                 ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length == 1 || dataService.isNotAdmin()">Remove</button>
+             </div>
+           </fieldset>
+           <div class="row column">
+             <div class="column small-12">
+               <!--button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled">Add IPV4 address</button-->
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length >= 2">Add IPV4 address</button>
++              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length >= 2 || dataService.isNotAdmin()">Add IPV4 address</button>
+             </div>
+           </div>
+         </div>
+@@ -105,14 +105,14 @@
+             <label for="net-config__prime-dns{{$index+1}}">DNS Server {{$index+1}}</label>
+             <!--input id="net-config__prime-dns{{$index+1}}" class="network-input column small-6 large-4 inline"
+               type="text" ng-model="dns" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input /-->
+-            <input id="net-config__prime-dns{{$index+1}}" name="netdns{{$index+1}}" class="network-input column small-6 large-4 inline" type="text" ng-model="dns"ng-pattern="/^[a-zA-Z0-9\\.-]{0,64}$/" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input />
++            <input id="net-config__prime-dns{{$index+1}}" name="netdns{{$index+1}}" ng-disabled="dataService.isNotAdmin()" class="network-input column small-6 large-4 inline" type="text" ng-model="dns"ng-pattern="/^[a-zA-Z0-9\\.-]{0,64}$/" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input />
+             <span class="modal__error" ng-show="network_form.netdns{{$index+1}}.$error.pattern">Invalid format.</span>
+-            <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="removeDNSField($index)">Remove</button>
++            <button type="button" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  network-config_remove-button" ng-click="removeDNSField($index)">Remove</button>
+           </div>
+         </div>
+         <div class="row column">
+           <div class="column small-12">
+-            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()" ng-disabled="interface.Nameservers.length >= 1" >Add DNS server</button>
++            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()" ng-disabled="interface.Nameservers.length >= 1 || dataService.isNotAdmin()" >Add DNS server</button>
+           </div>
+         </div>
+       </div>
+@@ -120,9 +120,9 @@
+     <div class="row column">
+       <div class="network-config__submit-wrapper column">
+         <div class="float-right">
+-          <button type="button" class="btn  btn-secondary" ng-click="refresh()">Cancel</button>
++          <button type="button" class="btn  btn-secondary" ng-click="refresh() || dataService.isNotAdmin()">Cancel</button>
+           <!--button type="button" class="btn  btn-primary" ng-click="confirmSettings=true;">Save settings</button-->
+-          <button type="button" class="btn  btn-primary" ng-click="saveConfirm()" ng-disabled="network_form.$invalid" ng-class="{'disabled' : network_form.$invalid}">Save settings</button>
++          <button type="button" class="btn  btn-primary" ng-click="saveConfirm()" ng-disabled="network_form.$invalid || dataService.isNotAdmin()" ng-class="{'disabled' : network_form.$invalid}">Save settings</button>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/configuration/controllers/snmp-controller.html b/app/configuration/controllers/snmp-controller.html
+--- a/app/configuration/controllers/snmp-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/configuration/controllers/snmp-controller.html	2020-11-12 07:52:33.553072916 -0500
+@@ -34,6 +34,7 @@
+               type="text"
+               ng-change="manager.updateAddress=true"
+               ng-model="manager.address"
++              ng-disabled="dataService.isNotAdmin()"
+               required/>
+             <div
+               ng-messages="manager_group['snmp-manager'+($index+1)+'-address'].$error"
+@@ -53,6 +54,7 @@
+               step="1"
+               ng-change="manager.updatePort=true"
+               ng-model="manager.port"
++              ng-disabled="dataService.isNotAdmin()"
+               required/>
+             <div
+               ng-messages="manager_group['snmp-manager'+($index+1)+'-port'].$error"
+@@ -66,6 +68,7 @@
+               class="btn btn-tertiary trash_button"
+               type="button"
+               ng-click="removeSNMPManager($index)"
++              ng-disabled="dataService.isNotAdmin()"
+               aria-label="Remove">
+               <icon file="icon-trashcan.svg" aria-hidden="true"></icon>
+             </button>
+@@ -76,6 +79,7 @@
+         <button
+           class="btn btn-tertiary btn-add-manager"
+           type="button"
++          ng-disabled="dataService.isNotAdmin()"
+           ng-click="submitted=false; addNewSNMPManager();">
+           <icon file="icon-plus.svg" aria-hidden="true"></icon>Add manager
+         </button>
+@@ -84,10 +88,11 @@
+         <button
+           type="submit"
+           class="btn btn-primary"
++          ng-disabled="dataService.isNotAdmin()"
+           ng-click="submitted=true;  snmp__form.$valid && setSNMP();">
+           Save settings
+         </button>
+-        <button type="button" class="btn btn-secondary" ng-click="refresh()">
++        <button type="button" class="btn btn-secondary" ng-disabled="dataService.isNotAdmin()" ng-click="refresh()">
+           Cancel
+         </button>
+       </div>
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2020-11-12 07:17:22.781009015 -0500
++++ b/app/index.js	2020-11-12 07:59:37.121239171 -0500
+@@ -188,8 +188,8 @@
+         }
+       ])
+       .run([
+-        '$rootScope', '$location', 'dataService', 'userModel', '$cookies',
+-        function($rootScope, $location, dataService, userModel, $cookies) {
++        '$rootScope', '$location', 'dataService', 'userModel', '$cookies','$window',
++        function($rootScope, $location, dataService, userModel, $cookies, $window) {
+           $rootScope.dataService = dataService;
+           dataService.path = $location.path();
+           $rootScope.$on('$routeChangeStart', function(event, next, current) {
+@@ -229,6 +229,12 @@
+ 
+             $location.path('/login');
+           });
++          
++          $window.addEventListener('beforeunload', function(){
++            sessionStorage.clear();
++            $cookies.remove('IsAuthenticated');
++            $location.path('/login');
++          });
+         }
+       ]);
+ })(window.angular);
+diff -Naur a/app/overview/controllers/system-overview-controller.html b/app/overview/controllers/system-overview-controller.html
+--- a/app/overview/controllers/system-overview-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/overview/controllers/system-overview-controller.html	2020-11-12 07:53:16.492199306 -0500
+@@ -3,7 +3,7 @@
+   <div class="row">
+     <div class="small-12 large-8" id="hostname_in_system_overview">
+       <h1 class="page-title inline" >{{ dataService.hostname }}</h1>
+-      <button class="btn  btn-tertiary" ng-click="edit_hostname = !edit_hostname" aria-label="edit host name">
++      <button class="btn  btn-tertiary" ng-click="edit_hostname = !edit_hostname" aria-label="edit host name" ng-disabled="dataService.isNotAdmin()">
+         <icon class="nav-icon" aria-hidden="true" file="icon-edit.svg"></icon>
+       </button>
+     </div>
+@@ -92,7 +92,7 @@
+     </div>
+     <div class="small-12 large-4">
+       <div class="quick-links">
+-        <a href="#/server-health/event-log/high" class="quick-links__item quick-links__events event-log__events"
++        <a href="#/server-health/sys-log/high" class="quick-links__item quick-links__events event-log__events"
+           ng-show="logs.length">
+           <!-- link to event log filtered to the high priority events -->
+           <span class="inline quick-links__event-copy">
+@@ -112,7 +112,7 @@
+             <div class="toggle">
+               <input id="toggle__switch-round" class="toggle-switch toggle-switch__round-flat" type="checkbox"
+                 tabindex="0" ng-click="toggleLED()" ng-checked="dataService.LED_state == 'on'"
+-                ng-disabled="dataService.server_unreachable" />
++                ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()" />
+               <label for="toggle__switch-round" tabindex="0">Server LED is
+                 <span class="uid-switch__status">{{
+                   dataService.LED_state
+@@ -138,13 +138,13 @@
+   <div class="section overview__event-log event-log__events" ng-show="logs.length">
+     <div class="section-header">
+       <h2 class="section-title h3">High priority events ({{ logs.length }})</h2>
+-      <a href="#/server-health/event-log/">
+-        View all event logs
++      <a href="#/server-health/sys-log/">
++        View all system logs
+       </a>
+     </div>
+ 
+     <!-- single event -->
+-    <a href="#/server-health/event-log/high" ng-repeat="event in logs|orderBy:'-Id'|limitTo : 5">
++    <a href="#/server-health/sys-log/high" ng-repeat="event in logs|orderBy:'-Id'|limitTo : 5">
+       <div class="row column event-log__single-event">
+         <div class="row">
+           <!-- click will go to specific event in event log page-->
+diff -Naur a/app/server-control/controllers/bmc-reboot-controller.html b/app/server-control/controllers/bmc-reboot-controller.html
+--- a/app/server-control/controllers/bmc-reboot-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-control/controllers/bmc-reboot-controller.html	2020-11-12 07:53:33.995843304 -0500
+@@ -19,7 +19,7 @@
+     </div>
+   </div>
+   <div class="row column">
+-    <button id="bmc__reboot" class="btn  btn-secondary" ng-class="{disabled: confirm}" ng-click="rebootConfirm()" ng-disabled="dataService.server_unreachable">
++    <button id="bmc__reboot" class="btn  btn-secondary" ng-class="{disabled: confirm}" ng-click="rebootConfirm()" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()">
+       <icon file="icon-restart.svg"></icon>Reboot BMC
+     </button>
+   </div>
+diff -Naur a/app/server-control/controllers/power-operations-controller.html b/app/server-control/controllers/power-operations-controller.html
+--- a/app/server-control/controllers/power-operations-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-control/controllers/power-operations-controller.html	2020-11-12 07:54:30.662691211 -0500
+@@ -42,7 +42,7 @@
+               Boot setting override</label>
+             <select name="bootSelected"
+                     id="boot-selected"
+-                    ng-disabled="dataService.server_unreachable || bootOverrideError"
++                    ng-disabled="dataService.server_unreachable || bootOverrideError || dataService.isNotAdmin()"
+                     ng-model="boot.BootSourceOverrideTarget"
+                     ng-change="onChangeBootSetting()">
+               <option class="courier-bold" value="{{bootSource}}" ng-repeat="bootSource in bootSources">
+@@ -55,6 +55,7 @@
+                 <input type="checkbox"
+                        name="oneTime"
+                        ng-disabled="dataService.server_unreachable ||
++                                    dataService.isNotAdmin() ||
+                                     bootOverrideError ||
+                                     boot.BootSourceOverrideTarget =='None'"
+                        ng-model="boot.oneTimeBootEnabled"/>
+@@ -79,7 +80,7 @@
+                       type="checkbox"
+                       tabindex="0"
+                       ng-model="TPMToggle.TPMEnable"
+-                      ng-disabled="dataService.server_unreachable"
++                      ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()"
+                     />
+                     <label for="toggle__switch-round" tabindex="0"
+                       >TPM required policy is {{ TPMToggle.TPMEnable ? "On" : "Off" }}</label
+@@ -93,10 +94,10 @@
+           </div>
+           <!-- form actions -->
+           <div class="boot-form-actions">
+-            <button type="submit" class="btn btn-primary" ng-click="saveBootSettings();saveTPMPolicy();hostBootSettings.$setPristine()" ng-disabled="dataService.server_unreachable || hostBootSettings.$pristine;">
++            <button type="submit" class="btn btn-primary" ng-click="saveBootSettings();saveTPMPolicy();hostBootSettings.$setPristine()" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin() || hostBootSettings.$pristine;">
+               Save
+             </button>
+-            <button type="reset" class="btn btn-secondary" ng-disabled="dataService.server_unreachable || hostBootSettings.$pristine" ng-click="resetForm();hostBootSettings.$setPristine()">
++            <button type="reset" class="btn btn-secondary" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin() || hostBootSettings.$pristine" ng-click="resetForm();hostBootSettings.$setPristine()">
+               Cancel
+             </button>
+           </div>
+@@ -129,7 +130,7 @@
+     <div class="row column" ng-show="dataService.server_state == 'Off'"
+       ng-class="{disabled: dataService.server_unreachable}">
+       <button id="power__power-on" class="btn btn-primary inline" ng-click="powerOn()" role="button"
+-        ng-disabled="dataService.server_unreachable">
++        ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()">
+         Power on
+       </button>
+     </div>
+@@ -152,7 +153,7 @@
+               </label>
+             </fieldset>
+               <div>
+-                <button class="btn btn-primary" ng-click="rebootConfirmModal()" type="submit" ng-disabled="dataService.server_unreachable">
++                <button class="btn btn-primary" ng-click="rebootConfirmModal()" type="submit" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()">
+                   Reboot
+                 </button>
+               </div>
+@@ -175,7 +176,7 @@
+             </label>
+            </fieldset>
+             <div>
+-              <button class="btn btn-primary" ng-click="shutdownConfirmModal()" type="submit" ng-disabled="dataService.server_unreachable">
++              <button class="btn btn-primary" ng-click="shutdownConfirmModal()" type="submit" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()">
+                 Shut down
+               </button>
+             </div>
+@@ -185,4 +186,4 @@
+   </div>
+   </div>
+   </div>
+-</div>
+\ No newline at end of file
++</div>
+diff -Naur a/app/server-control/controllers/power-usage-controller.html b/app/server-control/controllers/power-usage-controller.html
+--- a/app/server-control/controllers/power-usage-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-control/controllers/power-usage-controller.html	2020-11-12 07:54:52.198253533 -0500
+@@ -31,6 +31,7 @@
+               tabindex="0"
+               ng-model="power_cap.PowerCapEnable"
+               ng-checked="power_cap.PowerCapEnable"
++              ng-disabled="dataService.isNotAdmin()"
+             />
+             <label for="toggle__switch-round" tabindex="0"
+               >Server power cap setting is
+@@ -54,16 +55,16 @@
+           min="100"
+           max="10000"
+           step="1"
+-          ng-disabled="!power_cap.PowerCapEnable"
++          ng-disabled="!power_cap.PowerCapEnable || dataService.isNotAdmin()"
+           ng-model="power_cap.PowerCap"
+         />
+       </div>
+     </section>
+     <div class="form__actions">
+-      <button type="submit" class="btn-primary" ng-click="setPowerCap()">
++      <button type="submit" class="btn-primary" ng-click="setPowerCap()" ng-disabled="dataService.isNotAdmin()">
+         Save settings
+       </button>
+-      <button type="button" class="btn btn-secondary" ng-click="refresh()">
++      <button type="button" class="btn btn-secondary" ng-click="refresh()" ng-disabled="dataService.isNotAdmin()">
+         Cancel
+       </button>
+     </div>
+diff -Naur a/app/server-control/controllers/server-led-controller.html b/app/server-control/controllers/server-led-controller.html
+--- a/app/server-control/controllers/server-led-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-control/controllers/server-led-controller.html	2020-11-12 07:55:01.254069517 -0500
+@@ -27,7 +27,7 @@
+           tabindex="0"
+           ng-click="toggleLED()"
+           ng-checked="dataService.LED_state == 'on'"
+-          ng-disabled="dataService.server_unreachable"
++          ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()"
+         />
+         <label for="toggle__switch-round" tabindex="0"
+           >Server LED indicator is
+diff -Naur a/app/server-health/controllers/log-controller.html b/app/server-health/controllers/log-controller.html
+--- a/app/server-health/controllers/log-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-health/controllers/log-controller.html	2020-11-12 07:55:29.149502758 -0500
+@@ -2,7 +2,7 @@
+ <div id="event-log">
+   <div class="row column">
+    <div class="column small-6 large-7 no-padding">
+-     <h1>Event log</h1>
++     <h1>System log</h1>
+    </div>
+    <div class="column small-6 large-5">
+      <remote-logging-server class="remote-logging-server"></remote-logging-server>
+@@ -54,13 +54,13 @@
+         <p class="inline" ng-hide="selectedEvents.length"><span class="event__select-count">{{filteredLogs.length}}</span> Events are logged</p>
+         <!-- when logs are selected, this text changes to show how many logs are checked -->
+         <div class="event__actions">
+-          <button class="btn  btn-tertiary" ng-class="{'disabled': (!selectedEvents.length && !all)}" ng-disabled="!selectedEvents.length && !all" ng-click="confirm= ! confirm">
++          <button class="btn  btn-tertiary" ng-class="{'disabled': (!selectedEvents.length && !all)}" ng-disabled="dataService.isNotAdmin() || (!selectedEvents.length && !all)" ng-click="confirm= ! confirm">
+             <icon file="icon-trashcan.svg"></icon>Delete
+           </button>
+-          <button class="btn  btn-tertiary" ng-class="{'disabled': ((selectedEvents|unResolvedCount) == 0)}" ng-click="resolve()" ng-disabled="(selectedEvents|unResolvedCount) == 0">
++          <button class="btn  btn-tertiary" ng-class="{'disabled': ((selectedEvents|unResolvedCount) == 0)}" ng-click="resolve()" ng-disabled="dataService.isNotAdmin() || ((selectedEvents|unResolvedCount) == 0)">
+             <icon file="icon-check.svg"></icon>Mark as resolved
+           </button>
+-          <a ng-href="data:text/json;charset=utf-8,{{export_data}}" class="btn  btn-tertiary"  ng-class="{'disabled': (!selectedEvents.length && !all)}" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
++          <a ng-href="data:text/json;charset=utf-8,{{export_data}}" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary"  ng-class="{'disabled': (!selectedEvents.length && !all)}" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.html b/app/server-health/controllers/sensors-overview-controller.html
+--- a/app/server-health/controllers/sensors-overview-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-health/controllers/sensors-overview-controller.html	2020-11-12 07:57:00.727643032 -0500
+@@ -66,7 +66,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low critical</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.CriticalLow}}</span>
++              <span class="sensors__tbody-info">{{sensor.CriticalLow | number:0}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -74,7 +74,7 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low warning</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.WarningLow}}</span>
++              <span class="sensors__tbody-info">{{sensor.WarningLow | number:0}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -82,7 +82,8 @@
+         <td class="sensors__tbody-cell sensors__tbody-current" ng-class="{'sensors__tbody-current--critical': sensor.status == 'critical', 'sensors__tbody-current--warn': sensor.status == 'warning', 'sensors__tbody-current--normal': sensor.status == 'normal'}">
+           <span class="sensors__tbody-cell__title">Current</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.Value}}</span>
++              <span class="sensors__tbody-info" ng-if="sensor.Value == '' || sensor.Value == null">0</span>
++              <span class="sensors__tbody-info" ng-if="sensor.Value != ''">{{sensor.Value | number:0}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -90,7 +91,8 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High warning</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info">{{sensor.WarningHigh}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh != '' || sensor.WarningHigh != null">{{sensor.WarningHigh | number:0}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh == '' || sensor.WarningHigh == null">0</span>
+             <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -98,7 +100,8 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High critical</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info">{{sensor.CriticalHigh}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh != '' || sensor.CriticalHigh != null">{{sensor.CriticalHigh | number:0}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh == '' || sensor.CriticalHigh == null">0</span>
+             <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+diff -Naur a/app/server-health/controllers/syslog-controller.html b/app/server-health/controllers/syslog-controller.html
+--- a/app/server-health/controllers/syslog-controller.html	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-health/controllers/syslog-controller.html	2020-11-12 07:57:54.562550347 -0500
+@@ -2,7 +2,7 @@
+ <div id="sys-log">
+     <section id="sys-log__logs">
+       <div class="row column">
+-        <h1>System Logs</h1>
++        <h1>Event Logs</h1>
+         <div class="page-header">
+           <p class="inline h4">Select system log type: </p>
+           <div class="inline dropdown__wrapper" >
+@@ -13,8 +13,8 @@
+               </li>
+             </ul>
+           </div>
+-          <a ng-href="data:text/json;charset=utf-8,{{sysLogs}}" class="inline btn-export float-right"  download="systemLogs.json" ng-show="sysLogs.length">Export </a>
+-          <button class="inline clear-input float-right btn-secondary" ng-click="confirm = !confirm" ng-show="sysLogs.length">&#10005; Clear {{selectedRecordType}} Logs</button>
++          <a ng-href="data:text/json;charset=utf-8,{{download_syslog}}" class="inline btn-export float-right"  download="systemLogs.json" ng-show="sysLogs.length" ng-disabled="dataService.isNotAdmin()">Export </a>
++          <button class="inline clear-input float-right btn-secondary" ng-disabled="dataService.isNotAdmin()" ng-click="confirm = !confirm" ng-show="sysLogs.length">&#10005; Clear {{selectedRecordType}} Logs</button>
+           <div class="inline__confirm sys-log__confirm" ng-show="confirm">
+             <div class="inline__confirm-message">
+               <p class="h3">Are you sure you want to <strong class="ng-binding">clear {{selectedRecordType}} logs</strong>?
+@@ -91,9 +91,11 @@
+             <div class="table__cell sys-log__col-wrapper sys-log__col-id">{{log.Id}}</div>
+             <div class="table__cell sys-log__col-wrapper">{{log.Created | localeDate}}</div>
+             <div class="table__cell sys-log__col-wrapper">{{log.Name}}</div>
+-            <div class="table__cell sys-log__col-wrapper">{{log.SensorType}}</div>
+-            <div class="table__cell sys-log__col-wrapper sys-log__col-sev">{{log.Severity}}</div>
+-            <div class="table__cell sys-log__col-wrapper sys-log__col-desc">{{log.Message}}</div>
++            <div class="table__cell sys-log__col-wrapper">{{log.EntryType}}</div>
++            <div class="table__cell sys-log__col-wrapper sys-log__col-sev" ng-if="log.Severity == ''">--</div>
++            <div class="table__cell sys-log__col-wrapper sys-log__col-sev" ng-if="log.Severity != ''">{{log.Severity}}</div>
++            <div class="table__cell sys-log__col-wrapper sys-log__col-desc" ng-if="log.Message == ''">No Description were logged to Preview.</div>
++            <div class="table__cell sys-log__col-wrapper sys-log__col-desc" ng-if="log.Message != ''">{{log.Message}}</div>
+           </div>
+         </div>
+       </div>
+diff -Naur a/app/server-health/controllers/syslog-controller.js b/app/server-health/controllers/syslog-controller.js
+--- a/app/server-health/controllers/syslog-controller.js	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-health/controllers/syslog-controller.js	2020-11-12 07:58:24.769937394 -0500
+@@ -39,6 +39,7 @@
+             $scope.selectedRecordType = recordType;
+             $scope.showLogDropdown = false;
+             $scope.filterTypes = [];
++            $scope.download_syslog = [];
+ 
+             APIUtils.getSystemLogs(recordType)
+                 .then(
+@@ -46,8 +47,18 @@
+                       $scope.sysLogs = res;
+                       $scope.filterTypes.push('All');
+                       $scope.sysLogs.forEach(function(log) {
+-                        if ($scope.filterTypes.indexOf(log.SensorType) < 0) {
+-                          $scope.filterTypes.push(log.SensorType);
++                        var obj = {
++                          Id:log.Id,
++                          Created:log.Created,
++                          EntryType:log.EntryType,
++                          Message:log.Message
++                        };
++                        $scope.download_syslog.push(obj);
++
++                        if(log.SensorType != undefined && log.SensorType != null){
++                          if ($scope.filterTypes.indexOf(log.SensorType) < 0) {
++                            $scope.filterTypes.push(log.SensorType);
++                          }
+                         }
+                       });
+                     },
+diff -Naur a/app/server-health/index.js b/app/server-health/index.js
+--- a/app/server-health/index.js	2020-11-12 07:17:22.781009015 -0500
++++ b/app/server-health/index.js	2020-11-12 07:58:49.517435312 -0500
+@@ -15,17 +15,17 @@
+         '$routeProvider',
+         function($routeProvider) {
+           $routeProvider
+-              .when('/server-health/event-log', {
++              .when('/server-health/sys-log', {
+                 'template': require('./controllers/log-controller.html'),
+                 'controller': 'logController',
+                 authenticated: true
+               })
+-              .when('/server-health/event-log/:type', {
++              .when('/server-health/sys-log/:type', {
+                 'template': require('./controllers/log-controller.html'),
+                 'controller': 'logController',
+                 authenticated: true
+               })
+-              .when('/server-health/event-log/:type/:id', {
++              .when('/server-health/sys-log/:type/:id', {
+                 'template': require('./controllers/log-controller.html'),
+                 'controller': 'logController',
+                 authenticated: true
+@@ -42,7 +42,7 @@
+                 'controller': 'sensorsOverviewController',
+                 authenticated: true
+               })
+-              .when('/server-health/sys-log', {
++              .when('/server-health/event-log', {
+                 'template': require('./controllers/syslog-controller.html'),
+                 'controller': 'sysLogController',
+                 authenticated: true

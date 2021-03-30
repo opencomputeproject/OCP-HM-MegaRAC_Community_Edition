@@ -1,0 +1,37 @@
+<loader loading="loading"></loader>
+<section id="bmc-reboot">
+  <div class="row column">
+    <h1>Restore Factory Defaults</h1>
+  </div>
+  <div class="row column">
+    <div class="page-header">
+      <h2 class="inline">Reset BMC to Default</h2>
+    </div>
+  </div>
+  <div class="row column">
+    <p>When you reset the BMC, your web browser loses contact with the BMC for several minutes and all the changes wil be erased. When the BMC is back online, you must log in again. If the Log In button is not available when the BMC is brought back online, close your web browser. Then, reopen the web browser and enter your BMC IP address.</p>
+  </div>
+  <div class="row column">
+    <button id="bmc__reboot" class="btn  btn-secondary" ng-click="RestoreDefault()" ng-disabled="dataService.server_unreachable || dataService.isNotAdmin()">Reset</button>
+  </div>
+</section>
+
+<div class="modal-overlay" tabindex="-1" ng-class="{'active': confirmRestoreDefault}"></div>
+<section class="modal" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalDescription" role="dialog"
+  ng-class="{'active': confirmRestoreDefault}">
+  <div class="modal__tftp-unreachable" role="document">
+    <div class="screen-reader-offscreen modal-description">Restore Factory Defaults</div>
+    <!-- accessibility only; used for screen readers -->
+    <div class="page-header">
+      <icon file="icon-warning.svg" aria-hidden="true"></icon><span class="accessible-text" role="alert">Warning</span>
+      <h3 class="modal-title inline">Restore Factory Defaults</h3>
+    </div>
+    <div class="modal__content">
+      <p>Are you sure? Do you want to Reset BMC to default, which is restore the BMC to its original manufacturer settings. And all your changes will be erased.</p>
+    </div>
+    <div class="modal__button-wrapper">
+      <button class="btn btn-secondary" ng-click="confirmRestoreDefault=false;">Cancel</button>
+      <button class="btn btn-primary" ng-click="ProceedRestoreDefault()">Confirm</button>
+    </div>
+  </div>
+</section>

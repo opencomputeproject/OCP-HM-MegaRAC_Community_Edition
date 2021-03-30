@@ -1,0 +1,72 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2020-06-19 14:55:35.377008203 +0530
++++ b/src/main.cpp	2020-06-19 14:58:29.261377115 +0530
+@@ -369,17 +369,17 @@
+         return false;
+     }
+ 
+-    static bool getNbdInstance(void)
++    static bool getStatus(const std::string& file_path, const std::string& status_name)
+     {
+         std::ifstream fileWriter;
+-        fileWriter.open("/etc/nbd-proxy/status");
++        fileWriter.open(file_path);
+         std::string temp_buf;
+         bool flag = false;
+         if(fileWriter)
+         {
+              while(std::getline(fileWriter,temp_buf))
+              {
+-                if(temp_buf.find("nbd") != std::string::npos)
++                if(temp_buf.find(status_name) != std::string::npos)
+                 {
+                    if(temp_buf.find("1") != std::string::npos)
+                    {
+@@ -393,6 +393,27 @@
+         return flag;
+     }
+ 
++    static bool setStatus(const std::string& file_path, const std::string& status_name, const bool& instance)
++    {
++        std::ofstream fileWriter;
++        fileWriter.open(file_path, std::ios::out | std::ios::trunc);
++        if(fileWriter)
++        {
++              fileWriter << status_name << "-status=";
++              if(instance == true)
++              {
++                 fileWriter << "1";
++              }
++              else
++              {
++                 fileWriter << "0";
++              }
++              fileWriter.close();
++              return true;
++        }
++        return false;
++    }
++
+   private:
+     boost::asio::io_context& ioc;
+     boost::process::child child;
+@@ -1187,9 +1208,17 @@
+             [](const bool& req, bool& property) {
+                  throw sdbusplus::exception::SdBusError(
+                  EPERM, "Setting Active property is not allowed");
+-                return -1;
++                 return -1;
+             },
+-            [](const bool& property) { return Process::getNbdInstance(); });
++            [](const bool& property) { 
++		 return Process::getStatus(std::string("/etc/nbd-proxy/status"),std::string("nbd")); });
++	iface->register_property(
++	    "Eject", bool(false),
++	    [](const bool& req, bool& property) { 
++		 return Process::setStatus(std::string("/etc/nbd-proxy/eject"),std::string("eject"),req);
++	    },
++	    [](const bool& property) { 
++		return Process::getStatus(std::string("/etc/nbd-proxy/eject"),std::string("eject")); });
+         iface->initialize();
+     }
+ 

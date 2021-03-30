@@ -1,0 +1,11 @@
+diff -Naur a/src/PwmSensor.cpp b/src/PwmSensor.cpp
+--- a/src/PwmSensor.cpp	2020-08-30 18:43:37.433474676 +0530
++++ b/src/PwmSensor.cpp	2020-08-30 18:44:22.258597197 +0530
+@@ -83,6 +83,7 @@
+     sensorInterface->register_property("MaxValue", static_cast<int64_t>(100));
+     sensorInterface->register_property("MinValue", static_cast<int64_t>(0));
+     sensorInterface->register_property("Unit", Unit);
++    sensorInterface->register_property("EvStat", static_cast<int16_t>(162));
+ 
+     controlInterface = objectServer.add_interface(
+         "/xyz/openbmc_project/control/fanpwm/" + name,

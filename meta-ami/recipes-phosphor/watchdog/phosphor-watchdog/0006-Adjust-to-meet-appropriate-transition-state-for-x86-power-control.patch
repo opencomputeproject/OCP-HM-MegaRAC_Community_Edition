@@ -1,0 +1,89 @@
+From 9aa709775cc7675ecb204284f8ff5dcc130473ea Mon Sep 17 00:00:00 2001
+From: eddyhan <eddyhan@ami.com.tw>
+Date: Tue, 22 Dec 2020 15:41:56 +0800
+Subject: [PATCH] Adjust to meet appropriate transition state for
+ x86-power-control.
+
+
+diff --git a/watchdog.cpp b/watchdog.cpp
+old mode 100644
+new mode 100755
+index 30c398b..d4e497c
+--- a/watchdog.cpp
++++ b/watchdog.cpp
+@@ -162,7 +162,30 @@ int Watchdog::initiateChassisStateTransition(State::Chassis::Transition transiti
+     catch (std::exception& e)
+     {
+         log<level::ERR>(
+-            "Failed to initiate transition",
++            "Failed to initiate chassis transition",
++            entry("EXCEPTION=%s, REQUEST=%s", e.what(), request.c_str()));
++        return -1;
++    }
++    return 0;
++}
++
++int Watchdog::initiateHostStateTransition(State::Host::Transition transition)
++{
++    constexpr auto hostStatePath = "/xyz/openbmc_project/state/host0";
++    constexpr auto hostStateIntf = "xyz.openbmc_project.State.Host";
++    auto service =
++			getService(bus, hostStateIntf, hostStatePath);
++    auto request = State::convertForMessage(transition);
++    try
++    {
++        setDbusProperty(bus, service, hostStatePath,
++                              hostStateIntf, "RequestedHostTransition",
++                              request);
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>(
++            "Failed to initiate host transition",
+             entry("EXCEPTION=%s, REQUEST=%s", e.what(), request.c_str()));
+         return -1;
+     }
+@@ -207,15 +230,15 @@ void Watchdog::timeOutHandler()
+             bus.call_noreply(method);
+ 		#endif
+ 			int rc = 0;
+-			if (target->second == "obmc-chassis-powerreset@0.target")
++			if (target->second == "xyz.openbmc_project.State.Host.Transition.ForceWarmReboot")
+ 			{
+-				rc = initiateChassisStateTransition(State::Chassis::Transition::Reset);
++				rc = initiateHostStateTransition(State::Host::Transition::ForceWarmReboot);
+ 			}
+-			else if (target->second == "obmc-chassis-poweroff@0.target")
++			else if (target->second == "xyz.openbmc_project.State.Chassis.Transition.Off")
+ 			{
+ 				rc = initiateChassisStateTransition(State::Chassis::Transition::Off);
+ 			}
+-			else if (target->second == "obmc-chassis-powercycle@0.target")
++			else if (target->second == "xyz.openbmc_project.State.Chassis.Transition.PowerCycle")
+ 			{
+ 				rc = initiateChassisStateTransition(State::Chassis::Transition::PowerCycle);
+ 			}
+diff --git a/watchdog.hpp b/watchdog.hpp
+index 1158edb..4187857 100644
+--- a/watchdog.hpp
++++ b/watchdog.hpp
+@@ -10,6 +10,7 @@
+ #include <utility>
+ #include <xyz/openbmc_project/State/Watchdog/server.hpp>
+ #include <xyz/openbmc_project/State/Chassis/server.hpp>
++#include <xyz/openbmc_project/State/Host/server.hpp>
+ #include <chrono>
+ namespace State = sdbusplus::xyz::openbmc_project::State::server;
+ using namespace std::literals::chrono_literals;
+@@ -181,6 +182,8 @@ class Watchdog : public WatchdogInherits
+ 
+ 	/** @brief For watchdog timer expires action -- doing chassis control */
+ 	int initiateChassisStateTransition(State::Chassis::Transition transition);
++	/** @brief For watchdog timer expires action -- doing host control */
++	int initiateHostStateTransition(State::Host::Transition transition);
+ };
+ 
+ } // namespace watchdog
+-- 
+2.7.4
+

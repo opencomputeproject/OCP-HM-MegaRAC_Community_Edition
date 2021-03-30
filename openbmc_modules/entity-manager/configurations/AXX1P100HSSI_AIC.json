@@ -1,0 +1,33 @@
+[
+    {
+        "Exposes": [
+            {
+                "Address": "$address",
+                "Bus": "$bus",
+                "Name": "AIC 1 Fru",
+                "Type": "EEPROM"
+            },
+            {
+                "Address": "0x72",
+                "Bus": "$bus",
+                "ChannelNames": [
+                    "Pcie_Slot_1",
+                    "Pcie_Slot_2",
+                    "Pcie_Slot_3",
+                    ""
+                ],
+                "Name": "Riser Mux",
+                "Type": "PCA9545Mux"
+            }
+        ],
+        "Name": "Ethernet Network Adapter",
+        "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'AXX1P100HSSI'})",
+        "Type": "Board",
+        "xyz.openbmc_project.Inventory.Decorator.Asset": {
+            "Manufacturer": "$BOARD_MANUFACTURER",
+            "Model": "$BOARD_PRODUCT_NAME",
+            "PartNumber": "$BOARD_PART_NUMBER",
+            "SerialNumber": "$BOARD_SERIAL_NUMBER"
+        }
+    }
+]

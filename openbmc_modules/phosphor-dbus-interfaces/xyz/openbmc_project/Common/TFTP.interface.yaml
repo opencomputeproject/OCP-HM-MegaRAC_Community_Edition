@@ -1,0 +1,18 @@
+description: >
+    Implement to provide TFTP (Trivial File Transfer Protocol).
+methods:
+    - name: DownloadViaTFTP
+      description: >
+          Download a file via TFTP.
+      parameters:
+        - name: FileName
+          type: string
+          description: >
+            The name of the file to transfer.
+        - name: ServerAddress
+          type: string
+          description: >
+            The TFTP Server IP Address.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InvalidArgument

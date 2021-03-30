@@ -1,0 +1,172 @@
+diff -Naur a/nbd-proxy.c b/nbd-proxy.c
+--- a/nbd-proxy.c	2020-06-19 15:14:50.837319976 +0530
++++ b/nbd-proxy.c	2020-06-19 15:33:58.299021998 +0530
+@@ -43,6 +43,10 @@
+ 
+ #include "config.h"
+ 
++#include <sys/mman.h>
++#include <unistd.h>
++#include <sys/prctl.h>
++
+ struct config {
+ 	char			*name;
+ 	bool			is_default;
+@@ -73,9 +77,13 @@
+ static const char *state_hook_path = SYSCONFDIR "/nbd-proxy/state";
+ static const char *sockpath_tmpl = RUNSTATEDIR "/nbd.%d.sock";
+ static const char *status_path = SYSCONFDIR "/nbd-proxy/status";
++static const char *eject_path = SYSCONFDIR "/nbd-proxy/eject";
++static const char *usb_gadget_config_lun_path =
++				"/sys/kernel/config/usb_gadget/mass-storage/configs/c.1/mass_storage.usb0/lun.0/file";
+ 
+ static const size_t bufsize = 0x20000;
+ static const int nbd_timeout_default = 30;
++static int *eject_status;
+ 
+ static void change_nbd_status (bool status)
+ {
+@@ -96,6 +104,31 @@
+         return;
+ }
+ 
++static int get_image_eject_status(void)
++{
++        int rc = -1;
++        char temp_buf [20] = "";
++        FILE *fileWriter;
++        fileWriter = fopen(usb_gadget_config_lun_path, "r");
++        if (fileWriter > 0)
++        {
++                /* If image ejected from the host, then
++                 * lun file status will be empty */
++                fgets(temp_buf,19,fileWriter);
++                if((strstr(temp_buf,"/dev/nbd0")) == 0)
++                {
++                        /* Image has been ejected from the Host,
++                         * Set the eject status and send it back to child.*/
++                        rc = 0;
++                        fclose(fileWriter);
++                        fileWriter = fopen(eject_path, "w");
++                        fputs("eject-status=1",fileWriter);
++                }
++                fclose(fileWriter);
++        }
++        return rc;
++}
++
+ static int open_nbd_socket(struct ctx *ctx)
+ {
+ 	struct sockaddr_un addr;
+@@ -552,46 +585,77 @@
+ 
+ 	n_fd = 4;
+ 
+-	for (;;) {
+-		errno = 0;
+-		rc = poll(pollfds, n_fd, -1);
+-		if (rc < 0) {
+-			if (errno == EINTR)
+-				continue;
+-			warn("poll failed");
+-			break;
+-		}
+-
+-		if (pollfds[0].revents) {
+-			rc = copy_fd(ctx, ctx->sock_client, STDOUT_FILENO);
+-			if (rc <= 0)
++        eject_status = mmap(NULL, sizeof *eject_status, PROT_READ | PROT_WRITE,
++                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
++        *eject_status = -1;
++
++        /* Creating a child process to monitor the redirected image eject status,
++         * if user ejects the image from the Host Machine.*/
++        if(fork() == 0) {
++                prctl(PR_SET_PDEATHSIG,SIGHUP);
++                while (1)
++                {
++                        rc = get_image_eject_status();
++                        if(rc == 0)
++                        {
++                                /* User has been ejected the image,
++                                 *  setting the status and getting killed.*/
++                                *eject_status = 1;
++                                break;
++                        }
++                        sleep(1);
++                }
++        }
++	else {
++		for (;;) {
++			errno = 0;
++			rc = poll(pollfds, n_fd, -1);
++			if (rc < 0) {
++				if (errno == EINTR)
++					continue;
++				warn("poll failed");
+ 				break;
+-		}
++			}
+ 
+-		if (pollfds[1].revents) {
+-			rc = copy_fd(ctx, STDIN_FILENO, ctx->sock_client);
+-			if (rc <= 0)
+-				break;
+-		}
++			if (pollfds[0].revents) {
++				rc = copy_fd(ctx, ctx->sock_client, STDOUT_FILENO);
++				if (rc <= 0)
++					break;
++			}
+ 
+-		if (pollfds[2].revents) {
+-			rc = process_signal_pipe(ctx, &exit);
+-			if (rc || exit)
+-				break;
+-		}
++			if (pollfds[1].revents) {
++				rc = copy_fd(ctx, STDIN_FILENO, ctx->sock_client);
++				if (rc <= 0)
++					break;
++			}
+ 
+-		if (pollfds[3].revents) {
+-			rc = udev_process(ctx);
+-			if (rc)
+-				break;
++			if (pollfds[2].revents) {
++				rc = process_signal_pipe(ctx, &exit);
++				if (rc || exit)
++					break;
++			}
+ 
+-			/* udev_process may have closed the udev connection,
+-			 * in which case we can stop polling on its fd */
+-			if (!ctx->udev) {
+-				pollfds[3].fd = 0;
+-				pollfds[3].revents = 0;
+-				n_fd = 3;
++			if (pollfds[3].revents) {
++				rc = udev_process(ctx);
++				if (rc)
++					break;
++
++				/* udev_process may have closed the udev connection,
++				 * in which case we can stop polling on its fd */
++				if (!ctx->udev) {
++					pollfds[3].fd = 0;
++					pollfds[3].revents = 0;
++					n_fd = 3;
++				}
+ 			}
++
++			/* Continously monitor the eject status,
++                         * if the status is set then stop the
++                         * nbd-proxt process and close the nbd socket */
++                        if (*eject_status == 1) {
++                                rc = -1;
++                                break;
++                        }
+ 		}
+ 	}
+ 

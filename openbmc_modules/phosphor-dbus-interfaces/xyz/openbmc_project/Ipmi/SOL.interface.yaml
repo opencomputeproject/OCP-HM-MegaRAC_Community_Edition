@@ -1,0 +1,52 @@
+description: >
+    SOL properties use for Get/Set SOL config parameter command in host-ipmid
+    sending config to SOL process in net-ipmid.
+    Since some platforms need to access Get/Set SOL config parameter command
+    through KCS, and current SOL manager is implemented in net-ipmid and
+    cannot be accessed by host-ipmid, add a D-Bus interface for host-ipmid
+    command to transfer properties to net-ipmid.
+    This interface will be implemented in phosphor-settings.
+properties:
+    - name: Progress
+      type: byte
+      description: >
+        Set In Progress property, indicate when any parameters are being
+        updated.
+    - name: Enable
+      type: boolean
+      description: >
+        SOL Enable property, this controls whether the SOL payload type
+        can be activated.
+    - name: ForceEncryption
+      type: boolean
+      description: >
+        If SOL enable Force Payload Encryption.
+    - name: ForceAuthentication
+      type: boolean
+      description: >
+        If SOL enable Force Payload Authentication
+    - name: Privilege
+      type: byte
+      description: >
+        Sets the minimum operating privilege level that is required to
+        be able to activate SOL by Activate Payload command.
+    - name: AccumulateIntervalMS
+      type: byte
+      description: >
+        Character Accumulate Interval in 5ms increments.
+        BMC will wait this time before transmitting a packet.
+    - name: Threshold
+      type: byte
+      description: >
+        BMC will automatically send an SOL character data packet containing
+        this number of characters as soon as this number of characters
+        (or greater) has been accepted from the baseboard serial controller.
+    - name: RetryCount
+      type: byte
+      description: >
+        Packet will be dropped if no ACK/NACK received by time retries
+        expire.
+    - name: RetryIntervalMS
+      type: byte
+      description: >
+        Retry Interval in 10ms increments.

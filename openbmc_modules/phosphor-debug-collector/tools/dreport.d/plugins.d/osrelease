@@ -1,0 +1,12 @@
+#!/bin/bash
+#
+# config: 1234 1
+# @brief: Collect OS release information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="OS release info"
+file_name="/etc/os-release"
+
+add_copy_sym_link_file "$file_name"  "$desc"

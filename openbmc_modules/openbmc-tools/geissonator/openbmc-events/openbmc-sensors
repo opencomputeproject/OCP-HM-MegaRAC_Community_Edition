@@ -1,0 +1,105 @@
+#!/bin/env python
+
+import argparse
+import requests
+import json
+
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class BMC:
+    def __init__(self, server):
+        self.url = "https://{0}/".format(server)
+        self.session = requests.Session()
+        self.login()
+
+    def login(self):
+        r = self.session.post(self.url + 'login',
+                              json={'data': ['root', '0penBmc']},
+                              verify=False)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to login: \n" + r.text)
+
+    def list_all(self):
+        r = self.session.get(self.url + 'xyz/openbmc_project/sensors/enumerate',
+                             verify=False)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to query sensors: \n" + r.text)
+
+        sensors = j['data']
+        sensors = sorted(sensors,key=lambda x: x.split("/")[-1])
+
+        return sensors
+
+    def occ_all(self):
+        r = self.session.get(self.url + 'org/open_power/control/enumerate',
+                             verify=False)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to query occ sensors: \n" + r.text)
+
+        sensors = j['data']
+        #sensors = sorted(sensors,key=lambda x: x.split("/")[-1])
+
+        return sensors
+
+    def get_sensor(self, sensor):
+        r = self.session.get(self.url + sensor, verify=False)
+
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to get sensor " + sensor + ": \n" + r.text)
+
+        return j['data']
+
+def do_list_all(args):
+    s = BMC(server=args.server)
+    for e in s.list_all():
+        if (args.value):
+            value = s.get_sensor(e)
+            print(e + ' : '+ str(value["Value"]))
+        else:
+            print(e)
+
+def do_occ_all(args):
+    s = BMC(server=args.server)
+    print json.dumps(s.occ_all(), indent=4)
+
+
+def do_view_sensor(args):
+    s = BMC(server=args.server)
+    print(s.get_sensor(args.sensor))
+    print json.dumps(s.get_sensor(args.sensor), indent=4)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--server', help='hostname or IP of BMC', type=str,
+                    required=True)
+
+subparsers = parser.add_subparsers()
+
+list_all_sensors = subparsers.add_parser('list', help='List all sensors on BMC')
+list_all_sensors.set_defaults(func=do_list_all)
+list_all_sensors.add_argument(
+    '--value',
+    action='store_true',
+    default=False,
+    help='Provide current value of sensor')
+
+view_sensor = subparsers.add_parser(
+    'view', help='View all data for an individual sensor')
+view_sensor.add_argument('sensor', help='The sensor to view')
+view_sensor.set_defaults(func=do_view_sensor)
+
+# occ has some 'special' sensors not in the sensor namespace
+occ_sensors = subparsers.add_parser('occ', help='List the special occ sensors')
+occ_sensors.set_defaults(func=do_occ_all)
+
+args = parser.parse_args()
+
+if 'func' in args:
+    args.func(args)
+else:
+    parser.print_help()

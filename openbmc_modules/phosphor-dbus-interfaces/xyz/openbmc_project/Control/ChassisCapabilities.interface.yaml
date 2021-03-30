@@ -1,0 +1,46 @@
+description: >
+    An interface for chassis capabilities defined in IPMI spec.
+properties:
+    - name: CapabilitiesFlags
+      type: byte
+      description: >
+          Note: Please use the individual bit fields for Capabilities Flags
+          going forward. This common byte representation is deprecated.
+          Chassis capabilities flags. bit1= Provides front panel lockout,
+          bit0 = Provides intrusion. All other bits reserved.
+    - name: ChassisIntrusionEnabled
+      type: boolean
+      description: >
+          Chassis Provides intrusion (physical security) sensor.
+    - name: ChassisFrontPanelLockoutEnabled
+      type: boolean
+      description: >
+          Chassis Provides front panel lockout.
+    - name: ChassisNMIEnabled
+      type: boolean
+      description: >
+          Chassis Provides Diagnostic Interrupt (FP NMI).
+    - name: ChassisPowerInterlockEnabled
+      type: boolean
+      description: >
+          Chassis Provides Power Interlock.
+    - name: FRUDeviceAddress
+      type: byte
+      description: >
+          Chassis FRU device address.
+    - name: SDRDeviceAddress
+      type: byte
+      description: >
+          Chassis SDR device address.
+    - name: SELDeviceAddress
+      type: byte
+      description: >
+          Chassis SEL device address.
+    - name: SMDeviceAddress
+      type: byte
+      description: >
+          Chassis SM device address.
+    - name: BridgeDeviceAddress
+      type: byte
+      description: >
+          Chassis Bridge device address.

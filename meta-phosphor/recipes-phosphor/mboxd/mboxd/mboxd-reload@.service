@@ -1,0 +1,16 @@
+[Unit]
+Description=Reload mboxd during power on
+Wants=obmc-host-start-pre@%i.target
+Before=obmc-host-start-pre@%i.target
+Wants=mapper-wait@-org-openbmc-mboxd.service
+After=mapper-wait@-org-openbmc-mboxd.service
+Conflicts=obmc-host-stop@%i.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/env mboxctl --reset
+SyslogIdentifier=mboxctl
+
+[Install]
+WantedBy=obmc-host-startmin@%i.target

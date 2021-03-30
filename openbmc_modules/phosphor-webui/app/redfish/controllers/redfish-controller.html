@@ -1,0 +1,52 @@
+<loader loading="loading"></loader>
+<div id="redfish", class="redfish">
+  <div class="row column">
+    <div class="logo">
+      <img src="../../assets/images/DMTF_Redfish_logo_2017.svg">
+    </div>
+  </div>
+  <div class="row column">
+    {
+    <ul class="key_value">
+      <li ng-repeat="(key, value) in redfishData" ng-include="'recurse'"> </li>
+    </ul>
+    }
+  </div>
+</div>
+<script type="text/ng-template" id="recurse">
+"<b>{{key}}</b>":
+<span ng-if="isObject(value) && !isArray(value)">
+{
+  <ul class="key_value">
+    <li ng-repeat="(key, value) in value" ng-include="'recurse'"> </li>
+  </ul>
+}
+</span>
+
+<span ng-if="isArray(value)">
+[
+  <div ng-repeat="val in value" class="value">
+    <span ng-if="isObject(val) && !isArray(val)">
+      {
+      <ul class="key_value">
+        <li ng-repeat="(key, value) in val" ng-include="'recurse'"> </li>
+      </ul>
+      }
+      <span ng-if="!$last">,</span>
+      </br>
+    </span>
+    <span ng-if="!isObject(val) && !isArray(val)">
+    {{val | json }}
+    <span ng-if="!$last">,</span>
+    </span>
+  </div>
+]
+</span>
+
+<span ng-if="!isObject(value) && !isArray(value)">
+<a ng-if="key.indexOf('@odata.id') != -1" ng-href="#{{value}}">"{{value}}"</a>
+<span ng-if="key.indexOf('@odata.id') == -1" ng-href="#{{value}}">{{value | json}}</span>
+</span>
+<span ng-if="!$last">,</span>
+</br>
+</script>

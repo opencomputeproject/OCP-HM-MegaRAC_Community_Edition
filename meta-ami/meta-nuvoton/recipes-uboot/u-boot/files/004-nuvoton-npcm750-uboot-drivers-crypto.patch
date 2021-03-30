@@ -1,0 +1,1350 @@
+diff -Naur a/drivers/crypto/Kconfig b/drivers/crypto/Kconfig
+--- a/drivers/crypto/Kconfig	2020-05-05 15:23:39.136744890 -0400
++++ b/drivers/crypto/Kconfig	2020-05-05 15:24:28.529359390 -0400
+@@ -2,4 +2,19 @@
+ 
+ source drivers/crypto/fsl/Kconfig
+ 
++config NPCM750_AES
++	bool "Support the NPCTM750 AES algorithm"
++	select NPCM750_OTP
++	help
++	  This provides a means to encrypt and decrypt data using the NPCM750
++	  AES (Advanced Encryption Standard). This algorithm uses a symetric
++	  key and is widely used as a streaming cipher. This command only
++	  supports AES256-CBC.
++
++config NPCM750_SHA
++	bool "Enable NPCM750 cryptographic HW SHA accelerator"
++	help
++	  This option enables support of NPCM750 cryptographic HW SHA accelerator.
++	  It supports SHA1 and SHA256 hashing algorithms.
++
+ endmenu
+diff -Naur a/drivers/crypto/Makefile b/drivers/crypto/Makefile
+--- a/drivers/crypto/Makefile	2020-05-05 15:23:39.136744890 -0400
++++ b/drivers/crypto/Makefile	2020-05-05 15:24:28.529359390 -0400
+@@ -4,5 +4,8 @@
+ # 	http://www.samsung.com
+ 
+ obj-$(CONFIG_EXYNOS_ACE_SHA)	+= ace_sha.o
++obj-$(CONFIG_NPCM750_RNG) += npcm750_rng.o
++obj-$(CONFIG_NPCM750_AES) += npcm750_aes.o
++obj-$(CONFIG_NPCM750_SHA) += npcm750_sha.o
+ obj-y += rsa_mod_exp/
+ obj-y += fsl/
+diff -Naur a/drivers/crypto/npcm750_aes.c b/drivers/crypto/npcm750_aes.c
+--- a/drivers/crypto/npcm750_aes.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/crypto/npcm750_aes.c	2020-05-05 15:24:28.525359341 -0400
+@@ -0,0 +1,307 @@
++/*
++ * NUVOTON Poleg AES driver
++ *
++ * Copyright (C) 2019, NUVOTON, Incorporated
++ *
++ * SPDX-License-Identifier: GPL-2.0+
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <uboot_aes.h>
++#include <asm/io.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/poleg_aes.h>
++#include <asm/arch/poleg_otp.h>
++
++struct npcm750_aes_priv {
++	struct poleg_aes_regs* regs;
++};
++
++static struct npcm750_aes_priv *aes_priv;
++
++static u8 fkeyind_to_set = 0xff;
++
++static int second_timeout(u32* addr, u32 bitmask, u32 bitpol)
++{
++	#define ONE_SECOND 0xC00000
++	ulong time, i;
++
++	time = get_timer(0);
++	i= 0;
++
++	/* default 1 second timeout */
++	while(((readl(addr) & bitmask) == bitpol) && i < ONE_SECOND) {
++		i++;
++	}
++
++	if(i == ONE_SECOND) {
++		printf( "%xms timeout: addr = %x, mask = %x\n",(u32) get_timer(time), *addr, bitmask);
++		return -1;
++	}
++
++	return 0;
++}
++
++int npcm750_aes_select_key(u8 fkeyind)
++{
++	if (npcm750_otp_is_fuse_array_disabled(NPCM750_KEY_SA)) {
++		printf(" AES key access denied \n");
++		return -EACCES;
++	}
++
++	if (fkeyind < 4)
++		fkeyind_to_set = fkeyind;
++
++	return 0;
++}
++
++static int npcm750_aes_init(u8 dec_enc)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32 ctrl, orgctrlval, wrtimeout;
++
++	/* reset hw */
++	writel(readl(&regs->aes_sw_reset) | SW_RESET_BIT, &regs->aes_sw_reset);
++	writel(readl(&regs->aes_fifo_status) | DIN_FIFO_OVERFLOW, &regs->aes_fifo_status);
++	writel(readl(&regs->aes_fifo_status) | DOUT_FIFO_UNDERFLOW, &regs->aes_fifo_status);
++
++	/* Workaround to over come Errata #648 */
++	orgctrlval = readl(&regs->aes_control);
++	ctrl = (0x00002004 | dec_enc);    /* AES256(CBC) */
++
++	if (ctrl != orgctrlval) {
++		writel(ctrl, &regs->aes_control);
++
++		if (ctrl != readl(&regs->aes_control)) {
++			u32 read_ctrl;
++			int intwr;
++
++			for (wrtimeout = 0; wrtimeout < 1000; wrtimeout++) {
++				/* Write configurable info in a single write operation */
++				for (intwr=0;intwr<10;intwr++) {
++					writel(ctrl, &regs->aes_control);
++					writew(ctrl, (u16*)&regs->aes_control + 1);
++					mb();
++				}
++
++				read_ctrl = readl(&regs->aes_control);
++				if(ctrl == read_ctrl) {
++					break;
++				}
++			}
++
++			if (wrtimeout == 1000) {
++				printf("\nTIMEOUT expected data=0x%x Actual AES_CONTROL data 0x%x\n\n", ctrl, read_ctrl);
++				return -EAGAIN;
++			}
++
++			printf("Workaround success, wrtimeout = %d \n", wrtimeout);
++		}
++	}
++
++	if (second_timeout(&regs->aes_busy, AES_BUSY_BIT, AES_BUSY_BIT))
++		return -EAGAIN;
++
++	return 0;
++}
++
++static inline void npcm750_aes_load_iv(u8 *iv)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32* p = (u32 *)iv;
++	u32 i;
++
++	/* Initialization Vector is loaded in 32-bit chunks */
++	for (i = 0; i < (SIZE_AES_BLOCK/sizeof(u32)); i++) {
++		writel(p[i], &regs->aes_iv_0 + i);
++	}
++}
++
++static inline void npcm750_aes_load_key(u8 *key)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32* p = (u32 *)key;
++	u32 i;
++	
++	/* The key can be loaded either via the configuration or by using sideband
++	   key port (aes_select_key).
++	   If aes_select_key has been called ('fkeyind_to_set' was set to desired
++	   key index) and no key is specified (key is NULL), we should use the
++	   key index. Otherwise, we write the given key to the registers. */
++	if (!key && fkeyind_to_set < 4) {
++
++		npcm750_otp_select_key(fkeyind_to_set);
++
++		/* Sample the new key */
++		writel(readl(&regs->aes_sk) | AES_SK_BIT, &regs->aes_sk);
++
++	} else {
++
++		/* Initialization Vector is loaded in 32-bit chunks */
++		for (i = 0; i < (2*SIZE_AES_BLOCK/sizeof(u32)); i++) {
++			writel(p[i], &regs->aes_key_0 + i);
++		}
++
++		fkeyind_to_set = 0xff;
++	}
++}
++
++static inline void npcm750_aes_write(u32 *in)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32 i;
++
++	/* 16 Byte AES Block is written in 32-bit chunks */
++	for (i = 0; i < (SIZE_AES_BLOCK / sizeof(u32)); i++) {
++		writel(in[i], &regs->aes_fifo_data);
++	}
++}
++
++static inline void npcm750_aes_read (u32 *out)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32 i;
++
++	/* Data is read in 32-bit chunks */
++	for (i = 0; i < (SIZE_AES_BLOCK / sizeof(u32)); i++) {
++		out[i] = readl(&regs->aes_fifo_data);
++	}
++}
++
++static void npcm750_aes_feed(u32 num_aes_blocks, u32 * dataIn, u32 * dataOut)
++{
++	struct poleg_aes_regs *regs = aes_priv->regs;
++	u32 AesDataBlock;
++	u32 totalBlocks;
++	u32 blocksLeft;
++
++	/* data mode */
++	writel(readl(&regs->aes_busy) | AES_BUSY_BIT, &regs->aes_busy);
++
++	/* Clear overflow and underflow */
++	writel(readl(&regs->aes_fifo_status) | DIN_FIFO_OVERFLOW, &regs->aes_fifo_status);
++	writel(readl(&regs->aes_fifo_status) | DOUT_FIFO_UNDERFLOW, &regs->aes_fifo_status);
++
++	totalBlocks = blocksLeft = num_aes_blocks;
++
++	/* dataIn/dataOut is advanced in 32-bit chunks */
++	AesDataBlock = (SIZE_AES_BLOCK / sizeof(u32));
++
++	/* Quit if there is no complete blocks */
++	if (totalBlocks == 0)
++		return;
++
++	/* Write the first block */
++	if (totalBlocks > 1) {
++		npcm750_aes_write(dataIn);
++		dataIn += AesDataBlock;
++		blocksLeft--;
++	}
++
++	/* Write the second block */
++	if (totalBlocks > 2) {
++		second_timeout(&regs->aes_fifo_status, DIN_FIFO_EMPTY, 0);
++		npcm750_aes_write(dataIn);
++		dataIn += AesDataBlock;
++		blocksLeft--;
++	}
++
++	/* Write & read available blocks */
++	while (blocksLeft > 0) {
++		second_timeout(&regs->aes_fifo_status, DIN_FIFO_FULL, DIN_FIFO_FULL);
++
++		/* Write next block */
++		npcm750_aes_write(dataIn);
++		dataIn  += AesDataBlock;
++
++		/* Wait till DOUT FIFO is empty */
++		second_timeout(&regs->aes_fifo_status, DOUT_FIFO_EMPTY, DOUT_FIFO_EMPTY);
++
++		/* Read next block */
++		npcm750_aes_read(dataOut);
++		dataOut += AesDataBlock;
++
++		blocksLeft--;
++	}
++
++	if (totalBlocks > 2) {
++		second_timeout(&regs->aes_fifo_status, DOUT_FIFO_FULL, 0);
++
++		/* Read next block */
++		npcm750_aes_read(dataOut);
++		dataOut += AesDataBlock;
++
++		second_timeout(&regs->aes_fifo_status, DOUT_FIFO_FULL, 0);
++
++		/* Read next block */
++		npcm750_aes_read(dataOut);
++		dataOut += AesDataBlock;
++	} else if (totalBlocks > 1) {
++		second_timeout(&regs->aes_fifo_status, DOUT_FIFO_FULL, 0);
++
++		/* Read next block */
++		npcm750_aes_read(dataOut);
++		dataOut += AesDataBlock;
++	}
++}
++
++void aes_expand_key(u8 *key, u8 *expkey)
++{
++	/* npcm750 hw expands the key automatically, just copy it */
++	memcpy(expkey, key, SIZE_AES_BLOCK * 2);
++}
++
++void aes_cbc_encrypt_blocks(u8 *key_exp, u8 *iv, u8 *src, u8 *dst, u32 num_aes_blocks)
++{
++	if (npcm750_aes_init(AES_OP_ENCRYPT))
++		return;
++
++	npcm750_aes_load_iv(iv);
++
++	npcm750_aes_load_key(key_exp);
++
++	npcm750_aes_feed(num_aes_blocks, (u32 *) src, (u32 *) dst);
++}
++
++void aes_cbc_decrypt_blocks(u8 *key_exp, u8 *iv, u8 *src, u8 *dst, u32 num_aes_blocks)
++{
++	if (npcm750_aes_init(AES_OP_DECRYPT))
++		return;
++
++	npcm750_aes_load_iv(iv);
++
++	npcm750_aes_load_key(key_exp);
++
++	npcm750_aes_feed(num_aes_blocks, (u32 *) src, (u32 *) dst);
++}
++
++static int npcm750_aes_bind(struct udevice *dev)
++{
++	aes_priv = calloc(1, sizeof(struct npcm750_aes_priv));
++	if (!aes_priv)
++		return -ENOMEM;
++
++	aes_priv->regs = dev_remap_addr_index(dev, 0);
++	if (!aes_priv->regs) {
++		printf("Cannot find aes reg address, binding failed\n");
++		return -EINVAL;
++	}
++
++	printk(KERN_INFO "AES: NPCM750 AES module bind OK\n");
++
++	return 0;
++}
++
++static const struct udevice_id npcm750_aes_ids[] = {
++	{ .compatible = "nuvoton,npcm750-aes" },
++	{ }
++};
++
++U_BOOT_DRIVER(npcm750_aes) = {
++	.name = "npcm750_aes",
++	.id = UCLASS_MISC,
++	.of_match = npcm750_aes_ids,
++	.priv_auto_alloc_size = sizeof(struct npcm750_aes_priv),
++	.bind = npcm750_aes_bind,
++};
+diff -Naur a/drivers/crypto/npcm750_rng.c b/drivers/crypto/npcm750_rng.c
+--- a/drivers/crypto/npcm750_rng.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/crypto/npcm750_rng.c	2020-05-05 15:24:28.529359390 -0400
+@@ -0,0 +1,102 @@
++/*
++ * NUVOTON Poleg RNG driver
++ *
++ * Copyright (C) 2019, NUVOTON, Incorporated
++ *
++ * SPDX-License-Identifier: GPL-2.0+
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <uboot_aes.h>
++#include <asm/io.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/poleg_rng.h>
++
++struct npcm750_rng_priv {
++	struct poleg_rng_regs* regs;
++};
++
++static struct npcm750_rng_priv *rng_priv;
++
++void npcm750_rng_init(void)
++{
++	struct poleg_rng_regs *regs = rng_priv->regs;
++	int init;
++
++	/* check if rng enabled */
++	init = readb(&regs->rngcs);
++	if ((init & RNGCS_RNGE) == 0) {
++		/* init rng */
++		writeb(RNGCS_CLKP(RNG_CLKP_20_25_MHz) | RNGCS_RNGE, &(regs->rngcs));
++		writeb(RNGMODE_M1ROSEL_VAL, &regs->rngmode);
++	}
++}
++
++void npcm750_rng_disable(void)
++{
++	struct poleg_rng_regs *regs = rng_priv->regs;
++
++	/* disable rng */
++	writeb(0, &regs->rngcs);
++	writeb(0, &regs->rngmode);
++}
++
++void srand(unsigned int seed)
++{
++	/* no need to seed for now */
++	return;
++}
++
++unsigned int rand_r(unsigned int *seedp)
++{
++	struct poleg_rng_regs *regs = rng_priv->regs;
++	int  i;
++	unsigned int ret_val = 0;
++
++	npcm750_rng_init();
++
++	/* Wait for RNG done (4 bytes) */
++	for (i = 0; i < 4 ;i++) {
++		 /* wait until DVALID is set */
++		while ((readb(&regs->rngcs) & RNGCS_DVALID) == 0);
++		ret_val |= (((unsigned int)readb(&regs->rngd) & 0x000000FF) << (i * 8));
++	}
++
++	return ret_val;
++}
++
++unsigned int rand(void)
++{
++	return rand_r(NULL);
++}
++
++static int npcm750_rng_bind(struct udevice *dev)
++{
++	rng_priv = calloc(1, sizeof(struct npcm750_rng_priv));
++	if (!rng_priv)
++		return -ENOMEM;
++
++	rng_priv->regs = dev_remap_addr_index(dev, 0);
++	if (!rng_priv->regs) {
++		printf("Cannot find rng reg address, binding failed\n");
++		return -EINVAL;
++	}
++
++	printk(KERN_INFO "RNG: NPCM750 RNG module bind OK\n");
++
++	return 0;
++}
++
++static const struct udevice_id npcm750_rng_ids[] = {
++	{ .compatible = "nuvoton,npcm750-rng" },
++	{ }
++};
++
++U_BOOT_DRIVER(npcm750_rng) = {
++	.name = "npcm750_rng",
++	.id = UCLASS_MISC,
++	.of_match = npcm750_rng_ids,
++	.priv_auto_alloc_size = sizeof(struct npcm750_rng_priv),
++	.bind = npcm750_rng_bind,
++};
+diff -Naur a/drivers/crypto/npcm750_sha.c b/drivers/crypto/npcm750_sha.c
+--- a/drivers/crypto/npcm750_sha.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/crypto/npcm750_sha.c	2020-05-05 15:24:28.529359390 -0400
+@@ -0,0 +1,894 @@
++/*
++ * NUVOTON Poleg SHA driver
++ *
++ * Copyright (C) 2019, NUVOTON, Incorporated
++ *
++ * SPDX-License-Identifier: GPL-2.0+
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <uboot_aes.h>
++#include <asm/io.h>
++#include <asm/arch/cpu.h>
++#include <asm/arch/poleg_sha.h>
++
++struct npcm750_sha_priv {
++    struct poleg_sha_regs* regs;
++};
++
++static struct npcm750_sha_priv *sha_priv;
++
++#ifdef SHA_DEBUG_MODULE
++#define sha_print(fmt,args...)  printf(fmt ,##args)
++#else
++#define sha_print(fmt,args...)  (void)0
++#endif
++
++#define SHA_BLOCK_LENGTH        (512/8)
++#define SHA_2_HASH_LENGTH       (256/8)
++#define SHA_1_HASH_LENGTH       (160/8)
++#define SHA_HASH_LENGTH(type)   ((type == npcm750_sha_type_sha2) ? \
++                                 (SHA_2_HASH_LENGTH) : (SHA_1_HASH_LENGTH))
++
++#define SHA_SECRUN_BUFF_SIZE    64
++#define SHA_TIMEOUT             100
++#define SHA_DATA_LAST_BYTE      0x80
++
++#define SHA2_NUM_OF_SELF_TESTS  3
++#define SHA1_NUM_OF_SELF_TESTS  4
++
++#define NUVOTON_ALIGNMENT       4
++
++/*-----------------------------------------------------------------------------*/
++/* SHA instance struct handler                                                 */
++/*-----------------------------------------------------------------------------*/
++typedef struct SHA_HANDLE_T
++{
++    u32                 hv[SHA_2_HASH_LENGTH / sizeof(u32)];
++    u32                 length0;
++    u32                 length1;
++    u32                 block[SHA_BLOCK_LENGTH / sizeof(u32)];
++    npcm750_sha_type    type;
++    bool                active;
++} SHA_HANDLE_T;
++
++// The # of bytes currently in the sha  block buffer
++#define SHA_BUFF_POS(length)        (length & (SHA_BLOCK_LENGTH - 1))
++
++// The # of free bytes in the sha block buffer
++#define SHA_BUFF_FREE(length)       (SHA_BLOCK_LENGTH - SHA_BUFF_POS(length))
++
++/*----------------------------------------------------------------------------*/
++/* Busy Wait with Timeout                                                     */
++/*----------------------------------------------------------------------------*/
++#define BUSY_WAIT_TIMEOUT(busy_cond, timeout)                       \
++{                                                                   \
++    u32 __time = timeout;                                           \
++                                                                    \
++    do                                                              \
++    {                                                               \
++        if (__time-- == 0)                                          \
++        {                                                           \
++            return -ETIMEDOUT;                                      \
++        }                                                           \
++    } while (busy_cond);                                            \
++}
++
++/*----------------------------------------------------------------------------*/
++/* Call _func and return error if it fails                                    */
++/*----------------------------------------------------------------------------*/
++#define DEFS_STATUS_RET_CHECK(_func)                                \
++{                                                                   \
++    int ret;                                                        \
++                                                                    \
++    if ((ret = _func) != 0x0) {                                     \
++        return ret;                                                 \
++    }                                                               \
++}
++
++/*----------------------------------------------------------------------------*/
++/* Check condition and return error if it is satisfied                        */
++/*----------------------------------------------------------------------------*/
++#define DEFS_STATUS_COND_CHECK(cond, err)                           \
++{                                                                   \
++    if (!(cond))                                                    \
++    {                                                               \
++        return err;                                                 \
++    }                                                               \
++}
++
++/*----------------------------------------------------------------------------*/
++/* Checks if give function returns int error, and returns the error           */
++/* immediately after SHA disabling                                            */
++/*----------------------------------------------------------------------------*/
++#define  SHA_RET_CHECK(__func)                                      \
++{                                                                   \
++    int status;                                                     \
++                                                                    \
++    if ((status = __func) != 0) {                                   \
++        SHA_Power(false);                                           \
++        return status;                                              \
++    }                                                               \
++}
++
++static void SHA_FlushLocalBuffer_l (const u32* buff);
++static int  SHA_BusyWait_l(void);
++static void SHA_GetShaDigest_l(u8* hashDigest, npcm750_sha_type type);
++static void SHA_SetShaDigest_l(const u32* hashDigest, npcm750_sha_type type);
++static void SHA_SetBlock_l(const u8* data,u32 len, u16 position, u32* block);
++static void SHA_ClearBlock_l(u16 len, u16 position, u32* block);
++static void SHA_SetLength32_l(const SHA_HANDLE_T* handlePtr, u32* block);
++
++static int SHA_Init(SHA_HANDLE_T* handlePtr);
++static int SHA_Start(SHA_HANDLE_T* handlePtr, npcm750_sha_type type);
++static int SHA_Update(SHA_HANDLE_T* handlePtr, const u8* buffer, u32 len);
++static int SHA_Finish(SHA_HANDLE_T* handlePtr, u8* hashDigest);
++static int SHA_Reset(void);
++static int SHA_Power(bool on);
++#ifdef SHA_PRINT
++static void SHA_PrintRegs(void);
++static void SHA_PrintVersion(void);
++#endif
++
++static SHA_HANDLE_T sha_handle;
++
++/**
++    * Computes hash value of input pbuf using h/w acceleration
++    *
++    * @param in_addr    A pointer to the input buffer
++    * @param bufleni    Byte length of input buffer
++    * @param out_addr   A pointer to the output buffer. When complete
++    *           32 bytes are copied to pout[0]...pout[31]. Thus, a user
++    *           should allocate at least 32 bytes at pOut in advance.
++    * @param chunk_size chunk size for sha256
++    */
++void hw_sha256(const uchar * in_addr, uint buflen,
++            uchar * out_addr, uint chunk_size)
++{
++    puts("\nhw_sha256 using BMC HW accelerator\t");
++    npcm750_sha_calc(npcm750_sha_type_sha2, (u8 *)in_addr, buflen, (u8 *)out_addr);
++    return;
++}
++
++/**
++    * Computes hash value of input pbuf using h/w acceleration
++    *
++    * @param in_addr    A pointer to the input buffer
++    * @param bufleni    Byte length of input buffer
++    * @param out_addr   A pointer to the output buffer. When complete
++    *           32 bytes are copied to pout[0]...pout[31]. Thus, a user
++    *           should allocate at least 32 bytes at pOut in advance.
++    * @param chunk_size chunk_size for sha1
++    */
++void hw_sha1(const uchar * in_addr, uint buflen,
++            uchar * out_addr, uint chunk_size)
++{
++    puts("\nhw_sha1 using BMC HW accelerator\t");
++    npcm750_sha_calc(npcm750_sha_type_sha1, (u8 *)in_addr, buflen, (u8 *)out_addr);
++    return;
++}
++
++/*
++    * Create the context for sha progressive hashing using h/w acceleration
++    *
++    * @algo: Pointer to the hash_algo struct
++    * @ctxp: Pointer to the pointer of the context for hashing
++    * @return 0 if ok, -ve on error
++    */
++int hw_sha_init(struct hash_algo *algo, void **ctxp)
++{
++    return SHA_Init(&sha_handle);
++}
++
++/*
++    * Update buffer for sha progressive hashing using h/w acceleration
++    *
++    * The context is freed by this function if an error occurs.
++    *
++    * @algo: Pointer to the hash_algo struct
++    * @ctx: Pointer to the context for hashing
++    * @buf: Pointer to the buffer being hashed
++    * @size: Size of the buffer being hashed
++    * @is_last: 1 if this is the last update; 0 otherwise
++    * @return 0 if ok, -ve on error
++    */
++int hw_sha_update(struct hash_algo *algo, void *ctx, const void *buf,
++             unsigned int size, int is_last)
++{
++    return SHA_Update(&sha_handle, buf, size);
++}
++
++/*
++    * Copy sha hash result at destination location
++    *
++    * The context is freed after completion of hash operation or after an error.
++    *
++    * @algo: Pointer to the hash_algo struct
++    * @ctx: Pointer to the context for hashing
++    * @dest_buf: Pointer to the destination buffer where hash is to be copied
++    * @size: Size of the buffer being hashed
++    * @return 0 if ok, -ve on error
++    */
++int hw_sha_finish(struct hash_algo *algo, void *ctx, void *dest_buf,
++             int size)
++{
++    return SHA_Finish(&sha_handle, dest_buf);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        npcm750_sha_calc                                          */
++/*                                                                            */
++/* Parameters:      type - SHA module type                                    */
++/*                  inBuff  - Pointer to a buffer containing the data to      */
++/*                            be hashed                                       */
++/*                  len     - Length of the data to hash                      */
++/*                  hashDigest - Pointer to a buffer where the reseulting     */
++/*                               digest will be copied to                     */
++/*                                                                            */
++/* Returns:         0 on success or other int error code on error             */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine performs complete SHA calculation in one     */
++/*                  step                                                      */
++/*----------------------------------------------------------------------------*/
++int npcm750_sha_calc(npcm750_sha_type type, const u8* inBuff, u32 len, u8* hashDigest)
++{
++    SHA_HANDLE_T handle;
++
++    SHA_Init(&handle);
++    SHA_Power(true);
++    SHA_Reset();
++    SHA_Start(&handle, type);
++    SHA_RET_CHECK(SHA_Update(&handle, inBuff, len));
++    SHA_RET_CHECK(SHA_Finish(&handle, hashDigest));
++    SHA_Power(false);
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Init                                                  */
++/*                                                                            */
++/* Parameters:      handlePtr - SHA processing handle pointer                 */
++/* Returns:         0 on success or other int error code on error.            */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine initialize the SHA module                    */
++/*----------------------------------------------------------------------------*/
++static int SHA_Init(SHA_HANDLE_T* handlePtr)
++{
++    handlePtr->active = false;
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Start                                                 */
++/*                                                                            */
++/* Parameters:      handlePtr   - SHA processing handle pointer               */
++/*                  type        - SHA module type                             */
++/*                                                                            */
++/* Returns:         0 on success or other int error code on error.            */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine start a single SHA process                   */
++/*----------------------------------------------------------------------------*/
++static int SHA_Start(SHA_HANDLE_T* handlePtr, npcm750_sha_type type)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++
++    // Initialize handle
++    handlePtr->length0 = 0;
++    handlePtr->length1 = 0;
++    handlePtr->type = type;
++    handlePtr->active = true;
++
++    // Set SHA type
++    writeb(handlePtr->type & HASH_CFG_SHA1_SHA2, &regs->hash_cfg);
++
++    // Reset SHA hardware
++    SHA_Reset();
++
++    /* The handlePtr->hv is initialized with the correct IV as the SHA engine
++       automaticly fill the HASH_DIG_Hn registers according to SHA spec
++       (following SHA_RST assertion) */
++    SHA_GetShaDigest_l((u8*)handlePtr->hv, type);
++
++    // Init block with zeros
++    memset(handlePtr->block, 0, sizeof(handlePtr->block));
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Update                                                */
++/*                                                                            */
++/* Parameters:      handlePtr - SHA processing handle pointer                 */
++/*                  buffer    - Pointer to the data that will be added to     */
++/*                              the hash calculation                          */
++/*                  len -      Length of data to add to SHA calculation       */
++/*                                                                            */
++/*                                                                            */
++/* Returns:         0 on success or other int error code on error             */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine adds data to previously started SHA          */
++/*                  calculation                                               */
++/*----------------------------------------------------------------------------*/
++static int SHA_Update(SHA_HANDLE_T* handlePtr, const u8* buffer, u32 len)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u32 localBuffer[SHA_SECRUN_BUFF_SIZE / sizeof(u32)];
++    u32 bufferLen = len;
++    u16 pos = 0;
++    u8* blockPtr;
++
++    // Error check
++    DEFS_STATUS_COND_CHECK(handlePtr->active == true, -(EPROTO));
++
++    // Wait till SHA is not busy
++    SHA_RET_CHECK(SHA_BusyWait_l());
++
++    // Set SHA type
++    writeb(handlePtr->type & HASH_CFG_SHA1_SHA2, &regs->hash_cfg);
++
++    // Write SHA latest digest into SHA module
++    SHA_SetShaDigest_l(handlePtr->hv, handlePtr->type);
++
++    // Set number of unhashed bytes which remained from last update
++    pos = SHA_BUFF_POS(handlePtr->length0);
++
++    // Copy unhashed bytes which remained from last update to secrun buffer
++    SHA_SetBlock_l((u8*)handlePtr->block, pos, 0, localBuffer);
++
++    while (len) {
++        // Wait for the hardware to be available (in case we are hashing)
++        SHA_RET_CHECK(SHA_BusyWait_l());
++
++        // Move as much bytes  as we can into the secrun buffer
++        bufferLen = min(len, SHA_BUFF_FREE(handlePtr->length0));
++
++        // Copy current given buffer to the secrun buffer
++        SHA_SetBlock_l((u8*)buffer, bufferLen, pos, localBuffer);
++
++        // Update size of hashed bytes
++        handlePtr->length0 += bufferLen;
++
++        if ((handlePtr->length0) < bufferLen) {
++            handlePtr->length1++;
++        }
++
++        // Update length of data left to digest
++        len -= bufferLen;
++
++        // Update given buffer pointer
++        buffer += bufferLen;
++
++        // If secrun buffer is full
++        if (SHA_BUFF_POS(handlePtr->length0) == 0) {
++            /*  We just filled up the buffer perfectly, so let it hash (we'll
++                unload the hash only when we are done with all hashing) */
++            SHA_FlushLocalBuffer_l(localBuffer);
++
++            pos = 0;
++            bufferLen = 0;
++        }
++    }
++
++    // Wait till SHA is not busy
++    SHA_RET_CHECK(SHA_BusyWait_l());
++
++    /* Copy unhashed bytes from given buffer to handle block for next
++       update/finish */
++    blockPtr = (u8*)handlePtr->block;
++    while (bufferLen) {
++        blockPtr[--bufferLen+pos] = *(--buffer);
++    }
++
++    // Save SHA current digest
++    SHA_GetShaDigest_l((u8*)handlePtr->hv, handlePtr->type);
++
++    return 0;
++}
++
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Finish                                                */
++/*                                                                            */
++/* Parameters:      handlePtr  - SHA processing handle pointer                */
++/*                  hashDigest - Pointer to a buffer where the final digest   */
++/*                               will be copied to                            */
++/*                                                                            */
++/* Returns:         0 on success or other int error code on error             */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine finish SHA calculation and get               */
++/*                  the resulting SHA digest                                  */
++/*----------------------------------------------------------------------------*/
++static int SHA_Finish(SHA_HANDLE_T* handlePtr, u8* hashDigest)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u32 localBuffer[SHA_SECRUN_BUFF_SIZE / sizeof(u32)];
++    const u8 lastbyte = SHA_DATA_LAST_BYTE;
++    u16 pos;
++
++    // Error check
++    DEFS_STATUS_COND_CHECK(handlePtr->active == true, -(EPROTO));
++
++    // Set SHA type
++    writeb(handlePtr->type & HASH_CFG_SHA1_SHA2, &regs->hash_cfg);
++
++    // Wait till SHA is not busy
++    SHA_RET_CHECK(SHA_BusyWait_l());
++
++    // Finish off the current buffer with the SHA spec'ed padding
++    pos = SHA_BUFF_POS(handlePtr->length0);
++
++    // Init SHA digest
++    SHA_SetShaDigest_l(handlePtr->hv, handlePtr->type);
++
++    // Load data into secrun buffer
++    SHA_SetBlock_l((u8*)handlePtr->block, pos, 0, localBuffer);
++
++    // Set data last byte as in SHA algorithm spec
++    SHA_SetBlock_l(&lastbyte, 1, pos++, localBuffer);
++
++    // If the remainder of data is longer then one block
++    if (pos > (SHA_BLOCK_LENGTH - 8)) {
++        /* The message length will be in the next block
++           Pad the rest of the last block with 0's */
++        SHA_ClearBlock_l((SHA_BLOCK_LENGTH - pos), pos, localBuffer);
++
++        // Hash the current block
++        SHA_FlushLocalBuffer_l(localBuffer);
++
++        pos = 0;
++
++        // Wait till SHA is not busy
++        SHA_RET_CHECK(SHA_BusyWait_l());
++    }
++
++    // Pad the rest of the last block with 0's except for the last 8-3 bytes
++    SHA_ClearBlock_l((SHA_BLOCK_LENGTH-(8-3))-pos, pos, localBuffer);
++
++    /* The last 8-3 bytes are set to the bit-length of the message
++       in big-endian form */
++    SHA_SetLength32_l(handlePtr, localBuffer);
++
++    // Hash all that, and save the hash for the caller
++    SHA_FlushLocalBuffer_l(localBuffer);
++
++    // Wait till SHA is not busy
++    SHA_RET_CHECK(SHA_BusyWait_l());
++
++    // Save SHA final digest into given buffer
++    SHA_GetShaDigest_l(hashDigest, handlePtr->type);
++
++    // Free handle
++    handlePtr->active = false;
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Reset                                                 */
++/*                                                                            */
++/* Parameters:      none                                                      */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine reset SHA module                             */
++/*----------------------------------------------------------------------------*/
++static int SHA_Reset(void)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++
++    writel(readl(&regs->hash_ctr_sts) | HASH_CTR_STS_SHA_RST, &regs->hash_ctr_sts);
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_Power                                                 */
++/*                                                                            */
++/* Parameters:      on - true enable the module, false disable the module     */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine set SHA module power on/off                  */
++/*----------------------------------------------------------------------------*/
++static int SHA_Power(bool on)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u8 hash_sts;
++
++    hash_sts = readb(&regs->hash_ctr_sts) & ~HASH_CTR_STS_SHA_EN;
++    writeb(hash_sts | (on & HASH_CTR_STS_SHA_EN), &regs->hash_ctr_sts);
++
++    return 0;
++}
++
++#ifdef SHA_PRINT
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_PrintRegs                                             */
++/*                                                                            */
++/* Parameters:      none                                                      */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine prints the module registers                  */
++/*----------------------------------------------------------------------------*/
++static void SHA_PrintRegs(void)
++{
++#ifdef SHA_DEBUG_MODULE
++    struct poleg_sha_regs *regs = sha_priv->regs;
++#endif
++    unsigned int i;
++
++    sha_print("/*--------------*/\n");
++    sha_print("/*     SHA      */\n");
++    sha_print("/*--------------*/\n\n");
++
++    sha_print("HASH_CTR_STS    = 0x%02X\n", readb(&regs->hash_ctr_sts));
++    sha_print("HASH_CFG        = 0x%02X\n", readb(&regs->hash_cfg));
++
++    for (i = 0; i < HASH_DIG_H_NUM; i++) {
++        sha_print("HASH_DIG_H%d     = 0x%08X\n", i, readl(&regs->hash_dig[i]));
++    }
++
++    sha_print("HASH_VER         = 0x%08X\n", readb(&regs->hash_ver));
++
++    sha_print("\n");
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_PrintVersion                                          */
++/*                                                                            */
++/* Parameters:      none                                                      */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine prints the module version                    */
++/*----------------------------------------------------------------------------*/
++static void SHA_PrintVersion(void)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++
++    printf("SHA MODULE VER  = %d\n", readb(&regs->hash_ver));
++}
++#endif
++
++/*----------------------------------------------------------------------------*/
++/* Function:        npcm750_sha_selftest                                      */
++/*                                                                            */
++/* Parameters:      type - SHA module type                                    */
++/* Returns:         0 on success or other int error code on error             */
++/* Side effects:                                                              */
++/* Description:                                                               */
++/*                  This routine performs various tests on the SHA HW and SW  */
++/*----------------------------------------------------------------------------*/
++int npcm750_sha_selftest(npcm750_sha_type type)
++{
++    SHA_HANDLE_T handle;
++    u8 hashDigest[max(SHA_1_HASH_LENGTH, SHA_2_HASH_LENGTH)];
++    u16 i, j;
++
++    /*------------------------------------------------------------------------*/
++    /* SHA1 tests info                                                        */
++    /*------------------------------------------------------------------------*/
++
++    static const u8 sha1SelfTestBuff[SHA1_NUM_OF_SELF_TESTS][94] =
++    {
++        {"abc"},
++        {"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"},
++        {"0123456789012345678901234567890123456789012345678901234567890123"},
++        {0x30, 0x5c, 0x30, 0x2c, 0x02, 0x01, 0x00, 0x30, 0x09, 0x06, 0x05, 0x2b,
++         0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x30, 0x06, 0x06, 0x04, 0x67, 0x2a,
++         0x01, 0x0c, 0x04, 0x14, 0xe1, 0xb6, 0x93, 0xfe, 0x33, 0x43, 0xc1, 0x20,
++         0x5d, 0x4b, 0xaa, 0xb8, 0x63, 0xfb, 0xcf, 0x6c, 0x46, 0x1e, 0x88, 0x04,
++         0x30, 0x2c, 0x02, 0x01, 0x00, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03,
++         0x02, 0x1a, 0x05, 0x00, 0x30, 0x06, 0x06, 0x04, 0x67, 0x2a, 0x01, 0x0c,
++         0x04, 0x14, 0x13, 0xc1, 0x0c, 0xfc, 0xc8, 0x92, 0xd7, 0xde, 0x07, 0x1c,
++         0x40, 0xde, 0x4f, 0xcd, 0x07, 0x5b, 0x68, 0x20, 0x5a, 0x6c}
++    };
++
++    static const u8 sha1SelfTestBuffLen[SHA1_NUM_OF_SELF_TESTS] =
++    {
++        3, 56, 64, 94
++    };
++
++    static const u8 sha1SelfTestExpRes[SHA1_NUM_OF_SELF_TESTS][SHA_1_HASH_LENGTH] =
++    {
++        {0xA9, 0x99, 0x3E, 0x36,
++         0x47, 0x06, 0x81, 0x6A,
++         0xBA, 0x3E, 0x25, 0x71,
++         0x78, 0x50, 0xC2, 0x6C,
++         0x9C, 0xD0, 0xD8, 0x9D},
++        {0x84, 0x98, 0x3E, 0x44,
++         0x1C, 0x3B, 0xD2, 0x6E,
++         0xBA, 0xAE, 0x4A, 0xA1,
++         0xF9, 0x51, 0x29, 0xE5,
++         0xE5, 0x46, 0x70, 0xF1},
++        {0xCF, 0x08, 0x00, 0xF7,
++         0x64, 0x4A, 0xCE, 0x3C,
++         0xB4, 0xC3, 0xFA, 0x33,
++         0x38, 0x8D, 0x3B, 0xA0,
++         0xEA, 0x3C, 0x8B, 0x6E},
++        {0xc9, 0x84, 0x45, 0xc8,
++         0x64, 0x04, 0xb1, 0xe3,
++         0x3c, 0x6b, 0x0a, 0x8c,
++         0x8b, 0x80, 0x94, 0xfc,
++         0xf3, 0xc9, 0x98, 0xab}
++    };
++
++    /*------------------------------------------------------------------------*/
++    /* SHA2 tests info                                                        */
++    /*------------------------------------------------------------------------*/
++
++    static const u8 sha2SelfTestBuff[SHA2_NUM_OF_SELF_TESTS][100] =
++    {
++        { "abc" },
++        { "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq" },
++        {'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
++         'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'}
++    };
++
++    static const u8 sha2SelfTestBuffLen[SHA2_NUM_OF_SELF_TESTS] =
++    {
++        3, 56, 100
++    };
++
++    static const u8 sha2SelfTestExpRes[SHA2_NUM_OF_SELF_TESTS][SHA_2_HASH_LENGTH] =
++    {
++        /*
++         * SHA-256 test vectors
++         */
++        { 0xBA, 0x78, 0x16, 0xBF, 0x8F, 0x01, 0xCF, 0xEA,
++          0x41, 0x41, 0x40, 0xDE, 0x5D, 0xAE, 0x22, 0x23,
++          0xB0, 0x03, 0x61, 0xA3, 0x96, 0x17, 0x7A, 0x9C,
++          0xB4, 0x10, 0xFF, 0x61, 0xF2, 0x00, 0x15, 0xAD },
++        { 0x24, 0x8D, 0x6A, 0x61, 0xD2, 0x06, 0x38, 0xB8,
++          0xE5, 0xC0, 0x26, 0x93, 0x0C, 0x3E, 0x60, 0x39,
++          0xA3, 0x3C, 0xE4, 0x59, 0x64, 0xFF, 0x21, 0x67,
++          0xF6, 0xEC, 0xED, 0xD4, 0x19, 0xDB, 0x06, 0xC1 },
++        { 0xCD, 0xC7, 0x6E, 0x5C, 0x99, 0x14, 0xFB, 0x92,
++          0x81, 0xA1, 0xC7, 0xE2, 0x84, 0xD7, 0x3E, 0x67,
++          0xF1, 0x80, 0x9A, 0x48, 0xA4, 0x97, 0x20, 0x0E,
++          0x04, 0x6D, 0x39, 0xCC, 0xC7, 0x11, 0x2C, 0xD0 }
++    };
++
++    if (type == npcm750_sha_type_sha1) {
++        /*--------------------------------------------------------------------*/
++        /* SHA 1 TESTS                                                        */
++        /*--------------------------------------------------------------------*/
++        for (i = 0; i < SHA1_NUM_OF_SELF_TESTS; i++) {
++            if (i != 3) {
++                SHA_RET_CHECK(npcm750_sha_calc(npcm750_sha_type_sha1, sha1SelfTestBuff[i], sha1SelfTestBuffLen[i], hashDigest));
++            } else {
++                SHA_Power(true);
++                SHA_Reset();
++                SHA_RET_CHECK(SHA_Start(&handle, npcm750_sha_type_sha1));
++                SHA_RET_CHECK(SHA_Update(&handle, sha1SelfTestBuff[i],73));
++                SHA_RET_CHECK(SHA_Update(&handle, &(sha1SelfTestBuff[i][73]),sha1SelfTestBuffLen[i] - 73));
++                SHA_RET_CHECK(SHA_Finish(&handle, hashDigest));
++                SHA_Power(false);
++            }
++
++            if (memcmp(hashDigest, sha1SelfTestExpRes[i], SHA_1_HASH_LENGTH)) {
++                return -1;
++            }
++        }
++
++    } else {
++
++        /*--------------------------------------------------------------------*/
++        /* SHA 2 TESTS                                                        */
++        /*--------------------------------------------------------------------*/
++        for (i = 0; i < SHA2_NUM_OF_SELF_TESTS; i++) {
++            SHA_Power(true);
++            SHA_Reset();
++            SHA_RET_CHECK(SHA_Start(&handle, npcm750_sha_type_sha2));
++            if (i == 2) {
++                for (j = 0; j < 10000; j++ ) { //not working
++                    SHA_RET_CHECK(SHA_Update(&handle, sha2SelfTestBuff[i], sha2SelfTestBuffLen[i]));
++                }
++            } else {
++                SHA_RET_CHECK(SHA_Update(&handle, sha2SelfTestBuff[i], sha2SelfTestBuffLen[i]));
++            }
++
++            SHA_RET_CHECK(SHA_Finish(&handle, hashDigest));
++            SHA_Power(false);
++            if (memcmp(hashDigest, sha2SelfTestExpRes[i], SHA_2_HASH_LENGTH)) {
++                return -1;
++            }
++
++            npcm750_sha_calc(npcm750_sha_type_sha2, sha2SelfTestBuff[i], sha2SelfTestBuffLen[i], hashDigest);
++            if (memcmp(hashDigest, sha2SelfTestExpRes[i], SHA_2_HASH_LENGTH)) {
++                return -1;
++            }
++        }
++    }
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_FlushLocalBuffer_l                                    */
++/*                                                                            */
++/* Parameters:                                                                */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine flush secrun buffer to SHA module            */
++/*----------------------------------------------------------------------------*/
++static void SHA_FlushLocalBuffer_l(const u32* buff)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u32 i;
++
++    for(i = 0; i < (SHA_BLOCK_LENGTH / sizeof(u32)); i++)
++        writel(buff[i], &regs->hash_data_in);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_BusyWait_l                                            */
++/*                                                                            */
++/* Parameters:                                                                */
++/* Returns:         0 if no error was found or DEFS_STATUS_ERROR otherwise    */
++/* Side effects:                                                              */
++/* Description:     This routine wait for SHA unit to no longer be busy       */
++/*----------------------------------------------------------------------------*/
++static int SHA_BusyWait_l(void)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++
++    // While SHA module is busy
++    BUSY_WAIT_TIMEOUT((readb(&regs->hash_ctr_sts) & HASH_CTR_STS_SHA_BUSY)
++                      == HASH_CTR_STS_SHA_BUSY, SHA_TIMEOUT);
++
++    return 0;
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_GetShaDigest_l                                        */
++/*                                                                            */
++/* Parameters:      hashDigest - buffer for the hash output.                  */
++/*                  type - SHA module type                                    */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine copy the hash digest from the hardware       */
++/*                  and into given buffer (in ram)                            */
++/*----------------------------------------------------------------------------*/
++static void SHA_GetShaDigest_l(u8* hashDigest, npcm750_sha_type type)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u16 j;
++    u8 len = SHA_HASH_LENGTH(type) / sizeof(u32);
++
++    // Copy Bytes from SHA module to given buffer
++    for (j = 0; j < len; j++)
++        ((u32*)hashDigest)[j] = readl(&regs->hash_dig[j]);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_SetShaDigest_l                                        */
++/*                                                                            */
++/* Parameters:      hashDigest - input buffer to set as hash digest           */
++/*                  type - SHA module type                                    */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine set the hash digest in the hardware from     */
++/*                  a given buffer (in ram)                                   */
++/*----------------------------------------------------------------------------*/
++static void SHA_SetShaDigest_l(const u32* hashDigest, npcm750_sha_type type)
++{
++    struct poleg_sha_regs *regs = sha_priv->regs;
++    u16 j;
++    u8 len = SHA_HASH_LENGTH(type) / sizeof(u32);
++
++  // Copy Bytes from given buffer to SHA module
++    for (j = 0; j < len; j++)
++        writel(hashDigest[j], &regs->hash_dig[j]);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_SetBlock_l                                            */
++/*                                                                            */
++/* Parameters:      data        - data to copy                                */
++/*                  len         - size of data                                */
++/*                  position    - byte offset into the block at which data    */
++/*                                should be placed                            */
++/*                  block       - block buffer                                */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine load bytes into block buffer                 */
++/*----------------------------------------------------------------------------*/
++static void SHA_SetBlock_l(const u8* data,u32 len, u16 position, u32* block)
++{
++    u8 * dest = (u8*)block;
++
++    memcpy(dest + position, data, len);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_SetBlock_l                                            */
++/*                                                                            */
++/* Parameters:                                                                */
++/*                  len - size of data                                        */
++/*                  position - byte offset into the block at which data       */
++/*                             should be placed                               */
++/*                  block - block buffer                                      */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine load zero's into the block buffer            */
++/*----------------------------------------------------------------------------*/
++static void SHA_ClearBlock_l(u16 len, u16 position, u32* block)
++{
++    u8 * dest = (u8*)block;
++
++    memset(dest + position, 0, len);
++}
++
++/*----------------------------------------------------------------------------*/
++/* Function:        SHA_SetLength32_l                                         */
++/*                                                                            */
++/* Parameters:                                                                */
++/*                  handlePtr  -   SHA processing handle pointer              */
++/*                  block - block buffer                                      */
++/* Returns:         none                                                      */
++/* Side effects:                                                              */
++/* Description:     This routine set the length of the hash's data            */
++/*                  len is the 32-bit byte length of the message              */
++/*lint -efunc(734,SHA_SetLength32_l) Supperess loss of percision lint warning */
++/*----------------------------------------------------------------------------*/
++static void SHA_SetLength32_l(const SHA_HANDLE_T* handlePtr, u32* block)
++{
++    u16* secrunBufferSwappedPtr = (u16*)(void*)(block);
++
++    secrunBufferSwappedPtr[(SHA_BLOCK_LENGTH/sizeof(u16)) - 1] = (u16)
++        ((handlePtr->length0 << 3) << 8) | ((u16) (handlePtr->length0 << 3) >> 8);
++    secrunBufferSwappedPtr[(SHA_BLOCK_LENGTH/sizeof(u16)) - 2] = (u16)
++        ((handlePtr->length0 >> (16-3)) >> 8) | ((u16) (handlePtr->length0 >> (16-3)) << 8);
++    secrunBufferSwappedPtr[(SHA_BLOCK_LENGTH/sizeof(u16)) - 3] = (u16)
++        ((handlePtr->length1 << 3) << 8) | ((u16) (handlePtr->length1 << 3) >> 8);
++    secrunBufferSwappedPtr[(SHA_BLOCK_LENGTH/sizeof(u16)) - 4] = (u16)
++        ((handlePtr->length1 >> (16-3)) >> 8) | ((u16) (handlePtr->length1 >> (16-3)) << 8);
++}
++
++static int npcm750_sha_bind(struct udevice *dev)
++{
++    sha_priv = calloc(1, sizeof(struct npcm750_sha_priv));
++    if (!sha_priv)
++        return -ENOMEM;
++
++    sha_priv->regs = dev_remap_addr_index(dev, 0);
++    if (!sha_priv->regs) {
++        printf("Cannot find sha reg address, binding failed\n");
++        return -EINVAL;
++    }
++
++    printk(KERN_INFO "SHA: NPCM750 SHA module bind OK\n");
++
++    return 0;
++}
++
++static const struct udevice_id npcm750_sha_ids[] = {
++    { .compatible = "nuvoton,npcm750-sha" },
++    { }
++};
++
++U_BOOT_DRIVER(npcm750_sha) = {
++    .name = "npcm750_sha",
++    .id = UCLASS_MISC,
++    .of_match = npcm750_sha_ids,
++    .priv_auto_alloc_size = sizeof(struct npcm750_sha_priv),
++    .bind = npcm750_sha_bind,
++};

@@ -1,0 +1,1503 @@
+diff -Naur c/http/http_response.h d/http/http_response.h
+--- c/http/http_response.h	2020-08-14 19:22:23.140742125 +0530
++++ d/http/http_response.h	2020-08-14 19:23:21.268407414 +0530
+@@ -154,7 +154,7 @@
+     // In case of a JSON object, set the Content-Type header
+     void jsonMode()
+     {
+-        addHeader("Content-Type", "application/json");
++        addHeader("Content-Type", "application/json; charset=UTF-8");
+     }
+ };
+ } // namespace crow
+diff -Naur c/include/security_headers_middleware.hpp d/include/security_headers_middleware.hpp
+--- c/include/security_headers_middleware.hpp	2020-08-14 19:22:23.148742076 +0530
++++ d/include/security_headers_middleware.hpp	2020-08-14 19:23:47.124264608 +0530
+@@ -28,6 +28,7 @@
+          javascript file.  It doesn't hurt anything, it's just ugly.
+          */
+         using bf = boost::beast::http::field;
++#if 0
+         res.addHeader(bf::strict_transport_security, "max-age=31536000; "
+                                                      "includeSubdomains; "
+                                                      "preload");
+@@ -39,6 +40,12 @@
+         res.addHeader("X-XSS-Protection", "1; "
+                                           "mode=block");
+         res.addHeader("X-Content-Type-Options", "nosniff");
++#endif
++        res.addHeader(bf::access_control_allow_origin, "*");
++        res.addHeader(bf::access_control_expose_headers, "X-Auth-Token");
++        res.addHeader(bf::access_control_allow_headers, "X-Auth-Token");
++        res.addHeader(bf::access_control_allow_credentials, "true");
++        res.addHeader(bf::cache_control, "no-cache, must-revalidate");
+ 
+ #ifndef BMCWEB_INSECURE_DISABLE_XSS_PREVENTION
+         res.addHeader("Content-Security-Policy", "default-src 'none'; "
+@@ -76,6 +83,10 @@
+                                                         "X-XSRF-TOKEN");
+ 
+ #endif
++	if (req.url == "/redfish/")
++	{
++	    res.addHeader("OData-Version", "4.0");
++	}
+     }
+ };
+ } // namespace crow
+diff -Naur c/redfish-core/include/headers.hpp d/redfish-core/include/headers.hpp
+--- c/redfish-core/include/headers.hpp	1970-01-01 05:30:00.000000000 +0530
++++ d/redfish-core/include/headers.hpp	2020-08-13 19:59:47.133042520 +0530
+@@ -0,0 +1,79 @@
++/*
++// Copyright (c) 2018 Intel Corporation
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++*/
++#pragma once
++
++#include <vector>
++
++namespace redfish
++{
++
++/**
++ * @brief  Abstract class used for implementing Redfish headers.
++ *
++ */
++namespace Header
++{
++    static constexpr char const *RedfishSchemaPath = "/usr/share/www/redfish/v1/schema/";
++
++    /**
++     * @brief Get all the supported allow headers for the URI. 
++     * @param[in] Redfish Schema file for that URI.
++     * 
++     * @return supported allow headers string
++     */
++    std::string GetAllowHeaders (const std::string& SchemaFile) 
++    {
++        std::ifstream fileWriter;
++	std::vector <std::string> allow_header;
++        std::string temp_buf, HeaderBuf;
++    
++        const char *allow_schema_buf[3] = {"Insertable","Updatable","Deletable"};
++        const char *allow_method_buf[3] = {"POST","PATCH","DELETE"};
++    
++        fileWriter.open(RedfishSchemaPath + SchemaFile);
++        allow_header.emplace_back("GET");
++
++	if(fileWriter)
++	{
++           for(int i=0; i<3; i++)
++           {
++               while(std::getline(fileWriter,temp_buf))
++               {
++                   if(temp_buf.find(allow_schema_buf[i]) != std::string::npos)
++                   {
++                      if(temp_buf.find("true") != std::string::npos)
++                      {
++                         allow_header.emplace_back(std::string(",") + allow_method_buf[i]);
++                         break;
++                      }
++                   }
++               }
++               fileWriter.clear();
++               fileWriter.seekg(0);
++           }
++	}
++        fileWriter.close();
++
++        for (auto const&it : allow_header)
++        {
++           HeaderBuf += it;
++        }
++	return HeaderBuf;
++    }
++
++}
++
++} // namespace redfish
+diff -Naur c/redfish-core/lib/account_service.hpp d/redfish-core/lib/account_service.hpp
+--- c/redfish-core/lib/account_service.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/account_service.hpp	2020-08-14 18:31:31.746020099 +0530
+@@ -15,6 +15,7 @@
+ */
+ #pragma once
+ #include "node.hpp"
++#include "headers.hpp"
+ 
+ #include <dbus_utility.hpp>
+ #include <error_messages.hpp>
+@@ -1218,6 +1219,9 @@
+ 
+         getLDAPConfigData("LDAP", callback);
+         getLDAPConfigData("ActiveDirectory", callback);
++
++	res.addHeader(boost::beast::http::field::allow,
++		                redfish::Header::GetAllowHeaders("AccountService_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -1313,6 +1317,9 @@
+                 "MaxLoginAttemptBeforeLockout",
+                 std::variant<uint16_t>(*lockoutThreshold));
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++		                 redfish::Header::GetAllowHeaders("AccountService_v1.xml"));
+     }
+ 
+     CrowApp& app;
+@@ -1393,6 +1400,8 @@
+                 }
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     memberArray.size();
++	        asyncResp->res.addHeader(boost::beast::http::field::allow,
++			                 redfish::Header::GetAllowHeaders("ManagerAccountCollection_v1.xml"));
+             },
+             "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
+             "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+@@ -1495,6 +1504,8 @@
+                         asyncResp->res.addHeader(
+                             "Location",
+                             "/redfish/v1/AccountService/Accounts/" + username);
++	                asyncResp->res.addHeader(boost::beast::http::field::allow,
++			      			 redfish::Header::GetAllowHeaders("ManagerAccountCollection_v1.xml"));
+                     },
+                     "xyz.openbmc_project.User.Manager",
+                     "/xyz/openbmc_project/user",
+@@ -1674,6 +1685,8 @@
+                     "/redfish/v1/AccountService/Accounts/" + accountName;
+                 asyncResp->res.jsonValue["Id"] = accountName;
+                 asyncResp->res.jsonValue["UserName"] = accountName;
++	        asyncResp->res.addHeader(boost::beast::http::field::allow,
++			                 redfish::Header::GetAllowHeaders("ManagerAccountCollection_v1.xml"));
+             },
+             "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
+             "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+@@ -1754,6 +1767,8 @@
+                 "xyz.openbmc_project.User.Manager", "RenameUser", username,
+                 *newUserName);
+         }
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++		                 redfish::Header::GetAllowHeaders("ManagerAccountCollection_v1.xml"));
+     }
+ 
+     void updateUserProperties(std::shared_ptr<AsyncResp> asyncResp,
+@@ -1930,6 +1945,8 @@
+                 }
+ 
+                 messages::accountRemoved(asyncResp->res);
++	        asyncResp->res.addHeader(boost::beast::http::field::allow,
++	        	                 redfish::Header::GetAllowHeaders("ManagerAccountCollection_v1.xml"));
+             },
+             "xyz.openbmc_project.User.Manager", userPath,
+             "xyz.openbmc_project.Object.Delete", "Delete");
+diff -Naur c/redfish-core/lib/bios.hpp d/redfish-core/lib/bios.hpp
+--- c/redfish-core/lib/bios.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/bios.hpp	2020-08-14 18:36:45.024684415 +0530
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "node.hpp"
++#include "headers.hpp"
+ 
+ #include <utils/fw_utils.hpp>
+ namespace redfish
+@@ -34,6 +35,8 @@
+ 
+         // Get the ActiveSoftwareImage
+         fw_util::getActiveFwVersion(asyncResp, fw_util::biosPurpose, "", true);
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("Bios_v1.xml"));
+     }
+ };
+ /**
+@@ -68,6 +71,8 @@
+                     messages::internalError(asyncResp->res);
+                     return;
+                 }
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("Bios_v1.xml"));
+             },
+             "org.open_power.Software.Host.Updater",
+             "/xyz/openbmc_project/software",
+diff -Naur c/redfish-core/lib/certificate_service.hpp d/redfish-core/lib/certificate_service.hpp
+--- c/redfish-core/lib/certificate_service.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/certificate_service.hpp	2020-08-14 18:37:46.224583518 +0530
+@@ -16,6 +16,7 @@
+ #pragma once
+ 
+ #include "node.hpp"
++#include "headers.hpp"
+ 
+ #include <boost/convert.hpp>
+ #include <boost/convert/strtol.hpp>
+@@ -88,6 +89,8 @@
+         res.jsonValue["Actions"]["#CertificateService.GenerateCSR"] = {
+             {"target", "/redfish/v1/CertificateService/Actions/"
+                        "CertificateService.GenerateCSR"}};
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("CertificateService_v1.xml"));	
+         res.end();
+     }
+ }; // CertificateService
+@@ -489,6 +492,8 @@
+                     messages::internalError(asyncResp->res);
+                     return;
+                 }
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	           	         redfish::Header::GetAllowHeaders("CertificateService_v1.xml"));	
+             },
+             service, objectPath, "xyz.openbmc_project.Certs.CSR.Create",
+             "GenerateCSR", *optAlternativeNames, *optChallengePassword, city,
+@@ -797,6 +802,8 @@
+                 }
+                 getCertificateProperties(asyncResp, objectPath, service, id,
+                                          certURI, name);
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	           	         redfish::Header::GetAllowHeaders("CertificateService_v1.xml"));	
+                 BMCWEB_LOG_DEBUG << "HTTPS certificate install file="
+                                  << certFile->getCertFilePath();
+             },
+@@ -848,6 +855,8 @@
+         objectPath += std::to_string(id);
+         getCertificateProperties(asyncResp, objectPath, certs::httpsServiceName,
+                                  id, certURL, "HTTPS Certificate");
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                   	         redfish::Header::GetAllowHeaders("ManagerNetworkProtocol_v1.xml"));	
+     }
+ 
+ }; // namespace redfish
+@@ -906,6 +915,8 @@
+                 }
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     members.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	           	         redfish::Header::GetAllowHeaders("CertificateCollection_v1.xml"));	
+             },
+             certs::httpsServiceName, certs::httpsObjectPath,
+             certs::dbusObjManagerIntf, "GetManagedObjects");
+@@ -955,6 +966,8 @@
+                 getCertificateProperties(asyncResp, objectPath,
+                                          certs::httpsServiceName, certId,
+                                          certURL, "HTTPS Certificate");
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	           	         redfish::Header::GetAllowHeaders("CertificateCollection_v1.xml"));	
+                 BMCWEB_LOG_DEBUG << "HTTPS certificate install file="
+                                  << certFile->getCertFilePath();
+             },
+diff -Naur c/redfish-core/lib/chassis.hpp d/redfish-core/lib/chassis.hpp
+--- c/redfish-core/lib/chassis.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/chassis.hpp	2020-08-14 18:38:29.336536089 +0530
+@@ -18,6 +18,7 @@
+ #include "health.hpp"
+ #include "led.hpp"
+ #include "node.hpp"
++#include "headers.hpp"
+ 
+ #include <boost/container/flat_map.hpp>
+ 
+@@ -213,6 +214,8 @@
+ 
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     chassisArray.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                         redfish::Header::GetAllowHeaders(" "));
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -402,6 +405,8 @@
+                             asyncResp->res.jsonValue["Links"]["ManagedBy"] = {
+                                 {{"@odata.id", "/redfish/v1/Managers/bmc"}}};
+                             getChassisState(asyncResp);
++			    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                	                             redfish::Header::GetAllowHeaders("Chassis_v1.xml"));
+                         },
+                         connectionName, path, "org.freedesktop.DBus.Properties",
+                         "GetAll",
+@@ -511,6 +516,8 @@
+                                                       "IndicatorLED");
+                         }
+                     }
++		    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                             redfish::Header::GetAllowHeaders("Chassis_v1.xml"));
+                     return;
+                 }
+ 
+@@ -592,6 +599,8 @@
+             return;
+         }
+         doChassisPowerCycle(asyncResp);
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ChassisCollection_v1.xml"));
+     }
+ };
+ 
+@@ -642,6 +651,8 @@
+                             {"Required", true},
+                             {"DataType", "String"},
+                             {"AllowableValues", {"PowerCycle"}}}}}};
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("ChassisCollection_v1.xml"));
+         res.end();
+     }
+ };
+diff -Naur c/redfish-core/lib/cpudimm.hpp d/redfish-core/lib/cpudimm.hpp
+--- c/redfish-core/lib/cpudimm.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/cpudimm.hpp	2020-08-14 18:39:17.580503994 +0530
+@@ -16,6 +16,7 @@
+ #pragma once
+ 
+ #include "health.hpp"
++#include "headers.hpp"
+ 
+ #include <boost/container/flat_map.hpp>
+ #include <node.hpp>
+@@ -589,6 +590,8 @@
+         getResourceList(asyncResp, "Processors",
+                         {"xyz.openbmc_project.Inventory.Item.Cpu",
+                          "xyz.openbmc_project.Inventory.Item.Accelerator"});
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                              redfish::Header::GetAllowHeaders("ProcessorCollection_v1.xml"));
+     }
+ };
+ 
+@@ -637,6 +640,8 @@
+                    {"xyz.openbmc_project.Inventory.Item.Cpu",
+                     "xyz.openbmc_project.Inventory.Decorator.Asset",
+                     "xyz.openbmc_project.Inventory.Item.Accelerator"});
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                              redfish::Header::GetAllowHeaders("Processor_v1.xml"));
+     }
+ };
+ 
+@@ -672,6 +677,8 @@
+ 
+         getResourceList(asyncResp, "Memory",
+                         {"xyz.openbmc_project.Inventory.Item.Dimm"});
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders("MemoryCollection_v1.xml"));
+     }
+ };
+ 
+@@ -716,6 +723,8 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+ 
+         getDimmData(asyncResp, dimmId);
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("MemoryCollection_v1.xml"));
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/ethernet.hpp d/redfish-core/lib/ethernet.hpp
+--- c/redfish-core/lib/ethernet.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/ethernet.hpp	2020-08-14 18:41:02.156501340 +0530
+@@ -38,6 +38,8 @@
+ #include <sys/socket.h>
+ #include <unistd.h>
+ 
++#include "headers.hpp" 
++
+ namespace redfish
+ {
+ using namespace std; 
+@@ -1131,6 +1133,8 @@
+                     iface_array.size();
+                 asyncResp->res.jsonValue["@odata.id"] =
+                     "/redfish/v1/Managers/bmc/EthernetInterfaces";
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("EthernetInterfaceCollection_v1.xml"));
+             });
+     }
+ };
+@@ -1971,6 +1975,9 @@
+ 
+                 parseInterfaceData(asyncResp, iface_id, ethData, ipv4Data,
+                                    ipv6Data);
++
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("EthernetInterface_v1.xml"));
+             });
+     }
+ 
+@@ -2121,6 +2128,9 @@
+                         iface_id, "NICEnabled", *interfaceEnabled, asyncResp);
+                 }
+             });
++	
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("EthernetInterface_v1.xml"));
+     }
+ };
+ 
+@@ -2234,6 +2244,9 @@
+                         asyncResp->res, "VLAN Network Interface", iface_id);
+                 }
+             });
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("VLanNetworkInterface_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -2313,6 +2326,9 @@
+                     return;
+                 }
+             });
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("VLanNetworkInterface_v1.xml"));
+     }
+ 
+     void doDelete(crow::Response& res, const crow::Request& req,
+@@ -2367,6 +2383,9 @@
+                         asyncResp->res, "VLAN Network Interface", ifaceId);
+                 }
+             });
++	
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("VLanNetworkInterface_v1.xml"));
+     }
+ };
+ 
+@@ -2454,6 +2473,9 @@
+                     "/redfish/v1/Managers/bmc/EthernetInterfaces/" +
+                     rootInterfaceName + "/VLANs";
+             });
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("VLanNetworkInterfaceCollection_v1.xml"));
+     }
+ 
+     void doPost(crow::Response& res, const crow::Request& req,
+@@ -2496,6 +2518,8 @@
+                 return;
+             }
+             messages::created(asyncResp->res);
++	    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                     redfish::Header::GetAllowHeaders("VLanNetworkInterfaceCollection_v1.xml"));
+         };
+         crow::connections::systemBus->async_method_call(
+             std::move(callback), "xyz.openbmc_project.Network",
+diff -Naur c/redfish-core/lib/event_service.hpp d/redfish-core/lib/event_service.hpp
+--- c/redfish-core/lib/event_service.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/event_service.hpp	2020-08-14 16:13:29.786375706 +0530
+@@ -15,6 +15,7 @@
+ */
+ #pragma once
+ #include "event_service_manager.hpp"
++#include "headers.hpp"
+ 
+ namespace redfish
+ {
+@@ -80,6 +81,9 @@
+ 
+         asyncResp->res.jsonValue["SSEFilterPropertiesSupported"] =
+             supportedSSEFilters;
++	
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders("EventService_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -138,6 +142,9 @@
+ 
+         EventServiceManager::getInstance().setEventServiceConfig(
+             std::make_tuple(enabled, retryCount, retryTimeoutInterval));
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders("EventService_v1.xml"));
+     }
+ };
+ 
+@@ -163,6 +170,8 @@
+     {
+         EventServiceManager::getInstance().sendTestEventLog();
+         res.result(boost::beast::http::status::no_content);
++	res.addHeader(boost::beast::http::field::allow,
++                     redfish::Header::GetAllowHeaders("EventDestinationCollection_v1.xml"));
+         res.end();
+     }
+ };
+@@ -207,6 +216,9 @@
+                 {{"@odata.id",
+                   "/redfish/v1/EventService/Subscriptions/" + id}});
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                   	         redfish::Header::GetAllowHeaders("EventDestinationCollection_v1.xml"));
+     }
+ 
+     void doPost(crow::Response& res, const crow::Request& req,
+@@ -403,6 +415,8 @@
+         messages::created(asyncResp->res);
+         asyncResp->res.addHeader(
+             "Location", "/redfish/v1/EventService/Subscriptions/" + id);
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                   	         redfish::Header::GetAllowHeaders("EventDestinationCollection_v1.xml"));
+     }
+ };
+ 
+@@ -505,6 +519,9 @@
+             res.end();
+             return;
+         }
++
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("Event_v1.xml"));
+     }
+ };
+ 
+@@ -563,7 +580,9 @@
+         asyncResp->res.jsonValue["MessageIds"] = subValue->registryMsgIds;
+         asyncResp->res.jsonValue["DeliveryRetryPolicy"] = subValue->retryPolicy;
+         asyncResp->res.jsonValue["MetricReportDefinitions"] =
+-            subValue->metricReportDefinitions;
++            subValue->metricReportDefinitions;	
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("EventDestination_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -621,6 +640,9 @@
+         }
+ 
+         EventServiceManager::getInstance().updateSubscriptionData();
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("EventDestination_v1.xml"));
+     }
+ 
+     void doDelete(crow::Response& res, const crow::Request& req,
+@@ -641,6 +663,9 @@
+             return;
+         }
+         EventServiceManager::getInstance().deleteSubscription(params[0]);
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("EventDestination_v1.xml"));
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/hypervisor_ethernet.hpp d/redfish-core/lib/hypervisor_ethernet.hpp
+--- c/redfish-core/lib/hypervisor_ethernet.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/hypervisor_ethernet.hpp	2020-08-14 16:21:46.259696721 +0530
+@@ -10,6 +10,8 @@
+ #include <optional>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -63,8 +65,10 @@
+                     {"@odata.id", "/redfish/v1/Systems/hypervisor/"
+                                   "EthernetInterfaces"}};
+                 // TODO: Add "SystemType" : "hypervisor"
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders(" "));
+             },
+-            "xyz.openbmc_project.Settings",
++            "xyz.openbmc_project.Settings",	
+             "/xyz/openbmc_project/network/hypervisor",
+             "org.freedesktop.DBus.Properties", "Get",
+             "xyz.openbmc_project.Network.SystemConfiguration", "HostName");
+@@ -135,6 +139,8 @@
+                 }
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     ifaceArray.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders("EthernetInterface_v1.xml"));
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -668,6 +674,8 @@
+                     "Hypervisor's Virtual Management Ethernet Interface";
+                 parseInterfaceData(asyncResp->res.jsonValue, ifaceId, ethData,
+                                    ipv4Data);
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                redfish::Header::GetAllowHeaders("EthernetInterface_v1.xml"));
+             });
+     }
+ 
+@@ -713,6 +721,8 @@
+         // Hypervisor will notify once the IP is applied to the Hypervisor.
+         // The status will be sent over to the client.
+         res.result(boost::beast::http::status::accepted);
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("EthernetInterface_v1.xml"));
+     }
+ };
+ } // namespace redfish
+diff -Naur c/redfish-core/lib/log_services.hpp d/redfish-core/lib/log_services.hpp
+--- c/redfish-core/lib/log_services.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/log_services.hpp	2020-08-14 16:48:40.216128544 +0530
+@@ -34,6 +34,8 @@
+ #include <string_view>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -557,6 +559,8 @@
+                                            "LogServices/PostCodes"}});
+                         asyncResp->res.jsonValue["Members@odata.count"] =
+                             logServiceArray.size();
++			asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                                 redfish::Header::GetAllowHeaders("LogServiceCollection_v1.xml"));
+                         return;
+                     }
+                 }
+@@ -605,6 +609,8 @@
+ 
+             {"target", "/redfish/v1/Systems/system/LogServices/EventLog/"
+                        "Actions/LogService.ClearLog"}};
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogService_v1.xml"));
+     }
+ };
+ 
+@@ -855,6 +861,8 @@
+                 "Entries?$skip=" +
+                 std::to_string(skip + top);
+         }
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
+     }
+ };
+ 
+@@ -926,6 +934,8 @@
+                         messages::internalError(asyncResp->res);
+                         return;
+                     }
++		    asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                             redfish::Header::GetAllowHeaders("Event_v1.xml"));
+                     return;
+                 }
+             }
+@@ -1074,6 +1084,8 @@
+                           });
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     entriesArray.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
+             },
+             "xyz.openbmc_project.Logging", "/xyz/openbmc_project/logging",
+             "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+@@ -1190,6 +1202,8 @@
+                     {"EntryType", "Event"},
+                     {"Severity", translateSeverityDbusToRedfish(*severity)},
+                     {"Created", crow::utility::getDateTime(timestamp)}};
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("LogEntry_v1.xml"));
+             },
+             "xyz.openbmc_project.Logging",
+             "/xyz/openbmc_project/logging/entry/" + entryID,
+@@ -1229,6 +1243,8 @@
+             }
+ 
+             asyncResp->res.result(boost::beast::http::status::ok);
++	    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                     redfish::Header::GetAllowHeaders("LogEntry_v1.xml"));
+         };
+ 
+         // Make call to Logging service to request Delete Log
+@@ -1280,6 +1296,8 @@
+ #endif
+         asyncResp->res.jsonValue["Members@odata.count"] =
+             logServiceArray.size();
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogServiceCollection_v1.xml"));
+     }
+ };
+ 
+@@ -1315,6 +1333,8 @@
+         asyncResp->res.jsonValue["Entries"] = {
+             {"@odata.id",
+              "/redfish/v1/Managers/bmc/LogServices/Journal/Entries"}};
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogService_v1.xml"));
+     }
+ };
+ 
+@@ -1465,6 +1485,8 @@
+                 "/redfish/v1/Managers/bmc/LogServices/Journal/Entries?$skip=" +
+                 std::to_string(skip + top);
+         }
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
+     }
+ };
+ 
+@@ -1552,6 +1574,9 @@
+             messages::internalError(asyncResp->res);
+             return;
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogService_v1.xml"));
+     }
+ };
+ 
+@@ -1597,6 +1622,8 @@
+         asyncResp->res.jsonValue["Actions"]["#LogService.CreateLog"] = {
+             {"target", "/redfish/v1/Systems/system/LogServices/System/"
+                        "Actions/LogService.CreateLog"}};
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogService_v1.xml"));
+     }
+ };
+ 
+@@ -1662,6 +1689,8 @@
+                 }
+                 asyncResp->res.jsonValue["Members@odata.count"] =
+                     logArray.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -1803,6 +1832,9 @@
+                          "/redfish/v1/Systems/system/LogServices/System/"
+                          "Entries/" +
+                              entryID + "/Actions/LogEntry.DownloadLog"}};
++
++		    asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                             redfish::Header::GetAllowHeaders("LogEntry_v1.xml"));
+                 }
+             },
+             "xyz.openbmc_project.Dump.Manager", "/xyz/openbmc_project/dump",
+@@ -1847,6 +1879,9 @@
+                         return;
+                     }
+                 }
++
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("LogEntry_v1.xml"));
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -1992,6 +2027,8 @@
+              {{"target", "/redfish/v1/Systems/system/LogServices/Crashdump/"
+                          "Actions/Oem/Crashdump.SendRawPeci"}}});
+ #endif
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogService_v1.xml"));
+     }
+ };
+ 
+@@ -2164,6 +2201,8 @@
+             }
+             asyncResp->res.jsonValue["Members@odata.count"] =
+                 logEntryArray.size();
++	    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                     redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
+         };
+         crow::connections::systemBus->async_method_call(
+             std::move(getLogEntriesCallback),
+diff -Naur c/redfish-core/lib/managers.hpp d/redfish-core/lib/managers.hpp
+--- c/redfish-core/lib/managers.hpp	2020-08-14 19:22:23.208741711 +0530
++++ d/redfish-core/lib/managers.hpp	2020-08-14 17:09:38.486939435 +0530
+@@ -29,6 +29,8 @@
+ #include <sstream>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -222,6 +224,8 @@
+                {"Required", true},
+                {"DataType", "String"},
+                {"AllowableValues", {"GracefulRestart"}}}}}};
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("ActionInfo_v1.xml"));
+         res.end();
+     }
+ };
+@@ -1802,7 +1806,10 @@
+                 "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
+                 "org.freedesktop.DBus.Properties", "Get",
+                 "org.freedesktop.systemd1.Manager", "Progress");
+-        }
++        } 
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("Manager_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -1848,6 +1855,9 @@
+         {
+             setDateTime(response, std::move(*datetime));
+         }
++
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("Manager_v1.xml"));
+     }
+ 
+     void getLastResetTime(std::shared_ptr<AsyncResp> aResp)
+@@ -1965,6 +1975,8 @@
+         res.jsonValue["Members@odata.count"] = 1;
+         res.jsonValue["Members"] = {
+             {{"@odata.id", "/redfish/v1/Managers/bmc"}}};
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("ManagerCollection_v1.xml"));
+         res.end();
+     }
+ };
+diff -Naur c/redfish-core/lib/message_registries.hpp d/redfish-core/lib/message_registries.hpp
+--- c/redfish-core/lib/message_registries.hpp	2020-08-14 19:22:23.176741906 +0530
++++ d/redfish-core/lib/message_registries.hpp	2020-08-14 17:03:49.248929137 +0530
+@@ -21,6 +21,8 @@
+ #include "registries/openbmc_message_registry.hpp"
+ #include "registries/task_event_message_registry.hpp"
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -62,6 +64,9 @@
+               {{"@odata.id", "/redfish/v1/Registries/TaskEvent"}},
+               {{"@odata.id", "/redfish/v1/Registries/OpenBMC"}}}}};
+ 
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("MessageRegistryCollection_v1.xml"));
++	
+         res.end();
+     }
+ };
+@@ -143,6 +148,9 @@
+             res.jsonValue["Location"][0]["PublicationUri"] = url;
+         }
+ 
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("MessageRegistryFile_v1.xml"));
++
+         res.end();
+     }
+ };
+@@ -258,6 +266,9 @@
+                 }
+             }
+         }
++
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("MessageRegistryFile_v1.xml"));
+         res.end();
+     }
+ };
+diff -Naur c/redfish-core/lib/network_protocol.hpp d/redfish-core/lib/network_protocol.hpp
+--- c/redfish-core/lib/network_protocol.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/network_protocol.hpp	2020-08-14 17:06:47.895842131 +0530
+@@ -23,6 +23,9 @@
+ 
+ #include <optional>
+ #include <variant>
++
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -149,6 +152,9 @@
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+ 
+         getData(asyncResp);
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ManagerNetworkProtocol_v1.xml"));
+     }
+ 
+     std::string getHostName() const
+@@ -549,6 +555,9 @@
+                 handleIpmiProtocolEnabled(*ipmiProtocolEnabled, asyncResp);
+             }
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ManagerNetworkProtocol_v1.xml"));
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/pcie.hpp d/redfish-core/lib/pcie.hpp
+--- c/redfish-core/lib/pcie.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/pcie.hpp	2020-08-14 17:14:51.649507919 +0530
+@@ -20,6 +20,8 @@
+ 
+ #include <boost/system/linux_error.hpp>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -101,6 +103,8 @@
+             {"Members", nlohmann::json::array()},
+             {"Members@odata.count", 0}};
+         getPCIeDeviceList(asyncResp, "Members");
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("PCIeDeviceCollection_v1.xml"));
+     }
+ };
+ 
+@@ -180,6 +184,9 @@
+                 asyncResp->res.jsonValue["PCIeFunctions"] = {
+                     {"@odata.id", "/redfish/v1/Systems/system/PCIeDevices/" +
+                                       device + "/PCIeFunctions"}};
++
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("PCIeDevice_v1.xml"));
+             };
+         std::string escapedPath = std::string(pciePath) + "/" + device;
+         dbus::utility::escapePathForDbus(escapedPath);
+@@ -275,6 +282,8 @@
+                 }
+                 asyncResp->res.jsonValue["PCIeFunctions@odata.count"] =
+                     pcieFunctionList.size();
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("PCIeFunctionCollection_v1.xml"));
+             };
+         std::string escapedPath = std::string(pciePath) + "/" + device;
+         dbus::utility::escapePathForDbus(escapedPath);
+@@ -418,6 +427,9 @@
+             {
+                 asyncResp->res.jsonValue["SubsystemVendorId"] = *property;
+             }
++
++	    asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                     redfish::Header::GetAllowHeaders("PCIeFunction_v1.xml"));
+         };
+         std::string escapedPath = std::string(pciePath) + "/" + device;
+         dbus::utility::escapePathForDbus(escapedPath);
+diff -Naur c/redfish-core/lib/power.hpp d/redfish-core/lib/power.hpp
+--- c/redfish-core/lib/power.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/power.hpp	2020-08-14 17:20:32.320147365 +0530
+@@ -18,6 +18,7 @@
+ 
+ #include "node.hpp"
+ #include "sensors.hpp"
++#include "headers.hpp"
+ 
+ namespace redfish
+ {
+@@ -306,6 +307,9 @@
+                         // null if the limit is not enabled.
+                         value = powerCap * std::pow(10, scale);
+                     }
++
++	            sensorAsyncResp->res.addHeader(boost::beast::http::field::allow,
++	                                         redfish::Header::GetAllowHeaders("Power_v1.xml"));			
+                 };
+ 
+             crow::connections::systemBus->async_method_call(
+@@ -314,7 +318,8 @@
+                 "org.freedesktop.DBus.Properties", "GetAll",
+                 "xyz.openbmc_project.Control.Power.Cap");
+         };
+-
++	
++        		
+         crow::connections::systemBus->async_method_call(
+             std::move(chassisHandler), "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -360,6 +365,9 @@
+             allCollections.emplace("Voltages", *std::move(voltageCollections));
+             checkAndDoSensorsOverride(asyncResp, allCollections);
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++	                         redfish::Header::GetAllowHeaders("Power_v1.xml"));			
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/redfish_sessions.hpp d/redfish-core/lib/redfish_sessions.hpp
+--- c/redfish-core/lib/redfish_sessions.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/redfish_sessions.hpp	2020-08-14 17:26:08.406910764 +0530
+@@ -18,6 +18,7 @@
+ #include "error_messages.hpp"
+ #include "node.hpp"
+ #include "persistent_data_middleware.hpp"
++#include "headers.hpp"
+ 
+ namespace redfish
+ {
+@@ -69,6 +70,8 @@
+         res.jsonValue["Oem"]["OpenBMC"]["ClientID"] = session->clientId;
+ #endif
+         res.jsonValue["Oem"]["OpenBMC"]["ClientOriginIP"] = session->clientIp;
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("Session_v1.xml"));
+         res.end();
+     }
+ 
+@@ -165,6 +168,8 @@
+         res.jsonValue["@odata.id"] = "/redfish/v1/SessionService/Sessions/";
+         res.jsonValue["Name"] = "Session Collection";
+         res.jsonValue["Description"] = "Session Collection";
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("SessionCollection_v1.xml"));
+         res.end();
+     }
+ 
+@@ -251,6 +256,8 @@
+                 res,
+                 "/redfish/v1/AccountService/Accounts/" + session->username);
+         }
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("SessionCollection_v1.xml"));
+         memberSession.doGet(res, req, {session->uniqueId});
+     }
+ 
+@@ -293,6 +300,9 @@
+         res.jsonValue["Sessions"] = {
+             {"@odata.id", "/redfish/v1/SessionService/Sessions"}};
+ 
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("SessionService_v1.xml"));
++
+         res.end();
+     }
+ };
+diff -Naur c/redfish-core/lib/sensors.hpp d/redfish-core/lib/sensors.hpp
+--- c/redfish-core/lib/sensors.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/sensors.hpp	2020-08-14 17:29:03.626289586 +0530
+@@ -27,6 +27,8 @@
+ #include <cmath>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -3062,6 +3064,10 @@
+ 
+         // Get set of sensors in chassis
+         getChassis(asyncResp, std::move(getChassisCb));
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("SensorCollection_v1.xml"));
++	
+         BMCWEB_LOG_DEBUG << "SensorCollection doGet exit";
+     }
+ };
+@@ -3158,6 +3164,8 @@
+ 
+                 sensorList->emplace(sensorPath);
+                 processSensorList(asyncResp, sensorList);
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	               		 redfish::Header::GetAllowHeaders("Sensor_v1.xml"));
+                 BMCWEB_LOG_DEBUG << "respHandler1 exit";
+             },
+             "xyz.openbmc_project.ObjectMapper",
+diff -Naur c/redfish-core/lib/serial_interface.hpp d/redfish-core/lib/serial_interface.hpp
+--- c/redfish-core/lib/serial_interface.hpp	2020-08-14 19:22:23.208741711 +0530
++++ d/redfish-core/lib/serial_interface.hpp	2020-08-14 18:08:21.708009771 +0530
+@@ -25,6 +25,8 @@
+ #include <variant>
+ #include <sys/stat.h>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -122,6 +124,8 @@
+ 		myfile.close();
+ 		system("rm -rf /tmp/tty.file");
+ 		asyncResp->res.jsonValue["Members@odata.count"] = cnt;
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	               		 redfish::Header::GetAllowHeaders("SerialInterfaceCollection_v1.xml"));
+ 	}
+ 
+ 	else 
+@@ -233,6 +237,9 @@
+         asyncResp->res.jsonValue["StopBits"] =
+             exec(stopbits);
+ 
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                       		 redfish::Header::GetAllowHeaders("SerialInterface_v1.xml"));
++
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/service_root.hpp d/redfish-core/lib/service_root.hpp
+--- c/redfish-core/lib/service_root.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/service_root.hpp	2020-08-13 19:57:50.587873901 +0530
+@@ -16,6 +16,7 @@
+ #pragma once
+ 
+ #include "node.hpp"
++#include "headers.hpp"
+ 
+ #include <utils/systemd_utils.hpp>
+ 
+@@ -69,6 +70,52 @@
+         res.jsonValue["Tasks"] = {{"@odata.id", "/redfish/v1/TaskService"}};
+         res.jsonValue["EventService"] = {
+             {"@odata.id", "/redfish/v1/EventService"}};
++
++#if 0
++	std::vector <std::string> allow_header;
++
++	allow_header.emplace_back("GET");
++
++	std::ifstream fileWriter;
++        fileWriter.open("/usr/share/www/redfish/v1/schema/ServiceRoot_v1.xml");
++        std::string temp_buf;
++
++	const char *ptr[3] = {"Insertable","Updatable","Deletable"};
++	const char *ptr2[3] = {"POST","PATCH","DELETE"};
++	for(int i=0; i<3; i++) {
++            while(std::getline(fileWriter,temp_buf))
++            {
++               if(temp_buf.find(ptr[i]) != std::string::npos)
++               {
++                  if(temp_buf.find("true") != std::string::npos)
++                  {
++	             allow_header.emplace_back(std::string(",") + ptr2[i]);	
++	             break;
++                  }
++               }
++            }
++	    fileWriter.clear();
++            fileWriter.seekg(0);
++	}
++        fileWriter.close();
++
++
++
++	//std::string temp1 = "GET";
++	//std::string temp2 = "PATCH";
++	//allow_header.emplace_back(temp1);
++	//allow_header.emplace_back(temp2);
++
++	std::string result;
++	for (auto const&s : allow_header)
++	{
++	   result += s;
++	}
++	
++	//std::string newstr ="PATCH,POST";
++#endif
++	res.addHeader(boost::beast::http::field::allow, redfish::Header::GetAllowHeaders("ServiceRoot_v1.xml"));
++	//res.addHeader(boost::beast::http::field::allow, result);
+         res.end();
+     }
+ 
+diff -Naur c/redfish-core/lib/storage.hpp d/redfish-core/lib/storage.hpp
+--- c/redfish-core/lib/storage.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/storage.hpp	2020-08-14 17:37:20.828573190 +0530
+@@ -20,6 +20,8 @@
+ 
+ #include <node.hpp>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ class StorageCollection : public Node
+@@ -47,6 +49,8 @@
+         res.jsonValue["Members"] = {
+             {{"@odata.id", "/redfish/v1/Systems/system/Storage/1"}}};
+         res.jsonValue["Members@odata.count"] = 1;
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("StorageCollection_v1.xml"));	
+         res.end();
+     }
+ };
+@@ -243,6 +247,8 @@
+                                     object[propertyName] = *value;
+                                 }
+                             }
++			    asyncResp->res.addHeader(boost::beast::http::field::allow,
++        		                            redfish::Header::GetAllowHeaders("Storage_v1.xml"));	
+                         },
+                         connectionName, path, "org.freedesktop.DBus.Properties",
+                         "GetAll",
+@@ -449,6 +455,8 @@
+                             asyncResp->res.jsonValue["Status"]["State"] =
+                                 "Updating";
+                         }
++			asyncResp->res.addHeader(boost::beast::http::field::allow,
++        		                        redfish::Header::GetAllowHeaders("Drive_v1.xml"));	
+                     },
+                     connectionName, path, "org.freedesktop.DBus.Properties",
+                     "Get", "xyz.openbmc_project.State.Drive", "Rebuilding");
+diff -Naur c/redfish-core/lib/systems.hpp d/redfish-core/lib/systems.hpp
+--- c/redfish-core/lib/systems.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/systems.hpp	2020-08-14 17:44:25.215135404 +0530
+@@ -27,6 +27,8 @@
+ 
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -1689,7 +1691,10 @@
+                 iface_array.push_back(
+                     {{"@odata.id", "/redfish/v1/Systems/hypervisor"}});
+                 count = iface_array.size();
+-            },
++
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                         redfish::Header::GetAllowHeaders("ComputerSystemCollection_v1.xml"));
++             },
+             "xyz.openbmc_project.Settings",
+             "/xyz/openbmc_project/network/hypervisor",
+             "org.freedesktop.DBus.Properties", "Get",
+@@ -1830,6 +1835,8 @@
+                 "xyz.openbmc_project.State.Chassis", "RequestedPowerTransition",
+                 std::variant<std::string>{command});
+         }
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ComputerSystemCollection_v1.xml"));
+     }
+     /**
+      * Function transceives data with dbus directly.
+@@ -1967,6 +1974,8 @@
+ #ifdef BMCWEB_ENABLE_REDFISH_PROVISIONING_FEATURE
+         getProvisioningStatus(asyncResp);
+ #endif
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ComputerSystem_v1.xml"));
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -2035,6 +2044,9 @@
+         {
+             setPowerRestorePolicy(asyncResp, std::move(*powerRestorePolicy));
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("ComputerSystem_v1.xml"));
+     }
+ };
+ 
+@@ -2079,6 +2091,8 @@
+                {"AllowableValues",
+                 {"On", "ForceOff", "ForceOn", "ForceRestart", "GracefulRestart",
+                  "GracefulShutdown", "PowerCycle", "Nmi"}}}}}};
++	res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("ActionInfo_v1.xml"));
+         res.end();
+     }
+ };
+diff -Naur c/redfish-core/lib/task.hpp d/redfish-core/lib/task.hpp
+--- c/redfish-core/lib/task.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/task.hpp	2020-08-14 17:49:16.810153854 +0530
+@@ -24,6 +24,8 @@
+ #include <chrono>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -294,6 +296,10 @@
+             messages::resourceNotFound(asyncResp->res, "Monitor", strParam);
+             return;
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("TaskService_v1.xml"));
++
+         ptr->populateResp(asyncResp->res);
+     }
+ };
+@@ -370,6 +376,8 @@
+         {
+             asyncResp->res.jsonValue["Payload"] = *(ptr->payload);
+         }
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("Task_v1.xml"));
+     }
+ };
+ 
+@@ -410,6 +418,9 @@
+                 nlohmann::json{{"@odata.id", "/redfish/v1/TaskService/Tasks/" +
+                                                  std::to_string(task->index)}});
+         }
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("TaskCollection_v1.xml"));
+     }
+ };
+ 
+@@ -449,6 +460,8 @@
+         asyncResp->res.jsonValue["ServiceEnabled"] = true;
+         asyncResp->res.jsonValue["Tasks"] = {
+             {"@odata.id", "/redfish/v1/TaskService/Tasks"}};
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                      redfish::Header::GetAllowHeaders("TaskService_v1.xml"));
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/thermal.hpp d/redfish-core/lib/thermal.hpp
+--- c/redfish-core/lib/thermal.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/thermal.hpp	2020-08-14 17:51:53.716009272 +0530
+@@ -17,6 +17,7 @@
+ 
+ #include "node.hpp"
+ #include "sensors.hpp"
++#include "headers.hpp"
+ 
+ namespace redfish
+ {
+@@ -53,6 +54,8 @@
+ 
+         // TODO Need to get Chassis Redundancy information.
+         getChassisData(sensorAsyncResp);
++	sensorAsyncResp->res.addHeader(boost::beast::http::field::allow,
++                                       redfish::Header::GetAllowHeaders("Thermal_v1.xml"));
+     }
+     void doPatch(crow::Response& res, const crow::Request& req,
+                  const std::vector<std::string>& params) override
+@@ -97,6 +100,9 @@
+         }
+ 
+         checkAndDoSensorsOverride(asyncResp, allCollections);
++
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("Thermal_v1.xml"));
+     }
+ };
+ 
+diff -Naur c/redfish-core/lib/update_service.hpp d/redfish-core/lib/update_service.hpp
+--- c/redfish-core/lib/update_service.hpp	2020-08-14 19:22:23.204741735 +0530
++++ d/redfish-core/lib/update_service.hpp	2020-08-14 18:10:56.602606238 +0530
+@@ -22,6 +22,8 @@
+ 
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -492,7 +494,7 @@
+                 }
+                 else
+                 {
+-                    BMCWEB_LOG_DEBUG << "Call to DownloaViaTFTP Success";
++                   BMCWEB_LOG_DEBUG << "Call to DownloaViaTFTP Success";
+                 }
+             },
+             "xyz.openbmc_project.Software.Download",
+@@ -572,6 +574,9 @@
+                                         ["HttpPushUriApplyTime"]["ApplyTime"] =
+                         "OnReset";
+                 }
++
++		aResp->res.addHeader(boost::beast::http::field::allow,
++        		             redfish::Header::GetAllowHeaders("UpdateService_v1.xml"));
+             },
+             "xyz.openbmc_project.Settings",
+             "/xyz/openbmc_project/software/apply_time",
+@@ -647,6 +652,8 @@
+                                 return;
+                             }
+                             messages::success(asyncResp->res);
++			    asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                                     redfish::Header::GetAllowHeaders("UpdateService_v1.xml"));
+                         },
+                         "xyz.openbmc_project.Settings",
+                         "/xyz/openbmc_project/software/apply_time",
+@@ -678,6 +685,8 @@
+                                         std::ofstream::trunc);
+         out << req.body;
+         out.close();
++	asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("UpdateService_v1.xml"));
+         BMCWEB_LOG_DEBUG << "file upload complete!!";
+     }
+ };
+@@ -744,6 +753,10 @@
+                                            swId}});
+                     asyncResp->res.jsonValue["Members@odata.count"] =
+                         members.size();
++
++		    asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                             redfish::Header::GetAllowHeaders("SoftwareInventoryCollection_v1.xml"));
++
+                 }
+             },
+             // Note that only firmware levels associated with a device are
+@@ -953,6 +966,8 @@
+                 asyncResp->res.jsonValue["Status"]["HealthRollup"] = "OK";
+ 
+                 asyncResp->res.jsonValue["Updateable"] = false;
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                         redfish::Header::GetAllowHeaders("SoftwareInventory_v1.xml"));
+                 fw_util::getFwUpdateableStatus(asyncResp, swId);
+             },
+             "xyz.openbmc_project.ObjectMapper",
+diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media.hpp
+--- c/redfish-core/lib/virtual_media.hpp	2020-08-14 19:22:23.208741711 +0530
++++ d/redfish-core/lib/virtual_media.hpp	2020-08-14 19:25:26.851744948 +0530
+@@ -24,6 +24,8 @@
+ #include <utils/json_utils.hpp>
+ #include <variant>
+ 
++#include "headers.hpp"
++
+ namespace redfish
+ {
+ 
+@@ -170,6 +172,8 @@
+                 }
+                 asyncResp->res.jsonValue["Members@odata.count"] = InstanceCount;
+ 
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                         redfish::Header::GetAllowHeaders("VirtualMediaCollection_v1.xml"));
+             },
+             redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
+             redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
+@@ -316,6 +320,8 @@
+                    {"target", "/redfish/v1/Managers/bmc/VirtualMedia/"
+                               + instanceName + "/Actions/VirtualMedia.InsertMedia"}};
+ 
++		asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                         redfish::Header::GetAllowHeaders("VirtualMedia_v1.xml"));
+             },
+             redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
+             redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
+@@ -423,6 +429,8 @@
+                                                {"Required",true}},
+                                              };
+ 
++	       asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                        redfish::Header::GetAllowHeaders("ActionInfo_v1.xml"));
+             },
+             redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
+             redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
+@@ -502,6 +510,8 @@
+                asyncResp->res.jsonValue["@odata.id"] =
+                    "/redfish/v1/Managers/bmc/VirtualMedia/" + instanceName + "/EjectMediaActionInfo";
+ 
++	       asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                        redfish::Header::GetAllowHeaders("ActionInfo_v1.xml"));
+ 
+                /* EjectMedia Action will not take any input,
+                 * so no need to show any request data

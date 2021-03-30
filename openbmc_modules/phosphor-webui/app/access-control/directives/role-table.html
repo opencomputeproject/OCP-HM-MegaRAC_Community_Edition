@@ -1,0 +1,15 @@
+<div class="role-table">
+  <button class="btn btn-tertiary accordion-trigger"
+          ng-click="roleTableCtrl.onClick()"
+          ng-class="{'accordion-trigger--expanded' : !roleTableCtrl.isCollapsed}">
+    <icon file="icon-chevron-right.svg" aria-hidden="true"></icon>
+    <span ng-if="roleTableCtrl.isCollapsed">View privilege role descriptions</span>
+    <span ng-if="!roleTableCtrl.isCollapsed">Hide privilege role descriptions</span>
+  </button>
+  <div uib-collapse="roleTableCtrl.isCollapsed">
+    <bmc-table  data="roleTableCtrl.tableData"
+                header="roleTableCtrl.tableHeader"
+                size="'small'">
+    </bmc-table>
+  </div>
+</div>

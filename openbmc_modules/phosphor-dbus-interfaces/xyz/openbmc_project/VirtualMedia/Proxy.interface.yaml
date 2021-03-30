@@ -1,0 +1,21 @@
+description: >
+    This interface provides methods for mounting and unmounting images.
+
+methods:
+    - name: Mount
+      description: Perform a mount to HOST operation on given object.
+      returns:
+        - name: Status
+          type: boolean
+          description: mounting status. True on success.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Unmount
+      description: Perform an unmount from HOST on given object.
+      returns:
+        - name: Status
+          type: boolean
+          description: the unmount status. True on success.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure

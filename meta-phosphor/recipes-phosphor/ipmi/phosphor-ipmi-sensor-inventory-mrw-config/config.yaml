@@ -1,0 +1,357 @@
+boot_count_sensor:
+  path: /xyz/openbmc_project/state/host0
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingAssertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameProperty
+  interfaces:
+    xyz.openbmc_project.Control.Boot.RebootAttempts:
+      AttemptsLeft:
+        Offsets:
+          0xFF:
+            type: uint32_t
+
+ps_redundancy_state_sensor:
+  path: /xyz/openbmc_project/control/power_supply_redundancy
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Read
+  sensorNamePattern: nameProperty
+  interfaces:
+    xyz.openbmc_project.Control.PowerSupplyRedundancy:
+      PowerSupplyRedundancyEnabled:
+        Offsets:
+          0x00:
+            type: "bool"
+            assert: false
+          0x01:
+            type: "bool"
+            assert: true
+
+os_boot_sensor:
+  path: /xyz/openbmc_project/state/host0
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameProperty
+  interfaces:
+    xyz.openbmc_project.State.OperatingSystem.Status:
+      OperatingSystemState:
+        Offsets:
+          0x01:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.CBoot"
+            type: string
+          0x02:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.PXEBoot"
+            type: string
+          0x03:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.DiagBoot"
+            type: string
+          0x04:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.CDROMBoot"
+            type: string
+          0x05:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.ROMBoot"
+            type: string
+          0x06:
+            assert: "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.BootComplete"
+            type: string
+
+fw_boot_sensor:
+  path: /xyz/openbmc_project/state/host0
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: eventdata2
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameProperty
+  interfaces:
+    xyz.openbmc_project.State.Boot.Progress:
+      BootProgress:
+        Offsets:
+          0x00:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.Unspecified"
+          0x01:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.MemoryInit"
+          0x03:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.SecondaryProcInit"
+          0x07:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.PCIInit"
+          0x13:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.OSStart"
+          0x14:
+            type: string
+            set: "xyz.openbmc_project.State.Boot.Progress.ProgressStages.MotherboardInit"
+
+dimm_func_sensor:
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          0x04:
+            type:   "bool"
+            assert:  false
+            deassert: true
+        Prereqs:
+          0x06:
+            type: "bool"
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x06:
+            type: "bool"
+            assert: true
+            deassert: false
+
+cpu_func_sensor:
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          0x08:
+            type:   "bool"
+            assert:  false
+            deassert: true
+        Prereqs:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+
+cpucore_func_sensor:
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameParentLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          0x08:
+            type:   "bool"
+            assert:  false
+            deassert: true
+        Prereqs:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+            skipOn: "deassert"
+
+tpm_required_sensor:
+  path: /xyz/openbmc_project/control/host0/TPMEnable
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.Control.TPM.Policy:
+      TPMEnable:
+        Offsets:
+          0x00:
+            type: "bool"
+            assert: false
+          0x01:
+            type: "bool"
+            assert: true
+
+gpu_func_sensor:
+  serviceInterface: xyz.openbmc_project.Inventory.Manager
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.State.Decorator.OperationalStatus:
+      Functional:
+        Offsets:
+          0x08:
+            type:   "bool"
+            assert:  false
+            deassert: true
+        Prereqs:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item:
+      Present:
+        Offsets:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: false
+    xyz.openbmc_project.Inventory.Item.Accelerator:
+# Field replaceable doesn't come as a sensor data
+# but we know that GPU is Field replaceable so setting
+# true in both cases.
+    xyz.openbmc_project.Inventory.Decorator.Replaceable:
+      FieldReplaceable:
+        Offsets:
+          0x07:
+            type: "bool"
+            assert: true
+            deassert: true
+
+host_auto_reboot_control_sensor:
+  path: /xyz/openbmc_project/control/host0/auto_reboot
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.Control.Boot.RebootPolicy:
+      AutoReboot:
+        Offsets:
+          0x00:
+            type: "bool"
+            assert: false
+          0x01:
+            type: "bool"
+            assert: true
+
+turbo_allowed_sensor:
+  path: /xyz/openbmc_project/control/host0/turbo_allowed
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Read
+  sensorNamePattern: nameLeaf
+  interfaces:
+    xyz.openbmc_project.Control.Host.TurboAllowed:
+      TurboAllowed:
+        Offsets:
+          0x00:
+            assert: false
+            deassert: true
+            type: bool
+          0x01:
+            assert: true
+            deassert: false
+            type: bool
+
+cpucore_temp_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  multiplierM: 1
+  offsetB: -127
+  bExp: 0
+  rExp: 0
+  unit: xyz.openbmc_project.Sensor.Value.Unit.DegreesC
+  scale: -3
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+
+dimm_temp_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  multiplierM: 1
+  offsetB: -127
+  bExp: 0
+  rExp: 0
+  unit: xyz.openbmc_project.Sensor.Value.Unit.DegreesC
+  scale: -3
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+
+vrm_vdd_temp_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  multiplierM: 1
+  offsetB: -127
+  bExp: 0
+  rExp: 0
+  unit: xyz.openbmc_project.Sensor.Value.Unit.DegreesC
+  scale: -3
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+
+gpu_temp_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  multiplierM: 1
+  offsetB: -127
+  bExp: 0
+  rExp: 0
+  unit: xyz.openbmc_project.Sensor.Value.Unit.DegreesC
+  scale: -3
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+
+memory_temp_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: readingData
+  mutability: Mutability::Write|Mutability::Read
+  sensorNamePattern: nameLeaf
+  multiplierM: 1
+  offsetB: -127
+  bExp: 0
+  rExp: 0
+  unit: xyz.openbmc_project.Sensor.Value.Unit.DegreesC
+  scale: -3
+  interfaces:
+    xyz.openbmc_project.Sensor.Value:
+      Value:
+        Offsets:
+          0xFF:
+            type: int64_t
+ps_derating_sensor:
+  serviceInterface: org.freedesktop.DBus.Properties
+  readingType: assertion
+  mutability: Mutability::Read
+  sensorNamePattern: nameProperty
+  interfaces:
+    xyz.openbmc_project.Control.PowerSupplyAttributes:
+      DeratingFactor:
+        Offsets:
+          0xFF:
+            type: uint32_t

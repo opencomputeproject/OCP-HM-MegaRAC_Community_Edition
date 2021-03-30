@@ -1,0 +1,17 @@
+description: >
+    Implement to capture BMC Dump
+
+methods:
+    - name: CreateDump
+      description: >
+          Method to create BMC Dump.
+      returns:
+        - name: Id
+          type: uint32
+          description: >
+            The Dump entry id number.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.File.Error.Write
+        - xyz.openbmc_project.Dump.Create.Error.Disabled
+        - xyz.openbmc_project.Dump.Create.Error.QuotaExceeded

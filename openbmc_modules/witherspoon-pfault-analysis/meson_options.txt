@@ -1,0 +1,21 @@
+option(
+    'input-history-busname-root', type: 'string',
+    value: 'org.open_power.powersupply',
+    description: 'The D-Bus busname root for the PS input history.',
+)
+option(
+    'input-history-sensor-root', type: 'string',
+    value: '/org/open_power/sensors/aggregation/per_30s',
+    description: 'The D-Bus power sensors namespace root.',
+)
+option(
+    'tests', type: 'feature', description: 'Build tests.',
+)
+option(
+    'ucd90160-access', type: 'boolean', value: true,
+    description: 'Enable UCD90160 hardware access.',
+)
+option(
+    'ucd90160-yaml', type: 'string', value: 'example/ucd90160.yaml',
+    description: 'The sequencer definition file to use.',
+)

@@ -1,0 +1,11 @@
+[Unit]
+Description=Store MAC address to Env variable 
+
+[Service]
+Type=oneshot
+Restart=no
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/mac-store
+
+[Install]
+WantedBy=network.target

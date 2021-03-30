@@ -1,0 +1,747 @@
+diff -Naur a/app/common/directives/certificate.html b/app/common/directives/certificate.html
+--- a/app/common/directives/certificate.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/common/directives/certificate.html	2020-12-14 09:22:20.837105260 -0500
+@@ -45,6 +45,7 @@
+   <div class="certificate__buttons-cell row">
+     <button
+       type="button"
++      ng-disabled="dataService.isNotAdmin()"
+       ng-click="cert.upload = true"
+       aria-label="Replace certificate"
+       class="btn  btn-tertiary certificate__button">
+@@ -54,7 +55,7 @@
+       ng-click="confirmDeleteCert(cert)"
+       aria-label="Delete certificate"
+       class="btn  btn-tertiary certificate__button"
+-      ng-disabled="!isDeletable(cert)">
++      ng-disabled="!isDeletable(cert) || dataService.isNotAdmin()">
+       <icon file="icon-trashcan.svg" aria-hidden="true"></icon>
+     </button>
+   </div>
+@@ -62,6 +63,7 @@
+     <div class="close-btn">
+       <button
+         type="button"
++        ng-disabled="dataService.isNotAdmin()"
+         ng-click="cert.upload=false"
+         aria-label="close replace certificate upload form">
+         <icon file="icon-close.svg" aria-hidden="true"></icon>
+@@ -85,6 +87,7 @@
+       <span>{{ cert.file.name }}</span>
+       <button
+         type="reset"
++        ng-disabled="dataService.isNotAdmin()"
+         class="btn file-upload-reset"
+         ng-if="cert.file.name"
+         ng-click="cert.file = '';"
+diff -Naur a/app/common/directives/certificate.js b/app/common/directives/certificate.js
+--- a/app/common/directives/certificate.js	2020-12-14 08:18:21.216097972 -0500
++++ b/app/common/directives/certificate.js	2020-12-14 09:22:27.896986138 -0500
+@@ -9,10 +9,11 @@
+         'template': require('./certificate.html'),
+         'scope': {'cert': '=', 'reload': '&'},
+         'controller': [
+-          '$scope', 'APIUtils', 'toastService', 'Constants', '$uibModal',
+-          function($scope, APIUtils, toastService, Constants, $uibModal) {
++          '$scope', 'APIUtils', 'toastService', 'Constants','dataService', '$uibModal',
++          function($scope, APIUtils, toastService, Constants, dataService, $uibModal) {
+             var certificateType = 'PEM';
+             var availableCertificateTypes = Constants.CERTIFICATE_TYPES;
++            $scope.dataService = dataService;
+ 
+             /**
+              * This function is needed to map the backend Description to what
+diff -Naur a/app/common/directives/firmware-list.html b/app/common/directives/firmware-list.html
+--- a/app/common/directives/firmware-list.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/common/directives/firmware-list.html	2020-12-14 08:20:43.441661733 -0500
+@@ -51,8 +51,8 @@
+         </div>
+         <div class="table__cell firmware__action">
+             <span class="table__cell-label">Action:</span>
+-            <button class="firmware__action-link" ng-show="firmware.activationStatus == 'Ready' || firmware.activationStatus == 'Failed'" ng-click="activate(firmware.imageId, firmware.Version, firmware.imageType)">Activate</button>
+-	    <button class="firmware__action-link" ng-show="firmware.activationStatus == 'Ready'" ng-click="delete(firmware.imageId, firmware.Version)" ng-hide="firmware.activationStatus == 'Active' || firmware.activationStatus == 'Functional'">Delete</button>
++            <button class="firmware__action-link" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready' || firmware.activationStatus == 'Failed'" ng-click="activate(firmware.imageId, firmware.Version, firmware.imageType)">Activate</button>
++	    <button class="firmware__action-link" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready'" ng-click="delete(firmware.imageId, firmware.Version)" ng-hide="firmware.activationStatus == 'Active' || firmware.activationStatus == 'Functional'">Delete</button>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/common/directives/password-visibility-toggle/password-visibility-toggle.js b/app/common/directives/password-visibility-toggle/password-visibility-toggle.js
+--- a/app/common/directives/password-visibility-toggle/password-visibility-toggle.js	2020-12-14 08:18:21.216097972 -0500
++++ b/app/common/directives/password-visibility-toggle/password-visibility-toggle.js	2020-12-14 08:19:47.666621557 -0500
+@@ -21,6 +21,7 @@
+               const instanceScope = scope.$new();
+               const buttonTemplate = `
+               <button type="button"
++                      ng-disabled="dataService.isNotAdmin()"
+                       aria-hidden="true"
+                       class="btn  btn-tertiary btn-password-toggle"
+                       ng-class="{
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/common/services/api-utils.js	2020-12-14 08:20:59.469384964 -0500
+@@ -469,14 +469,27 @@
+                 return response.data;
+               });
+         },
++        // deleteIPV4: function(interfaceName, networkID) {
++        //   return $http({
++        //            method: 'POST',
++        //            url: DataService.getHost() +
++        //                '/xyz/openbmc_project/network/' + interfaceName +
++        //                '/ipv4/' + networkID + '/action/Delete',
++        //            withCredentials: true,
++        //            data: JSON.stringify({'data': []})
++        //          })
++        //       .then(function(response) {
++        //         return response.data;
++        //       });
++        // },
+         deleteIPV4: function(interfaceName, networkID) {
+           return $http({
+-                   method: 'POST',
++                   method: 'DELETE',
+                    url: DataService.getHost() +
+                        '/xyz/openbmc_project/network/' + interfaceName +
+-                       '/ipv4/' + networkID + '/action/Delete',
++                       '/ipv4/' + networkID,
+                    withCredentials: true,
+-                   data: JSON.stringify({'data': []})
++                   //data: JSON.stringify({'data': []})
+                  })
+               .then(function(response) {
+                 return response.data;
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/common/services/dataService.js	2020-12-14 08:21:07.317249297 -0500
+@@ -178,7 +178,7 @@
+ 
+       this.validate_hostname = function(value){
+         var reg_check = /^[\-]*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
+-        if((!(reg_check.test(value))) || !(value != "") || !(value.length <= 63) || !(value.charAt(0) != "-") || !(value.charAt(value.length-1) != "-") || !(value.charAt(0) != ".") || !(value.charAt(value.length-1) != ".")){
++        if((!(reg_check.test(value))) || !(value != "") || !(value.length <= 57) || !(value.charAt(0) != "-") || !(value.charAt(value.length-1) != "-") || !(value.charAt(0) != ".") || !(value.charAt(value.length-1) != ".") || (value.indexOf(".") > -1)){
+           return false;
+         }else{
+           return true;
+diff -Naur a/app/configuration/controllers/date-time-controller.html b/app/configuration/controllers/date-time-controller.html
+--- a/app/configuration/controllers/date-time-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/configuration/controllers/date-time-controller.html	2020-12-14 08:21:32.436814430 -0500
+@@ -4,12 +4,12 @@
+   <div class="column small-12 page-header">
+     <h2>Set date and time manually or configure a Network Time Protocol (NTP) Server</h2>
+   </div>
+-  <form name="date_time_form" class="time__form" role="form" action="">
++  <form name="date_time_form" class="time__form" role="form" action="javascript:void(0);">
+     <fieldset>
+       <div class="column large-8">
+         <div class="row column">
+           <label class="control-radio" for="ntp-time">Obtain Automatically from a Network Time Protocol (NTP) Server
+-            <input type="radio" id="ntp-time" ng-model="time.mode" value="NTP" ng-disabled="dataService.isNotAdmin()">
++            <input type="radio" id="ntp-time" ng-model="time.mode" ng-click="NTPclicked()" value="NTP" ng-disabled="dataService.isNotAdmin()">
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+@@ -36,20 +36,20 @@
+           <li class="date-time__metadata-block">
+             <p class="content-label">BMC <span ng-if="time.owner != 'Split'">and Host</span> Time</p>
+             <div class="inline">
+-              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="2018-01-01" max="2037-12-31"/>
++              <input type="date" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="2018-01-01" max="2038-01-01"/>
+               <input type="time" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{bmc.timezone}}</p>
+             </div>
+           </li>
+-          <li class="date-time__metadata-block" ng-if="time.owner == 'Split'">
++          <!-- <li class="date-time__metadata-block" ng-if="time.owner == 'Split'">
+             <p class="content-label">Host Time</p>
+-            <div class="inline">
++            <div class="inline"> -->
+               <!--- Ideally, would just use one input, datetime-local, but datetime-local is not supported on Firefox.--->
+-              <input type="date" ng-model="host.date" ng-readonly="dataService.isNotAdmin()" min="2018-01-01" max="2037-12-31"/>
++              <!-- <input type="date" ng-model="host.date" ng-readonly="dataService.isNotAdmin()" min="2018-01-01" max="2038-01-01"/>
+               <input type="time" ng-model="host.date" ng-readonly="dataService.isNotAdmin()"/>
+               <p class="courier-bold">{{host.timezone}}</p>
+             </div>
+-          </li>
++          </li> -->
+           <!-- <li class="date-time__metadata-block">
+             <label for="date-time-owner" class="content-label">Time Owner</label>
+             <select id="date-time-owner" ng-model="time.owner" class="date-time__owner-dropdown">
+@@ -61,7 +61,7 @@
+     </fieldset>
+     <div class="time__submit-wrapper">
+       <button type="button" class="btn  btn-primary" ng-disabled="date_time_form.$invalid || dataService.isNotAdmin()" ng-click="saveDateTimeSettings()">Save settings</button>
+-      <button type="button" class="btn  btn-secondary" ng-click="refresh() || dataService.isNotAdmin()">Cancel</button>
++      <button type="button" class="btn  btn-secondary" ng-disabled="dataService.isNotAdmin()" ng-click="refresh()">Cancel</button>
+     </div>
+   </form>
+ </div>
+diff -Naur a/app/configuration/controllers/date-time-controller.js b/app/configuration/controllers/date-time-controller.js
+--- a/app/configuration/controllers/date-time-controller.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/configuration/controllers/date-time-controller.js	2020-12-14 08:21:54.964423644 -0500
+@@ -60,6 +60,10 @@
+                                      .TimeSyncMethod.split('.')
+                                      .pop();
+             }
++            if($scope.time.mode == 'NTP'){
++              $scope.bmc.date = new Date();
++              $scope.bmc.date.setMilliseconds(0);
++            }
+             $scope.oldBmcDate = $scope.bmc.date.toString();
+             $scope.oldTimeMode = $scope.time.mode.toString();
+             $scope.oldTimeOwner = $scope.time.owner.toString();
+@@ -113,7 +117,13 @@
+           }
+         }
+       }
+-
++      $scope.NTPclicked = function(){
++        console.log("NTP Clicked", $scope.bmc.date);
++        if($scope.bmc.date == undefined){
++          $scope.bmc.date = new Date();
++          $scope.bmc.date.setMilliseconds(0);
++        }
++      }
+       /**
+        * https://github.com/openbmc/phosphor-time-manager/blob/master/README.md#special-note-on-changing-ntp-setting
+        * When time mode is initially set to Manual from NTP,
+@@ -203,11 +213,12 @@
+       };
+ 
+       $scope.validateNTPField = (function(){
++        var spl_chr_check = /[`!@#$%^&*()_+=\[\]{};':"\\|,<>\/?~]/;
+         var ntp_reg_check1 = /^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|([a-zA-Z0-9][a-zA-Z0-9-_]{1,61}[a-zA-Z0-9]))(.*\.)?.*\.([a-zA-Z]{2,6}|[a-zA-Z0-9-]{2,30}\.[a-zA-Z]{2,3})$/;
+         var ntp_reg_check2 = /((^\s*((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\s*$)|(^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$))/;
+         return {
+           test: function(value){
+-            if (!((ntp_reg_check1.test(value)) || (ntp_reg_check2.test(value) )) || !(value != "")){
++            if (!((ntp_reg_check1.test(value)) || (ntp_reg_check2.test(value) )) || spl_chr_check.test(value) || !(value != "")){
+               return false;
+             }else{
+               return true;
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/configuration/controllers/network-controller.html	2020-12-14 08:22:25.291896437 -0500
+@@ -120,7 +120,7 @@
+     <div class="row column">
+       <div class="network-config__submit-wrapper column">
+         <div class="float-right">
+-          <button type="button" class="btn  btn-secondary" ng-click="refresh() || dataService.isNotAdmin()">Cancel</button>
++          <button type="button" class="btn  btn-secondary" ng-click="refresh()" ng-disabled="dataService.isNotAdmin()">Cancel</button>
+           <!--button type="button" class="btn  btn-primary" ng-click="confirmSettings=true;">Save settings</button-->
+           <button type="button" class="btn  btn-primary" ng-click="saveConfirm()" ng-disabled="network_form.$invalid || dataService.isNotAdmin()" ng-class="{'disabled' : network_form.$invalid}">Save settings</button>
+         </div>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/configuration/controllers/network-controller.js	2020-12-14 08:24:40.389534107 -0500
+@@ -24,6 +24,7 @@
+       $scope.hostname = '';
+       $scope.defaultGateway = '';
+       $scope.selectedInterface = '';
++      $scope.oldDHCPstatus = '';
+       $scope.confirmSettings = false;
+       $scope.loading = false;
+       $scope.ipv4sToDelete = [];
+@@ -33,6 +34,19 @@
+       $scope.selectInterface = function(interfaceId) {
+         $scope.selectedinterfaceId = interfaceId;
+         $scope.interface = $scope.network.interfaces[interfaceId];
++        var check_dhcp_type = $scope.network.interfaces[interfaceId].DHCPEnabled;
++
++        if(check_dhcp_type != true && check_dhcp_type != false){
++          check_dhcp_type = check_dhcp_type.split(".").pop();
++        }
++
++        if(check_dhcp_type == "v4" || check_dhcp_type == "both"){
++          $scope.network.interfaces[interfaceId].DHCPEnabled = true;
++          $scope.oldDHCPstatus = true;
++        }else{
++          $scope.network.interfaces[interfaceId].DHCPEnabled = false;
++          $scope.oldDHCPstatus = false;
++        }
+         // Copy the interface so we know later if changes were made to the page
+         $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+         $scope.selectedInterface = interfaceId;
+@@ -155,40 +169,44 @@
+         $scope.loading = true;
+         var promises = [];
+ 
++        if ($scope.hostname != dataService.hostname) {
++          promises.push(setHostname());
++        }
++
+         // MAC Address are case-insensitive
+-        if ($scope.interface.MACAddress.toLowerCase() !=
+-            dataService.mac_address.toLowerCase()) {
++        if($scope.interface.MACAddress.toLowerCase() != dataService.mac_address.toLowerCase()) {
+           promises.push(setMACAddress());
+         }
+-        if ($scope.defaultGateway != dataService.defaultgateway) {
++        if($scope.defaultGateway != dataService.defaultgateway) {
+           promises.push(setDefaultGateway());
+         }
+ 
+-        if ($scope.interface.DHCPEnabled != $scope.oldInterface.DHCPEnabled) {
++        // if ($scope.interface.DHCPEnabled == $scope.oldInterface.DHCPEnabled) {
++        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
+           promises.push(setDHCPEnabled());
+         }
+ 
+         // Remove any empty strings from the array. Important because we add an
+         // empty string to the end so the user can add a new DNS server, if the
+         // user doesn't fill out the field, we don't want to add.
+-        $scope.interface.Nameservers =
+-            $scope.interface.Nameservers.filter(Boolean);
++        $scope.interface.Nameservers = $scope.interface.Nameservers.filter(Boolean);
+         // toString() is a cheap way to compare 2 string arrays
+-        if ($scope.interface.Nameservers.toString() !=
+-            $scope.oldInterface.Nameservers.toString()) {
++        if($scope.interface.Nameservers.toString() != $scope.oldInterface.Nameservers.toString()) {
+           promises.push(setNameservers());
+         }
+ 
+ 	// If switched from static to dhcp
+ 	// then delete the object. 
+-        if ($scope.interface.DHCPEnabled) {
+-	    promises.push(removeAllIPs());
++        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
++          promises.push(removeAllIPs());
+         }
+ 
+         // Set IPV4 IP Addresses, Netmask Prefix Lengths, and Gateways
+         if (!$scope.interface.DHCPEnabled) {
+           // Delete existing IPV4 addresses that were removed
+-          promises.push(removeIPV4s());
++          if(!$scope.network.interfaces[$scope.selectedinterfaceId].DHCPEnabled){
++            promises.push(removeIPV4s());
++          }
+           // Update any changed IPV4 addresses and add new
+           for (var i in $scope.interface.ipv4.values) {
+             if (!APIUtils.validIPV4IP(
+@@ -224,7 +242,11 @@
+               // address and add new one. See openbmc/openbmc/issues/2163.
+               // TODO: update to use PUT once issue 2163 is resolved.
+               if ($scope.interface.ipv4.values[i].id) {
+-                promises.push(updateIPV4(i));
++                if($scope.interface.ipv4.values[i].Origin.indexOf("DHCP") > -1){
++                  promises.push(updateIPV4(i, "dhcp_to_static"));
++                }else{
++                  promises.push(updateIPV4(i, "static_to_static"));
++                }
+               } else {
+                 promises.push(addIPV4(i));
+               }
+@@ -232,12 +254,6 @@
+           }
+         }
+ 
+-        $timeout(function() {
+-          if ($scope.hostname != dataService.hostname) {
+-            promises.push(setHostname());
+-          }
+-        }, 9000);
+-
+         if (promises.length) {
+           $q.all(promises).then(
+               function(response) {
+@@ -255,7 +271,7 @@
+                   loadNetworkInfo();
+                   $scope.loading = false;
+                   toastService.success('Network settings saved');
+-                }, 10000);
++                }, 20000);
+               },
+               function(error) {
+                 $scope.loading = false;
+@@ -299,6 +315,9 @@
+       }
+ 
+       function setDHCPEnabled() {
++        if($scope.interface.DHCPEnabled == true){
++          $scope.interface.DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v4";
++        }
+         return APIUtils
+             .setDHCPEnabled(
+                 $scope.selectedInterface, $scope.interface.DHCPEnabled)
+@@ -360,32 +379,67 @@
+                 })
+       }
+ 
+-      function updateIPV4(index) {
++      function updateIPV4(index, type) {
+         // The correct way to edit an IPV4 interface is to remove it and then
+         // add a new one
+-        return APIUtils
+-            .deleteIPV4(
+-                $scope.selectedInterface,
+-                $scope.interface.ipv4.values[index].id)
+-            .then(
+-                function(data) {
+-                  return APIUtils
+-                      .addIPV4(
+-                          $scope.selectedInterface,
+-                          $scope.interface.ipv4.values[index].Address,
+-                          $scope.interface.ipv4.values[index].PrefixLength,
+-                          $scope.interface.ipv4.values[index].Gateway)
+-                      .then(
+-                          function(data) {},
+-                          function(error) {
+-                            console.log(JSON.stringify(error));
+-                            return $q.reject();
+-                          });
+-                },
+-                function(error) {
+-                  console.log(JSON.stringify(error));
+-                  return $q.reject();
+-                });
++        if(type == "dhcp_to_static"){
++          return APIUtils
++          .addIPV4(
++            $scope.selectedInterface,
++            $scope.interface.ipv4.values[index].Address,
++            $scope.interface.ipv4.values[index].PrefixLength,
++            $scope.interface.ipv4.values[index].Gateway
++            ).then(
++              function(data) {
++                toastService.info("Switching Network IPv4 Settings to Static..");
++                $timeout(function(){
++                  return APIUtils.deleteIPV4(
++                    $scope.selectedInterface,
++                    $scope.interface.ipv4.values[index].id
++                  ).then(
++                      function(data) {},
++                      function(error) {
++                        console.log(JSON.stringify(error));
++                        return $q.reject();
++                      }
++                  );
++                }, 15000);
++              },
++              function(error) {
++                console.log(JSON.stringify(error));
++                return $q.reject();
++              }
++            );
++        }
++        if(type == "static_to_static"){
++          return APIUtils
++          .deleteIPV4(
++            $scope.selectedInterface,
++            $scope.interface.ipv4.values[index].id)
++          .then(
++            function(data) {
++              toastService.info("Modifying Static IPv4 Settings on progress..");
++              $timeout(function(){
++                return APIUtils.addIPV4(
++                  $scope.selectedInterface,
++                  $scope.interface.ipv4.values[index].Address,
++                  $scope.interface.ipv4.values[index].PrefixLength,
++                  $scope.interface.ipv4.values[index].Gateway)
++                .then(
++                  function(data) {},
++                  function(error) {
++                    console.log(JSON.stringify(error));
++                    return $q.reject();
++                  }
++                );
++              }, 10000);
++            },
++            function(error) {
++              console.log(JSON.stringify(error));
++              return $q.reject();
++              }
++          );
++        }
+       }
+ 
+       $scope.refresh = function() {
+@@ -409,6 +463,19 @@
+             // Copy the interface so we know later if changes were made to the
+             // page
+             $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
++            var check_dhcp_type = $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled;
++
++            if(check_dhcp_type != true && check_dhcp_type != false){
++              check_dhcp_type = check_dhcp_type.split(".").pop();
++            }
++
++            if(check_dhcp_type == "v4" || check_dhcp_type == "both"){
++              $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled = true;
++              $scope.oldDHCPstatus = true;
++            }else{
++              $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled = false;
++              $scope.oldDHCPstatus = false;
++            }
+           }
+           // Add id values and update flags to corresponding IPV4 objects
+           var removeindex = -1;
+diff -Naur a/app/overview/controllers/system-overview-controller.html b/app/overview/controllers/system-overview-controller.html
+--- a/app/overview/controllers/system-overview-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/overview/controllers/system-overview-controller.html	2020-12-14 08:24:50.853350297 -0500
+@@ -207,13 +207,13 @@
+       <form name="edit_hostname_text">
+         <label for="editServerName">Hostname</label>
+         <p class="label__helper-text">
+-          Hostname must be less than 63 characters and must not contain spaces and special characters except dot .
++          Hostname must be less than 57 characters and must not contain spaces and any special characters.
+         </p>
+         <input id="editServerName" class="modal__edit-server-name" type="text" ng-model="newHostname" ng-trim="false"
+           name="hostname" ng-pattern="validateHostnameinOverview" required autofocus />
+         <span class="modal__error" ng-show="edit_hostname_text.hostname.$error.pattern">Invalid format.</span>
+         <span class="modal__char-count"
+-          ng-hide="edit_hostname_text.hostname.$error.pattern">{{ 0 + newHostname.length }}/63</span>
++          ng-hide="edit_hostname_text.hostname.$error.pattern">{{ 0 + newHostname.length }}/57</span>
+       </form>
+     </div>
+     <div class="modal__button-wrapper">
+diff -Naur a/app/profile-settings/controllers/profile-settings-controller.html b/app/profile-settings/controllers/profile-settings-controller.html
+--- a/app/profile-settings/controllers/profile-settings-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/profile-settings/controllers/profile-settings-controller.html	2020-12-14 08:25:08.033048277 -0500
+@@ -29,6 +29,7 @@
+           <label for="password">New password</label>
+           <p class="label__helper-text">Password must between <span class="nowrap">{{minPasswordLength}} – {{maxPasswordLength}}</span> characters</p>
+           <input  id="password"
++                  ng-disabled="dataService.isNotAdmin()"
+                   name="password"
+                   type="password"
+                   required
+@@ -48,6 +49,7 @@
+         <div class="field-group-container">
+           <label for="passwordConfirm">Confirm new password</label>
+           <input  id="passwordConfirm"
++                  ng-disabled="dataService.isNotAdmin()"
+                   name="passwordConfirm"
+                   type="password"
+                   required
+diff -Naur a/app/server-control/controllers/power-operations-controller.html b/app/server-control/controllers/power-operations-controller.html
+--- a/app/server-control/controllers/power-operations-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/controllers/power-operations-controller.html	2020-12-14 08:25:28.380690200 -0500
+@@ -142,12 +142,12 @@
+           <fieldset>
+             <legend class="boot-operations">Reboot server</legend>
+               <label class="control-radio">Orderly - OS shuts down, then server reboots
+-                <input type="radio" name="radioReboot"
++                <input type="radio" name="radioReboot" ng-disabled="dataService.isNotAdmin()"
+                   ng-model="defaultRebootSetting" value="warm-reboot" />
+                 <span class="control__indicator control__indicator-on"></span>
+               </label>
+               <label class="control-radio">Immediate - Server reboots without OS shutting down; may cause data corruption
+-                <input type="radio" name="radioReboot"
++                <input type="radio" name="radioReboot" ng-disabled="dataService.isNotAdmin()"
+                    ng-model="defaultRebootSetting" value="cold-reboot" />
+                 <span class="control__indicator control__indicator-on"></span>
+               </label>
+@@ -165,12 +165,12 @@
+           <fieldset>
+             <legend class="boot-operations">Shutdown server</legend>
+             <label class="control-radio">Orderly - OS shuts down, then server shuts down
+-              <input type="radio" name="radioShutdown" ng-model="defaultShutdownSetting"
++              <input type="radio" ng-disabled="dataService.isNotAdmin()" name="radioShutdown" ng-model="defaultShutdownSetting"
+                 value='warm-shutdown' />
+               <span class="control__indicator control__indicator-on"></span>
+             </label>
+             <label class="control-radio">Immediate - Server shuts down without OS shutting down; may cause data corruption
+-              <input type="radio" name="radioShutdown" ng-model="defaultShutdownSetting"
++              <input type="radio" ng-disabled="dataService.isNotAdmin()" name="radioShutdown" ng-model="defaultShutdownSetting"
+                 value='cold-shutdown' />
+               <span class="control__indicator control__indicator-on"></span>
+             </label>
+diff -Naur a/app/server-control/controllers/remote-console-controller.html b/app/server-control/controllers/remote-console-controller.html
+--- a/app/server-control/controllers/remote-console-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/controllers/remote-console-controller.html	2020-12-14 08:25:48.488335969 -0500
+@@ -10,7 +10,10 @@
+   <section class="row column">
+     <p class="serial-lan__copy">The Serial over LAN (SoL) console redirects the output of the server’s serial port to a browser window on your workstation.</p>
+   </section>
+-  <section class="row column">
++  <section class="row column" ng-if="dataService.isNotAdmin() == true">
++    <p class="serial-lan__copy">Insufficent Privilege to Access Serial over LAN console.</p>
++  </section>
++  <section class="row column" ng-if="dataService.isNotAdmin() == false">
+     <div id="term-container" class="terminal-container">
+       <serial-console show-tab-btn="true"></serial-console>
+     </div>
+diff -Naur a/app/server-control/controllers/remote-console-window-controller.html b/app/server-control/controllers/remote-console-window-controller.html
+--- a/app/server-control/controllers/remote-console-window-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/controllers/remote-console-window-controller.html	2020-12-14 08:26:00.772119392 -0500
+@@ -2,7 +2,10 @@
+   <button class="btn  btn-tertiary" ng-click="close()">
+     <icon file="icon-return.svg"></icon>Return to OpenBmc</button>
+ </div>
+-<div id="term-container" class="window-terminal-container">
++<div id="term-container" class="window-terminal-container" ng-if="dataService.isNotAdmin() == false">
+   <serial-console show-tab-btn="false"></serial-console>
+ </div>
++<div id="term-container" class="window-terminal-container" ng-if="dataService.isNotAdmin() == true">
++  <p class="serial-lan__copy">Insufficent Privilege to Access Serial over LAN console.</p>
++</div>
+ 
+diff -Naur a/app/server-control/controllers/virtual-media-controller.html b/app/server-control/controllers/virtual-media-controller.html
+--- a/app/server-control/controllers/virtual-media-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/controllers/virtual-media-controller.html	2020-12-14 08:26:16.983833361 -0500
+@@ -12,7 +12,7 @@
+         <div class="vm__upload-controls">
+           <!-- Button -->
+           <label class="vm__upload-choose-label">
+-            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive" accept=".nrg,.iso,.img,.ima,.ISO,.NRG,.IMG,.IMA"/>
++            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive || dataService.isNotAdmin()" accept=".nrg,.iso,.img,.ima,.ISO,.NRG,.IMG,.IMA"/>
+             <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:device.isActive}">Choose file</span>
+           </label>
+           <div class="vm__upload-name">
+@@ -31,7 +31,7 @@
+         </div>
+       </div>
+       <div class="vm__upload-start">
+-        <input type="button" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM($index) : startVM($index)"/>
++        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM($index) : startVM($index)"/>
+       </div>
+     </div>
+   </div>
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/controllers/virtual-media-controller.js	2020-12-14 08:26:28.199635339 -0500
+@@ -28,7 +28,7 @@
+       vmDevice.deviceName = 'Virtual media device';
+ 
+       findExistingConnection(vmDevice);
+-      getInterfaceName();
++      // getInterfaceName();
+       $scope.devices.push(vmDevice);
+ 
+       $scope.startVM = function(index) {
+@@ -58,6 +58,7 @@
+        	       }	
+ 
+ 	       else {
++          getInterfaceName();
+ 	       var id = $scope.devices[index].id;
+                var host = dataService.getHost().replace('https://', '');
+                var token = $cookies.get('XSRF-TOKEN');
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-control/directives/kvm-console.js	2020-12-14 08:26:44.787342291 -0500
+@@ -12,8 +12,8 @@
+   'use strict';
+ 
+   angular.module('app.serverControl').directive('kvmConsole', [
+-    '$log', '$cookies', '$location', 'APIUtils', '$timeout',
+-    function($log, $cookies, $location, APIUtils, $timeout) {
++    '$log', '$cookies', '$location', 'APIUtils', 'dataService', '$timeout',
++    function($log, $cookies, $location, APIUtils, dataService, $timeout) {
+       return {
+         restrict: 'E', template: require('./kvm-console.html'),
+             scope: {newWindowBtn: '=?'}, link: function(scope, element) {
+@@ -69,9 +69,13 @@
+                         });
+               }
+ 
+-	      scope.StartKVM = function () {
+-                                 checkKvmInstance();
+-                               }
++              scope.StartKVM = function () {
++                if(dataService.isNotAdmin()){
++                  alert("Insufficient Privilege to access KVM");
++                }else{
++                  checkKvmInstance();
++                }
++              };
+ 
+               var host = $location.host();
+               var port = $location.port();
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.html b/app/server-health/controllers/inventory-overview-controller.html
+--- a/app/server-health/controllers/inventory-overview-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/controllers/inventory-overview-controller.html	2020-12-14 08:26:55.327155985 -0500
+@@ -6,7 +6,8 @@
+   <div class="row column">
+     <div class="page-header">
+       <h2 class="inline">All hardware in the system</h2>
+-      <a ng-href="data:text/json;charset=utf-8,{{originalData}}" class="btn  btn-tertiary float-right"  download="export_inventory.json" ng-show="hardwares.length"><icon file="icon-export.svg"></icon>Export</a>
++      <a class="btn  btn-tertiary float-right" ng-if="hardwares.length && dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
++      <a ng-href="data:text/json;charset=utf-8,{{originalData}}" class="btn  btn-tertiary float-right"  download="export_inventory.json" ng-if="hardwares.length && dataService.isNotAdmin() == false"><icon file="icon-export.svg"></icon>Export</a>
+     </div>
+   </div>
+   <div class="row column">
+diff -Naur a/app/server-health/controllers/log-controller.html b/app/server-health/controllers/log-controller.html
+--- a/app/server-health/controllers/log-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/controllers/log-controller.html	2020-12-14 08:27:14.222821752 -0500
+@@ -12,7 +12,7 @@
+     <div class="page-header">
+       <h2 class="inline">All events from the BMC</h2>
+       <div class="event-log__timezone inline float-right">
+-        <button class="dropdown__button" ng-click="timezone = timezone == true ? false : true;" toggle-flag="timezone">
++        <button class="dropdown__button" ng-disabled="dataService.isNotAdmin()" ng-click="timezone = timezone == true ? false : true;" toggle-flag="timezone">
+           <span>{{tmz === 'UTC' ? 'UTC Timezone' : 'User Timezone'}}</span>
+         </button>
+         <ul class="dropdown__list inline" ng-show="timezone">
+@@ -60,7 +60,8 @@
+           <button class="btn  btn-tertiary" ng-class="{'disabled': ((selectedEvents|unResolvedCount) == 0)}" ng-click="resolve()" ng-disabled="dataService.isNotAdmin() || ((selectedEvents|unResolvedCount) == 0)">
+             <icon file="icon-check.svg"></icon>Mark as resolved
+           </button>
+-          <a ng-href="data:text/json;charset=utf-8,{{export_data}}" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary"  ng-class="{'disabled': (!selectedEvents.length && !all)}" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
++          <a class="btn btn-tertiary disabled" ng-if="dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
++          <a ng-href="data:text/json;charset=utf-8,{{export_data}}" class="btn  btn-tertiary" ng-if="dataService.isNotAdmin() == false"  ng-class="{'disabled': (!selectedEvents.length && !all)}" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.html b/app/server-health/controllers/sensors-overview-controller.html
+--- a/app/server-health/controllers/sensors-overview-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/controllers/sensors-overview-controller.html	2020-12-14 08:27:08.582921539 -0500
+@@ -3,7 +3,9 @@
+   <h1>Sensors</h1>
+   <div class="page-header">
+     <h2 class="inline">All sensors present in the system</h2>
+-      <a ng-href="data:text/json;charset=utf-8,{{export_data}}" class="btn btn-tertiary float-right" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
++      <a class="btn btn-tertiary float-right" ng-if="dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
++
++      <a ng-href="data:text/json;charset=utf-8,{{export_data}}" ng-if="dataService.isNotAdmin() == false" class="btn btn-tertiary float-right" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
+   </div>
+ 
+   <div>
+diff -Naur a/app/server-health/controllers/syslog-controller.html b/app/server-health/controllers/syslog-controller.html
+--- a/app/server-health/controllers/syslog-controller.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/controllers/syslog-controller.html	2020-12-14 08:27:27.242591289 -0500
+@@ -13,7 +13,8 @@
+               </li>
+             </ul>
+           </div>
+-          <a ng-href="data:text/json;charset=utf-8,{{download_syslog}}" class="inline btn-export float-right"  download="systemLogs.json" ng-show="sysLogs.length" ng-disabled="dataService.isNotAdmin()">Export </a>
++          <a class="inline btn-export float-right disabled" ng-if="sysLogs.length && dataService.isNotAdmin() == true">Export </a>
++          <a ng-href="data:text/json;charset=utf-8,{{download_syslog}}" class="inline btn-export float-right"  download="systemLogs.json" ng-if="sysLogs.length && dataService.isNotAdmin() == false">Export </a>
+           <button class="inline clear-input float-right btn-secondary" ng-disabled="dataService.isNotAdmin()" ng-click="confirm = !confirm" ng-show="sysLogs.length">&#10005; Clear {{selectedRecordType}} Logs</button>
+           <div class="inline__confirm sys-log__confirm" ng-show="confirm">
+             <div class="inline__confirm-message">
+diff -Naur a/app/server-health/controllers/syslog-controller.js b/app/server-health/controllers/syslog-controller.js
+--- a/app/server-health/controllers/syslog-controller.js	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/controllers/syslog-controller.js	2020-12-14 08:27:38.914384586 -0500
+@@ -31,7 +31,7 @@
+           $scope.selectedRecordType = 'SEL';  // Default Select to SEL.
+           $scope.typeFilter = false;
+           $scope.selectedSeverityList = [];
+-          $scope.severityList = ['All', 'Critical', 'Warning', 'Ok'];
++          $scope.severityList = ['All', 'Critical', 'Warning', 'OK'];
+           $scope.filterTypes = [];
+           $scope.selectedType = 'All';
+ 
+diff -Naur a/app/server-health/directives/remote-logging-server.html b/app/server-health/directives/remote-logging-server.html
+--- a/app/server-health/directives/remote-logging-server.html	2020-12-14 08:18:21.260097225 -0500
++++ b/app/server-health/directives/remote-logging-server.html	2020-12-14 08:27:48.966206494 -0500
+@@ -1,6 +1,6 @@
+ <p class="content-label">Remote Logging Server</p>
+ <div ng-if="!loadError && !remoteServer">
+-  <button ng-click="initModal(0)" class="btn  btn-tertiary  modal__trigger">
++  <button ng-click="initModal(0)" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  modal__trigger">
+     <icon file="icon-plus.svg"></icon>
+     Add server
+   </button>
+@@ -9,10 +9,10 @@
+   <p class="inline remote-logging-server__details">
+     {{remoteServer.hostname}}
+   </p>
+-  <button ng-click="initModal(1)" class="btn  btn-tertiary  modal__trigger">
++  <button ng-click="initModal(1)" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  modal__trigger">
+     <icon file="icon-edit.svg"></icon>
+   </button>
+-  <button ng-click="initModal(2)" class="btn  btn-tertiary  modal__trigger">
++  <button ng-click="initModal(2)" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  modal__trigger">
+     <icon file="icon-trashcan.svg"></icon>
+   </button>
+ </div>

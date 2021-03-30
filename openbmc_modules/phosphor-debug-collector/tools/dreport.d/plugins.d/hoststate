@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# config: 1234 5
+# @brief: Collect Host state information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Host State"
+file_name="host-state.log"
+command="busctl get-property \
+                    xyz.openbmc_project.State.Host \
+                    /xyz/openbmc_project/state/host0 \
+                    xyz.openbmc_project.State.Host \
+                    CurrentHostState"
+
+add_cmd_output "$command" "$file_name" "$desc"

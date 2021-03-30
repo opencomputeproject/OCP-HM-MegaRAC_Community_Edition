@@ -1,0 +1,39 @@
+description: >
+    Power button control service
+methods:
+    - name: simPress
+      description: >
+        Emulate power button press.
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+    - name: simLongPress
+      description: >
+        Emulate power button long press.
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+properties:
+    - name: Enabled
+      type: boolean
+      default: true
+      description: >
+        Enable/disable power button.
+        false means power button is disabled
+        true means power button is enabled
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+signals:
+    - name: Released
+      description: >
+        Power button released signal
+    - name: Pressed
+      description: >
+        Power button pressed signal
+    - name: PressedLong
+      description: >
+        Power button long pressed signal

@@ -1,0 +1,247 @@
+diff -Naur i2/arch/arm/dts/Makefile j2/arch/arm/dts/Makefile
+--- i2/arch/arm/dts/Makefile	2020-08-28 11:04:05.204202724 -0400
++++ j2/arch/arm/dts/Makefile	2020-08-28 11:51:45.746432011 -0400
+@@ -696,7 +696,10 @@
+ 	mt7629-rfb.dtb
+ 
+ dtb-$(CONFIG_ARCH_NPCM750) += \
+-	nuvoton-npcm750-evb.dtb
++	nuvoton-npcm750-evb.dtb \
++	nuvoton-npcm730.dtb \
++	nuvoton-npcm750-olympus.dtb
++
+ 
+ targets += $(dtb-y)
+ 
+diff -Naur i2/arch/arm/dts/nuvoton-npcm730.dts j2/arch/arm/dts/nuvoton-npcm730.dts
+--- i2/arch/arm/dts/nuvoton-npcm730.dts	1969-12-31 19:00:00.000000000 -0500
++++ j2/arch/arm/dts/nuvoton-npcm730.dts	2020-08-28 10:58:21.425834291 -0400
+@@ -0,0 +1,228 @@
++/dts-v1/;
++#include <dt-bindings/clock/npcm750_poleg-clock.h>
++#include <dt-bindings/gpio/gpio.h>
++/ {
++	model = "Nuvoton npcm730";
++	compatible = "nuvoton,poleg", "nuvoton,npcm750";
++
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	chosen {
++		stdout-path = &serial0;
++		tick-timer = &timer0;
++	};
++
++	aliases {
++		serial0 = &serial0;
++		serial1 = &serial1;
++		serial2 = &serial2;
++		serial3 = &serial3;
++		spi0 = "/fiu0@fb000000";
++		spi3 = "/fiu3@c0000000";
++		gpio0 = "/gpio0@f0010000";
++		gpio1 = "/gpio1@f0011000";
++		gpio2 = "/gpio2@f0012000";
++		gpio3 = "/gpio3@f0013000";
++		gpio4 = "/gpio4@f0014000";
++		gpio5 = "/gpio5@f0015000";
++		gpio6 = "/gpio6@f0016000";
++		gpio7 = "/gpio7@f0017000";
++		eth0 = &emc0;
++		eth1 = &gmac0;
++	};
++
++	clks: clock-control@f0801000 {
++		compatible = "nuvoton,npcm750-clock";
++		#clock-cells = <1>;
++		reg = <0xf0801000 0x70>;
++		u-boot,dm-pre-reloc;
++	};
++
++	serial0: serial0@f0001000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0001000 0x20>;
++		id = <0>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++	serial1: serial0@f0002000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0002000 0x20>;
++		id = <1>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++	serial2: serial0@f0003000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0003000 0x20>;
++		id = <2>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++	serial3: serial3@f0004000 {
++		compatible = "nuvoton,npcm750-uart";
++		reg = <0xf0004000 0x20>;
++		id = <3>;
++		clocks = <&clks CLK_UART>;
++		clock-frequency = <24000000>;
++	};
++
++	timer0: timer@f0008000 {
++		compatible = "nuvoton,poleg-timer";
++		reg = <0xF0008000 0x100>;
++		clocks = <&clks CLK_TIMER>;
++	};
++
++	otp@f0189000 {
++		compatible = "nuvoton,npcm750-otp";
++		reg = <0xf0189000 0x1000
++			   0xf018a000 0x1000>;
++		clocks = <&clks CLK_APB4>;
++	};
++
++	rng@f000b000 {
++		compatible = "nuvoton,npcm750-rng";
++		reg = <0xf000b000 0x1000>;
++		clocks = <&clks CLK_APB1>;
++	};
++
++	fiu0@fb000000 {
++		compatible = "nuvoton,npcm750-fiu";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xfb000000 0x1000>;
++		index = <0>;
++		spi-max-frequency = <66000000>;
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0x80000000 0x4000000>;
++		};
++		spi_flash@1 {
++			compatible = "spi-flash";
++			reg = <1>;
++			memory-map = <0x88000000 0x2000000>;
++		};
++	};
++	fiu3@c0000000 {
++		compatible = "nuvoton,npcm750-fiu";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0xc0000000 0x1000>;
++		index = <3>;
++		spi-max-frequency = <50000000>;
++		spi_flash@0 {
++			compatible = "spi-flash";
++			reg = <0>; /* Chip select 0 */
++			memory-map = <0xA0000000 0x2000000>;
++		};
++	};
++
++	aes@f0858000 {
++		compatible = "nuvoton,npcm750-aes";
++		reg = <0xf0858000 0x1000>;
++		clocks = <&clks CLK_AHB>;
++		clock-names = "clk_ahb";
++	};
++
++	sha@f085a000 {
++		compatible = "nuvoton,npcm750-sha";
++		reg = <0xf085a000 0x1000>;
++		clocks = <&clks CLK_AHB>;
++		clock-names = "clk_ahb";
++	};
++
++	gpio0: gpio0@f0010000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0010000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio0";
++		gpio-count = <32>;
++		gpio-port = <0>;
++	};
++
++	gpio1: gpio1@f0011000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0011000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio1";
++		gpio-count = <32>;
++		gpio-port = <1>;
++	};
++
++	gpio2: gpio2@f0012000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0012000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio2";
++		gpio-count = <32>;
++		gpio-port = <2>;
++	};
++
++	gpio3: gpio3@f0013000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0013000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio3";
++		gpio-count = <32>;
++		gpio-port = <3>;
++	};
++
++	gpio4: gpio4@f0014000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0014000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio4";
++		gpio-count = <32>;
++		gpio-port = <4>;
++	};
++
++	gpio5: gpio5@f0015000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0015000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio5";
++		gpio-count = <32>;
++		gpio-port = <5>;
++	};
++
++	gpio6: gpio6@f0016000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0016000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio6";
++		gpio-count = <32>;
++		gpio-port = <6>;
++	};
++
++	gpio7: gpio7@f0017000 {
++		compatible = "nuvoton,npcm750-gpio";
++		reg = <0xf0017000 0x1000>;
++		#gpio-cells = <2>;
++		gpio-controller;
++		gpio-bank-name = "gpio7";
++		gpio-count = <32>;
++		gpio-port = <7>;
++	};
++
++	gmac0: gmac0@f0802000 {
++		compatible = "nuvoton,npcm750-dwmac";
++		reg = <0xF0802000 0x2000>;
++		phy-mode = "rgmii";
++	};
++
++	emc0: emc0@f0825000 {
++		compatible = "nuvoton,npcm750-emc";
++		reg = <0xF0825000 0x1000>;
++		phy-mode = "rmii";
++		id = <0>;
++	};
++};

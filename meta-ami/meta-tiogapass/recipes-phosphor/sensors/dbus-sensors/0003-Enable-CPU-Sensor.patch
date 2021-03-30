@@ -1,0 +1,24 @@
+diff -Naur a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2020-10-16 06:57:04.172241419 +0530
++++ b/CMakeLists.txt	2020-10-16 06:57:28.868568198 +0530
+@@ -38,7 +38,7 @@
+ option (HUNTER_ENABLED "Enable hunter package pulling" OFF)
+ 
+ option (DISABLE_ADC "Disable installing ADC sensor" OFF)
+-option (DISABLE_CPU "Disable installing CPU sensor" ON)
++option (DISABLE_CPU "Disable installing CPU sensor" OFF)
+ option (DISABLE_DIG_GPIO "Disable intialling digital gpio sensor" OFF)
+ option (DISABLE_DISC_EVENT "Disable installing discrete event sensor" OFF)
+ option (DISABLE_EXIT_AIR "Disable installing Exit Air Temp sensor" OFF)
+diff -Naur a/service_files/xyz.openbmc_project.adcsensor.service b/service_files/xyz.openbmc_project.adcsensor.service
+--- a/service_files/xyz.openbmc_project.adcsensor.service	2020-10-16 06:58:31.273391166 +0530
++++ b/service_files/xyz.openbmc_project.adcsensor.service	2020-10-16 06:58:52.965676373 +0530
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Adc Sensor
+ StopWhenUnneeded=false
+-#Before=xyz.openbmc_project.cpusensor.service
++Before=xyz.openbmc_project.cpusensor.service
+ Requires=xyz.openbmc_project.EntityManager.service
+ After=xyz.openbmc_project.EntityManager.service
+ 

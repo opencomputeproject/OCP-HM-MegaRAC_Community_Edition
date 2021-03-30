@@ -1,0 +1,115 @@
+OPENBMC-NOTIFICATION-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE,
+    Integer32, Unsigned32, Counter64, enterprises
+        FROM SNMPv2-SMI
+    MODULE-COMPLIANCE, OBJECT-GROUP, NOTIFICATION-GROUP
+        FROM SNMPv2-CONF
+;
+
+obmcPhosphor MODULE-IDENTITY
+    LAST-UPDATED    "201807130000Z"
+    ORGANIZATION    "openbmc"
+    CONTACT-INFO
+        "Primary Contact: SNMP support team
+         email:  openbmc@lists.ozlabs.org"
+    DESCRIPTION
+        "This MIB module defines the notification object and the notification
+         could be of different types."
+    REVISION        "201807130000Z"
+    DESCRIPTION
+        "First draft"
+    ::= { openbmc 1 }
+
+openbmc OBJECT IDENTIFIER ::= { enterprises 49871 }
+
+obmcSystem          OBJECT IDENTIFIER ::= { obmcPhosphor 0 }
+
+obmcNotifications      OBJECT IDENTIFIER ::= { obmcSystem 0 }
+obmcNotifyObjects      OBJECT IDENTIFIER ::= { obmcSystem 1 }
+obmcNotifyConformance  OBJECT IDENTIFIER ::= { obmcSystem 2 }
+
+--
+--
+-- Conformance information
+--
+--
+obmcNotifyCompliances  OBJECT IDENTIFIER ::= { obmcNotifyConformance 1 }
+obmcNotifyGroups       OBJECT IDENTIFIER ::= { obmcNotifyConformance 2 }
+
+--
+
+obmcErrorID OBJECT-TYPE
+    SYNTAX      Unsigned32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Error log identifier"
+    ::= { obmcNotifyObjects  1 }
+
+obmcErrorTimestamp OBJECT-TYPE
+    SYNTAX      Counter64
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Error log timestamp"
+    ::= { obmcNotifyObjects  2 }
+
+obmcErrorSeverity OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Error log severity"
+    ::= { obmcNotifyObjects  3 }
+
+obmcErrorMessage OBJECT-TYPE
+    SYNTAX      OCTET STRING
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Error log Message"
+    ::= { obmcNotifyObjects  4 }
+
+--
+
+obmcErrorNotification NOTIFICATION-TYPE
+    OBJECTS     { obmcErrorID,
+                  obmcErrorTimestamp,
+                  obmcErrorSeverity,
+                  obmcErrorMessage }
+    STATUS      current
+    DESCRIPTION
+        "Notification about openbmc error."
+    ::= { obmcNotifications 1 }
+
+--
+
+obmcNotifyCompliance MODULE-COMPLIANCE
+    STATUS      current
+    DESCRIPTION
+        "The compliance statement for error"
+    MODULE      -- this module
+    MANDATORY-GROUPS { obmcNotifyGroup,
+                       obmcNotifyErrorDataGroup }
+    ::= { obmcNotifyCompliances 1 }
+
+obmcNotifyGroup NOTIFICATION-GROUP
+    NOTIFICATIONS   { obmcErrorNotification }
+    STATUS      current
+    DESCRIPTION
+        "A collection of notifications"
+    ::= { obmcNotifyGroups 1 }
+
+obmcNotifyErrorDataGroup OBJECT-GROUP
+    OBJECTS     { obmcErrorID,
+                  obmcErrorTimestamp,
+                  obmcErrorSeverity,
+                  obmcErrorMessage }
+    STATUS      current
+    DESCRIPTION
+        "A collection of objects providing information
+        about error log."
+    ::= { obmcNotifyGroups 2 }
+END

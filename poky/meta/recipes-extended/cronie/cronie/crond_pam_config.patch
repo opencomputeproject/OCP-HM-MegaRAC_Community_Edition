@@ -1,0 +1,22 @@
+password-auth is the Fedora's common pam configure file, use oe common pam
+configure files instead.
+
+Upstream-Status: Pending
+
+Signed-off-by: Wenzong Fan <wenzong.fan@windriver.com>
+diff --git a/pam/crond b/pam/crond
+index 560529d..95a6457 100644
+--- a/pam/crond
++++ b/pam/crond
+@@ -4,8 +4,8 @@
+ #
+ # Although no PAM authentication is called, auth modules
+ # are used for credential setting
+-auth       include    system-auth
++auth       include    common-auth
+ account    required   pam_access.so
+-account    include    system-auth
++account    include    common-auth
+ session    required   pam_loginuid.so
+-session    include    system-auth
++session    include    common-session-noninteractive

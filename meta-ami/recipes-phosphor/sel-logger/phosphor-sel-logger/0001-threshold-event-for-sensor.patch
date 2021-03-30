@@ -1,0 +1,403 @@
+diff -Naur a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2020-05-11 22:04:53.784143702 +0530
++++ b/CMakeLists.txt	2020-05-11 21:46:32.071273091 +0530
+@@ -9,14 +9,14 @@
+     SEL_LOGGER_MONITOR_THRESHOLD_EVENTS
+     "Enable SEL Logger to monitor and automatically
+      log SEL records for threshold sensor events"
+-    OFF
++    ON
+ )
+ 
+ option (
+     REDFISH_LOG_MONITOR_PULSE_EVENTS
+     "Enable logger to monitor and automatically
+      log events to Redfish for pulse type assert-deassert sensor events"
+-    OFF
++    ON
+ )
+ 
+ target_compile_definitions (
+diff -Naur a/include/sdrutils.hpp b/include/sdrutils.hpp
+--- a/include/sdrutils.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/include/sdrutils.hpp	2020-05-11 21:46:32.087272986 +0530
+@@ -0,0 +1,251 @@
++/*
++// Copyright (c) 2018 Intel Corporation
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++*/
++
++#include <boost/algorithm/string.hpp>
++#include <boost/bimap.hpp>
++#include <boost/container/flat_map.hpp>
++#include <cstring>
++#include <phosphor-logging/log.hpp>
++#include <sdbusplus/bus/match.hpp>
++
++#pragma once
++
++struct CmpStrVersion
++{
++    bool operator()(std::string a, std::string b) const
++    {
++        return strverscmp(a.c_str(), b.c_str()) < 0;
++    }
++};
++
++using SensorSubTree = boost::container::flat_map<
++    std::string,
++    boost::container::flat_map<std::string, std::vector<std::string>>,
++    CmpStrVersion>;
++
++using SensorNumMap = boost::bimap<int, std::string>;
++
++namespace details
++{
++inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
++{
++    static std::shared_ptr<SensorSubTree> sensorTreePtr;
++    sd_bus* bus = NULL;
++    int ret = sd_bus_default_system(&bus);
++    if (ret < 0)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to connect to system bus",
++            phosphor::logging::entry("ERRNO=0x%X", -ret));
++        sd_bus_unref(bus);
++        return false;
++    }
++    sdbusplus::bus::bus dbus(bus);
++    static sdbusplus::bus::match::match sensorAdded(
++        dbus,
++        "type='signal',member='InterfacesAdded',arg0path='/xyz/openbmc_project/"
++        "sensors/'",
++        [](sdbusplus::message::message& m) { sensorTreePtr.reset(); });
++
++    static sdbusplus::bus::match::match sensorRemoved(
++        dbus,
++        "type='signal',member='InterfacesRemoved',arg0path='/xyz/"
++        "openbmc_project/sensors/'",
++        [](sdbusplus::message::message& m) { sensorTreePtr.reset(); });
++
++    bool sensorTreeUpdated = false;
++    if (sensorTreePtr)
++    {
++        subtree = sensorTreePtr;
++        return sensorTreeUpdated;
++    }
++
++    sensorTreePtr = std::make_shared<SensorSubTree>();
++
++    auto mapperCall =
++        dbus.new_method_call("xyz.openbmc_project.ObjectMapper",
++                             "/xyz/openbmc_project/object_mapper",
++                             "xyz.openbmc_project.ObjectMapper", "GetSubTree");
++    static constexpr const auto depth = 2;
++    static constexpr std::array<const char*, 3> interfaces = {
++        "xyz.openbmc_project.Sensor.Value",
++        "xyz.openbmc_project.Sensor.Threshold.Warning",
++        "xyz.openbmc_project.Sensor.Threshold.Critical"};
++    mapperCall.append("/xyz/openbmc_project/sensors", depth, interfaces);
++
++    try
++    {
++        auto mapperReply = dbus.call(mapperCall);
++        mapperReply.read(*sensorTreePtr);
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++        return sensorTreeUpdated;
++    }
++    subtree = sensorTreePtr;
++    sensorTreeUpdated = true;
++    return sensorTreeUpdated;
++}
++
++inline static bool getSensorNumMap(std::shared_ptr<SensorNumMap>& sensorNumMap)
++{
++    static std::shared_ptr<SensorNumMap> sensorNumMapPtr;
++    bool sensorNumMapUpated = false;
++
++    std::shared_ptr<SensorSubTree> sensorTree;
++    bool sensorTreeUpdated = details::getSensorSubtree(sensorTree);
++    if (!sensorTree)
++    {
++        return sensorNumMapUpated;
++    }
++
++    if (!sensorTreeUpdated && sensorNumMapPtr)
++    {
++        sensorNumMap = sensorNumMapPtr;
++        return sensorNumMapUpated;
++    }
++
++    sensorNumMapPtr = std::make_shared<SensorNumMap>();
++
++    uint8_t sensorNum = 0;
++    for (const auto& sensor : *sensorTree)
++    {
++        sensorNumMapPtr->insert(
++            SensorNumMap::value_type(sensorNum++, sensor.first));
++    }
++    sensorNumMap = sensorNumMapPtr;
++    sensorNumMapUpated = true;
++    return sensorNumMapUpated;
++}
++} // namespace details
++
++inline static bool getSensorSubtree(SensorSubTree& subtree)
++{
++    std::shared_ptr<SensorSubTree> sensorTree;
++    details::getSensorSubtree(sensorTree);
++    if (!sensorTree)
++    {
++        return false;
++    }
++
++    subtree = *sensorTree;
++    return true;
++}
++
++struct CmpStr
++{
++    bool operator()(const char* a, const char* b) const
++    {
++        return std::strcmp(a, b) < 0;
++    }
++};
++
++enum class SensorTypeCodes : uint8_t
++{
++    reserved = 0x0,
++    temperature = 0x1,
++    voltage = 0x2,
++    current = 0x3,
++    fan = 0x4,
++    other = 0xB,
++};
++
++const static boost::container::flat_map<const char*, SensorTypeCodes, CmpStr>
++    sensorTypes{{{"temperature", SensorTypeCodes::temperature},
++                 {"voltage", SensorTypeCodes::voltage},
++                 {"current", SensorTypeCodes::current},
++                 {"fan_tach", SensorTypeCodes::fan},
++                 {"fan_pwm", SensorTypeCodes::fan},
++                 {"power", SensorTypeCodes::other}}};
++
++inline static std::string getSensorTypeStringFromPath(const std::string& path)
++{
++    // get sensor type string from path, path is defined as
++    // /xyz/openbmc_project/sensors/<type>/label
++    size_t typeEnd = path.rfind("/");
++    if (typeEnd == std::string::npos)
++    {
++        return path;
++    }
++    size_t typeStart = path.rfind("/", typeEnd - 1);
++    if (typeStart == std::string::npos)
++    {
++        return path;
++    }
++    // Start at the character after the '/'
++    typeStart++;
++    return path.substr(typeStart, typeEnd - typeStart);
++}
++
++inline static uint8_t getSensorTypeFromPath(const std::string& path)
++{
++    uint8_t sensorType = 0;
++    std::string type = getSensorTypeStringFromPath(path);
++    auto findSensor = sensorTypes.find(type.c_str());
++    if (findSensor != sensorTypes.end())
++    {
++        sensorType = static_cast<uint8_t>(findSensor->second);
++    } // else default 0x0 RESERVED
++
++    return sensorType;
++}
++
++inline static uint8_t getSensorNumberFromPath(const std::string& path)
++{
++    std::shared_ptr<SensorNumMap> sensorNumMapPtr;
++    details::getSensorNumMap(sensorNumMapPtr);
++    if (!sensorNumMapPtr)
++    {
++        return 0xFF;
++    }
++
++    try
++    {
++        return sensorNumMapPtr->right.at(path);
++    }
++    catch (std::out_of_range& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++        return 0xFF;
++    }
++}
++
++inline static uint8_t getSensorEventTypeFromPath(const std::string& path)
++{
++    // TODO: Add support for additional reading types as needed
++    return 0x1; // reading type = threshold
++}
++
++inline static std::string getPathFromSensorNumber(uint8_t sensorNum)
++{
++    std::shared_ptr<SensorNumMap> sensorNumMapPtr;
++    details::getSensorNumMap(sensorNumMapPtr);
++    if (!sensorNumMapPtr)
++    {
++        return std::string();
++    }
++
++    try
++    {
++        return sensorNumMapPtr->left.at(sensorNum);
++    }
++    catch (std::out_of_range& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++        return std::string();
++    }
++}
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2020-08-30 11:45:05.728091082 +0530
++++ b/include/sel_logger.hpp	2020-08-30 11:45:22.196486941 +0530
+@@ -28,13 +28,18 @@
+ static constexpr int selPriority = 5; // notice
+ static constexpr uint8_t selSystemType = 0x02;
+ static constexpr uint16_t selBMCGenID = 0x0020;
++static constexpr uint8_t evmRev = 0x04;
++uint8_t sensorType = 0x00;
++uint8_t sensorNum = 0x00;
++uint8_t eventType = 0x00;
++static constexpr uint32_t timestamp = 0x00;
+ static constexpr uint16_t selInvalidRecID =
+     std::numeric_limits<uint16_t>::max();
+ static constexpr size_t selEvtDataMaxSize = 3;
+ static constexpr size_t selOemDataMaxSize = 13;
+ static constexpr uint8_t selEvtDataUnspecified = 0xFF;
+ 
+-static const std::filesystem::path selLogDir = "/var/log";
++static const std::filesystem::path selLogDir = "/var/sellog";
+ static const std::string selLogFilename = "ipmi_sel";
+ 
+ template <typename... T>
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2020-08-30 11:45:05.728091082 +0530
++++ b/include/threshold_event_monitor.hpp	2020-08-30 11:45:22.196486941 +0530
+@@ -17,6 +17,7 @@
+ #pragma once
+ #include <sel_logger.hpp>
+ #include <sensorutils.hpp>
++#include <sdrutils.hpp>
+ 
+ #include <string_view>
+ #include <variant>
+@@ -118,7 +119,7 @@
+             conn->new_method_call(msg.get_sender(), msg.get_path(),
+                                   "org.freedesktop.DBus.Properties", "GetAll");
+         getSensorValue.append("xyz.openbmc_project.Sensor.Value");
+-        boost::container::flat_map<std::string, std::variant<double, int64_t>>
++        boost::container::flat_map<std::string, std::variant<double, int64_t ,bool>>
+             sensorValue;
+         try
+         {
+@@ -132,6 +133,18 @@
+                       << "\n";
+             return;
+         }
++	bool sensorStat = false;
++        auto sensorStatvalue = sensorValue.find("SensorStat");
++        if(sensorStatvalue != sensorValue.end())
++        {
++               sensorStat = std::get<bool>(sensorStatvalue->second);
++               if(sensorStat == true)
++               {
++                       std::cerr << "sensorStat value is true" << msg.get_path() << "\n";
++                       return;
++               }
++        }
++
+         double max = 0;
+         auto findMax = sensorValue.find("MaxValue");
+         if (findMax != sensorValue.end())
+@@ -201,6 +214,9 @@
+             std::cerr << e.what();
+             eventData[2] = selEvtDataUnspecified;
+         }
++        sensorType = getSensorTypeFromPath(msg.get_path());
++        sensorNum = getSensorNumberFromPath(msg.get_path());
++        eventType = getSensorEventTypeFromPath(msg.get_path());
+ 
+         std::string threshold;
+         std::string direction;
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2020-08-30 11:48:09.928519571 +0530
++++ b/src/sel_logger.cpp	2020-08-30 11:48:24.004858051 +0530
+@@ -67,7 +67,7 @@
+     return !selLogFiles.empty();
+ }
+ 
+-static unsigned int initializeRecordId(void)
++static uint16_t initializeRecordId(void)
+ {
+     std::vector<std::filesystem::path> selLogFiles;
+     if (!getSELLogFiles(selLogFiles))
+@@ -94,10 +94,10 @@
+         return selInvalidRecID;
+     }
+ 
+-    return std::stoul(newestEntryFields[1]);
++    return std::stoul(newestEntryFields[1],nullptr,16);
+ }
+ 
+-static unsigned int getNewRecordId(void)
++static uint16_t getNewRecordId(void)
+ {
+     static unsigned int recordId = initializeRecordId();
+ 
+@@ -140,11 +140,16 @@
+     std::string selDataStr;
+     toHexStr(selData, selDataStr);
+ 
+-    unsigned int recordId = getNewRecordId();
++    uint16_t  recordId = getNewRecordId();
+     sd_journal_send("MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
+-                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%d",
++                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%x",
+                     recordId, "IPMI_SEL_RECORD_TYPE=%x", selSystemType,
+                     "IPMI_SEL_GENERATOR_ID=%x", genId,
++		    "IPMI_SEL_TIME_STAMP=%x",timestamp,
++                    "IPMI_SEL_EVMREV=%x",evmRev,
++                    "IPMI_SEL_SENSOR_TYPE=%x",sensorType,
++                    "IPMI_SEL_SENSOR_NUM=%x",sensorNum,
++                    "IPMI_SEL_EVENT_TYPE=%x",eventType,
+                     "IPMI_SEL_SENSOR_PATH=%s", path.c_str(),
+                     "IPMI_SEL_EVENT_DIR=%x", assert, "IPMI_SEL_DATA=%s",
+                     selDataStr.c_str(), std::forward<T>(metadata)..., NULL);
+@@ -163,9 +168,9 @@
+     std::string selDataStr;
+     toHexStr(selData, selDataStr);
+ 
+-    unsigned int recordId = getNewRecordId();
++    uint16_t recordId = getNewRecordId();
+     sd_journal_send("MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
+-                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%d",
++                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%x",
+                     recordId, "IPMI_SEL_RECORD_TYPE=%x", recordType,
+                     "IPMI_SEL_DATA=%s", selDataStr.c_str(), NULL);
+     return recordId;

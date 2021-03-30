@@ -1,0 +1,39 @@
+description: >
+    Implement to specify a restricted mode of operation.
+
+properties:
+    - name: RestrictionMode
+      type: enum[self.Modes]
+      description: >
+          The restriction mode.
+
+enumerations:
+    - name: Modes
+      description: >
+        Possible modes of restriction.
+      values:
+        - name: None
+          description: >
+            No restriction.
+        - name: Whitelist
+          description: >
+            Allow, only if in the whitelist.
+        - name: Blacklist
+          description: >
+            Prevent, if in the blacklist.
+        - name: Provisioning
+          description: >
+            Indicate that system is in provisioning mode
+            and all commands are allowed in system interface
+            in both pre and post BIOS boot.
+        - name: ProvisionedHostWhitelist
+          description: >
+            Commands in the whitelist will only be executed
+            through system interface after BIOS POST complete.
+            All KCS commands are supported before POST complete.
+        - name: ProvisionedHostDisabled
+          description: >
+            Commands through system interface are executed only
+            till BIOS POST complete notification, after
+            which system interface commands are blocked (except BIOS SMI
+            based ones).

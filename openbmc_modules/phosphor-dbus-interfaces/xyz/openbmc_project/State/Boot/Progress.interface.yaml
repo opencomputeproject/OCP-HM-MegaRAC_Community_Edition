@@ -1,0 +1,33 @@
+description: >
+    Implement to indicate progress of ongoing boot.
+
+properties:
+    - name: BootProgress
+      type: enum[self.ProgressStages]
+      default: Unspecified
+      description: >
+        Current boot progress
+
+enumerations:
+   - name: ProgressStages
+     description: >
+       The boot progress stage
+     values:
+       - name: Unspecified
+         description: >
+           Unknown state.
+       - name: MemoryInit
+         description: >
+           Memory Initialization
+       - name: SecondaryProcInit
+         description: >
+           Secondary Processor Initialization
+       - name: PCIInit
+         description: >
+           PCI resource initialization
+       - name: OSStart
+         description: >
+           Starting Operating System.
+       - name: MotherboardInit
+         description: >
+           Motherboard/Basebord Initialization.

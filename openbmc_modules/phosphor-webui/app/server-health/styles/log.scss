@@ -1,0 +1,375 @@
+// Priority tags
+$priority-high: $accent-04--01;
+$priority-high--light: $accent-04--02;
+$priority-medium: $accent-03--01;
+$priority-medium--light: $accent-03--03;
+$priority-low: $accent-01--01;
+$priority-low--light: $accent-01--03;
+$prioriy-resolved: $base-02--02;
+$priority-resolve--light: $base-02--04;
+
+// Event Log SCSS
+#event-log {
+  .row {
+    width: 100%;
+  }
+  // Dropwdowns filter
+  .dropdown__date.row {
+    padding: 0.5em;
+  }
+
+  //Timezone select
+  .event-log__timezone,
+  .event-log__timezone button {
+    position: relative;
+    text-transform: uppercase;
+    color: $primary-accent;
+    font-size: 0.9em;
+    font-weight: 700;
+    border: 0;
+  }
+  .content__search {
+    float: none;
+    @include mediaQuery(x-large) {
+      @include fastTransition-all;
+    }
+  }
+}
+
+// Event Filter
+#event-filter {
+  .filter-label {
+    color: $text-02;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 0.75em;
+    margin-bottom: 3px;
+  }
+  .event__severity-filter {
+    margin-right: 2em;
+    margin-bottom: 1em;
+    .btn {
+      width: 100px;
+      float: left;
+      &:not(:first-of-type) {
+        border-left-width: 1px;
+      }
+    }
+  }
+  .event__date-filter {
+    margin-right: 1.5em;
+    color: $text-02;
+    float: left;
+    input {
+      width: 170px;
+    }
+  }
+  .event__status-filter {
+    float: left;
+    @include mediaQuery(medium) {
+      width: 25%;
+    }
+    .dropdown__wrapper,
+    .dropdown__button {
+      width: 100%;
+      text-align: left;
+    }
+  }
+}
+
+.event-filter__content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-top: 1em;
+
+  > fieldset {
+    flex: 0 0 auto;
+  }
+
+  .error {
+    margin-bottom: 0;
+  }
+}
+
+.event__date-filter-content {
+  display: flex;
+  align-items: flex-start;
+}
+
+.event__date-filter-divider {
+  margin: .25rem .5rem 0 .5rem;
+}
+
+.event-log__filters {
+  position: relative;
+  padding-bottom: 0.5em;
+  padding-top: 0.5em;
+
+  @media (min-width: 1333px) {
+    float: right;
+    display: inline-block;
+  }
+}
+.empty__logs {
+  border: 1px solid $border-color-02;
+  margin-top: 0.5em;
+  text-align: center;
+  padding: 2em;
+}
+
+.accord-trigger {
+  position: absolute;
+  right: 1em;
+  top: 0.3em;
+}
+
+.event-log__events {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  .header__actions-bar {
+    .event-log__col-check {
+      text-align: left;
+      max-width: 30px;
+      .control-check {
+        margin-left: -6px;
+      }
+    }
+    .btn:not([disabled]):not(.disabled) {
+      color: $primary-light;
+      svg {
+        fill: $primary-light;
+      }
+    }
+  }
+  .inline__confirm {
+    height: auto;
+    margin-left: 0;
+    left: 0;
+    padding: 1em 2em 1em 2em;
+  }
+  .inline__confirm-message {
+    margin-top: 5px;
+    margin-bottom: -10px;
+  }
+  .inline__confirm-buttons .btn-primary {
+    padding: 0.5em 2em;
+    min-height: 25px;
+    margin-top: 0.5em;
+    @include mediaQuery(medium) {
+      margin-top: 0;
+    }
+  }
+  .event-log__col-check {
+    max-width: 60px;
+    text-align: center;
+  }
+  .col-logged-events {
+    span {
+      display: inline-block;
+      font-weight: 700;
+      margin-right: 0.3em;
+    }
+  }
+
+  // Single event log card
+  .event-log__single-event {
+    border: 1px solid $border-color-01;
+    padding: 1em 1em 1em 0.7em;
+    margin: 0.5em 0 0.5em 0;
+    position: relative;
+    overflow: hidden;
+    @include fastTransition-all;
+    &.active {
+      background-color: $background-02;
+      @include slowTransition-all;
+    }
+  }
+  .event-log__event-info {
+    &:hover {
+      cursor: pointer;
+    }
+  }
+
+  //Event priorities
+  .event__priority {
+    color: $primary-light;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    padding: 2px 2em;
+    font-weight: 700;
+    line-height: inherit;
+    min-width: 103px;
+    text-align: center;
+    &.high-priority {
+      background: $priority-high--light;
+      border: 2px solid $priority-high;
+      color: $priority-high;
+    }
+    &.medium-priority {
+      background: $priority-medium--light;
+      border: 2px solid $priority-medium;
+      color: $priority-medium;
+    }
+    &.low-priority {
+      background: $priority-low--light;
+      border: 2px solid $priority-low;
+      color: $priority-low;
+    }
+    &.event-resolved {
+      background: $priority-low--light;
+      border: 2px solid $priority-low;
+      color: $priority-low;
+    }
+  }
+
+  //Event Severity
+  .event__severity {
+    font-size: 0.7em;
+    text-transform: uppercase;
+    font-weight: 700;
+    min-width: 103px;
+    &.high-priority {
+      color: $priority-high;
+    }
+    &.medium-priority {
+      color: $priority-medium;
+    }
+    &.low-priority {
+      color: $priority-low;
+    }
+    &.event-resolved {
+      color: $priority-low;
+    }
+  }
+
+  //Event ID
+  .event__id {
+    @include fontCourierBold;
+    font-size: 0.9em;
+    color: $text-02;
+    margin-right: 1em;
+  }
+
+  .event__timestamp {
+    text-align: left;
+    @include fontCourierBold;
+    font-size: 0.9em;
+    color: $text-02;
+    max-width: 18em;
+    @include mediaQuery(medium) {
+      float: right;
+    }
+  }
+
+  // Event metadata row
+  .event__metadata-row {
+    max-height: 0;
+    overflow: hidden;
+    transition: 0.5s linear max-height;
+    &.active {
+      max-height: 1000px;
+      @include mediaQuery(small) {
+        max-height: 1000px;
+      }
+      @include mediaQuery(medium) {
+        max-height: 1000px;
+      }
+    }
+  }
+
+  //Event metadata
+  .event__metadata {
+    height: 200px;
+    overflow-y: scroll;
+    border: 1px solid $border-color-01;
+    padding: 0.5em 0.5em 0;
+    background: $primary-light;
+    display: block;
+    margin-bottom: 1.5em;
+    &::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 7px;
+    }
+    &::-webkit-scrollbar-thumb {
+      border-radius: 4px;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  //Event Related Items
+  .event__related {
+    width: 100%;
+  }
+  .event__related-label {
+    font-weight: 700;
+    margin-right: 1.2em;
+    padding-top: 0.3em;
+    float: left;
+  }
+  .event__related-item {
+    margin-right: 1em;
+    padding-top: 0.3em;
+    display: inline-block;
+    float: left;
+    clear: both;
+  }
+  .event__actions {
+    margin-left: -1em;
+    margin-top: 0.5em;
+    @include mediaQuery(medium) {
+      float: right;
+      margin-top: -5px;
+    }
+  }
+
+  .btn:not([disabled]):not(.disabled) {
+    color: $primary-dark;
+    svg {
+      fill: $primary-dark;
+    }
+  }
+}
+
+.event__description {
+  margin-bottom: 0;
+  line-height: 1.7;
+  font-weight: 400;
+  word-break: break-word;
+}
+
+.remote-logging-server {
+  float: right;
+  .modal__trigger {
+    padding: 0;
+    .icon {
+      margin: 0;
+    }
+  }
+}
+
+.remote-logging-server__details {
+  margin-right: 0.4em;
+}
+
+.remote-logging-server__modal {
+  input {
+    margin-bottom: 30px;
+    max-width: 70%;
+    + .form__validation-message {
+      position: absolute;
+      margin-top: -30px;
+    }
+  }
+  .btn--close {
+    padding: 0;
+    svg {
+      height: 1.6em;
+    }
+  }
+  .modal-header {
+    display: block;
+  }
+}
+//end event-log__events

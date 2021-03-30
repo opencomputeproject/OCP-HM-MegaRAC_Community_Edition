@@ -1,0 +1,78 @@
+From d0200765f43ce4b4f3fa45f0ac3e4d8d01565449 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Thu, 8 Oct 2020 11:19:00 -0400
+Subject: [PATCH] switch threading to asio dbus
+
+---
+ globalhandler.cpp         | 41 +++++++++++++++++++++++----------------
+ host-ipmid-whitelist.conf |  2 ++
+ 2 files changed, 26 insertions(+), 17 deletions(-)
+
+diff --git a/globalhandler.cpp b/globalhandler.cpp
+index 54d798e..ecc8c73 100644
+--- a/globalhandler.cpp
++++ b/globalhandler.cpp
+@@ -44,23 +44,30 @@ void resetBMC()
+ 
+ void warmResetBMC()
+ {
+-    try
+-    {
+-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+-        sdbusplus::bus::bus bus{ipmid_get_sd_bus_connection()};
+-        // Reset the failed units so we don't end up having systemd not properly restart if the command is spammed.
+-        auto reset = bus.new_method_call(SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE, "ResetFailed");
+-        bus.call(reset);
+-        // Restart the target (restart will propagate to units).
+-        auto restart = bus.new_method_call(SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE, "RestartUnit");
+-        restart.append(SYSTEMD_WARM_RESET_TARGET, "replace");
+-        bus.call(restart);
+-    }
+-    catch (std::exception& e)
+-    {
+-        log<level::ERR>(e.what());
+-        reset_queued.clear();
+-    }
++    std::shared_ptr<sdbusplus::asio::connection> busp = getSdBus();
++    // Reset the failed units so we don't end up having systemd not properly restart if the command is spammed.
++    busp->async_method_call(
++        [](boost::system::error_code ec) {
++            if (ec)
++            {
++                log<level::ERR>("Error in warm reset");
++            }
++            return;
++        },
++        SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE, "ResetFailed"
++    );
++    // Restart the target (restart will propagate to units).
++    busp->async_method_call(
++        [](boost::system::error_code ec) {
++            if (ec)
++            {
++                log<level::ERR>("Error in warm reset");
++            }
++            return;
++        },
++        SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE, "RestartUnit",
++        SYSTEMD_WARM_RESET_TARGET, "replace"
++    );
+ }
+ 
+ /** @brief implements cold reset command
+diff --git a/host-ipmid-whitelist.conf b/host-ipmid-whitelist.conf
+index 5397115..507df40 100644
+--- a/host-ipmid-whitelist.conf
++++ b/host-ipmid-whitelist.conf
+@@ -12,6 +12,8 @@
+ 0x04:0x2F    //<Sensor/Event>:<Get Sensor Type>
+ 0x04:0x30    //<Sensor/Event>:<Set Sensor Reading and Event Status>
+ 0x06:0x01    //<App>:<Get Device ID>
++0x06:0x02    //<App>:<Cold Reset>
++0x06:0x03    //<App>:<Warm Reset>
+ 0x06:0x04    //<App>:<Get Self Test Results>
+ 0x06:0x06    //<App>:<Set ACPI Power State>
+ 0x06:0x07    //<App>:<Get ACPI Power State>
+-- 
+2.17.1
+

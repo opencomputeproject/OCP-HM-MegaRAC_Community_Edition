@@ -1,0 +1,26 @@
+--- a/ethernet_interface.cpp	2020-11-11 17:43:57.623786469 +0800
++++ b/ethernet_interface.cpp	2020-11-13 09:51:37.108087418 +0800
+@@ -937,6 +937,23 @@
+             stream << "[Address]\n";
+             stream << "Address=" << address << "\n";
+         }
++        else
++        {
++			 if( (EthernetInterfaceIntf::dHCPEnabled() ==
++              EthernetInterface::DHCPConf::v6)  && 
++              (addr.second->type() == IP::Protocol::IPv4)) 
++              {
++					// Process all static addresses
++					std::string address = addr.second->address() + "/" +
++                                  std::to_string(addr.second->prefixLength());
++
++					// build the address entries. Do not use [Network] shortcuts to
++					// insert address entries.
++					stream << "[Address]\n";
++					stream << "Address=" << address << "\n";
++			  }
++			
++		}
+     }
+ 
+     if (manager.getSystemConf())

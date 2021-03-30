@@ -1,0 +1,22 @@
+--- a/drivers/misc/Kconfig	2018-08-03 09:11:21.784778598 -0400
++++ b/drivers/misc/Kconfig	2018-08-03 14:09:33.271284818 -0400
+@@ -505,6 +505,19 @@
+ config MISC_RTSX
+ 	tristate
+ 	default MISC_RTSX_PCI || MISC_RTSX_USB
++	
++	
++config ASPEED_ESPI_SLAVE
++	depends on ARCH_ASPEED || COMPILE_TEST
++	select REGMAP_MMIO
++	tristate "Aspeed ast2500 eSPI slave device"
++	---help---
++	This allows host to access Baseboard Management Controller (BMC) over the
++	Enhanced Serial Peripheral Interface (eSPI) bus, which replaces the Low Pin
++	Count (LPC) bus.
++
++	Its interface supports peripheral, virtual wire, out-of-band, and flash
++	sharing channels.	
+ 
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"

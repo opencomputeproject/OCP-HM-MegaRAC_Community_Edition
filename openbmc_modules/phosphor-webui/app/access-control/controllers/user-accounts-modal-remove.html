@@ -1,0 +1,22 @@
+<div class="uib-modal__content  modal__local-users-remove">
+  <div class="modal-header">
+    <h2 class="modal-title" id="dialog_label">
+      Remove user
+    </h2>
+    <button type="button" class="btn  btn--close  float-right" ng-click="$dismiss()" aria-label="Close">
+      <icon file="icon-close.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+  <div class="modal-body">
+    <p ng-if="modalCtrl.users.length > 1">Are you sure you want to remove {{modalCtrl.users.length}} users? This action cannot be undone.</p>
+    <p ng-if="modalCtrl.users.length === 1">Are you sure you want to remove user '{{modalCtrl.users[0].UserName}}'? This action cannot be undone.</p>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" ng-click="$dismiss()" type="button">
+      Cancel
+    </button>
+    <button class="btn btn-primary" ng-click="$close()" type="button">
+      Remove
+    </button>
+  </div>
+</div>

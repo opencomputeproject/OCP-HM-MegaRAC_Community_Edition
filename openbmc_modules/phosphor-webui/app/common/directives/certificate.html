@@ -1,0 +1,104 @@
+<!-- TODO: Replace table with resusable table component -->
+<div class="table__row-value row">
+  <div class="certificate__type-cell bold">
+    {{getCertificateName(cert.Description)}}
+  </div>
+  <div class="certificate__title-inline">
+    Issued by:
+  </div>
+  <div class="certificate__issue-cell">
+    {{cert.Issuer.CommonName}}
+  </div>
+  <div class="certificate__title-inline">
+    Issued to:
+  </div>
+  <div class="certificate__issue-cell">
+    {{cert.Subject.CommonName}}
+  </div>
+  <div class="certificate__title-inline">
+    Valid from:
+  </div>
+  <div class="certificate__date-cell">
+    {{cert.ValidNotBefore | date:medium}}
+  </div>
+  <div class="certificate__title-inline">
+    Valid until:
+  </div>
+  <div class="certificate__status-cell">
+    <icon file="icon-critical.svg"
+      aria-label="certificate has expired"
+      class="certificate__status-icon"
+      ng-if="cert.isExpired">
+    </icon>
+    <icon file="icon-warning.svg"
+      aria-label="certificate will expire soon"
+      class="certificate__status-icon"
+      ng-if="cert.isExpiring">
+    </icon>
+  </div>
+  <div class="certificate__date-cell">
+    {{cert.ValidNotAfter | date:medium}}
+  </div>
+  <div class="certificate__title-inline">
+    Actions:
+  </div>
+  <div class="certificate__buttons-cell row">
+    <button
+      type="button"
+      ng-click="cert.upload = true"
+      aria-label="Replace certificate"
+      class="btn  btn-tertiary certificate__button">
+      <icon file="icon-replace.svg" aria-hidden="true"></icon>
+    </button>
+    <button type="button"
+      ng-click="confirmDeleteCert(cert)"
+      aria-label="Delete certificate"
+      class="btn  btn-tertiary certificate__button"
+      ng-disabled="!isDeletable(cert)">
+      <icon file="icon-trashcan.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+  <div ng-show="cert.upload === true" class="upload__certificate">
+    <div class="close-btn">
+      <button
+        type="button"
+        ng-click="cert.upload=false"
+        aria-label="close replace certificate upload form">
+        <icon file="icon-close.svg" aria-hidden="true"></icon>
+      </button>
+    </div>
+    <div class="file-upload">
+      <label
+        for="upload_{{ cert.Description + cert.Id }}"
+        class="file-upload-btn btn btn-secondary"
+        tabindex="0">Choose file</label>
+      <input
+        name="upload_{{ cert.Description + cert.Id }}"
+        id="upload_{{ cert.Description + cert.Id }}"
+        type="file"
+        file="cert.file"
+        class="file-upload-input"/>
+    </div>
+    <div class="file-upload-container file-upload-field">
+      <span ng-if="!cert.file">No file selected</span>
+      <span>{{ cert.file.name }}</span>
+      <button
+        type="reset"
+        class="btn file-upload-reset"
+        ng-if="cert.file.name"
+        ng-click="cert.file = '';"
+        aria-label="remove selected file">
+        <icon file="icon-close.svg" aria-hidden="true"></icon>
+      </button>
+    </div>
+    <div class="replace-btn">
+      <button
+        type="submit"
+        ng-disabled="!cert.file"
+        class="btn btn-primary"
+        ng-click="replaceCertificate(cert)">
+        Replace
+      </button>
+    </div>
+  </div>
+</div>

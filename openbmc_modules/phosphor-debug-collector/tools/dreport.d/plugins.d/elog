@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# config: 34 20
+# @brief: Collect only user initialized elog ID details.
+#
+
+. $DREPORT_INCLUDE/functions
+
+if [ -z $elog_id ]; then
+    log_error "elog does not exist"
+    exit
+fi
+
+desc="elog id:$elog_id"
+file_name="elog-$elog_id.log"
+command="busctl --verbose --no-pager \
+                  call xyz.openbmc_project.Logging \
+                  $optional_path \
+                  org.freedesktop.DBus.Properties GetAll s \
+                  xyz.openbmc_project.Logging.Entry"
+
+add_cmd_output "$command" "$file_name" "$desc"

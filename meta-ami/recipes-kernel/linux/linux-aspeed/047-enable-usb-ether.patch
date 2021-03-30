@@ -1,0 +1,453 @@
+diff -Naur a/drivers/usb/gadget/configfs.c b/drivers/usb/gadget/configfs.c
+--- a/drivers/usb/gadget/configfs.c	2020-02-11 10:30:23.571608569 -0500
++++ b/drivers/usb/gadget/configfs.c	2020-02-11 10:45:40.307241408 -0500
+@@ -9,6 +9,9 @@
+ #include "configfs.h"
+ #include "u_f.h"
+ #include "u_os_desc.h"
++#include "function/u_ecm.h"
++#include "function/u_ether.h"
++#include "function/u_rndis.h"
+ 
+ int check_user_usb_string(const char *name,
+ 		struct usb_gadget_strings *stringtab_dev)
+@@ -1233,6 +1236,31 @@
+ 	}
+ }
+ 
++static void borrow_network_to_rndis(struct gadget_info *gi,struct usb_composite_dev *cdev)
++{
++	struct usb_function_instance	*ecm_fi;
++	struct usb_function_instance	*rndis_fi;
++	struct f_ecm_opts		*ecm_opts = NULL;
++	if(!list_empty(&gi->available_func)) {
++		list_for_each_entry(ecm_fi, &gi->available_func, cfs_list) {
++			if(strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) {
++				ecm_opts = container_of(ecm_fi, struct f_ecm_opts, func_inst);
++				if(cdev->gadget != NULL) {
++					mutex_lock(&ecm_opts->lock);
++					gether_set_gadget(ecm_opts->net, cdev->gadget);
++					gether_register_netdev(ecm_opts->net);
++					mutex_unlock(&ecm_opts->lock);
++					ecm_opts->bound = true;
++					list_for_each_entry(rndis_fi, &gi->available_func, cfs_list) {
++						if(strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) {
++							rndis_borrow_net(rndis_fi, ecm_opts->net);
++						}
++					}
++				}
++			}
++		}
++	}
++}
+ static int configfs_composite_bind(struct usb_gadget *gadget,
+ 		struct usb_gadget_driver *gdriver)
+ {
+@@ -1254,6 +1282,7 @@
+ 		return ret;
+ 	/* and now the gadget bind */
+ 	ret = -EINVAL;
++	borrow_network_to_rndis(gi, cdev);
+ 
+ 	if (list_empty(&gi->cdev.configs)) {
+ 		pr_err("Need at least one configuration in %s.\n",
+diff -Naur a/drivers/usb/gadget/function/f_ecm.c b/drivers/usb/gadget/function/f_ecm.c
+--- a/drivers/usb/gadget/function/f_ecm.c	2020-02-11 10:30:23.571608569 -0500
++++ b/drivers/usb/gadget/function/f_ecm.c	2020-02-11 10:44:57.307811525 -0500
+@@ -90,24 +90,15 @@
+  * encapsulated commands (vendor-specific, using control-OUT).
+  */
+ 
+-#define ECM_STATUS_INTERVAL_MS		32
+-#define ECM_STATUS_BYTECOUNT		16	/* 8 byte header + data */
++#define ECM_STATUS_INTERVAL		1
++#define ECM_STATUS_BYTECOUNT		1024	/* 8 byte header + data */
+ 
+ 
+ /* interface descriptor: */
+ 
+-static struct usb_interface_assoc_descriptor
+-ecm_iad_descriptor = {
+-	.bLength =		sizeof ecm_iad_descriptor,
+-	.bDescriptorType =	USB_DT_INTERFACE_ASSOCIATION,
+ 
+ 	/* .bFirstInterface =	DYNAMIC, */
+-	.bInterfaceCount =	2,	/* control + data */
+-	.bFunctionClass =	USB_CLASS_COMM,
+-	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
+-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+ 	/* .iFunction =		DYNAMIC */
+-};
+ 
+ 
+ static struct usb_interface_descriptor ecm_control_intf = {
+@@ -191,7 +182,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		ECM_STATUS_INTERVAL_MS,
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor fs_ecm_in_desc = {
+@@ -212,7 +203,6 @@
+ 
+ static struct usb_descriptor_header *ecm_fs_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -224,8 +214,8 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &fs_ecm_in_desc,
+ 	(struct usb_descriptor_header *) &fs_ecm_out_desc,
++	(struct usb_descriptor_header *) &fs_ecm_in_desc,
+ 	NULL,
+ };
+ 
+@@ -238,7 +228,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(ECM_STATUS_INTERVAL_MS),
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor hs_ecm_in_desc = {
+@@ -261,7 +251,6 @@
+ 
+ static struct usb_descriptor_header *ecm_hs_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -273,8 +262,8 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &hs_ecm_in_desc,
+ 	(struct usb_descriptor_header *) &hs_ecm_out_desc,
++	(struct usb_descriptor_header *) &hs_ecm_in_desc,
+ 	NULL,
+ };
+ 
+@@ -287,7 +276,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(ECM_STATUS_INTERVAL_MS),
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_ss_ep_comp_descriptor ss_ecm_intr_comp_desc = {
+@@ -329,7 +318,6 @@
+ 
+ static struct usb_descriptor_header *ecm_ss_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -342,19 +330,19 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &ss_ecm_in_desc,
+-	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
+ 	(struct usb_descriptor_header *) &ss_ecm_out_desc,
+ 	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
++	(struct usb_descriptor_header *) &ss_ecm_in_desc,
++	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
+ 	NULL,
+ };
+ 
+ /* string descriptors: */
+ 
+ static struct usb_string ecm_string_defs[] = {
+-	[0].s = "CDC Ethernet Control Model (ECM)",
++	[0].s = "CDC Notification Interface",
+ 	[1].s = "",
+-	[2].s = "CDC Ethernet Data",
++	[2].s = "CDC Data Interface",
+ 	[3].s = "CDC ECM",
+ 	{  } /* end of list */
+ };
+@@ -718,14 +706,14 @@
+ 	ecm_control_intf.iInterface = us[0].id;
+ 	ecm_data_intf.iInterface = us[2].id;
+ 	ecm_desc.iMACAddress = us[1].id;
+-	ecm_iad_descriptor.iFunction = us[3].id;
++
+ 
+ 	/* allocate instance-specific interface IDs */
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+ 		goto fail;
+ 	ecm->ctrl_id = status;
+-	ecm_iad_descriptor.bFirstInterface = status;
++
+ 
+ 	ecm_control_intf.bInterfaceNumber = status;
+ 	ecm_union_desc.bMasterInterface0 = status;
+@@ -742,10 +730,10 @@
+ 	status = -ENODEV;
+ 
+ 	/* allocate instance-specific endpoints */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_in_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_notify_desc);
+ 	if (!ep)
+ 		goto fail;
+-	ecm->port.in_ep = ep;
++	ecm->notify = ep;
+ 
+ 	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_out_desc);
+ 	if (!ep)
+@@ -756,10 +744,10 @@
+ 	 * don't treat it that way.  It's simpler, and some newer CDC
+ 	 * profiles (wireless handsets) no longer treat it as optional.
+ 	 */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_notify_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_in_desc);
+ 	if (!ep)
+ 		goto fail;
+-	ecm->notify = ep;
++	ecm->port.in_ep = ep;
+ 
+ 	status = -ENOMEM;
+ 
+diff -Naur a/drivers/usb/gadget/function/f_rndis.c b/drivers/usb/gadget/function/f_rndis.c
+--- a/drivers/usb/gadget/function/f_rndis.c	2020-02-11 10:30:23.571608569 -0500
++++ b/drivers/usb/gadget/function/f_rndis.c	2020-02-11 10:42:46.920307730 -0500
+@@ -100,8 +100,8 @@
+ /*
+  */
+ 
+-#define RNDIS_STATUS_INTERVAL_MS	32
+-#define STATUS_BYTECOUNT		8	/* 8 bytes data */
++#define RNDIS_STATUS_INTERVAL			1
++#define STATUS_BYTECOUNT			1024	/* 1024 bytes data */
+ 
+ 
+ /* interface descriptor: */
+@@ -116,7 +116,7 @@
+ 	.bInterfaceClass =	USB_CLASS_COMM,
+ 	.bInterfaceSubClass =   USB_CDC_SUBCLASS_ACM,
+ 	.bInterfaceProtocol =   USB_CDC_ACM_PROTO_VENDOR,
+-	/* .iInterface = DYNAMIC */
++    .iInterface = 		0x04,
+ };
+ 
+ static struct usb_cdc_header_desc header_desc = {
+@@ -148,8 +148,8 @@
+ 	.bLength =		sizeof(rndis_union_desc),
+ 	.bDescriptorType =	USB_DT_CS_INTERFACE,
+ 	.bDescriptorSubType =	USB_CDC_UNION_TYPE,
+-	/* .bMasterInterface0 =	DYNAMIC */
+-	/* .bSlaveInterface0 =	DYNAMIC */
++	.bMasterInterface0 =	0x00,
++	.bSlaveInterface0 =	0x01,
+ };
+ 
+ /* the data interface has two bulk endpoints */
+@@ -163,22 +163,12 @@
+ 	.bInterfaceClass =	USB_CLASS_CDC_DATA,
+ 	.bInterfaceSubClass =	0,
+ 	.bInterfaceProtocol =	0,
+-	/* .iInterface = DYNAMIC */
++	.iInterface = 		0x06,
+ };
+ 
+ 
+-static struct usb_interface_assoc_descriptor
+-rndis_iad_descriptor = {
+-	.bLength =		sizeof rndis_iad_descriptor,
+-	.bDescriptorType =	USB_DT_INTERFACE_ASSOCIATION,
+ 
+-	.bFirstInterface =	0, /* XXX, hardcoded */
+-	.bInterfaceCount = 	2,	// control + data
+-	.bFunctionClass =	USB_CLASS_COMM,
+-	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
+-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+ 	/* .iFunction = DYNAMIC */
+-};
+ 
+ /* full speed support: */
+ 
+@@ -189,7 +179,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		RNDIS_STATUS_INTERVAL_MS,
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor fs_in_desc = {
+@@ -209,7 +199,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_fs_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -221,8 +210,8 @@
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &fs_in_desc,
+ 	(struct usb_descriptor_header *) &fs_out_desc,
++	(struct usb_descriptor_header *) &fs_in_desc,
+ 	NULL,
+ };
+ 
+@@ -235,7 +224,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(RNDIS_STATUS_INTERVAL_MS)
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor hs_in_desc = {
+@@ -257,7 +246,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_hs_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -269,8 +257,8 @@
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &hs_in_desc,
+ 	(struct usb_descriptor_header *) &hs_out_desc,
++	(struct usb_descriptor_header *) &hs_in_desc,
+ 	NULL,
+ };
+ 
+@@ -283,7 +271,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(RNDIS_STATUS_INTERVAL_MS)
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_ss_ep_comp_descriptor ss_intr_comp_desc = {
+@@ -324,7 +312,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_ss_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -337,18 +324,18 @@
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &ss_in_desc,
+-	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+ 	(struct usb_descriptor_header *) &ss_out_desc,
+ 	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
++	(struct usb_descriptor_header *) &ss_in_desc,
++	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+ 	NULL,
+ };
+ 
+ /* string descriptors: */
+ 
+ static struct usb_string rndis_string_defs[] = {
+-	[0].s = "RNDIS Communications Control",
+-	[1].s = "RNDIS Ethernet Data",
++	[0].s = "RNDIS Notification Interface.",
++	[1].s = "RNDIS Data Interface.",
+ 	[2].s = "RNDIS",
+ 	{  } /* end of list */
+ };
+@@ -679,6 +666,9 @@
+ 
+ 	rndis_opts = container_of(f->fi, struct f_rndis_opts, func_inst);
+ 
++	if(rndis_opts->borrowed_net) {
++		rndis->port.ioport = netdev_priv(rndis_opts->net);
++	}
+ 	if (cdev->use_os_string) {
+ 		f->os_desc_table = kzalloc(sizeof(*f->os_desc_table),
+ 					   GFP_KERNEL);
+@@ -688,9 +678,6 @@
+ 		f->os_desc_table[0].os_desc = &rndis_opts->rndis_os_desc;
+ 	}
+ 
+-	rndis_iad_descriptor.bFunctionClass = rndis_opts->class;
+-	rndis_iad_descriptor.bFunctionSubClass = rndis_opts->subclass;
+-	rndis_iad_descriptor.bFunctionProtocol = rndis_opts->protocol;
+ 
+ 	/*
+ 	 * in drivers/usb/gadget/configfs.c:configfs_composite_bind()
+@@ -715,21 +702,17 @@
+ 	}
+ 	rndis_control_intf.iInterface = us[0].id;
+ 	rndis_data_intf.iInterface = us[1].id;
+-	rndis_iad_descriptor.iFunction = us[2].id;
+ 
+ 	/* allocate instance-specific interface IDs */
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+ 		goto fail;
+ 	rndis->ctrl_id = status;
+-	rndis_iad_descriptor.bFirstInterface = status;
++
+ 
+ 	rndis_control_intf.bInterfaceNumber = status;
+ 	rndis_union_desc.bMasterInterface0 = status;
+ 
+-	if (cdev->use_os_string)
+-		f->os_desc_table[0].if_id =
+-			rndis_iad_descriptor.bFirstInterface;
+ 
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+@@ -742,10 +725,10 @@
+ 	status = -ENODEV;
+ 
+ 	/* allocate instance-specific endpoints */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_in_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_notify_desc);
+ 	if (!ep)
+ 		goto fail;
+-	rndis->port.in_ep = ep;
++	rndis->notify = ep;
+ 
+ 	ep = usb_ep_autoconfig(cdev->gadget, &fs_out_desc);
+ 	if (!ep)
+@@ -756,10 +739,10 @@
+ 	 * optional.  We don't treat it that way though!  It's simpler,
+ 	 * and some newer profiles don't treat it as optional.
+ 	 */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_notify_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_in_desc);
+ 	if (!ep)
+ 		goto fail;
+-	rndis->notify = ep;
++	rndis->port.in_ep = ep;
+ 
+ 	status = -ENOMEM;
+ 
+@@ -931,9 +914,7 @@
+ 	}
+ 	INIT_LIST_HEAD(&opts->rndis_os_desc.ext_prop);
+ 
+-	opts->class = rndis_iad_descriptor.bFunctionClass;
+-	opts->subclass = rndis_iad_descriptor.bFunctionSubClass;
+-	opts->protocol = rndis_iad_descriptor.bFunctionProtocol;
++
+ 
+ 	descs[0] = &opts->rndis_os_desc;
+ 	names[0] = "rndis";

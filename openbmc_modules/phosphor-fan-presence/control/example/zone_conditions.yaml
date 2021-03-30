@@ -1,0 +1,32 @@
+#Example zone conditions for phosphor-fan-control
+
+#conditions:
+#    - name: [A unique name for this condition.]
+#      type: [The type of condition. Currently, the only supported type is
+#             getProperty]
+#      properties:
+#          - property: [The Dbus property name on the interface.]
+#            interface: [The Dbus interface that contains the property.]
+#            path: [The Dbus path where the interface is located.]
+#            type: [The property type for this property.]
+#            value: [The property value for this condition to be set.]
+
+#Example:
+#conditions:
+#  - name: air_cooled_chassis
+#    type: getProperty
+#    properties:
+#      - property: WaterCooled
+#        interface: xyz.openbmc_project.Inventory.Decorator.CoolingType
+#        path: /xyz/openbmc_project/inventory/system/chassis
+#        type: bool
+#        value: false
+#
+#  - name: water_and_air_cooled_chassis
+#    type: getProperty
+#    properties:
+#      - property: WaterCooled
+#        interface: xyz.openbmc_project.Inventory.Decorator.CoolingType
+#        path: /xyz/openbmc_project/inventory/system/chassis
+#        type: bool
+#        value: true

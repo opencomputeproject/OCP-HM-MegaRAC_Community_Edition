@@ -1,0 +1,16 @@
+description: >
+    Implement to control system time.
+properties:
+    - name: Elapsed
+      type: uint64
+      description: >
+          Time elpased since the
+          Epoch(1 Jan 1970 00:00:00 UTC), in microseconds.
+
+          On setting this property, errors may be thrown.
+          InternalFailure means BMC fails to set the time.
+          InsufficientPermission means it is not allowed to set time depend
+          on the time settings.
+      errors:
+        - xyz.openbmc_project.Time.Error.NotAllowed
+        - xyz.openbmc_project.Time.Error.Failed

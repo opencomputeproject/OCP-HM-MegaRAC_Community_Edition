@@ -1,0 +1,20 @@
+description: >
+    Implement to set time synchronization method.
+
+properties:
+    - name: TimeSyncMethod
+      type: enum[self.Method]
+      description: >
+          The method of time synchronization.
+
+enumerations:
+    - name: Method
+      description: >
+        Possible methods of time synchronization.
+      values:
+        - name: NTP
+          description: >
+            Sync by using the Network Time Protocol.
+        - name: Manual
+          description: >
+            Sync time manually.

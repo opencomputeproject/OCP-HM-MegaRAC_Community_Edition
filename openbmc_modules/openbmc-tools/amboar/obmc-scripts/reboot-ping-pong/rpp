@@ -1,0 +1,163 @@
+#!/usr/bin/python3
+
+import argparse
+import pexpect
+import sys
+import time
+
+from collections import namedtuple
+
+Endpoint = namedtuple("Endpoint", "host, port")
+Credentials = namedtuple("Credentials", "username, password")
+Target = namedtuple("Target", "credentials, endpoint")
+Entity = namedtuple("Entity", "console, ssh")
+Machine = namedtuple("Machine", "bmc, host")
+
+class Obmcutil(object):
+    BMC_READY =     "xyz.openbmc_project.State.BMC.BMCState.Ready"
+    BMC_NOT_READY = "xyz.openbmc_project.State.BMC.BMCState.NotReady"
+
+    HOST_OFF = "xyz.openbmc_project.State.Host.HostState.Off"
+    HOST_ON = "xyz.openbmc_project.State.Host.HostState.Running"
+    HOST_QUIESCED = "xyz.openbmc_project.State.Host.HostState.Quiesced"
+
+    def __init__(self, session, prompt):
+        self.session = session
+        self.prompt = prompt
+
+    def _clear(self):
+        self.session.expect([".+".encode(), pexpect.TIMEOUT], timeout=5)
+
+    def _state(self, cmd, needle):
+        self.session.sendline()
+        self._clear()
+        self.session.sendline("obmcutil -w {}".format(cmd).encode())
+        self.session.expect(needle, timeout=None)
+        rc = self.session.after.decode()
+        return rc
+
+    def hoststate(self):
+        return self._state("hoststate", "xyz\.openbmc_project\.State\.Host\.HostState\.(Off|Running|Quiesced)")
+
+    def bmcstate(self):
+        return self._state("bmcstate", "xyz\.openbmc_project\.State\.BMC\.BMCState\.(Not)?Ready")
+
+    def poweron(self):
+        self.session.sendline("obmcutil -w poweron")
+        self.session.expect(self.prompt)
+
+    def chassisoff(self):
+        self.session.sendline("obmcutil -w chassisoff")
+        self.session.expect(self.prompt)
+
+class PexpectLogger(object):
+    def write(self, bstring):
+        try:
+            sys.stdout.write(bstring.decode())
+        except UnicodeDecodeError:
+            print("Dropping broken unicode line")
+
+    def flush(self):
+        sys.stdout.flush()
+
+
+class Bmc(object):
+    def __init__(self, entity):
+        self.getty = "login: ".encode()
+        self.shell = "# ".encode()
+        self.entity = entity
+        fargs = (entity.console.endpoint.host, entity.console.endpoint.port)
+        self.session = pexpect.spawn("telnet {} {}".format(*fargs))
+        self.session.logfile = PexpectLogger()
+        self.obmcutil = Obmcutil(self.session, self.shell)
+        self.session.sendline()
+        rc = self.session.expect([self.getty, self.shell])
+        if rc == 0:
+            self.login()
+
+    def login(self):
+        self.session.sendline(self.entity.console.credentials.username.encode())
+        self.session.expect("Password: ".encode())
+        self.session.sendline(self.entity.console.credentials.password.encode())
+        self.session.expect(self.shell)
+
+    def reboot(self):
+        self.session.sendline("reboot")
+        self.session.expect("Hit any key to stop autoboot:".encode(), timeout=None)
+        self.session.expect(self.getty, timeout=None)
+        self.login()
+        state = self.obmcutil.bmcstate()
+        while state != self.obmcutil.BMC_READY:
+            print("Wanted state '{}', got state '{}'".format(self.obmcutil.BMC_READY, state))
+            time.sleep(5)
+            state = self.obmcutil.bmcstate()
+
+    def chassisoff(self):
+        self.obmcutil.chassisoff()
+
+    def poweron(self):
+        hs = self.obmcutil.hoststate()
+        print("Host state is: {}".format(hs))
+        if hs in (self.obmcutil.HOST_ON, self.obmcutil.HOST_QUIESCED):
+            self.obmcutil.chassisoff()
+        self.obmcutil.poweron()
+
+class Host(object):
+    def __init__(self, entity, bmc):
+        self.shell = "/? *#".encode()
+        self.petitboot = "Petitboot".encode()
+        self.session = None
+        self.entity = entity
+        self.bmc = bmc
+        self.connect()
+
+    def connect(self):
+        fargs = (self.entity.console.endpoint.port,
+                self.entity.console.credentials.username,
+                self.entity.console.endpoint.host)
+        self.session = pexpect.spawn("ssh -p{} {}@{}".format(*fargs))
+        self.session.logfile = PexpectLogger()
+        self.session.expect("password:".encode())
+        self.session.sendline(self.entity.console.credentials.password.encode())
+
+    def poweron(self):
+        self.bmc.chassisoff()
+        self.bmc.poweron()
+        self.session.send('\f')
+        rc = self.session.expect([self.petitboot, self.shell], timeout=None)
+        if rc == 0:
+            self.session.sendline()
+            self.session.expect(self.shell)
+
+    def reboot(self):
+        self.session.send('\f')
+        rc = self.session.expect([self.petitboot, self.shell], timeout=None)
+        if rc == 0:
+            self.session.sendline()
+            self.session.expect(self.shell)
+        self.session.sendline("reboot".encode())
+        self.session.expect("INIT: Waiting for kernel...".encode(), timeout=None)
+        self.session.expect("Petitboot".encode(), timeout=None)
+        self.session.sendline()
+        self.session.expect(self.shell)
+
+def rpp(machine):
+    bmc = Bmc(machine.bmc)
+    host = Host(machine.host, bmc)
+    host.poweron()
+    while True:
+        bmc.reboot()
+        host.connect()
+        host.reboot()
+
+def main():
+    bmccreds = Credentials("root", "0penBmc")
+    b = Entity(Target(bmccreds, Endpoint("serial.concentrator.somewhere.com", 1234)),
+            Target(bmccreds, Endpoint("bmc.somewhere.com", 22)))
+    h = Entity(Target(bmccreds, Endpoint("bmc.somewhere.com", 2200)),
+            Target(Credentials("user", "password"), Endpoint("host.somewhere.com", 22)))
+    m = Machine(b, h)
+    return rpp(m)
+
+if __name__ == "__main__":
+    main()

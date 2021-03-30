@@ -1,0 +1,140 @@
+test_sanity_SOURCES = %reldir%/sanity.c
+
+test_flash_copy_SOURCES = \
+	%reldir%/flash_copy.c \
+	mtd/backend.c \
+	lpc.c \
+	common.c mtd.c \
+	%reldir%/tmpf.c \
+	%reldir%/system.c
+
+test_flash_erase_SOURCES = \
+	%reldir%/flash_erase.c \
+	mtd/backend.c \
+	lpc.c \
+	common.c \
+	%reldir%/tmpf.c
+
+test_flash_write_SOURCES = \
+	%reldir%/flash_write.c \
+	mtd/backend.c \
+	lpc.c \
+	common.c \
+	%reldir%/tmpf.c
+
+TEST_MBOX_SRCS = \
+	transport_mbox.c \
+	windows.c \
+	lpc.c \
+	common.c \
+	protocol.c
+
+TEST_MOCK_CORE = \
+	%reldir%/tmpf.c \
+	mtd/backend.c \
+	%reldir%/mbox.c \
+	%reldir%/system.c
+
+TEST_MOCK_SRCS = $(TEST_MOCK_CORE)
+
+test_get_mbox_info_v2_SOURCES = %reldir%/get_mbox_info_v2.c \
+				$(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_reset_state_SOURCES = %reldir%/reset_state.c \
+			   $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_get_flash_info_v2_SOURCES = %reldir%/get_flash_info_v2.c \
+				 $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_create_read_window_v2_SOURCES = %reldir%/create_read_window_v2.c \
+				     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_create_write_window_v2_SOURCES = %reldir%/create_write_window_v2.c \
+				      $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_close_window_v2_SOURCES = %reldir%/close_window_v2.c \
+			       $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_mark_write_dirty_v2_SOURCES = %reldir%/mark_write_dirty_v2.c \
+				   $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_write_flush_v2_SOURCES = %reldir%/write_flush_v2.c \
+			      $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_mark_write_erased_v2_SOURCES = %reldir%/mark_write_erased_v2.c \
+				    $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_bmc_event_ack_v2_SOURCES = %reldir%/bmc_event_ack_v2.c \
+				$(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_create_oversize_window_SOURCES = %reldir%/create_oversize_window.c \
+				      $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_create_zero_size_window_SOURCES = %reldir%/create_zero_size_window.c \
+				       $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_implicit_flush_SOURCES = %reldir%/implicit_flush.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_request_high_version_SOURCES = %reldir%/request_high_version.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_request_low_version_SOURCES = %reldir%/request_low_version.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_mark_read_dirty_SOURCES = %reldir%/mark_read_dirty.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_read_window_write_flush_SOURCES = %reldir%/read_window_write_flush.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_read_window_mark_write_erased_SOURCES = %reldir%/read_window_mark_write_erased.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_write_window_dirty_erase_SOURCES = %reldir%/write_window_dirty_erase.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_invalid_command_SOURCES = %reldir%/invalid_command.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_read_window_cycle_SOURCES = %reldir%/read_window_cycle.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_sequence_numbers_SOURCES = %reldir%/sequence_numbers.c \
+			     $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_get_mbox_info_v2_timeout_SOURCES = %reldir%/get_mbox_info_v2_timeout.c \
+					$(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+test_windows_equally_evictable_SOURCES = %reldir%/windows_equally_evictable.c \
+					 $(TEST_MBOX_SRCS) $(TEST_MOCK_SRCS)
+
+check_PROGRAMS += \
+		%reldir%/sanity \
+		%reldir%/flash_copy \
+		%reldir%/flash_erase \
+		%reldir%/flash_write \
+		%reldir%/get_mbox_info_v2 \
+		%reldir%/reset_state \
+		%reldir%/get_flash_info_v2 \
+		%reldir%/create_read_window_v2 \
+		%reldir%/create_write_window_v2 \
+		%reldir%/close_window_v2 \
+		%reldir%/mark_write_dirty_v2 \
+		%reldir%/write_flush_v2 \
+		%reldir%/mark_write_erased_v2 \
+		%reldir%/bmc_event_ack_v2 \
+		%reldir%/create_oversize_window \
+		%reldir%/create_zero_size_window \
+		%reldir%/implicit_flush \
+		%reldir%/request_high_version \
+		%reldir%/request_low_version \
+		%reldir%/mark_read_dirty \
+		%reldir%/read_window_write_flush \
+		%reldir%/read_window_mark_write_erased \
+		%reldir%/write_window_dirty_erase \
+		%reldir%/invalid_command \
+		%reldir%/read_window_cycle \
+		%reldir%/sequence_numbers \
+		%reldir%/get_mbox_info_v2_timeout \
+		%reldir%/windows_equally_evictable

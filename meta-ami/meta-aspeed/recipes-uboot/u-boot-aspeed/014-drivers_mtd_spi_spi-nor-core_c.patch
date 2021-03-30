@@ -1,0 +1,14 @@
+diff -Naur uboot.old/drivers/mtd/spi/spi-nor-core.c uboot/drivers/mtd/spi/spi-nor-core.c
+--- uboot.old/drivers/mtd/spi/spi-nor-core.c	2021-01-05 16:55:22.792385092 +0800
++++ uboot/drivers/mtd/spi/spi-nor-core.c	2021-01-05 17:32:41.000000000 +0800
+@@ -2362,7 +2362,9 @@
+ #ifndef CONFIG_SPI_FLASH_BAR
+ 		/* enable 4-byte addressing if the device exceeds 16MiB */
+ 		nor->addr_width = 4;
+-		spi_nor_set_4byte_opcodes(nor, info);
++		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION ||
++		    info->flags & SPI_NOR_4B_OPCODES)
++			spi_nor_set_4byte_opcodes(nor, info);
+ #else
+ 		/* Configure the BAR - discover bank cmds and read current bank */
+ 		nor->addr_width = 3;

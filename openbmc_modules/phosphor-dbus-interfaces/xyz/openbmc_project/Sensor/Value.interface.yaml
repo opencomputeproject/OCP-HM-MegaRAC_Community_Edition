@@ -1,0 +1,74 @@
+description: >
+    Implement to provide sensor readings.  Objects implementing
+    Sensor.Value must be instantiated in the correct
+    hierarchy within the sensors namespace.  The following sensor
+    hierarchies are recognized:
+      temperature
+      fan_tach
+      voltage
+      altitude
+      current
+      power
+      energy
+      utilization
+
+    Any service implementing Sensor.Value on one or more objects must
+    implement org.freedesktop.DBus.ObjectManager on the sensors namespace root.
+
+    All Sensor.Value properties are read-only.
+
+properties:
+    - name: Value
+      type: double
+      description: >
+          The sensor reading.
+    - name: MaxValue
+      type: double
+      description: >
+          The Maximum supported sensor reading.
+    - name: MinValue
+      type: double
+      description: >
+          The Minimum supported sensor reading.
+    - name: Unit
+      type: enum[self.Unit]
+      description: >
+          The unit of the reading.  Immutable once set for a sensor.
+          For objects in the temperature namespace, Unit must be "DegreesC".
+          For objects in the fan_tach namespace, Unit must be "RPMS".
+          For objects in the voltage namespace, Unit must be "Volts".
+          For objects in the altitude namespace, Unit must be "Meters".
+          For objects in the current namespace, Unit must be "Amperes".
+          For objects in the power namespace, Unit must be "Watts".
+          For objects in the energy namespace, Unit must be "Joules".
+          For objects in the utilization namespace, Unit must be "Percent"
+
+enumerations:
+    - name: Unit
+      description: >
+        A sensor reading unit.
+      values:
+        - name: DegreesC
+          description: >
+            Temperature as degrees Celsius.
+        - name: RPMS
+          description: >
+            Frequency of rotation as revolutions per minute.
+        - name: Volts
+          description: >
+            Electomotive force as volts.
+        - name: Meters
+          description: >
+            Length as meters.
+        - name: Amperes
+          description: >
+            Electrical charge flow rate as Amperes.
+        - name: Watts
+          description: >
+            Rate of energy transfer as Watts.
+        - name: Joules
+          description: >
+            Energy transfer as Joules.
+        - name: Percent
+          description: >
+            Resource utilization as percentage.

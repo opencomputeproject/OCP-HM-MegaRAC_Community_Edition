@@ -1,0 +1,84 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2020-06-12 15:33:26.842053169 +0530
++++ b/src/main.cpp	2020-06-12 15:34:21.218442604 +0530
+@@ -369,6 +369,30 @@
+         return false;
+     }
+ 
++    static bool getNbdInstance(void)
++    {
++        std::ifstream fileWriter;
++        fileWriter.open("/etc/nbd-proxy/status");
++        std::string temp_buf;
++        bool flag = false;
++        if(fileWriter)
++        {
++             while(std::getline(fileWriter,temp_buf))
++             {
++                if(temp_buf.find("nbd") != std::string::npos)
++                {
++                   if(temp_buf.find("1") != std::string::npos)
++                   {
++                      flag = true;
++                      break;
++                   }
++                }
++             }
++             fileWriter.close();
++        }
++        return flag;
++    }
++
+   private:
+     boost::asio::io_context& ioc;
+     boost::process::child child;
+@@ -659,6 +683,8 @@
+             paramMgr.addMountPoint(entry.first);
+         }
+ 	addKVMProcessInterface("kvm0");
++        addNBDProcessInterface("nbd0");
++        prepareNBDFile();
+         devMonitor.run([this](const std::string& device, StateChange change) {
+             configureUsbGadget(device, change);
+         });
+@@ -1044,6 +1070,17 @@
+         return result;
+     }
+ 
++    void prepareNBDFile(void)
++    {
++        std::ofstream fileWriter;
++        fileWriter.open("/etc/nbd-proxy/status", std::ios::out | std::ios::trunc);
++        if(fileWriter)
++        {
++           fileWriter << "nbd0-status=0";
++           fileWriter.close();
++        }
++    }
++
+     void addLegacyInterface(const std::string& name)
+     {
+         auto iface = objServer->add_interface(
+@@ -1140,6 +1177,22 @@
+         iface->initialize();
+     }
+ 
++    void addNBDProcessInterface(const std::string& name)
++    {
++        auto iface = objServer->add_interface(
++            "/xyz/openbmc_project/VirtualMedia/Nbd/" + name,
++            "xyz.openbmc_project.Nbd.Process");
++        iface->register_property(
++            "Active", bool(false),
++            [](const bool& req, bool& property) {
++                 throw sdbusplus::exception::SdBusError(
++                 EPERM, "Setting Active property is not allowed");
++                return -1;
++            },
++            [](const bool& property) { return Process::getNbdInstance(); });
++        iface->initialize();
++    }
++
+     boost::asio::io_context& ioc;
+     DeviceMonitor devMonitor;
+     std::shared_ptr<sdbusplus::asio::connection> bus;

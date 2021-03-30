@@ -1,0 +1,50 @@
+diff -Naur a/nbd-proxy.c b/nbd-proxy.c
+--- a/nbd-proxy.c	2020-06-12 15:09:10.376920358 +0530
++++ b/nbd-proxy.c	2020-06-12 15:11:09.606445465 +0530
+@@ -72,10 +72,30 @@
+ static const char *conf_path = SYSCONFDIR "/nbd-proxy/config.json";
+ static const char *state_hook_path = SYSCONFDIR "/nbd-proxy/state";
+ static const char *sockpath_tmpl = RUNSTATEDIR "/nbd.%d.sock";
++static const char *status_path = SYSCONFDIR "/nbd-proxy/status";
+ 
+ static const size_t bufsize = 0x20000;
+ static const int nbd_timeout_default = 30;
+ 
++static void change_nbd_status (bool status)
++{
++        FILE *fileWriter;
++        fileWriter = fopen(status_path, "w");
++        if(fileWriter > 0)
++        {
++           if(status)
++           {
++              fputs("nbd0-status=1",fileWriter);
++           }
++           else
++           {
++              fputs("nbd0-status=0",fileWriter);
++           }
++           fclose(fileWriter);
++        }
++        return;
++}
++
+ static int open_nbd_socket(struct ctx *ctx)
+ {
+ 	struct sockaddr_un addr;
+@@ -163,6 +183,7 @@
+ 	}
+ 
+ 	ctx->nbd_client_pid = pid;
++	change_nbd_status(true);
+ 	return 0;
+ }
+ 
+@@ -179,6 +200,7 @@
+ 
+ 	waitpid(ctx->nbd_client_pid, NULL, 0);
+ 	ctx->nbd_client_pid = 0;
++	change_nbd_status(false);
+ }
+ 
+ static int copy_fd(struct ctx *ctx, int fd_in, int fd_out)

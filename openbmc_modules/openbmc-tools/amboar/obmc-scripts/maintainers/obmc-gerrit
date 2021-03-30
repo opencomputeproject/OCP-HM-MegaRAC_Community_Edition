@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2018 IBM Corp.
+#
+# Push changes to Gerrit, automatically adding reviewers to the patches by
+# parsing the OpenBMC-style MAINTAINERS file in the root of the repository (if
+# it exists).
+
+from obmc import maintainers
+from typing import cast, List, Optional
+import argparse
+import os
+import sh
+import sys
+
+git = sh.git.bake()
+
+def get_reviewers(root: Optional[str]=None, mname: str='MAINTAINERS') -> List[str]:
+    reviewers = cast(List[str], list())
+    if not root:
+        root = git('rev-parse', '--show-toplevel').strip()
+    mfile = os.path.join(root, mname)
+    if not os.path.exists(mfile):
+        return reviewers
+    with open(mfile, 'r') as mstream:
+        maintainers.trash_preamble(mstream)
+        block = maintainers.parse_block(mstream)
+        if not block:
+            return reviewers
+        mlist = cast(List[maintainers.Identity],
+                     block[maintainers.LineType.MAINTAINER])
+        reviewers.extend(i.email.address for i in mlist)
+        if maintainers.LineType.REVIEWER in block:
+            rlist = cast(List[maintainers.Identity],
+                         block[maintainers.LineType.REVIEWER])
+            reviewers.extend(i.email.address for i in rlist)
+    return reviewers
+
+def gerrit_refspec_args(reviewers: Optional[List[str]]=None, topic: str=None) -> str:
+    argl = []
+    if reviewers:
+        argl.extend("r={}".format(addr) for addr in reviewers)
+    if topic:
+        argl.append("topic={}".format(topic));
+    return ",".join(argl)
+
+def decorate_refspec(refspec: str, topic: str) -> str:
+    gargs = gerrit_refspec_args(get_reviewers(), topic)
+    if not gargs:
+        return refspec
+    if '%' in refspec:
+        return "{},{}".format(refspec, gargs)
+    return "{}%{}".format(refspec, gargs)
+
+def do_push(args: argparse.Namespace) -> None:
+    git.push(args.remote, decorate_refspec(args.refspec, args.topic),
+             _in=sys.stdin, _out=sys.stdout, _err=sys.stderr)
+
+parser = argparse.ArgumentParser()
+subbies = parser.add_subparsers(dest='subcommand')
+subbies.required = True
+push = subbies.add_parser("push", help="Push changes to Gerrit with reviewers")
+push.add_argument("remote")
+push.add_argument("refspec")
+push.add_argument("topic")
+push.set_defaults(func=do_push)
+
+args = parser.parse_args()
+args.func(args)

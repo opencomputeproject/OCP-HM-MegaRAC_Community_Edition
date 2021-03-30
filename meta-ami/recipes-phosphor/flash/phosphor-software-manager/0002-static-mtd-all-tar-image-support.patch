@@ -1,0 +1,122 @@
+diff -Naur a/images.hpp b/images.hpp
+--- a/images.hpp	2020-08-28 20:47:53.237693785 +0530
++++ b/images.hpp	2020-08-28 20:52:17.006946779 +0530
+@@ -14,6 +14,8 @@
+ const std::vector<std::string> bmcImages = {"image-kernel", "image-rofs",
+                                             "image-rwfs", "image-u-boot"};
+ 
++const std::string imageBmc = "image-bmc";
++
+ std::vector<std::string> getOptionalImages();
+ 
+ } // namespace image
+diff -Naur a/item_updater.cpp b/item_updater.cpp
+--- a/item_updater.cpp	2020-08-28 20:48:31.597290330 +0530
++++ b/item_updater.cpp	2020-08-28 20:55:21.197058177 +0530
+@@ -403,18 +403,27 @@
+     ItemUpdater::validateSquashFSImage(const std::string& filePath)
+ {
+     bool invalid = false;
+-
+-    for (auto& bmcImage : bmcImages)
++    fs::path file(filePath);
++	file /= imageBmc;
++	std::ifstream efile(file.c_str());
++    if(efile.good() != 1)
++    {
++    	for (auto& bmcImage : bmcImages)
++    	{
++	        fs::path file(filePath);
++	        file /= bmcImage;
++	        std::ifstream efile(file.c_str());
++	        if (efile.good() != 1)
++	        {
++	            log<level::ERR>("Failed to find the BMC image.",
++	                            entry("IMAGE=%s", bmcImage.c_str()));
++	            invalid = true;
++	        }
++	    }
++    }
++    else
+     {
+-        fs::path file(filePath);
+-        file /= bmcImage;
+-        std::ifstream efile(file.c_str());
+-        if (efile.good() != 1)
+-        {
+-            log<level::ERR>("Failed to find the BMC image.",
+-                            entry("IMAGE=%s", bmcImage.c_str()));
+-            invalid = true;
+-        }
++    	invalid = false;
+     }
+ 
+     if (invalid)
+diff -Naur a/static/flash.cpp b/static/flash.cpp
+--- a/static/flash.cpp	2020-08-28 20:48:49.317104455 +0530
++++ b/static/flash.cpp	2020-08-28 20:53:47.318018393 +0530
+@@ -6,10 +6,12 @@
+ #include "images.hpp"
+ 
+ #include <filesystem>
++#include <fstream>
+ 
+ namespace
+ {
+ constexpr auto PATH_INITRAMFS = "/run/initramfs";
++constexpr auto PATH_TMP_IMAGES = "/tmp/images/";
+ } // namespace
+ 
+ namespace phosphor
+@@ -26,11 +28,47 @@
+     // For static layout code update, just put images in /run/initramfs.
+     // It expects user to trigger a reboot and an updater script will program
+     // the image to flash during reboot.
+-    fs::path uploadDir(IMG_UPLOAD_DIR);
+-    fs::path toPath(PATH_INITRAMFS);
+-    for (auto& bmcImage : phosphor::software::image::bmcImages)
++    const std::string image = phosphor::software::image::imageBmc;
++    std::string tmpimages = PATH_TMP_IMAGES + versionId + "/" +image;
++    std::ifstream imagebmcfile(tmpimages.c_str());
++    if(imagebmcfile.good() != 1)
+     {
+-        fs::copy_file(uploadDir / versionId / bmcImage, toPath / bmcImage,
++        fs::path uploadDir(IMG_UPLOAD_DIR);
++        fs::path toPath(PATH_INITRAMFS);
++        std::ifstream activeimagebmc(toPath / image);
++        if(activeimagebmc.good() == 1)
++        {
++            remove(toPath / image);
++        }
++    	for (auto& bmcImage : phosphor::software::image::bmcImages)
++    	{
++            std::ifstream activebmcimage(toPath / bmcImage);
++            if(activebmcimage.good() == 1)
++            {
++                remove(toPath / bmcImage);
++            }
++    		fs::copy_file(uploadDir / versionId / bmcImage, toPath / bmcImage,
++                      fs::copy_options::overwrite_existing);
++      	}
++    }
++    else
++    {
++    	fs::path uploadDir(IMG_UPLOAD_DIR);
++    	fs::path toPath(PATH_INITRAMFS);
++        for (auto& bmcImage : phosphor::software::image::bmcImages)
++        {
++            std::ifstream activebmcimage(toPath / bmcImage);
++            if(activebmcimage.good() == 1)
++            {
++                remove(toPath / bmcImage);
++            }
++        }
++        std::ifstream activeimagebmc(toPath / image);
++        if(activeimagebmc.good() == 1)
++        {
++            remove(toPath / image);
++        }
++    	fs::copy_file(uploadDir / versionId / image, toPath / image,
+                       fs::copy_options::overwrite_existing);
+     }
+ }

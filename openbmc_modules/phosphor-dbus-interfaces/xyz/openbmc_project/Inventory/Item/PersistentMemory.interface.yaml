@@ -1,0 +1,109 @@
+description: >
+    Implement to provide Persistent memory attributes.
+properties:
+    - name: ModuleManufacturerID
+      type: uint16
+      description: >
+          The manufacturer ID of this memory module as defined by JEDEC in
+          JEP-106.
+    - name: ModuleProductID
+      type: uint16
+      description: >
+          The product ID of this memory module as defined by JEDEC in JEP-106.
+    - name: SubsystemVendorID
+      type: uint16
+      description: >
+          The manufacturer ID of the memory subsystem controller of this
+          memory module as defined by JEDEC in JEP-106.
+    - name: SubsystemDeviceID
+      type: uint16
+      description: >
+          The product ID of the memory subsystem controller of this memory
+          moduleas defined by JEDEC in JEP-106.
+    - name: VolatileRegionSizeLimitInKiB
+      type: uint64
+      description: >
+          Total size of volatile regions in kibibytes (KiB).
+    - name: PmRegionSizeLimitInKiB
+      type: uint64
+      description: >
+          Total size of persistent regions in kibibytes (KiB).
+    - name: VolatileSizeInKiB
+      type: uint64
+      description: >
+          Total size of the volatile portion memory in kibibytes (KiB).
+    - name: PmSizeInKiB
+      type: uint64
+      description: >
+          Total size of the non-volatile portion memory in kibibytes (KiB).
+    - name: CacheSizeInKiB
+      type: uint64
+      description: >
+          Total size of the cache portion memory in kibibytes (KiB).
+    - name: VolatileRegionMaxSizeInKiB
+      type: uint64
+      description: >
+          Maximum size of a single volatile region in kibibytes (KiB).
+    - name: PmRegionMaxSizeInKiB
+      type: uint64
+      description: >
+          Maximum size of a single persistent region in kibibytes (KiB).
+    - name: AllocationIncrementInKiB
+      type: uint64
+      description: >
+          The size of the smallest unit of allocation for a memory region in
+          kibibytes (KiB).
+    - name: AllocationAlignmentInKiB
+      type: uint64
+      description: >
+          The boundary that memory regions are allocated on, measured in
+          kibibytes (KiB).
+    - name: VolatileRegionNumberLimit
+      type: uint32
+      description: >
+          Total number of volatile regions this memory can support.
+    - name: PmRegionNumberLimit
+      type: uint32
+      description: >
+          Total number of persistent regions this memory can support.
+    - name: SpareDeviceCount
+      type: uint32
+      description: >
+          Number of unused spare devices available in the memory.
+    - name: IsSpareDeviceInUse
+      type: boolean
+      description: >
+          An indication of whether a spare device is enabled for this memory.
+    - name: IsRankSpareEnabled
+      type: boolean
+      description: >
+          An indication of whether rank spare is enabled for this memory.
+    - name: MaxAveragePowerLimitmW
+      type: array[uint32]
+      description: >
+          Set of maximum power budgets supported by the memory in milliwatts.
+    - name: CurrentSecurityState
+      type: string
+      description: The current security state of this memory.
+    - name: ConfigurationLocked
+      type: boolean
+      description: The current configuration lock state of this memory.
+    - name: AllowedMemoryModes
+      type: array[enum[self.MemoryModes]]
+      description: >
+          Memory modes supported by the memory.
+
+enumerations:
+    - name: MemoryModes
+      description: >
+          Memory modes supported by the memory module.
+      values:
+        - name: Volatile
+          description: >
+              Memory module supports volatile or non-persistent memory mode.
+        - name: Persistent
+          description: >
+              Memory module supports apt direct mode.
+        - name: Block
+          description: >
+              Memory module supports block mode.

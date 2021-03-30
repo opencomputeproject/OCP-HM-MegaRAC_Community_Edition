@@ -1,0 +1,86 @@
+<div class="uib-modal__content">
+  <div class="modal-header">
+    <h2 class="modal-title" id="modal_label">
+      Add new certificate
+    </h2>
+    <button
+      type="button"
+      class="btn  btn--close"
+      ng-click="$dismiss()"
+      aria-label="close">
+      <icon file="icon-close.svg" aria-hidden="true"></icon>
+    </button>
+  </div>
+  <form
+    name="addCertForm"
+    id="addCertForm"
+    ng-class="{'submitted': submitted}">
+    <div class="modal-body">
+      <div class="form__field">
+        <label class="content-label" for="certType">Certificate type</label>
+        <select
+          class="cert-dropdown"
+          id="certType"
+          name="certType"
+          ng-model="newCertificate.selectedType"
+          required>
+          <option class="courier-bold" ng-value="">Select an option</option>
+          <option
+            class="courier-bold"
+            ng-value="type"
+            ng-repeat="type in availableCertificateTypes">
+            {{ type.name }}
+          </option>
+        </select>
+        <div
+          ng-messages="addCertForm.certType.$error"
+          class="form-error"
+          ng-class="{'visible' : addCertForm.certType.$touched || submitted }">
+          <p ng-message="required">Field is required</p>
+        </div>
+      </div>
+      <div class="content-label form__field">Certificate file</div>
+      <div class="file-upload">
+        <label
+          for="upload_cert_new"
+          class="file-upload-btn btn btn-secondary"
+          tabindex="0">
+          Choose file
+        </label>
+        <input
+          name="uploadCertNew"
+          id="upload_cert_new"
+          type="file"
+          file="newCertificate.file"
+          class="file-upload-input"/>
+        <div class="file-upload-container">
+          <span class="file-filename" ng-hide="newCertificate.file">No file selected</span>
+          <span class="file-filename">{{ newCertificate.file.name }}</span>
+          <button
+            type="reset"
+            class="btn file-upload-reset"
+            ng-if="newCertificate.file.name"
+            ng-click="newCertificate.file = '';"
+            aria-label="remove selected file">
+            <icon file="icon-close.svg" aria-hidden="true"></icon>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        ng-click="$dismiss(); addCertForm.$setUntouched();">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        ng-click="submitted = true; uploadCertificate(); $dismiss()"
+        ng-disabled="addCertForm.$invalid || !newCertificate.file">
+        Save
+      </button>
+    </div>
+  </form>
+</div>

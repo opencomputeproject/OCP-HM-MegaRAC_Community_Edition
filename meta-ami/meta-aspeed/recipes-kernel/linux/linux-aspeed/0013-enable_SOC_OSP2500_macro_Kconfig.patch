@@ -1,0 +1,15 @@
+diff -Naur kernel-source_mod/arch/arm/Kconfig kernel-source_ast/arch/arm/Kconfig
+--- kernel-source_mod/arch/arm/Kconfig	2018-09-04 11:36:27.257533701 +0530
++++ kernel-source_ast/arch/arm/Kconfig	2018-09-04 15:56:18.189926334 +0530
+@@ -642,6 +642,11 @@
+ 
+ endchoice
+ 
++# Define the OSP if any used here and sub components of the SOC here
++config SOC_OSP2500
++   bool
++   default y 
++
+ menu "Multiple platform selection"
+ 	depends on ARCH_MULTIPLATFORM
+ 

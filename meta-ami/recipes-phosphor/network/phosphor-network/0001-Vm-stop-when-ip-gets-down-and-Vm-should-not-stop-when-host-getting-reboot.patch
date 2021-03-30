@@ -1,0 +1,94 @@
+diff -Naur a/network_manager_main.cpp b/network_manager_main.cpp
+--- a/network_manager_main.cpp	2020-11-23 14:46:29.023300146 +0530
++++ b/network_manager_main.cpp	2020-11-23 14:56:49.205470943 +0530
+@@ -20,6 +20,11 @@
+ #include <sdeventplus/event.hpp>
+ #include <xyz/openbmc_project/Common/error.hpp>
+ 
++#include <boost/asio.hpp>
++#include <sdbusplus/asio/connection.hpp>
++#include <sdbusplus/asio/object_server.hpp>
++
++
+ using phosphor::logging::elog;
+ using phosphor::logging::entry;
+ using phosphor::logging::level;
+@@ -231,11 +236,78 @@
+ 
+ #endif
+ 
++
++void read_linkup_value(const std::string& eth_name , pid_t pid)
++{
++
++        boost::asio::io_service io ;
++        auto sys_bus = std::make_shared<sdbusplus::asio::connection>(io);
++        sys_bus->async_method_call(
++                        [eth_name,pid](boost::system::error_code errc,
++                                const std::variant<bool>& LinkUP  ) {
++
++                        if (errc)
++                        {
++                        log<level::INFO>("D-BUS response error!!!");
++                        return;
++                        }
++
++
++                        const bool* LinkUPPtr =
++                        std::get_if<bool>(&LinkUP);
++
++                        if (!LinkUPPtr)
++                        {
++                        log<level::INFO>("InternalError!!!");
++                        return;
++                        }
++
++                        if (*LinkUPPtr == false)
++                        {
++                                std::string str = "/etc/nbd-proxy/state stop 0";
++                                const char *cmd = str.c_str();
++
++                                log<level::INFO>("Closing the Virtual Media Socket !!!");
++                                system(cmd);
++                                kill(pid, SIGTERM);
++                        }
++
++                        },
++                                "xyz.openbmc_project.Network",   "/xyz/openbmc_project/network/" + eth_name,
++                                "org.freedesktop.DBus.Properties", "Get",
++                                "xyz.openbmc_project.Network.EthernetInterface",   "LinkUp");
++
++}
++
+ /** @brief refresh the network objects. */
+ void refreshObjects()
+ {
+     if (manager)
+     {
++       std::ifstream fileReader;
++       fileReader.open("/sys/block/nbd0/pid") ;
++       if(fileReader)
++	{
++		std::ifstream fileReader1;
++		fileReader1.open("/etc/nbd-proxy/networkiface") ;
++		if(fileReader1)
++		{
++		
++			std::string temp_buf, eth_name;
++			pid_t pid;
++			std::getline(fileReader,temp_buf);
++			std::getline(fileReader1,eth_name);
++			std::istringstream(temp_buf) >> pid;
++
++			read_linkup_value(eth_name,pid);
++			system("rm /etc/nbd-proxy/networkiface");
++			fileReader1.close();
++		
++		}
++		
++		fileReader.close();
++	}
++
+         log<level::INFO>("Refreshing the objects.");
+         manager->createChildObjects();
+         log<level::INFO>("Refreshing complete.");

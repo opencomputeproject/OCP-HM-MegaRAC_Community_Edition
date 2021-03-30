@@ -1,0 +1,247 @@
+.label,
+label,
+legend {
+  margin: 0;
+  color: $text-02;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.75em;
+  margin-bottom: 0;
+  line-height: 2.2;
+  .error {
+    font-size: 0.9em;
+  }
+}
+
+// TODO: Start replacing use of label__helper-text
+.label__helper-text,
+.form__helper-text {
+  color: $text-02;
+  line-height: 1.2;
+  font-size: 0.9em;
+  margin-bottom: 0.4em;
+}
+
+input[type="email"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="text"],
+input[type="date"],
+input[type="time"],
+textarea {
+  border-radius: 0px;
+  border: 1px solid $border-color-02;
+  margin: 0;
+  background: $primary-light;
+  box-shadow: 0 0 0;
+  transition: none !important;
+  max-height: 2.1em;
+  &:focus {
+    border-color: $border-color-01;
+    box-shadow: 0 -3px $primary-accent inset;
+  }
+  &:disabled,
+  .disabled {
+    background: $background-03;
+    border: 1px solid $border-color-02;
+  }
+  &.input__error {
+    box-shadow: 0 -5px $status-error inset;
+    color: $status-error;
+    &:focus {
+      box-shadow: 0 -5px $primary-accent inset;
+    }
+  }
+}
+
+//input validation
+.ng-invalid.ng-touched {
+  box-shadow: 0 -3px $status-error inset;
+  &:focus {
+    border-color: $border-color-01;
+    box-shadow: 0 -3px $status-error inset;
+  }
+}
+.submitted .ng-invalid {
+  box-shadow: 0 -3px $status-error inset;
+  &:focus {
+    border-color: $border-color-01;
+    box-shadow: 0 -3px $status-error inset;
+  }
+}
+
+.form-error {
+  margin-bottom: 0.7em;
+  font-size: 0.8rem;
+  color: $status-error;
+  height: 1rem;
+  display: block;
+  visibility: hidden;
+  // TODO: Create state rulesets rather than relying on one off solutions
+  .visible {
+    visibility: visible;
+  }
+}
+//Foundation overwrite
+[type="color"],
+[type="date"],
+[type="datetime-local"],
+[type="datetime"],
+[type="email"],
+[type="month"],
+[type="number"],
+[type="password"],
+[type="search"],
+[type="tel"],
+[type="text"],
+[type="time"],
+[type="url"],
+[type="week"],
+textarea {
+  border-color: $border-color-02;
+}
+
+input[readonly],
+input[readonly]:focus {
+  box-shadow: 0 0 0;
+  background: $background-03;
+  border: 1px solid $border-color-02;
+}
+
+textarea {
+  padding: 0.2em;
+  height: auto;
+}
+
+input[type="submit"],
+.submit {
+  margin: 1em 0;
+  width: 100%;
+}
+
+// Custom select
+select {
+  border-radius: 0px;
+  height: auto;
+  padding-right: 0.5rem; //override inherited Foundation style
+  border-color: $border-color-02;
+  @include fastTransition-all;
+  @include bgImage__arrowDown-primary;
+  &:focus {
+    box-shadow: 0 0 0;
+  }
+  &[disabled] {
+    @include bgImage__arrowDown-disabled;
+  }
+}
+
+#login__form {
+  input {
+    height: 3em;
+    max-height: none;
+  }
+}
+.form__validation-message {
+  color: $status-error;
+  font-size: 0.8em;
+  line-height: 1.1;
+  padding-top: 2px;
+}
+
+.radio-label {
+  text-transform: none;
+  font-weight: normal;
+  font-size: 0.9em;
+  line-height: 1.2;
+  margin: 0.8em 0;
+  color: $text-01;
+  input[type=radio] {
+    margin-bottom: 0;
+  }
+}
+
+/**
+ * Used for basic vertically stacked forms
+ * that do not need a grid for layout
+ * Should only wrap form elements and label
+ * Helper text shoul not be wrapped in the
+ * form-field container
+ * EX: Manage Power Usage
+ * Markup
+    <div class="section-content">
+      <p class="form__helper-text">Some helper text</p>
+      <div class=" form__field">
+        <label for="power-cap" class="content-label">POWER CAP VALUE IN WATTS</label>
+        <input id="power-cap type="number" />
+      </div>
+    </div>
+  */
+
+.form__field {
+  min-width: 150px;
+  max-width: 240px;
+}
+
+.form__field--large {
+  max-width: 330px;
+}
+
+// TODO Replace form-actions with form__actions. see below
+.form-actions {
+  width: 100%;
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid $border-color-01;
+
+  button {
+    display: block;
+    float: right;
+    margin: 0.5em 0 0 1em;
+  }
+}
+
+/**
+ * Use to wrap the cancel and submit buttons on
+ * a form to create the top border and white space
+ * Markup
+  <div class="form-actions">
+    <button type="submit" class="btn-primary" ng-click="setPowerCap()">
+      Save settings
+    </button>
+    <button type="button" class="btn btn-secondary" ng-click="refresh()">
+      Cancel
+    </button>
+  </div>
+ */
+
+.form__actions {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid $border-color-01;
+  display: flex;
+  justify-content: flex-end;
+
+  button:first-of-type {
+    order: 1;
+    margin-left: 1rem;
+  }
+}
+
+.radio-option__input-field-group {
+  margin-left: 1.5em;
+}
+
+.field-group-container {
+  margin-bottom: 30px;
+  position: relative;
+  &:last-child {
+    margin-bottom: 12px;
+  }
+
+  input + .form__validation-message {
+    position: absolute;
+  }
+}

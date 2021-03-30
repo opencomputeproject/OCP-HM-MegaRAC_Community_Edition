@@ -1,0 +1,467 @@
+#!/bin/sh -e
+
+set -euo pipefail
+
+OPTS="bmcstate,bootprogress,chassiskill,chassisoff,chassison,chassisstate,hoststate,\
+osstate,power,poweroff,poweron,state,status,hostrebootoff,hostrebooton,recoveryoff,recoveryon,\
+bmcrebootoff, bmcrebooton, listbootblock listlogs showlog deletelogs"
+
+USAGE="Usage: obmcutil [-h] [--wait] [--verbose]
+                {$OPTS}"
+
+INTERFACE_ROOT=xyz.openbmc_project
+STATE_INTERFACE=$INTERFACE_ROOT.State
+CONTROL_INTERFACE=$INTERFACE_ROOT.Control
+
+OBJECT_ROOT=/xyz/openbmc_project
+STATE_OBJECT=$OBJECT_ROOT/state
+CONTROL_OBJECT=$OBJECT_ROOT/control
+
+HOST_TIMEOUT_TARGET=obmc-host-timeout@0.target
+HOST_CRASH_TARGET=obmc-host-crash@0.target
+
+## NOTE: The following global variables are used only in the run_timeout cmd.
+## By declaring these globally instead of passing them through the
+## intermediary functions, which may not be "best practice", the readability
+## and cleanliness of the code should at least be increased.
+
+# The command passed in to be executed (e.g. poweron/off, status, etc.)
+# This will be be used in some instances of error reporting
+G_ORIG_CMD=
+# The state an interface should be in after executing the requested command.
+G_REQUESTED_STATE=
+# The query to run during a poweron/off or chassison/off to check that
+# the requested state (G_REQUESTED_STATE) of the interface has been reached.
+G_QUERY=
+# Wait the set period of time for state transitions to be successful before
+# continuing on with the program or reporting an error if timeout reached.
+G_WAIT=
+# Print the journal to the console
+G_VERBOSE=
+
+print_help ()
+{
+    echo "$USAGE"
+    echo ""
+    echo "positional arguments:"
+    echo "  {$OPTS}"
+    echo ""
+    echo "Examples:"
+    echo ""
+    echo "obmcutil hostrebootoff Disable auto reboot of Host from Quiesce state"
+    echo "obmcutil hostrebooton  Enable auto reboot of Host from Quiesce state"
+    echo ""
+    echo "obmcutil bmcrebootoff  Disable reboot of BMC"
+    echo "obmcutil bmcrebooton   Enable reboot of BMC"
+    echo ""
+    echo "obmcutil recoveryoff   Disable handling boot watchdog timeout and host crash"
+    echo "                       Also, disable BMC and Host auto reboots"
+    echo ""
+    echo "obmcutil recoveryon    Enable handling boot watchdog timeout and host crash"
+    echo "                       Also, enable BMC and Host auto reboots"
+    echo ""
+    echo "obmcutil listbootblock Check for and list any errors blocking the boot"
+    echo "                       of the system"
+    echo ""
+    echo "obmcutil listlogs      List all phosphor-logging entries on the"
+    echo "                       system"
+    echo ""
+    echo "obmcutil showlog <log> Display details of input log. Format of <log>"
+    echo "                       should match listlogs output"
+    echo ""
+    echo "obmcutil deletelogs    Delete all phosphor-logging entries from"
+    echo "                       system"
+    echo ""
+    echo "optional arguments (must precede the positional options above):"
+    echo "  -h, --help          show this help message and exit"
+    echo "  -w, --wait          block until state transition succeeds or fails"
+    echo "  -v, --verbose       print the journal to stdout if --wait is supplied"
+    exit 0
+}
+
+run_timeout ()
+{
+    local timeout="$1"; shift
+    local cmd="$@"
+    local verbose_child=
+
+    if [ -n "$G_VERBOSE" ]; then
+        journalctl -f &
+        verbose_child=$!
+    fi
+
+    $cmd
+
+    # Run a background query for the transition to the expected state
+    # This will be killed if the transition doesn't succeed within
+    # a timeout period.
+    (
+        while ! grep -q $G_REQUESTED_STATE <<< $(handle_cmd $G_QUERY) ; do
+            sleep 1
+        done
+    ) &
+    wait_child=$!
+
+    # Could be bad if process is killed before 'timeout' occurs if
+    # transition doesn't succeed.
+    trap -- "" SIGTERM
+
+    # Workaround for lack of 'timeout' command.
+    (
+        sleep $timeout
+        kill $wait_child
+    ) > /dev/null 2>&1 &
+
+    if ! wait $wait_child; then
+        echo "Unable to confirm '$G_ORIG_CMD' success" \
+        "within timeout period (${timeout}s)"
+    fi
+
+    if [ -n "$verbose_child" ]; then
+        kill $verbose_child
+    fi
+}
+
+run_cmd ()
+{
+    local cmd="$@";
+
+    if [ -n "$G_WAIT" ]; then
+        run_timeout $G_WAIT "$cmd"
+    else
+        $cmd
+    fi
+}
+
+set_property ()
+{
+    run_cmd busctl set-property "$@"
+}
+
+get_property ()
+{
+    G_WAIT=""
+    run_cmd busctl get-property "$@"
+}
+
+state_query ()
+{
+    local state=$(get_property "$@" | cut -d '"' -f2)
+    printf "%-20s: %s\n" $4 $state
+}
+
+print_usage_err ()
+{
+    echo "ERROR: $1" >&2
+    echo "$USAGE"
+    exit 1
+}
+
+mask_systemd_target ()
+{
+    target="$@"
+    systemctl mask $target
+}
+
+unmask_systemd_target ()
+{
+    target="$@"
+    systemctl unmask $target
+}
+
+disable_bmc_reboot ()
+{
+    dir="/run/systemd/system/"
+    file="reboot-guard.conf"
+    units=("reboot" "poweroff" "halt")
+
+    for unit in "${units[@]}"; do
+        mkdir -p ${dir}${unit}.target.d
+        echo -e "[Unit]\nRefuseManualStart=yes" >> ${dir}${unit}.target.d/${file}
+    done
+}
+
+enable_bmc_reboot ()
+{
+    dir="/run/systemd/system/"
+    file="reboot-guard.conf"
+    units=("reboot" "poweroff" "halt")
+
+    for unit in "${units[@]}"; do
+        rm -rf ${dir}${unit}.target.d/${file}
+        rm -rf ${dir}${unit}.target.d
+    done
+}
+
+# will write blocking errors to stdout
+check_boot_block_errors ()
+{
+    # array of boot block objects
+    blockArray=()
+
+    # Look for any objects under logging that implement the
+    # xyz.openbmc_project.Logging.ErrorBlocksTransition
+    subtree="$(busctl call xyz.openbmc_project.ObjectMapper \
+               /xyz/openbmc_project/object_mapper \
+               xyz.openbmc_project.ObjectMapper \
+               GetSubTree sias "/xyz/openbmc_project/logging/" 0 1 \
+               xyz.openbmc_project.Logging.ErrorBlocksTransition)"
+
+    # remove quotation marks
+    subtree="$(echo $subtree | sed 's/\"//g')"
+
+    for entry in $subtree; do
+        if [[ ${entry} =~ "xyz/openbmc_project/logging/block"* ]]; then
+            blockArray+=( $entry )
+        fi
+    done
+
+    # now find associated error log for each boot block error
+    for berror in "${blockArray[@]}"; do
+        assocs="$(busctl call xyz.openbmc_project.Logging $berror \
+                  org.freedesktop.DBus.Properties Get \
+                  ss xyz.openbmc_project.Association.Definitions Associations)"
+
+        # remove quotation marks
+        assocs="$(echo $assocs | sed 's/\"//g')"
+
+        for entry in $assocs; do
+            if [[ ${entry} =~ "xyz/openbmc_project/logging/entry"* ]]; then
+                echo "Blocking Error: $entry"
+            fi
+        done
+    done
+}
+
+# helper function to check for boot block errors and notify user
+check_and_warn_boot_block()
+{
+    blockingErrors=$(check_boot_block_errors)
+    if ! [ -z "$blockingErrors" ]; then
+        echo !!!!!!!!!!
+        echo "WARNING! System has blocking errors that will prevent boot"
+        echo "$blockingErrors"
+        echo !!!!!!!!!!
+    fi
+}
+
+# list all phosphor-logging entries
+list_logs()
+{
+    # Look for any objects under logging that implement the
+    # xyz.openbmc_project.Logging.Entry
+    busctl -j call xyz.openbmc_project.ObjectMapper \
+            /xyz/openbmc_project/object_mapper \
+            xyz.openbmc_project.ObjectMapper \
+            GetSubTreePaths sias "/xyz/openbmc_project/logging/" 0 1 \
+            xyz.openbmc_project.Logging.Entry
+}
+
+# display input log details
+show_log()
+{
+    busctl -j call xyz.openbmc_project.Logging \
+           $1 \
+           org.freedesktop.DBus.Properties \
+           GetAll s xyz.openbmc_project.Logging.Entry
+}
+
+# delete all phosphor-logging entries
+delete_logs()
+{
+    busctl call xyz.openbmc_project.Logging \
+           /xyz/openbmc_project/logging \
+           xyz.openbmc_project.Collection.DeleteAll DeleteAll
+}
+
+handle_cmd ()
+{
+    case "$1" in
+        chassisoff)
+            OBJECT=$STATE_OBJECT/chassis0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Chassis
+            PROPERTY=RequestedPowerTransition
+            VALUE=$INTERFACE.Transition.Off
+            G_REQUESTED_STATE=$INTERFACE.PowerState.Off
+            G_QUERY="chassisstate"
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "s" $VALUE
+            ;;
+        chassison)
+            check_and_warn_boot_block
+            OBJECT=$STATE_OBJECT/chassis0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Chassis
+            PROPERTY=RequestedPowerTransition
+            VALUE=$INTERFACE.Transition.On
+            G_REQUESTED_STATE=$INTERFACE.PowerState.On
+            G_QUERY="chassisstate"
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "s" $VALUE
+            ;;
+        poweroff)
+            OBJECT=$STATE_OBJECT/host0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Host
+            PROPERTY=RequestedHostTransition
+            VALUE=$INTERFACE.Transition.Off
+            G_REQUESTED_STATE=$INTERFACE.HostState.Off
+            G_QUERY="hoststate"
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "s" $VALUE
+            ;;
+        poweron)
+            check_and_warn_boot_block
+            OBJECT=$STATE_OBJECT/host0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Host
+            PROPERTY=RequestedHostTransition
+            VALUE=$INTERFACE.Transition.On
+            G_REQUESTED_STATE=$INTERFACE.HostState.Running
+            G_QUERY="hoststate"
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "s" $VALUE
+            ;;
+        bmcstate)
+            OBJECT=$STATE_OBJECT/bmc0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.BMC
+            PROPERTY=CurrentBMCState
+            state_query $SERVICE $OBJECT $INTERFACE $PROPERTY
+            ;;
+        chassisstate)
+            OBJECT=$STATE_OBJECT/chassis0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Chassis
+            PROPERTY=CurrentPowerState
+            state_query $SERVICE $OBJECT $INTERFACE $PROPERTY
+            ;;
+        hoststate)
+            OBJECT=$STATE_OBJECT/host0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Host
+            PROPERTY=CurrentHostState
+            state_query $SERVICE $OBJECT $INTERFACE $PROPERTY
+            ;;
+        osstate)
+            OBJECT=$STATE_OBJECT/host0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.OperatingSystem.Status
+            PROPERTY=OperatingSystemState
+            state_query $SERVICE $OBJECT $INTERFACE $PROPERTY
+            ;;
+        state|status)
+            for query in bmcstate chassisstate hoststate bootprogress osstate
+            do
+                handle_cmd $query
+            done
+            check_and_warn_boot_block
+            ;;
+        bootprogress)
+            OBJECT=$STATE_OBJECT/host0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$STATE_INTERFACE.Boot.Progress
+            PROPERTY=BootProgress
+            state_query $SERVICE $OBJECT $INTERFACE $PROPERTY
+            ;;
+        power)
+            OBJECT=/org/openbmc/control/power0
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=org.openbmc.control.Power
+            for property in pgood state pgood_timeout
+            do
+                # get_property can potentially return several
+                # different formats of values, so we do the parsing outside
+                # of get_property depending on the query. These queries
+                # return 'i VALUE' formatted strings.
+                STATE=$(get_property $SERVICE $OBJECT $INTERFACE $property \
+                    | sed 's/i[ ^I]*//')
+                printf "%s = %s\n" $property $STATE
+            done
+            ;;
+        chassiskill)
+            /usr/libexec/chassiskill
+            ;;
+        hostrebootoff)
+            OBJECT=$CONTROL_OBJECT/host0/auto_reboot
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$CONTROL_INTERFACE.Boot.RebootPolicy
+            PROPERTY=AutoReboot
+            VALUE=false
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "b" $VALUE
+            ;;
+        hostrebooton)
+            OBJECT=$CONTROL_OBJECT/host0/auto_reboot
+            SERVICE=$(mapper get-service $OBJECT)
+            INTERFACE=$CONTROL_INTERFACE.Boot.RebootPolicy
+            PROPERTY=AutoReboot
+            VALUE=true
+            set_property $SERVICE $OBJECT $INTERFACE $PROPERTY "b" $VALUE
+            ;;
+        bmcrebootoff)
+            disable_bmc_reboot
+            ;;
+        bmcrebooton)
+            enable_bmc_reboot
+            ;;
+        recoveryoff)
+            handle_cmd hostrebootoff
+            handle_cmd bmcrebootoff
+            mask_systemd_target $HOST_TIMEOUT_TARGET
+            mask_systemd_target $HOST_CRASH_TARGET
+            ;;
+        recoveryon)
+            handle_cmd hostrebooton
+            handle_cmd bmcrebooton
+            unmask_systemd_target $HOST_TIMEOUT_TARGET
+            unmask_systemd_target $HOST_CRASH_TARGET
+            ;;
+        listbootblock)
+            blockingErrors=$(check_boot_block_errors)
+            if [ -z "$blockingErrors" ]; then
+                echo "No blocking errors present"
+            else
+                echo "$blockingErrors"
+            fi
+            ;;
+        listlogs)
+            list_logs
+            ;;
+        showlog)
+            show_log $2
+            ;;
+        deletelogs)
+            delete_logs
+            ;;
+        *)
+            print_usage_err "Invalid command '$1'"
+            ;;
+    esac
+}
+
+shiftcnt=0
+for arg in "$@"; do
+    case $arg in
+        -w|--wait)
+            G_WAIT=30
+            shiftcnt=$((shiftcnt+1))
+            continue
+            ;;
+        -h|--help)
+            print_help
+            ;;
+        -v|--verbose)
+            G_VERBOSE=y
+            shiftcnt=$((shiftcnt+1))
+            ;;
+        -*)
+            print_usage_err "Unknown option: $arg"
+            ;;
+        *)
+            G_ORIG_CMD=$arg
+            # shift out the optional parameters
+            shift $shiftcnt
+            # pass all arguments to handle_cmd in case command takes additional
+            # parameters
+            handle_cmd "$@"
+            break
+            ;;
+    esac
+done

@@ -1,0 +1,195 @@
+diff -Naur a/NodeManagerProxy.cpp b/NodeManagerProxy.cpp
+--- a/NodeManagerProxy.cpp	2020-12-18 20:34:53.716491723 +0530
++++ b/NodeManagerProxy.cpp	2020-12-19 14:50:29.064069460 +0530
+@@ -17,6 +17,7 @@
+ 
+ #include <boost/algorithm/string/predicate.hpp>
+ #include <boost/asio.hpp>
++
+ #include <filesystem>
+ #include <tuple>
+ #include <unordered_map>
+@@ -121,14 +122,20 @@
+     // Global power statistics
+     configuredSensors.push_back(std::make_unique<PowerMetric>(server));
+     configuredSensors.push_back(std::make_unique<GlobalPowerPlatform>(
+-        server, 0, 2040, "power", "Total_Power", globalPowerStats,
+-        entirePlatform, 0));
+-    configuredSensors.push_back(
+-        std::make_unique<GlobalPowerCpu>(server, 0, 510, "power", "CPU_Power",
+-                                         globalPowerStats, cpuSubsystem, 0));
++        server, 0, 2040, "power", "Total_Power",
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 1, 0xF7, 0x48, 0x07, 0x01,
++	0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
++       	globalPowerStats, entirePlatform, 0, conn));
++    configuredSensors.push_back(std::make_unique<GlobalPowerCpu>(
++	server, 0, 510, "power", "CPU_Power",
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 2, 0xF7, 0x48, 0x07, 0x01,
++        0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
++        globalPowerStats, cpuSubsystem, 0, conn));
+     configuredSensors.push_back(std::make_unique<GlobalPowerMemory>(
+-        server, 0, 255, "power", "Memory_Power", globalPowerStats,
+-        memorySubsystem, 0));
++        server, 0, 255, "power", "Memory_Power",
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 3, 0xF7, 0x48, 0x07, 0x01,
++        0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
++	globalPowerStats, memorySubsystem, 0, conn));
+ }
+ 
+ void createAssociations()
+diff -Naur a/NodeManagerProxy.hpp b/NodeManagerProxy.hpp
+--- a/NodeManagerProxy.hpp	2020-12-18 20:34:53.740492299 +0530
++++ b/NodeManagerProxy.hpp	2020-12-19 15:47:06.263412727 +0530
+@@ -17,6 +17,9 @@
+ #include <phosphor-logging/log.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
+ 
++#include <boost/container/flat_map.hpp>
++#include <boost/algorithm/string/predicate.hpp>
++
+ #ifndef NODEMANAGERPROXY_HPP
+ #define NODEMANAGERPROXY_HPP
+ 
+@@ -67,6 +70,7 @@
+     100; // msec - number of frames per reading * framesInterval should be 2x
+          // less than readingsInterval
+ 
++bool powerStatusOn = false;
+ /**
+  * @brief Ipmb defines
+  */
+@@ -517,6 +521,7 @@
+ 
+   private:
+     std::shared_ptr<sdbusplus::asio::dbus_interface> iface;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> deciface;
+     std::shared_ptr<sdbusplus::asio::connection> conn;
+ };
+ 
+@@ -543,6 +548,7 @@
+     Request(){};
+ 
+     std::shared_ptr<sdbusplus::asio::dbus_interface> iface;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> deciface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> association;
+ };
+ 
+@@ -624,12 +630,23 @@
+   public:
+     getNmStatistics(sdbusplus::asio::object_server &server, double minValue,
+                     double maxValue, std::string type, std::string name,
+-                    uint8_t mode, uint8_t domainId, uint8_t policyId) :
++		    uint16_t eventStat, uint8_t SdrVersion, uint8_t RecordType,
++		    uint8_t RecordLen, uint8_t OwnerId, uint8_t OwnerLun,
++		    uint8_t EntityId, uint8_t EntityInstance, uint8_t SensorInit,
++		    uint8_t SensorCap, uint8_t SensorType, uint8_t EventType,
++		    uint16_t AssertEventMask, uint16_t DeassertEventMask, uint8_t SensorUnit1,
++		    uint8_t SensorUnit2, uint8_t ModifierUnit, uint8_t MaxReading,
++		    uint8_t MinReading, uint8_t Linearization, uint8_t NominalReading,
++		    uint8_t NormalMax, uint8_t NormalMin, uint8_t PositiveHysteris,
++		    uint8_t NegativeHysteresis, uint8_t IdStringLen,
++                    uint8_t mode, uint8_t domainId, uint8_t policyIdi, std::shared_ptr<sdbusplus::asio::connection> conn) :
+         mode(mode),
+-        domainId(domainId), policyId(policyId), type(type), name(name)
++        domainId(domainId), policyId(policyId), type(type), name(name), conn(conn)
+     {
+         iface =
+             server.add_interface(propObj + type + '/' + name, nmdSensorIntf);
++	deciface = 
++	    server.add_interface(propObj + type + '/' + name, "xyz.openbmc_project.State.Decorator.Availability");
+ 
+         iface->register_property("MaxValue", static_cast<double>(maxValue));
+         iface->register_property("MinValue", static_cast<double>(minValue));
+@@ -638,8 +655,35 @@
+             "Unit", std::string("xyz.openbmc_project.Sensor.Value.Unit.Watts"));
+ 	iface->register_property(
+             "Scale", static_cast<int64_t>(0));
++	iface->register_property("EvStat", eventStat);
++	iface->register_property("SdrVersion", SdrVersion);
++	iface->register_property("RecordType",RecordType );
++	iface->register_property("RecordLen",RecordLen );
++	iface->register_property("OwnerId", OwnerId );
++	iface->register_property("OwnerLun", OwnerLun);
++	iface->register_property("EntityId",EntityId );
++	iface->register_property("EntityInstance",EntityInstance );
++	iface->register_property("SensorInit",SensorInit );
++	iface->register_property("SensorCap",SensorCap );
++	iface->register_property("SensorType",SensorType );
++	iface->register_property("EventType",EventType );
++	iface->register_property("AssertEventMask",AssertEventMask );
++	iface->register_property("DeassertEventMask",DeassertEventMask );
++	iface->register_property("SensorUnit1", SensorUnit1 );
++	iface->register_property("SensorUnit2", SensorUnit2 );
++	iface->register_property("ModifierUnit", ModifierUnit );
++	iface->register_property("Linearization", Linearization );
++	iface->register_property("NominalReading", NominalReading );
++	iface->register_property("NormalMax", NormalMax );
++	iface->register_property("NormalMin", NormalMin );
++	iface->register_property("PositiveHysteris", PositiveHysteris );
++	iface->register_property("NegativeHysteresis",NegativeHysteresis );
++	iface->register_property("IdStringLen", IdStringLen );
++
++	deciface->register_property("Available", false);
+ 
+         iface->initialize();
++	deciface->initialize();
+     }
+ 
+     void createAssociation(sdbusplus::asio::object_server &server,
+@@ -658,6 +702,30 @@
+         }
+     }
+ 
++    bool ispoweron(){
++
++	//powerStatusOn = false;
++	
++	constexpr const char* dbusinterface = "org.freedesktop.DBus.Properties";
++	constexpr const char* dbusget = "Get";
++
++	 conn->async_method_call(
++        [](boost::system::error_code ec,
++           const std::variant<std::string>& state) {
++            if (ec)
++            {
++                // we commonly come up before power control, we'll capture the
++                // property change later
++                return;
++            }
++            powerStatusOn =
++                boost::ends_with(std::get<std::string>(state), "Running");
++        },
++        power::busname, power::path, dbusinterface, dbusget, power::interface, power::property);
++
++	return powerStatusOn;
++    }
++
+     void handleResponse(const uint8_t completionCode,
+                         const std::vector<uint8_t> &dataReceived)
+     {
+@@ -675,7 +743,16 @@
+             reinterpret_cast<const nmIpmiGetNmStatisticsResp *>(
+                 dataReceived.data());
+ 
+-        iface->set_property(
++	if(ispoweron()){
++	     if(getNmStatistics->data.stats.cur == 0){
++		deciface->set_property("Available", false);
++	     }else{
++		deciface->set_property("Available", true);
++	     }
++	}else{
++		deciface->set_property("Available", false);
++	}
++	iface->set_property(
+             "Value", static_cast<int64_t>((int64_t)getNmStatistics->data.stats.cur));
+     }
+ 
+@@ -707,6 +784,7 @@
+     uint8_t policyId;
+     std::string type;
+     std::string name;
++    std::shared_ptr<sdbusplus::asio::connection> conn;
+ };
+ 
+ /**

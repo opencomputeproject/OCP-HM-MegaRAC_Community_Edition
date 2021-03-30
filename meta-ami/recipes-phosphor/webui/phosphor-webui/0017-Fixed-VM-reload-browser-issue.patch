@@ -1,0 +1,50 @@
+diff -Naur a/app/common/services/apiInterceptor.js b/app/common/services/apiInterceptor.js
+--- a/app/common/services/apiInterceptor.js	2021-01-04 17:22:58.531730801 +0530
++++ b/app/common/services/apiInterceptor.js	2021-01-04 17:24:17.949269315 +0530
+@@ -63,6 +63,9 @@
+               }
+             } else if (rejection.status == -1) {
+               dataService.server_unreachable = true;
++	      if(sessionStorage.getItem("VM_State") == 2){
++                sessionStorage.removeItem("VM_State");
++              }
+             }
+ 
+             dataService.loading = false;
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2021-01-04 17:22:58.511730411 +0530
++++ b/app/index.js	2021-01-04 17:24:57.002026664 +0530
+@@ -229,11 +229,31 @@
+ 
+             $location.path('/login');
+           });
+-          
+-          $window.addEventListener('beforeunload', function(){
++
++	  $window.addEventListener('unload', function(){
++            if (sessionStorage.getItem('VM_State') != null) {
++		// Commenting below code, as not supporting
++		// in firefox browser
++	        //dataService.getLoggedOutVM();
++	    }
+             sessionStorage.clear();
+             $cookies.remove('IsAuthenticated');
+             $location.path('/login');
++	  });
++          
++          $window.addEventListener('beforeunload', function(evt){
++	    // Check for the virtual media session,
++	    // if running, then show the popup message.
++	    if( (sessionStorage.getItem('VM_State') == 2) && (navigator.onLine) ) {
++	       var message = 'Virtual Media Session is running, are you sure you want to leave?';
++               if (typeof evt == 'undefined') {
++                   evt = window.event;
++               }       
++               if (evt) {
++                   evt.returnValue = message;
++               }
++               return message;
++	    }	
+           });
+         }
+       ]);

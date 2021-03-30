@@ -1,0 +1,37 @@
+description: >
+    This interface provides methods for mounting and unmounting images
+    using the legacy mode.
+
+methods:
+    - name: Mount
+      description: Perform a mount to HOST operation on given object.
+      parameters:
+        - name: ImageURL
+          type: string
+          description: >
+              Url to image. It should start with either `smb://` or
+              `https://` prefix
+        - name: ReadWrite
+          type: boolean
+          description: False if the image should be read-only.
+        - name: FileDescriptor
+          type: variant[int32,unixfd]
+          description: >
+              File descriptor of named pipe used for passing null-delimited
+              secret data (username and password). When there is no data to
+              pass `-1` should be passed as `INT`.
+      returns:
+        - name: Status
+          type: boolean
+          description: mounting status. True on success.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: Unmount
+      description: Perform an unmount from HOST on given object.
+      returns:
+        - name: Status
+          type: boolean
+          description: the unmount status. True on success.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure

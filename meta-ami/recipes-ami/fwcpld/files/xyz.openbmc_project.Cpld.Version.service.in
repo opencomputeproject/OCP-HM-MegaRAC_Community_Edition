@@ -1,0 +1,13 @@
+[Unit]
+Description=Phosphor cpld upload image
+
+[Service]
+ExecStartPre=/bin/sh -c 'mkdir -p /tmp/cpld'
+ExecStartPre=rm -rf /tmp/cpld
+ExecStart=/usr/bin/phosphor-upload-cpldimage
+Restart=always
+Type=dbus
+BusName=xyz.openbmc_project.Cpld.Version
+
+[Install]
+WantedBy=multi-user.target

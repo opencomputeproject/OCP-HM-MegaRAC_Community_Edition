@@ -1,0 +1,43 @@
+diff -Naur a/ikvm_args.hpp b/ikvm_args.hpp
+--- a/ikvm_args.hpp	2020-08-12 11:28:29.965485246 +0530
++++ b/ikvm_args.hpp	2020-08-12 11:30:09.860494367 +0530
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <string>
++#include <fstream>
+ 
+ namespace ikvm
+ {
+@@ -101,6 +102,20 @@
+         return videoPath;
+     }
+ 
++    /*
++     * @brief Create a file for kvm instance on startup and write zero
++     *        into it, which is used for Active dbus property of
++     *        "xyz.openbmc_project.Kvm.Process" interface.
++     */
++    void create_instance_pipe(void)
++    {
++        std::ofstream fileWriter;
++        fileWriter.exceptions(std::ofstream::failbit | std::ofstream::badbit);
++        fileWriter.open("/var/kvm_instance", std::ios::out | std::ios::trunc);
++        fileWriter << "0";
++        fileWriter.close();
++    }
++
+   private:
+     /* @brief Prints the application usage to stderr */
+     void printUsage();
+diff -Naur a/obmc-ikvm.cpp b/obmc-ikvm.cpp
+--- a/obmc-ikvm.cpp	2020-08-12 11:28:29.969485203 +0530
++++ b/obmc-ikvm.cpp	2020-08-12 11:30:31.316297545 +0530
+@@ -5,6 +5,7 @@
+ {
+     ikvm::Args args(argc, argv);
+     ikvm::Manager manager(args);
++    args.create_instance_pipe();
+ 
+     manager.run();
+ 

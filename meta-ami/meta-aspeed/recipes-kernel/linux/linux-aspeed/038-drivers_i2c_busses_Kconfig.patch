@@ -1,0 +1,16 @@
+--- ori_linux/drivers/i2c/busses/Kconfig	2019-08-21 00:37:54.000000000 +0800
++++ new_linux/drivers/i2c/busses/Kconfig	2019-11-28 17:21:46.000000000 +0800
+@@ -372,8 +372,12 @@
+ 	  This driver can also be built as a module.  If so, the module
+ 	  will be called i2c-altera.
+ 
++config I2C_NEW_ASPEED
++	bool "Aspeed New I2C Controller"
++	depends on ARCH_ASPEED || MACH_ASPEED_G6
++
+ config I2C_ASPEED
+-	tristate "Aspeed I2C Controller"
++	bool "Aspeed I2C Controller"
+ 	depends on ARCH_ASPEED || COMPILE_TEST
+ 	help
+ 	  If you say yes to this option, support will be included for the

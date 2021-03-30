@@ -1,0 +1,62 @@
+description: >
+    Interface to control physical LED.
+
+properties:
+    - name: State
+      type: enum[self.Action]
+      default: 'Off'
+      description: >
+        Current State of the LED.
+
+    - name: DutyOn
+      type: byte
+      default: 50
+      description: >
+        Percentage time the LED needs to be ON while blinking.
+
+    - name: Color
+      type: enum[self.Palette]
+      default: Unknown
+      description: >
+        Color that the LED can emit.
+
+    - name: Period
+      type: uint16
+      default: 1000
+      description: >
+        LED blink period expressed as milliseconds per on/off cycle.
+
+enumerations:
+    - name: Action
+      description: >
+          Possible states a LED can be in.
+      values:
+        - name: 'Off'
+          description: >
+            LED is in OFF state
+        - name: 'On'
+          description: >
+            LED is in solid ON state
+        - name: 'Blink'
+          description: >
+            LED is blinking
+
+    - name: Palette
+      description: >
+          Possible colors that the LED can emit.
+      values:
+        - name: Unknown
+          description: >
+            Color emitted by LED is unknown.
+        - name: Red
+          description: >
+            LED can emit Red color.
+        - name: Green
+          description: >
+            LED can emit Green color.
+        - name: Blue
+          description: >
+            LED can emit Blue color.
+        - name: Yellow
+          description: >
+            LED can emit Yellow color.

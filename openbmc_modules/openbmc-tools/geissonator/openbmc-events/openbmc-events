@@ -1,0 +1,215 @@
+#!/bin/env python
+
+import argparse
+import requests
+import json
+
+import urllib3
+
+class BMC:
+    def __init__(self, server):
+        self.url = "https://{0}/".format(server)
+        self.session = requests.Session()
+        self.login()
+
+    def login(self):
+        r = self.session.post(self.url + 'login',
+                              json={'data': ['root', '0penBmc']},
+                              verify=False)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to login: \n" + r.text)
+
+    def list_events(self):
+        r = self.session.get(self.url + 'xyz/openbmc_project/logging/entry/',
+                             verify=False)
+        j = r.json()
+        if j['message'] == '404 Not Found':
+            print "No error logs on system\n"
+            return
+        if j['status'] != 'ok':
+            raise Exception("Failed to query entries: \n" + r.text)
+
+        events = j['data']
+        events.sort(key=lambda x: int(x.split("/")[-1]))
+
+        return events
+
+    def get_event(self, event):
+        r = self.session.get(self.url + event, verify=False)
+
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to get event " + event + ": \n" + r.text)
+
+        return j['data']
+
+    def clear_event(self,event):
+        r = self.session.delete(self.url + event)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to clear event " + event + ": \n" + r.text)
+
+    def clear_all_events(self):
+        r = self.session.post(self.url + 'xyz/openbmc_project/logging/action/deleteall',
+                             headers={'Content-Type': 'application/json'},
+                             data='{"data":[]}',
+                             verify=False)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to clear all events\n" + r.text)
+
+    def list_dumps(self):
+        r = self.session.get(self.url + 'xyz/openbmc_project/dump/entry/',
+                             verify=False)
+        j = r.json()
+        if j['message'] == '404 Not Found':
+            print "No dumps on system\n"
+            return []
+        if j['status'] != 'ok':
+            raise Exception("Failed to list dumps: \n" + r.text)
+
+        dumps = j['data']
+        dumps.sort(key=lambda x: int(x.split("/")[-1]))
+
+        return dumps
+
+    def create_dump(self):
+        r = self.session.post(self.url + 'xyz/openbmc_project/dump/action/CreateDump',
+                              headers={'Content-Type': 'application/json'},
+                              data='{"data":[]}')
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to create dump: \n" + r.text)
+
+    def get_dump(self,dump):
+        r = self.session.get(self.url + "/download/dump/" + dump,
+                             verify=False)
+        with open("dump" + dump + ".tar.gz","wb") as dump:
+            dump.write(r.content)
+
+    def clear_dump(self,dump):
+        r = self.session.delete(self.url + dump)
+        j = r.json()
+        if j['status'] != 'ok':
+            raise Exception("Failed to clear dump " + dump + ": \n" + r.text)
+
+def do_list_events(args):
+    s = BMC(server=args.server)
+    try:
+        for e in s.list_events():
+            print(e)
+    except:
+        # ignore if we get nothing back
+        return;
+
+
+def do_view_event(args):
+    s = BMC(server=args.server)
+    print json.dumps(s.get_event(args.event), indent=4)
+
+def do_clear_event(args):
+    s = BMC(server=args.server)
+    s.clear_event(args.event)
+
+def do_clear_all_events(args):
+    s = BMC(server=args.server)
+    s.clear_all_events()
+
+def do_list_dumps(args):
+    s = BMC(server=args.server)
+    for e in s.list_dumps():
+        print(e)
+
+def do_create_dump(args):
+    s = BMC(server=args.server)
+    s.create_dump()
+
+def do_get_dump(args):
+    s = BMC(server=args.server)
+    s.get_dump(args.dump)
+
+def do_clear_dump(args):
+    s = BMC(server=args.server)
+    s.clear_dump(args.dump)
+
+def do_get_esel(args):
+    s = BMC(server=args.server)
+    e = s.get_event(args.event)
+    if e['Message'] != 'org.open_power.Error.Host.Event' and\
+       e['Message'] != 'org.open_power.Error.Host.Event.Event':
+        raise Exception("Event is not from Host: " + e['Message'])
+    for d in e['AdditionalData']:
+        data = d.split("=")
+        tag = data.pop(0)
+        if tag != 'ESEL':
+            continue
+        data = "=".join(data)
+        if args.binary:
+            data = data.split(" ")
+            if '' == data[-1]:
+                data.pop()
+            data = "".join(map(lambda x: chr(int(x, 16)), data))
+        print(data)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--server', help='hostname or IP of BMC', type=str,
+                    required=True)
+parser.add_argument('--suppress-insecure-warnings', '-I', action="store_true",
+                    default=False)
+
+subparsers = parser.add_subparsers()
+
+list_events = subparsers.add_parser('list', help='List all events on BMC')
+list_events.set_defaults(func=do_list_events)
+
+view_event = subparsers.add_parser(
+    'view', help='View all data for an individual event')
+view_event.add_argument('event', help='The event to view')
+view_event.set_defaults(func=do_view_event)
+
+get_esel = subparsers.add_parser(
+    'get-esel', help='Extract OpenPOWER eSEL data for an individual event')
+get_esel.add_argument('event', help='The event to get eSEL from')
+get_esel.add_argument('--binary', help='Print event in raw binary',
+                      action='store_const', const=True)
+get_esel.set_defaults(func=do_get_esel)
+
+clear_event = subparsers.add_parser(
+    'clear', help="Clear individual event")
+clear_event.add_argument('event', help="The event to clear")
+clear_event.set_defaults(func=do_clear_event)
+
+clear_all_events = subparsers.add_parser(
+    'clear-all', help="Clear all event")
+clear_all_events.set_defaults(func=do_clear_all_events)
+
+list_dumps = subparsers.add_parser(
+    'list-dumps', help="List all dumps")
+list_dumps.set_defaults(func=do_list_dumps)
+
+create_dump = subparsers.add_parser(
+    'create-dump', help="Create a dump")
+create_dump.set_defaults(func=do_create_dump)
+
+get_dump = subparsers.add_parser(
+    'get-dump', help="Get a dump")
+get_dump.add_argument('dump', help="The dump to get")
+get_dump.set_defaults(func=do_get_dump)
+
+clear_dump = subparsers.add_parser(
+    'clear-dump', help="Clear individual dump")
+clear_dump.add_argument('dump', help="The dump to clear")
+clear_dump.set_defaults(func=do_clear_dump)
+
+args = parser.parse_args()
+
+if args.suppress_insecure_warnings:
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+if 'func' in args:
+    args.func(args)
+else:
+    parser.print_help()

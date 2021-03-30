@@ -1,0 +1,38 @@
+diff -Naur "a/configurations/WFT Baseboard.json" "b/configurations/WFT Baseboard.json"
+--- "a/configurations/WFT Baseboard.json"	2020-09-01 21:04:16.674353490 +0530
++++ "b/configurations/WFT Baseboard.json"	2020-09-01 21:49:41.530471489 +0530
+@@ -2646,10 +2646,12 @@
+                "Type": "Discevent"
+         },
+          {
+-            "BindGpioIntrusion": "Chassis Intrusion GPIO",
+-            "Class": "Gpio",
+             "Name": "Chassis Intrusion Sensor",
+ 	    "Type": "ChassisIntrusionSensor",
++	    "Class": "Gpio",
++	    "GpioPolarity": "Low",
++	    "DType": "0x05",
++	    "EvStat": 231,
+ 	    "SdrInfo": [
+                 {
+                         "SdrVersion": "0x51",
+@@ -2677,18 +2679,7 @@
+                         "IdStringLen" : 0
+                 }
+             ]
+-	 },
+-        {
+-            "Direction": "Input",
+-            "Index": 11,
+-            "Name": "Chassis Intrusion GPIO",
+-            "Polarity": "Low",
+-           "DType": "0x05",
+-            "EventOffset": "0",
+-            "EvStat": 231,
+-            "Type": "Gpio"
+-         }
+-
++	 }
+ 
+     ],
+     "Name": "WFP Baseboard",

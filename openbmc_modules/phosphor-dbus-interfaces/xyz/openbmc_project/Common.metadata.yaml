@@ -1,0 +1,25 @@
+- name: Timeout
+  meta:
+    - str: "TIMEOUT_IN_MSEC=%llu"
+      type: uint64
+- name: InvalidArgument
+  meta:
+    - str: "ARGUMENT_NAME=%s"
+      type: string
+    - str: "ARGUMENT_VALUE=%s"
+      type: string
+- name: InternalFailure
+  level: ERR
+- name: InsufficientPermission
+  level: INFO
+- name: NotAllowed
+  level: INFO
+  meta:
+    - str: "REASON=%s"
+      type: string
+- name: NoCACertificate
+  level: ERR
+- name: TooManyResources
+  level: INFO
+- name: ResourceNotFound
+  level: INFO

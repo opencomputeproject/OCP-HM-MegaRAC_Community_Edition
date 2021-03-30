@@ -1,0 +1,19 @@
+diff -uNar u-boot.origin/env/common.c u-boot/env/common.c
+--- u-boot.origin/env/common.c	2020-12-14 16:13:23.322806522 -0500
++++ u-boot/env/common.c	2020-12-14 16:29:49.000000000 -0500
+@@ -77,11 +77,14 @@
+ 	}
+ 
+ 	if (himport_r(&env_htab, (char *)default_environment,
+-			sizeof(default_environment), '\0', flags, 0,
++			ENV_SIZE, '\0', flags, 0,
+ 			0, NULL) == 0)
+ 		pr_err("## Error: Environment import failed: errno = %d\n",
+ 		       errno);
+ 
++
++	env_save();
++
+ 	gd->flags |= GD_FLG_ENV_READY;
+ 	gd->flags |= GD_FLG_ENV_DEFAULT;
+ }

@@ -1,0 +1,40 @@
+diff -Naur a/include/sessions.hpp b/include/sessions.hpp
+--- a/include/sessions.hpp	2021-03-02 14:10:28.415971019 +0530
++++ b/include/sessions.hpp	2021-03-02 14:02:37.085015882 +0530
+@@ -392,15 +392,28 @@
+             {
+                 if (timeNow - authTokensIt->second->lastUpdated >=
+                     timeoutInMinutes)
+-                {
+-#ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
+-                    crow::ibm_mc_lock::Lock::getInstance().releaseLock(
+-                        authTokensIt->second->uniqueId);
+-#endif
+-                    authTokensIt = authTokens.erase(authTokensIt);
++		{
++
++
++			FILE *fptr;
++			fptr = fopen("/sys/block/nbd0/pid","r");
++			if (fptr){
++				authTokensIt++;
++				fclose(fptr);
++			}
++			else 
++			{
++
++
++			        #ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
++				crow::ibm_mc_lock::Lock::getInstance().releaseLock(
++						authTokensIt->second->uniqueId);
++				#endif
++				authTokensIt = authTokens.erase(authTokensIt);
+ 
+-                    needWrite = true;
+-                }
++				needWrite = true;
++			}
++		}
+                 else
+                 {
+                     authTokensIt++;

@@ -1,0 +1,23 @@
+--- a/common/board_r.c	2021-02-17 18:09:55.916242364 -0500
++++ b/common/board_r.c	2021-02-17 19:08:00.536003673 -0500
+@@ -632,6 +632,12 @@
+ 	return 0;
+ }
+ 
++static int board_tiagopass_init(void)
++{
++	tiagopass_configuration();
++	return 0;
++}
++
+ /*
+  * We hope to remove most of the driver-related init and do it if/when
+  * the driver is later used.
+@@ -824,6 +830,7 @@
+ #if defined(CONFIG_PRAM)
+ 	initr_mem,
+ #endif
++	board_tiagopass_init,	
+ 	run_main_loop,
+ };
+ 

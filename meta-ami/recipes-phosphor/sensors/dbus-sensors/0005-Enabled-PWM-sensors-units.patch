@@ -1,0 +1,81 @@
+diff -Naur a/include/PwmSensor.hpp b/include/PwmSensor.hpp
+--- a/include/PwmSensor.hpp	2020-08-30 17:53:54.558276755 +0530
++++ b/include/PwmSensor.hpp	2020-08-30 17:54:10.082698882 +0530
+@@ -12,7 +12,7 @@
+               std::shared_ptr<sdbusplus::asio::connection>& conn,
+               sdbusplus::asio::object_server& objectServer,
+               const std::string& sensorConfiguration,
+-              const std::string& sensorType);
++              const std::string& sensorType,const std::string& sensorUnit);
+     ~PwmSensor();
+ 
+   private:
+diff -Naur a/src/FanMain.cpp b/src/FanMain.cpp
+--- a/src/FanMain.cpp	2020-08-30 17:55:49.533382721 +0530
++++ b/src/FanMain.cpp	2020-08-30 17:55:59.237642868 +0530
+@@ -398,11 +398,12 @@
+ 
+                 // only add new elements
+                 const std::string& sysPath = pwm.string();
++		std::string sensorUnit = "xyz.openbmc_project.Sensor.Value.Unit.Percent";
+                 pwmSensors.insert(
+                     std::pair<std::string, std::unique_ptr<PwmSensor>>(
+                         sysPath, std::make_unique<PwmSensor>(
+                                      *pwmName, sysPath, dbusConnection,
+-                                     objectServer, *path, "Fan")));
++                                     objectServer, *path, "Fan",sensorUnit)));
+             }
+         }));
+     getter->getConfiguration(
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2020-08-30 17:55:49.533382721 +0530
++++ b/src/PSUSensorMain.cpp	2020-08-30 17:55:59.241642975 +0530
+@@ -209,10 +209,16 @@
+         {
+             continue;
+         }
+-
++       auto findSensorUnit = Units.find("pwm");
++            if (findSensorUnit == Units.end())
++            {
++                std::cerr << "Cannot find SensorUnit \n";
++                continue;
++            }
++            std::string sensorUnit = findSensorUnit->second;
+         pwmSensors[psuName + labelHead] = std::make_unique<PwmSensor>(
+             "Pwm_" + psuName + "_" + pwmName.second, pwmPathStr, dbusConnection,
+-            objectServer, interfacePath + "_" + pwmName.second, "PSU");
++            objectServer, interfacePath + "_" + pwmName.second, "PSU",sensorUnit);
+     }
+ }
+ 
+@@ -845,7 +851,8 @@
+                  {"curr", "xyz.openbmc_project.Sensor.Value.Unit.Amperes"},
+                  {"temp", "xyz.openbmc_project.Sensor.Value.Unit.DegreesC"},
+                  {"in", "xyz.openbmc_project.Sensor.Value.Unit.Volts"},
+-                 {"fan", "xyz.openbmc_project.Sensor.Value.Unit.RPMS"}};
++                 {"fan", "xyz.openbmc_project.Sensor.Value.Unit.RPMS"},
++                 {"pwm", "xyz.openbmc_project.Sensor.Value.Unit.Percent"}};
+ 
+ 
+     labelMatch = {{"pin", PSUProperty("Input Power", 3000, 0, 6)},
+diff -Naur a/src/PwmSensor.cpp b/src/PwmSensor.cpp
+--- a/src/PwmSensor.cpp	2020-08-30 17:55:49.529382613 +0530
++++ b/src/PwmSensor.cpp	2020-08-30 17:55:59.237642868 +0530
+@@ -31,7 +31,7 @@
+                      std::shared_ptr<sdbusplus::asio::connection>& conn,
+                      sdbusplus::asio::object_server& objectServer,
+                      const std::string& sensorConfiguration,
+-                     const std::string& sensorType) :
++                     const std::string& sensorType,const std::string& Unit) :
+     sysPath(sysPath),
+     objectServer(objectServer), name(name)
+ {
+@@ -82,6 +82,7 @@
+     // pwm sensor interface is in percent
+     sensorInterface->register_property("MaxValue", static_cast<int64_t>(100));
+     sensorInterface->register_property("MinValue", static_cast<int64_t>(0));
++    sensorInterface->register_property("Unit", Unit);
+ 
+     controlInterface = objectServer.add_interface(
+         "/xyz/openbmc_project/control/fanpwm/" + name,

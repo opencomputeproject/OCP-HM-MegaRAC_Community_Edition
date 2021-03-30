@@ -1,0 +1,87 @@
+//Quick links block
+.quick-links {
+  background-color: $background-02;
+  padding: 0.5em 1em;
+  font-size: 0.9em;
+  font-weight: 400;
+  margin: 1em 0;
+  @include mediaQuery(medium) {
+    margin: 0 0 0 1em;
+  }
+
+  a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: $primary-dark;
+    text-decoration: none;
+  }
+
+  p,
+  dl,
+  dd {
+    margin-bottom: 0;
+  }
+
+  .event-log__events {
+    margin-top: 0;
+  }
+}
+
+.quick-links__item {
+  padding: 1em 0 1em 0;
+  border-bottom: 1px solid $border-color-01;
+  position: relative;
+
+  .icon {
+    height: 1.5rem;
+  }
+
+  &.no-icon {
+    overflow: auto;
+
+    .bmc-time {
+      @include fontCourierBold;
+      text-align: right;
+      max-width: 17em;
+      float: right;
+
+      @include mediaQuery(medium) {
+        display: block;
+        text-align: left;
+        float: none;
+        margin-top: 0.25em;
+      }
+    }
+    &:after {
+      display: none;
+    }
+    .toggle-container {
+      float: right;
+    }
+  }
+  &:last-child {
+    border-bottom: 0;
+  }
+  .float-right {
+    float: right;
+    @media (min-width: 1024px) and (max-width: 1140px) {
+      display: block;
+      float: none;
+    }
+  }
+}
+
+.quick-links__label {
+  font-weight: 700;
+}
+
+.quick-links__event-copy {
+  color: $status-error;
+  margin-bottom: 0;
+  font-weight: 700;
+  font-size: 0.9em;
+  a {
+    color: $status-error;
+  }
+}

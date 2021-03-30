@@ -1,0 +1,166 @@
+{
+    "sensors" : [
+        {
+            "name": "fan1",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan1",
+            "writePath": "/sys/devices/platform/ahb/ahb:apb/1e786000.pwm-tacho-controller/hwmon/**/pwm1",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "name": "fan2",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan2",
+            "writePath": "/sys/devices/platform/ahb/ahb:apb/1e786000.pwm-tacho-controller/hwmon/**/pwm2",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "name": "fan3",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan3",
+            "writePath": "/sys/devices/platform/ahb/ahb:apb/1e786000.pwm-tacho-controller/hwmon/**/pwm3",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "name": "fan4",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan4",
+            "writePath": "/sys/devices/platform/ahb/ahb:apb/1e786000.pwm-tacho-controller/hwmon/**/pwm4",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "name": "fan5",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan5"
+        },
+        {
+            "name": "fan6",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan6"
+        },
+        {
+            "name": "fan7",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan7"
+        },
+        {
+            "name": "fan8",
+            "type": "fan",
+            "readPath": "/xyz/openbmc_project/sensors/fan_tach/fan8"
+        },
+        {
+            "name": "fleeting0",
+            "type": "margin",
+            "readPath": "/xyz/openbmc_project/extsensors/margin/fleeting0",
+            "timeout": 4
+        }
+    ],
+    "zones" : [
+        {
+            "id": 1,
+            "minThermalOutput": 3000.0,
+            "failsafePercent": 75.0,
+            "pids": [
+                {
+                    "name": "fan1-5",
+                    "type": "fan",
+                    "inputs": ["fan1", "fan5"],
+                    "setpoint": 90.0,
+                    "pid": {
+                        "samplePeriod": 0.1,
+                        "proportionalCoeff": 0.0,
+                        "integralCoeff": 0.0,
+                        "feedFwdOffsetCoeff": 0.0,
+                        "feedFwdGainCoeff": 0.010,
+                        "integralLimit_min": 0.0,
+                        "integralLimit_max": 0.0,
+                        "outLim_min": 30.0,
+                        "outLim_max": 100.0,
+                        "slewNeg": 0.0,
+                        "slewPos": 0.0
+                    }
+                },
+                {
+                    "name": "fan2-6",
+                    "type": "fan",
+                    "inputs": ["fan2", "fan6"],
+                    "setpoint": 90.0,
+                    "pid": {
+                        "samplePeriod": 0.1,
+                        "proportionalCoeff": 0.0,
+                        "integralCoeff": 0.0,
+                        "feedFwdOffsetCoeff": 0.0,
+                        "feedFwdGainCoeff": 0.010,
+                        "integralLimit_min": 0.0,
+                        "integralLimit_max": 0.0,
+                        "outLim_min": 30.0,
+                        "outLim_max": 100.0,
+                        "slewNeg": 0.0,
+                        "slewPos": 0.0
+                    }
+                },
+                {
+                    "name": "fan3-7",
+                    "type": "fan",
+                    "inputs": ["fan3", "fan7"],
+                    "setpoint": 90.0,
+                    "pid": {
+                        "samplePeriod": 0.1,
+                        "proportionalCoeff": 0.0,
+                        "integralCoeff": 0.0,
+                        "feedFwdOffsetCoeff": 0.0,
+                        "feedFwdGainCoeff": 0.010,
+                        "integralLimit_min": 0.0,
+                        "integralLimit_max": 0.0,
+                        "outLim_min": 30.0,
+                        "outLim_max": 100.0,
+                        "slewNeg": 0.0,
+                        "slewPos": 0.0
+                    }
+                },
+                {
+                    "name": "fan4-8",
+                    "type": "fan",
+                    "inputs": ["fan4", "fan8"],
+                    "setpoint": 90.0,
+                    "pid": {
+                        "samplePeriod": 0.1,
+                        "proportionalCoeff": 0.0,
+                        "integralCoeff": 0.0,
+                        "feedFwdOffsetCoeff": 0.0,
+                        "feedFwdGainCoeff": 0.010,
+                        "integralLimit_min": 0.0,
+                        "integralLimit_max": 0.0,
+                        "outLim_min": 30.0,
+                        "outLim_max": 100.0,
+                        "slewNeg": 0.0,
+                        "slewPos": 0.0
+                    }
+                },
+                {
+                    "name": "fleetingpid0",
+                    "type": "margin",
+                    "inputs": ["fleeting0"],
+                    "setpoint": 10,
+                    "pid": {
+                        "samplePeriod": 1,
+                        "proportionalCoeff": 750.0,
+                        "integralCoeff": 16.0,
+                        "feedFwdOffsetCoeff": 0.0,
+                        "feedFwdGainCoeff": 0.0,
+                        "integralLimit_min": 3000,
+                        "integralLimit_max": 10000,
+                        "outLim_min": 3000,
+                        "outLim_max": 10000,
+                        "slewNeg": -100.0,
+                        "slewPos": 0.0
+                    }
+                }
+            ]
+        }
+    ]
+}

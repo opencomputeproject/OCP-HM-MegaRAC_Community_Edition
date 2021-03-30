@@ -1,0 +1,44 @@
+diff -Naur b/app/configuration/controllers/network-controller.html a/app/configuration/controllers/network-controller.html
+--- b/app/configuration/controllers/network-controller.html	2020-08-17 15:55:23.786840211 +0530
++++ a/app/configuration/controllers/network-controller.html	2020-08-17 19:52:43.416241430 +0530
+@@ -55,7 +55,7 @@
+           </label>
+         </div>
+         <div class="row column network-config__ipv4-wrap">
+-          <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv4 in interface.ipv4.values track by $index">
++          <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv4 in interface.ipv4.values track by $index" ng-if="$index < 2" >
+             <div class="column small-12 large-3">
+               <label for="ipv4-address-{{$index+1}}">IPV4 address</label>
+               <input id="ipv4-address-{{$index+1}}" ng-change="ipv4.updateAddress = true" type="text"
+@@ -72,12 +72,13 @@
+               <input id="ipv4-prefix-{{$index+1}}" class="column small-6" ng-change="ipv4.updatePrefix = true"
+                 type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled"
+                 ng-model="ipv4.PrefixLength" />
+-              <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)">Remove</button>
++              <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)"
++		ng-disabled="interface.DHCPEnabled">Remove</button>
+             </div>
+           </fieldset>
+           <div class="row column">
+             <div class="column small-12">
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()">Add IPV4 address</button>
++              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled">Add IPV4 address</button>
+             </div>
+           </div>
+         </div>
+@@ -89,7 +90,7 @@
+       </legend>
+       <div class="net-config__fieldset-content">
+         <!-- Call Nameservers "DNS Servers" on the GUI -->
+-        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.Nameservers track by $index">
++        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.Nameservers track by $index" ng-if="$index < 2">
+           <div class="column small-12">
+             <label for="net-config__prime-dns{{$index+1}}">DNS Server {{$index+1}}</label>
+             <input id="net-config__prime-dns{{$index+1}}" class="network-input column small-6 large-4 inline"
+@@ -133,4 +134,4 @@
+       <button class="btn btn-primary" ng-click="setNetworkSettings()">Continue</button>
+     </div>
+   </div>
+-</section>
+\ No newline at end of file
++</section>

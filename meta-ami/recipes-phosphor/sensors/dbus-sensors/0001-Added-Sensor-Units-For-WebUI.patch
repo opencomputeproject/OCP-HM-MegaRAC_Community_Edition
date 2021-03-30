@@ -1,0 +1,618 @@
+diff -Naur a/include/ADCSensor.hpp b/include/ADCSensor.hpp
+--- a/include/ADCSensor.hpp	2020-08-21 18:45:44.935985091 +0530
++++ b/include/ADCSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -68,7 +68,7 @@
+               std::vector<thresholds::Threshold>&& thresholds,
+               const double scaleFactor, PowerState readState,
+               const std::string& sensorConfiguration,
+-              std::optional<BridgeGpio>&& bridgeGpio);
++              std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat ,const std::string& sensorUnit);
+     ~ADCSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/CPUSensor.hpp b/include/CPUSensor.hpp
+--- a/include/CPUSensor.hpp	2020-08-21 18:45:44.943985011 +0530
++++ b/include/CPUSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -25,7 +25,7 @@
+               boost::asio::io_service& io, const std::string& sensorName,
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& configuration, int cpuId, bool show,
+-              double dtsOffset);
++              double dtsOffset,uint16_t EvStat,const std::string& sensorUnit);
+     ~CPUSensor();
+     static constexpr unsigned int sensorScaleFactor = 1000;
+     static constexpr unsigned int sensorPollMs = 1000;
+diff -Naur a/include/ExitAirTempSensor.hpp b/include/ExitAirTempSensor.hpp
+--- a/include/ExitAirTempSensor.hpp	2020-08-21 18:45:44.943985011 +0530
++++ b/include/ExitAirTempSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -26,7 +26,7 @@
+               const std::string& name, const std::string& sensorConfiguration,
+               sdbusplus::asio::object_server& objectServer,
+               std::vector<thresholds::Threshold>&& thresholds,
+-              std::shared_ptr<ExitAirTempSensor>& parent);
++              std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit);
+     ~CFMSensor();
+ 
+     bool calculate(double&);
+@@ -68,7 +68,7 @@
+                       const std::string& name,
+                       const std::string& sensorConfiguration,
+                       sdbusplus::asio::object_server& objectServer,
+-                      std::vector<thresholds::Threshold>&& thresholds);
++                      std::vector<thresholds::Threshold>&& thresholds,uint16_t EvStat,const std::string& sensorUnit);
+     ~ExitAirTempSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/HwmonTempSensor.hpp b/include/HwmonTempSensor.hpp
+--- a/include/HwmonTempSensor.hpp	2020-08-21 18:45:44.947984971 +0530
++++ b/include/HwmonTempSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -19,7 +19,7 @@
+                     boost::asio::io_service& io, const std::string& fanName,
+                     std::vector<thresholds::Threshold>&& thresholds,
+                     const std::string& sensorConfiguration,
+-                    const PowerState powerState);
++                    const PowerState powerState,uint16_t EvStat,const std::string& sensorUnit);
+     ~HwmonTempSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/IpmbSensor.hpp b/include/IpmbSensor.hpp
+--- a/include/IpmbSensor.hpp	2020-08-21 18:45:44.947984971 +0530
++++ b/include/IpmbSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -44,7 +44,7 @@
+                const std::string& sensorConfiguration,
+                sdbusplus::asio::object_server& objectServer,
+                std::vector<thresholds::Threshold>&& thresholds,
+-               uint8_t deviceAddress, std::string& sensorTypeName);
++               uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit);
+     ~IpmbSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/MCUTempSensor.hpp b/include/MCUTempSensor.hpp
+--- a/include/MCUTempSensor.hpp	2020-08-21 18:45:44.947984971 +0530
++++ b/include/MCUTempSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -17,7 +17,7 @@
+                   const std::string& sensorConfiguration,
+                   sdbusplus::asio::object_server& objectServer,
+                   std::vector<thresholds::Threshold>&& thresholds,
+-                  uint8_t busId, uint8_t mcuAddress, uint8_t tempReg);
++                  uint8_t busId, uint8_t mcuAddress, uint8_t tempReg,uint16_t EvStat,const std::string& sensorUnit);
+     ~MCUTempSensor();
+ 
+     void checkThresholds(void) override;
+diff -Naur a/include/PSUSensor.hpp b/include/PSUSensor.hpp
+--- a/include/PSUSensor.hpp	2020-08-21 18:45:44.947984971 +0530
++++ b/include/PSUSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -19,7 +19,7 @@
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& sensorConfiguration,
+               std::string& sensorTypeName, unsigned int factor, double max,
+-              double min, const std::string& label, size_t tSize);
++              double min, const std::string& label, size_t tSize,uint16_t EvStat,const std::string& sensorUnit);
+     ~PSUSensor();
+     void setupRead(void);
+ 
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2020-08-21 18:45:44.951984930 +0530
++++ b/include/sensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -24,14 +24,14 @@
+     Sensor(const std::string& name,
+            std::vector<thresholds::Threshold>&& thresholdData,
+            const std::string& configurationPath, const std::string& objectType,
+-           const double max, const double min,
++           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit,
+            PowerState readState = PowerState::always) :
+         name(std::regex_replace(name, std::regex("[^a-zA-Z0-9_/]+"), "_")),
+         configurationPath(configurationPath), objectType(objectType),
+         maxValue(max), minValue(min), thresholds(std::move(thresholdData)),
+         hysteresisTrigger((max - min) * 0.01),
+         hysteresisPublish((max - min) * 0.0001), readState(readState),
+-        errCount(0)
++        errCount(0),eventStat(EvStat), Unit(sensorUnit)
+     {}
+     virtual ~Sensor() = default;
+     virtual void checkThresholds(void) = 0;
+@@ -40,6 +40,8 @@
+     std::string objectType;
+     double maxValue;
+     double minValue;
++    std::string Unit;
++    uint16_t eventStat;
+     std::vector<thresholds::Threshold> thresholds;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> thresholdInterfaceWarning;
+@@ -86,6 +88,8 @@
+ 
+         sensorInterface->register_property("MaxValue", maxValue);
+         sensorInterface->register_property("MinValue", minValue);
++	sensorInterface->register_property("EvStat", eventStat);
++        sensorInterface->register_property("Unit", Unit);
+         sensorInterface->register_property(
+             "Value", value, [&](const double& newValue, double& oldValue) {
+                 return setSensorValue(newValue, oldValue);
+diff -Naur a/include/TachSensor.hpp b/include/TachSensor.hpp
+--- a/include/TachSensor.hpp	2020-08-21 18:45:44.947984971 +0530
++++ b/include/TachSensor.hpp	2020-08-21 18:46:35.911486649 +0530
+@@ -71,7 +71,7 @@
+                boost::asio::io_service& io, const std::string& fanName,
+                std::vector<thresholds::Threshold>&& thresholds,
+                const std::string& sensorConfiguration,
+-               const std::pair<size_t, size_t>& limits);
++               const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit);
+     ~TachSensor();
+ 
+   private:
+diff -Naur a/src/ADCSensor.cpp b/src/ADCSensor.cpp
+--- a/src/ADCSensor.cpp	2020-08-21 18:48:58.430216046 +0530
++++ b/src/ADCSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -51,10 +51,10 @@
+                      std::vector<thresholds::Threshold>&& _thresholds,
+                      const double scaleFactor, PowerState readState,
+                      const std::string& sensorConfiguration,
+-                     std::optional<BridgeGpio>&& bridgeGpio) :
++                     std::optional<BridgeGpio>&& bridgeGpio,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration,
+-           "xyz.openbmc_project.Configuration.ADC", maxReading, minReading,
++           "xyz.openbmc_project.Configuration.ADC", maxReading, minReading, EvStat, sensorUnit,
+            readState),
+     std::enable_shared_from_this<ADCSensor>(), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
+diff -Naur a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+--- a/src/ADCSensorMain.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/ADCSensorMain.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -173,6 +173,28 @@
+                 }
+                 std::string sensorName =
+                     std::get<std::string>(findSensorName->second);
++		auto findSensorUnit = baseConfiguration->second.find("Unit");
++        if (findSensorUnit == baseConfiguration->second.end())
++        {
++            std::cerr << "could not determine configuration Unit for "
++                      << path.string() << "\n";
++            continue;
++        }
++        std::string sensorUnit = std::get<std::string>(findSensorUnit->second);
++
++
++        auto findEvStat = baseConfiguration->second.find("EvStat");
++        if (findEvStat == baseConfiguration->second.end())
++        {
++            std::cerr << "Base configuration missing EvStat"
++                        << baseConfiguration->first << "\n";
++                continue;
++        }
++
++         uint16_t EvStat =
++            std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
++
+ 
+                 // on rescans, only update sensors we were signaled by
+                 auto findSensor = sensors.find(sensorName);
+@@ -274,7 +296,7 @@
+                 sensor = std::make_shared<ADCSensor>(
+                     path.string(), objectServer, dbusConnection, io, sensorName,
+                     std::move(sensorThresholds), scaleFactor, readState,
+-                    *interfacePath, std::move(bridgeGpio));
++                    *interfacePath, std::move(bridgeGpio),EvStat,sensorUnit);
+                 sensor->setupRead();
+             }
+         }));
+diff -Naur a/src/CPUSensor.cpp b/src/CPUSensor.cpp
+--- a/src/CPUSensor.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/CPUSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -40,10 +40,10 @@
+                      boost::asio::io_service& io, const std::string& sensorName,
+                      std::vector<thresholds::Threshold>&& _thresholds,
+                      const std::string& sensorConfiguration, int cpuId,
+-                     bool show, double dtsOffset) :
++                     bool show, double dtsOffset,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, maxReading,
+-           minReading, PowerState::on),
++           minReading,EvStat,sensorUnit,PowerState::on),
+     objServer(objectServer), inputDev(io), waitTimer(io), path(path),
+     privTcontrol(std::numeric_limits<double>::quiet_NaN()),
+     dtsOffset(dtsOffset), show(show), pollTime(CPUSensor::sensorPollMs)
+diff -Naur a/src/CPUSensorMain.cpp b/src/CPUSensorMain.cpp
+--- a/src/CPUSensorMain.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/CPUSensorMain.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -303,6 +303,27 @@
+             std::cerr << "No temperature sensors in system\n";
+             continue;
+         }
++	auto findSensorUnit = baseConfiguration->second.find("Unit");
++        if (findSensorUnit == baseConfiguration->second.end())
++        {
++            std::cerr << "could not determine configuration Unit " << "\n";
++            continue;
++        }
++        std::string sensorUnit = std::get<std::string>(findSensorUnit->second);
++
++
++        auto findEvStat = baseConfiguration->second.find("EvStat");
++       if (findEvStat == baseConfiguration->second.end())
++        {
++                   std::cerr << "Base configuration missing EvStat"
++            << baseConfiguration->first << "\n";
++            continue;
++        }
++
++        uint16_t EvStat =
++            std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
++
+ 
+         // iterate through all found temp sensors
+         for (const auto& inputPath : inputPaths)
+@@ -386,7 +407,7 @@
+             sensorPtr = std::make_unique<CPUSensor>(
+                 inputPathStr, sensorType, objectServer, dbusConnection, io,
+                 sensorName, std::move(sensorThresholds), *interfacePath, cpuId,
+-                show, dtsOffset);
++                show, dtsOffset,EvStat,sensorUnit);
+             createdSensors.insert(sensorName);
+             if (DEBUG)
+             {
+diff -Naur a/src/ExitAirTempSensor.cpp b/src/ExitAirTempSensor.cpp
+--- a/src/ExitAirTempSensor.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/ExitAirTempSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -162,11 +162,11 @@
+                      const std::string& sensorConfiguration,
+                      sdbusplus::asio::object_server& objectServer,
+                      std::vector<thresholds::Threshold>&& thresholdData,
+-                     std::shared_ptr<ExitAirTempSensor>& parent) :
++                     std::shared_ptr<ExitAirTempSensor>& parent,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", cfmMaxReading,
+-           cfmMinReading, PowerState::on),
++           cfmMinReading,EvStat,sensorUnit, PowerState::on),
+     std::enable_shared_from_this<CFMSensor>(), parent(parent),
+     dbusConnection(conn), objServer(objectServer)
+ {
+@@ -490,11 +490,11 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     const std::string& sensorName, const std::string& sensorConfiguration,
+     sdbusplus::asio::object_server& objectServer,
+-    std::vector<thresholds::Threshold>&& thresholdData) :
++    std::vector<thresholds::Threshold>&& thresholdData,uint16_t EvStat , const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", exitAirMaxReading,
+-           exitAirMinReading, PowerState::on),
++           exitAirMinReading,EvStat,sensorUnit,PowerState::on),
+     std::enable_shared_from_this<ExitAirTempSensor>(), dbusConnection(conn),
+     objServer(objectServer)
+ {
+@@ -850,9 +850,14 @@
+ 
+                         std::string name =
+                             loadVariant<std::string>(entry.second, "Name");
++			  std::string sensorUnit =
++                            loadVariant<std::string>(entry.second, "Unit");
++
++                        uint16_t EvStat = loadVariant<uint16_t>(entry.second, "EvStat");
++
+                         exitAirSensor = std::make_shared<ExitAirTempSensor>(
+                             dbusConnection, name, pathPair.first.str,
+-                            objectServer, std::move(sensorThresholds));
++                            objectServer, std::move(sensorThresholds),EvStat,sensorUnit);
+                         exitAirSensor->powerFactorMin =
+                             loadVariant<double>(entry.second, "PowerFactorMin");
+                         exitAirSensor->powerFactorMax =
+@@ -875,10 +880,14 @@
+                                                   sensorThresholds);
+                         std::string name =
+                             loadVariant<std::string>(entry.second, "Name");
++			std::string sensorUnit =
++                            loadVariant<std::string>(entry.second, "Unit");
++                        uint16_t EvStat = loadVariant<uint16_t>(entry.second, "EvStat");
++
+                         auto sensor = std::make_shared<CFMSensor>(
+                             dbusConnection, name, pathPair.first.str,
+                             objectServer, std::move(sensorThresholds),
+-                            exitAirSensor);
++                            exitAirSensor,EvStat,sensorUnit);
+                         loadVariantPathArray(entry.second, "Tachs",
+                                              sensor->tachs);
+                         sensor->maxCFM =
+diff -Naur a/src/FanMain.cpp b/src/FanMain.cpp
+--- a/src/FanMain.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/FanMain.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -228,6 +228,29 @@
+                 }
+                 std::string sensorName =
+                     std::get<std::string>(findSensorName->second);
++		
++       // finding Unit from the configuration...
++        auto findSensorUnit = baseConfiguration->second.find("Unit");
++        if (findSensorUnit == baseConfiguration->second.end())
++        {
++            std::cerr << "could not determine configuration Unit for "
++                      << path.string() << "\n";
++            continue;
++        }
++        std::string sensorUnit = std::get<std::string>(findSensorUnit->second);
++
++
++        auto findEvStat = baseConfiguration->second.find("EvStat");
++        if (findEvStat == baseConfiguration->second.end())
++        {
++           std::cerr << "Base configuration missing EvStat"
++               << baseConfiguration->first << "\n";
++              continue;
++        }
++
++            uint16_t EvStat =
++                std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
+ 
+                 // on rescans, only update sensors we were signaled by
+                 auto findSensor = tachSensors.find(sensorName);
+@@ -306,7 +329,7 @@
+                 tachSensors[sensorName] = std::make_unique<TachSensor>(
+                     path.string(), baseType, objectServer, dbusConnection,
+                     std::move(presenceSensor), redundancy, io, sensorName,
+-                    std::move(sensorThresholds), *interfacePath, limits);
++                    std::move(sensorThresholds), *interfacePath, limits,EvStat,sensorUnit);
+ 
+                 auto connector =
+                     sensorData->find(baseType + std::string(".Connector"));
+diff -Naur a/src/HwmonTempMain.cpp b/src/HwmonTempMain.cpp
+--- a/src/HwmonTempMain.cpp	2020-08-21 18:48:58.434216013 +0530
++++ b/src/HwmonTempMain.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -178,6 +178,30 @@
+                 }
+                 std::string sensorName =
+                     std::get<std::string>(findSensorName->second);
++		std::cout << "#####  HwmonTempMain name " << sensorName << std::endl;
++
++
++       auto findSensorUnit = baseConfiguration->second.find("Unit");
++        if (findSensorUnit == baseConfiguration->second.end())
++        {
++            std::cerr << "could not determine configuration name for "
++                      << deviceName << "\n";
++            continue;
++        }
++        std::string sensorUnit = std::get<std::string>(findSensorUnit->second);
++
++        auto findEvStat = baseConfiguration->second.find("EvStat");
++            if (findEvStat == baseConfiguration->second.end())
++            {
++                std::cerr << "Base configuration missing EvStat"
++                          << baseConfiguration->first << "\n";
++                continue;
++            }
++
++        uint16_t EvStat =
++            std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
++
+                 // on rescans, only update sensors we were signaled by
+                 auto findSensor = sensors.find(sensorName);
+                 if (!firstScan && findSensor != sensors.end())
+@@ -218,7 +242,7 @@
+                 sensor = std::make_shared<HwmonTempSensor>(
+                     directory.string() + "/temp1_input", sensorType,
+                     objectServer, dbusConnection, io, sensorName,
+-                    std::move(sensorThresholds), *interfacePath, readState);
++                    std::move(sensorThresholds), *interfacePath, readState,EvStat,sensorUnit);
+                 sensor->setupRead();
+                 // Looking for keys like "Name1" for temp2_input,
+                 // "Name2" for temp3_input, etc.
+@@ -242,7 +266,7 @@
+                             "_input",
+                         sensorType, objectServer, dbusConnection, io,
+                         sensorName, std::vector<thresholds::Threshold>(),
+-                        *interfacePath, readState);
++                        *interfacePath, readState,EvStat,sensorUnit);
+                     sensor->setupRead();
+                 }
+             }
+diff -Naur a/src/HwmonTempSensor.cpp b/src/HwmonTempSensor.cpp
+--- a/src/HwmonTempSensor.cpp	2020-08-21 18:48:58.446215912 +0530
++++ b/src/HwmonTempSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -44,10 +44,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     std::vector<thresholds::Threshold>&& _thresholds,
+-    const std::string& sensorConfiguration, const PowerState powerState) :
++    const std::string& sensorConfiguration, const PowerState powerState,uint16_t EvStat , const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, maxReading,
+-           minReading, powerState),
++           minReading, EvStat, sensorUnit, powerState),
+     std::enable_shared_from_this<HwmonTempSensor>(), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path)
+ {
+diff -Naur a/src/IpmbSensor.cpp b/src/IpmbSensor.cpp
+--- a/src/IpmbSensor.cpp	2020-08-21 18:48:58.454215846 +0530
++++ b/src/IpmbSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -65,11 +65,11 @@
+                        const std::string& sensorConfiguration,
+                        sdbusplus::asio::object_server& objectServer,
+                        std::vector<thresholds::Threshold>&& thresholdData,
+-                       uint8_t deviceAddress, std::string& sensorTypeName) :
++                       uint8_t deviceAddress, std::string& sensorTypeName,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", ipmbMaxReading,
+-           ipmbMinReading, PowerState::on),
++           ipmbMinReading, EvStat, sensorUnit, PowerState::on),
+     deviceAddress(deviceAddress), objectServer(objectServer),
+     dbusConnection(conn), waitTimer(io)
+ {
+@@ -368,6 +368,8 @@
+                     }
+                     std::string name =
+                         loadVariant<std::string>(entry.second, "Name");
++                     std::string sensorUnit =
++                        loadVariant<std::string>(entry.second, "Unit");
+ 
+                     std::vector<thresholds::Threshold> sensorThresholds;
+                     if (!parseThresholdsFromConfig(pathPair.second,
+@@ -376,6 +378,7 @@
+                         std::cerr << "error populating thresholds for " << name
+                                   << "\n";
+                     }
++		    uint16_t EvStat = loadVariant<uint16_t>(entry.second, "EvStat");
+                     uint8_t deviceAddress =
+                         loadVariant<uint8_t>(entry.second, "Address");
+ 
+@@ -395,7 +398,7 @@
+                     sensor = std::make_unique<IpmbSensor>(
+                         dbusConnection, io, name, pathPair.first, objectServer,
+                         std::move(sensorThresholds), deviceAddress,
+-                        sensorTypeName);
++                        sensorTypeName,EvStat,sensorUnit);
+ 
+                     /* Initialize scale and offset value */
+                     sensor->scaleVal = 1;
+diff -Naur a/src/MCUTempSensor.cpp b/src/MCUTempSensor.cpp
+--- a/src/MCUTempSensor.cpp	2020-08-21 18:48:58.454215846 +0530
++++ b/src/MCUTempSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -59,11 +59,11 @@
+                              sdbusplus::asio::object_server& objectServer,
+                              std::vector<thresholds::Threshold>&& thresholdData,
+                              uint8_t busId, uint8_t mcuAddress,
+-                             uint8_t tempReg) :
++                             uint8_t tempReg,uint16_t EvStat ,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdData), sensorConfiguration,
+            "xyz.openbmc_project.Configuration.ExitAirTemp", mcuTempMaxReading,
+-           mcuTempMinReading),
++           mcuTempMinReading,EvStat,sensorUnit),
+     busId(busId), mcuAddress(mcuAddress), tempReg(tempReg),
+     objectServer(objectServer), dbusConnection(conn), waitTimer(io)
+ {
+@@ -222,6 +222,13 @@
+                     }
+                     std::string name =
+                         loadVariant<std::string>(entry.second, "Name");
++                     std::cout << "##### MCUTempSensor name " << name  << std::endl;
++
++                   std::string sensorUnit =
++                        loadVariant<std::string>(entry.second, "Unit");
++
++
++                    uint16_t EvStat = loadVariant<uint16_t>(entry.second, "EvStat");
+ 
+                     std::vector<thresholds::Threshold> sensorThresholds;
+                     if (!parseThresholdsFromConfig(pathPair.second,
+@@ -260,7 +267,7 @@
+                     sensor = std::make_unique<MCUTempSensor>(
+                         dbusConnection, io, name, pathPair.first, objectServer,
+                         std::move(sensorThresholds), busId, mcuAddress,
+-                        tempReg);
++                        tempReg,EvStat, sensorUnit);
+ 
+                     sensor->init();
+                 }
+diff -Naur a/src/PSUSensor.cpp b/src/PSUSensor.cpp
+--- a/src/PSUSensor.cpp	2020-08-21 18:48:58.462215779 +0530
++++ b/src/PSUSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -43,9 +43,9 @@
+                      const std::string& sensorConfiguration,
+                      std::string& sensorTypeName, unsigned int factor,
+                      double max, double min, const std::string& label,
+-                     size_t tSize) :
++                     size_t tSize,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+-           std::move(_thresholds), sensorConfiguration, objectType, max, min),
++           std::move(_thresholds), sensorConfiguration, objectType, max, min,EvStat,sensorUnit),
+     std::enable_shared_from_this<PSUSensor>(), objServer(objectServer),
+     inputDev(io), waitTimer(io), path(path), sensorFactor(factor)
+ {
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2020-08-21 18:48:58.462215779 +0530
++++ b/src/PSUSensorMain.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -69,6 +69,7 @@
+ static boost::container::flat_map<std::string, std::unique_ptr<PwmSensor>>
+     pwmSensors;
+ static boost::container::flat_map<std::string, std::string> sensorTable;
++static boost::container::flat_map<std::string, std::string> Units;
+ static boost::container::flat_map<std::string, PSUProperty> labelMatch;
+ static boost::container::flat_map<std::string, std::string> pwmTable;
+ static boost::container::flat_map<std::string, std::vector<std::string>>
+@@ -721,12 +722,26 @@
+                                         findScaleFactor->second);
+                 }
+ 
++
+                 if constexpr (DEBUG)
+                 {
+                     std::cerr << "Sensor scaling factor " << factor
+                               << " string " << strScaleFactor << "\n";
+                 }
+             }
++	      auto findEvStat = baseConfig->second.find("EvStat");
++            if (findEvStat == baseConfig->second.end())
++            {
++                std::cerr << "Base configuration missing EvStat"
++                          << baseConfig->first << "\n";
++                continue;
++            }
++
++           uint16_t EvStat =
++                std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
++
++
++
+ 
+             std::vector<thresholds::Threshold> sensorThresholds;
+             if (!parseThresholdsFromConfig(*sensorData, sensorThresholds,
+@@ -743,6 +758,14 @@
+                           << " is not a recognized sensor type\n";
+                 continue;
+             }
++	      auto findSensorUnit = Units.find(sensorNameSubStr);
++           if (findSensorUnit == Units.end())
++            {
++                std::cerr << "Cannot find SensorUnit \n";
++                continue;
++            }
++
++           std::string sensorUnit = findSensorUnit->second;
+ 
+             if constexpr (DEBUG)
+             {
+@@ -783,7 +806,7 @@
+                 sensorPathStr, sensorType, objectServer, dbusConnection, io,
+                 sensorName, std::move(sensorThresholds), *interfacePath,
+                 findSensorType->second, factor, psuProperty->maxReading,
+-                psuProperty->minReading, labelHead, thresholdConfSize);
++                psuProperty->minReading, labelHead, thresholdConfSize,EvStat,sensorUnit);
+             sensors[sensorName]->setupRead();
+             ++numCreated;
+             if constexpr (DEBUG)
+@@ -815,6 +838,13 @@
+                    {"in", "voltage/"},
+                    {"fan", "fan_tach/"}};
+ 
++     Units = {{"power", "xyz.openbmc_project.Sensor.Value.Unit.Watts"},
++                 {"curr", "xyz.openbmc_project.Sensor.Value.Unit.Amperes"},
++                 {"temp", "xyz.openbmc_project.Sensor.Value.Unit.DegreesC"},
++                 {"in", "xyz.openbmc_project.Sensor.Value.Unit.Volts"},
++                 {"fan", "xyz.openbmc_project.Sensor.Value.Unit.RPMS"}};
++
++
+     labelMatch = {{"pin", PSUProperty("Input Power", 3000, 0, 6)},
+                   {"pout1", PSUProperty("Output Power", 3000, 0, 6)},
+                   {"pout2", PSUProperty("Output Power", 3000, 0, 6)},
+diff -Naur a/src/TachSensor.cpp b/src/TachSensor.cpp
+--- a/src/TachSensor.cpp	2020-08-21 18:48:58.470215712 +0530
++++ b/src/TachSensor.cpp	2020-08-21 18:49:19.618040587 +0530
+@@ -49,9 +49,9 @@
+                        boost::asio::io_service& io, const std::string& fanName,
+                        std::vector<thresholds::Threshold>&& _thresholds,
+                        const std::string& sensorConfiguration,
+-                       const std::pair<size_t, size_t>& limits) :
++                       const std::pair<size_t, size_t>& limits,uint16_t EvStat,const std::string& sensorUnit) :
+     Sensor(boost::replace_all_copy(fanName, " ", "_"), std::move(_thresholds),
+-           sensorConfiguration, objectType, limits.second, limits.first,
++           sensorConfiguration, objectType, limits.second, limits.first, EvStat , sensorUnit,
+            PowerState::on),
+     objServer(objectServer), redundancy(redundancy),
+     presence(std::move(presenceSensor)),

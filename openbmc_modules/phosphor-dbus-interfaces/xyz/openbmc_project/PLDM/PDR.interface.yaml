@@ -1,0 +1,111 @@
+description: >
+    Implement to fetch the PDRs. PDRs are Platform Descriptor
+    Records which are the collection of information that includes semantic
+    and association information.
+
+    This API would be used by PLDM Requester apps on the BMC.
+
+    An implementation of this interface should maintain the primary PDR
+    repository on the BMC.
+
+    A OpenBMC implementation should implement the xyz.openbmc_project.PLDM.PDR
+    interface on the path /xyz/openbmc_project/pldm.
+
+    More information about PDR can be found at DSP0248 version 1.2.0 section 25.
+
+
+methods:
+    - name: FindStateEffecterPDR
+      description: >
+          Obtain the state effecter PDR, for the input TID, entity ID and state
+          set id. If multiple PLDM entity instances(in state effecter PDRs)
+          match the EntityId and StateSetId below,all the corresponding state
+          effecter PDRs are returned. More than one PDR can be returned for the
+          same state set id.
+
+          When the PDR for the given input TID, entity id and state set id is
+          not found, then the xyz.openbmc_project.Common.Error.ResourceNotFound
+          exception will be thrown.
+
+      parameters:
+        - name: TID
+          type: byte
+          description: >
+            A terminus id.
+
+        - name: EntityID
+          type: uint16
+          description: >
+            A numeric value that represents an entity that can be associated to
+            a PLDM state set.
+
+            More information is found at
+            http://dmtf.org/sites/default/files/standards/documents/DSP0249_1.0.0.pdf
+            section 7.
+
+        - name: StateSetId
+          type: uint16
+          description: >
+            A numeric value that identifies the PLDM State Set that is used with
+            this sensor.
+
+            More information is found at
+            http://dmtf.org/sites/default/files/standards/documents/DSP0249_1.0.0.pdf
+            section 6.
+
+      returns:
+        - name: StateEffecterPDR
+          type: array[array[byte]]
+          description: >
+            Array of State Effecter PDRs, where a PDR is an array[byte].
+            Multiple PDRs of the format present in table 89 of DSP0248 version
+            1.2.0 are returned. Each of the PDRs returned has the common header
+            along with all the other fields in table 89 and 90 of
+            DSP0248 of version 1.2.0 .
+
+      errors:
+        - xyz.openbmc_project.Common.Error.ResourceNotFound
+
+    - name: FindStateSensorPDR
+      description: >
+          Obtain the state sensor PDR, for the input TID,
+          entity ID and state set id. If multiple PLDM entity instances
+          (in state sensor PDRs) match the EntityId and StateSetId below,
+          all the corresponding state sensor PDRs are returned. More than one PDR
+          can be returned for the same state set id.
+
+          When the PDR for the given input TID, entity id
+          and state set id is not found, then the
+          xyz.openbmc_project.Common.Error.ResourceNotFound exception will be thrown.
+
+      parameters:
+        - name: TID
+          type: byte
+          description: >
+            A terminus id.
+
+        - name: EntityID
+          type: uint16
+          description: >
+            A numeric value that represents an entity that can be associated to a PLDM state set.
+            More information is found at
+            http://dmtf.org/sites/default/files/standards/documents/DSP0249_1.0.0.pdf section 7.
+
+        - name: StateSetId
+          type: uint16
+          description: >
+            A numeric value that identifies the PLDM State Set that is used with this sensor.
+            More information is found at
+            http://dmtf.org/sites/default/files/standards/documents/DSP0249_1.0.0.pdf section 6.
+
+      returns:
+        - name: StateSensorPDR
+          type: array[array[byte]]
+          description: >
+            Array of State Sensor PDRs, where a PDR is an array[byte]. Multiple PDRs of the
+            format present in table 80 of DSP0248 version 1.2.0 are returned. Each of the PDRs
+            returned has the common header along with all the other fields in table 80 and 81 of
+            DSP0248 of version 1.2.0 .
+
+      errors:
+        - xyz.openbmc_project.Common.Error.ResourceNotFound

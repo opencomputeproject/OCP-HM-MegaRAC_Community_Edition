@@ -1,0 +1,11 @@
+[Unit]
+Description=BT Bridge Daemon
+
+[Service]
+Type=dbus
+BusName=org.openbmc.HostIpmi
+ExecStart=/bin/btbridged
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+description: >
+    Empty interface to indicate that the associated `Logging.Entry` should
+    prevent a state transition of the associated managed element while the
+    `Logging.Entry` is not `Resolved` or been deleted.
+
+    The specific state transition(s) to prevent are left to the implementation.
+    A typical use of this would be to prevent the power-on of a
+    managed host while a critical error is open.  The managed host, via
+    systemd transitions, might start the power-on sequence and then wait for
+    any object with this `ErrorBlocksTransition` interface to no longer be
+    instantiated.  Causal ordering of D-Bus operations can prove that
+    no critical error needs servicing and the power-on sequence may safely
+    continue.

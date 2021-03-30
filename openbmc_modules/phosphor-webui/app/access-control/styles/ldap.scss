@@ -1,0 +1,287 @@
+// LDAP SCSS
+
+.ldap__optional-field {
+  margin-bottom: 1.7em;
+}
+
+.ldap__configure-settings {
+  background-color: $base-02--06;
+  padding-top: 1.5em;
+  padding-bottom: 1.5em;
+  margin-top: 1em;
+  margin-bottom: 3em;
+}
+
+.ldap__server-info {
+  @media (min-width: 1024px) {
+    border-left: 1px solid $border-color-01;
+  }
+
+  .control-radio {
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .service-type-column {
+    margin-bottom: 1.2em;
+  }
+}
+
+.ldap__ssl-column {
+  padding-left: 1.5em;
+
+  .control__label {
+    text-transform: none;
+    font-weight: 400;
+    font-size: 16px;
+    color: $primary-dark;
+  }
+
+  .control__indicator {
+    top: 5px;
+  }
+
+  // using !important due to being a state and need to have higer specificity
+  &.disabled *,
+  .disabled {
+    color: $base-02--02 !important;
+  }
+}
+
+.ldap__configuration-buttons {
+  margin-top: 1rem;
+
+  @media (min-width: 1024px) {
+    margin-top: 0;
+  }
+
+  .btn {
+    float: right;
+    margin-left: 0.5em;
+    margin-top: 0.5em;
+  }
+
+  .btn-secondary {
+    background-color: $primary-light;
+  }
+
+  .btn-secondary:disabled {
+    color: $base-02--03;
+    border-color: $border-color-02;
+  }
+}
+
+.ldap__server-info-service-type {
+  .content-label {
+    margin-bottom: 1rem;
+  }
+}
+
+.ldap__certificate-info {
+  margin-top: 0.5em;
+
+  dt {
+    text-transform: uppercase;
+    color: $base-02--02;
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  dd {
+    font-size: 14px;
+    margin-top: 0.25em;
+  }
+
+  .disabled {
+    color: $base-02--02;
+  }
+}
+
+.control__radio__label {
+  padding: 0.2em 1em 0 2em;
+  text-transform: none;
+  font-weight: 400;
+  font-size: 16px;
+  color: $primary-dark;
+}
+
+.ldap__control-check {
+  text-transform: none;
+  font-weight: 400;
+  font-size: 16px;
+  color: $primary-dark;
+
+  .control__indicator {
+    top: 11px;
+  }
+
+  .control__label {
+    margin-left: 30px;
+  }
+}
+
+.control-radio .control__indicator-service-type {
+  width: 20px;
+  height: 20px;
+}
+
+.control-radio .control__indicator-service-type:after {
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+}
+
+.control-radio input:disabled ~ .control__indicator-service-type:after {
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.password-toggle {
+  color: $base-01--03;
+  font-size: 0.8em;
+  float: right;
+  position: relative;
+  z-index: 2;
+  padding: 6px 0 0 0;
+}
+
+.password-toggle.disabled {
+  background: transparent;
+  color: $base-02--02;
+  border: none;
+}
+
+.ldap-groups {
+  .ldap__table {
+    border-left: 1px solid $border-color-01;
+    border-right: 1px solid $border-color-01;
+
+    .empty__logs {
+      margin-top: 0;
+    }
+
+    .table__row-header {
+      width: 100%;
+      border-bottom: 1px solid $border-color-01;
+      background-color: $primary-dark;
+      color: $primary-light;
+      font-weight: 700;
+      padding: 0;
+
+      .control-check {
+        color: $primary-light;
+      }
+    }
+
+    .table__row-header.disabled {
+      opacity: 0.8;
+    }
+
+    .table__row-value {
+      width: 100%;
+      border-bottom: 1px solid $border-color-01;
+    }
+
+    .table__cell-ldap {
+      width: 30%;
+      padding: 1.3em 1.5em 0.8em 1.5em;
+    }
+
+    .table__cell-select {
+      width: 8%;
+      padding: 1.3em 1.5em 0.8em 1.5em;
+      .select-header {
+        padding-top: 1em;
+      }
+    }
+
+    .table__cell-sort {
+      padding: 0.4em 1em 0 0;
+      margin: 0 -25px 0 -13px;
+    }
+
+    .table__cell-ldap-group {
+      width: 29%;
+      padding: 1.2em 0.5em 0.8em 0.75em;
+    }
+
+    .table__cell-ldap-role {
+      width: 30%;
+      padding: 1.2em 0.5em 0.8em 0.75em;
+    }
+
+    .table__cell-buttons {
+      width: 32%;
+      text-align: right;
+      padding: 0.8em;
+      .btn {
+        padding-left: 0;
+        padding-right: 0;
+      }
+    }
+  }
+
+  .btn-add-group,
+  .btn-remove-group {
+    color: $base-01--03;
+    padding: 0.75em 0;
+  }
+
+  .modal__content-ldap {
+    margin-bottom: 2em;
+    margin-top: 2em;
+    input[type="text"] {
+      max-height: 2.4em;
+    }
+    select {
+      margin: 0 0 0;
+    }
+  }
+
+  .edit-group-name {
+    padding-bottom: 1em;
+  }
+
+  .form-actions {
+    width: 100%;
+    padding-top: 2em;
+    margin-top: 1.5em;
+    border-top: 1px solid $border-color-01;
+    button {
+      display: block;
+      float: right;
+      margin: 0 0 0 1em;
+    }
+  }
+
+  .sort-ascending,
+  .sort-descending {
+    display: block;
+    padding: 0;
+    color: $primary-light;
+    font-size: 1em;
+    transform: rotate(-90deg);
+
+    &:hover {
+      color: $primary-accent;
+    }
+
+    &:after {
+      content: "\276F";
+    }
+
+    &:focus {
+      outline: 0;
+      color: $primary-accent;
+    }
+  }
+
+  .sort-descending {
+    &:after {
+      content: "\276e";
+    }
+  }
+}

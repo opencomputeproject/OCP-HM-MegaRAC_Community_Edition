@@ -1,0 +1,13 @@
+[Unit]
+Description=Fan Sensor
+StopWhenUnneeded=false
+Requires=xyz.openbmc_project.EntityManager.service
+After=xyz.openbmc_project.EntityManager.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStart=/usr/bin/fansensor
+
+[Install]
+WantedBy=multi-user.target

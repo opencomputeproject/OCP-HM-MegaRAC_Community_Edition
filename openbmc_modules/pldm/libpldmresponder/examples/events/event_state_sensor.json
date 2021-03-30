@@ -1,0 +1,69 @@
+# Each entry is to uniquely identify a remote state sensor(there are separate
+# entry for each sensor in a composite sensor) and the supported event states.
+# The "dbus" section contains information about the corresponding D-Bus
+# property for the sensor and "property_values" are the D-Bus property values
+# for each corresponding entry in the "event_states"
+{
+    "entries": [
+        {
+            "containerID": 1,
+            "entityType": 64,
+            "entityInstance": 1,
+            "sensorOffset": 0,
+            "event_states": [
+                0,
+                1
+            ],
+            "dbus": {
+                "object_path": "/xyz/abc/def",
+                "interface": "xyz.openbmc_project.example1.value",
+                "property_name": "value1",
+                "property_type": "string",
+                "property_values": [
+                    "xyz.openbmc_project.State.On",
+                    "xyz.openbmc_project.State.Off"
+                ]
+            }
+        },
+        {
+            "containerID": 1,
+            "entityType": 64,
+            "entityInstance": 1,
+            "sensorOffset": 1,
+            "event_states": [
+                2,
+                3
+            ],
+            "dbus": {
+                "object_path": "/xyz/abc/def",
+                "interface": "xyz.openbmc_project.example2.value",
+                "property_name": "value2",
+                "property_type": "uint8_t",
+                "property_values": [
+                    9,
+                    10
+                ]
+            }
+        },
+        {
+            "containerID": 1,
+            "entityType": 67,
+            "entityInstance": 1,
+            "sensorOffset": 0,
+            "event_states": [
+                0,
+                1
+            ],
+            "dbus": {
+                "object_path": "/xyz/abc/ghi",
+                "interface": "xyz.openbmc_project.example3.value",
+                "property_name": "value3",
+                "property_type": "bool",
+                "property_values": [
+                    false,
+                    true
+                ]
+            }
+        }
+    ]
+}

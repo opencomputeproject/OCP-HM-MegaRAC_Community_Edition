@@ -1,0 +1,16 @@
+description: >
+    Implement to provide fan speed control. The method of control is hardware
+    dependent and objects implementing Control.FanSpeed must be instantiated
+    within the sensors/fan_tach namespace.
+
+    Any service implementing Control.FanSpeed on one or more objects must
+    implement xyz.openbmc_project.Sensors.Value on the object and
+    org.freedesktop.DBus.ObjectManager on the sensors namespace root.
+
+    All Control.FanSpeed properties are read/write.
+
+properties:
+    - name: Target
+      type: uint64
+      description: >
+          The fan speed target RPM value.

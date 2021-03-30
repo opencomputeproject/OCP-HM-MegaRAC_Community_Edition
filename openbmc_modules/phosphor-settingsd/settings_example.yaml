@@ -1,0 +1,43 @@
+# This settings object implements multiple interfaces
+/xyz/openbmc_project/control/host0/boot:
+    - Interface: xyz.openbmc_project.Control.Boot.Mode
+      Properties:
+          BootMode:
+              Default: Mode::Modes::Safe
+    - Interface: xyz.openbmc_project.Control.Boot.Source
+      Properties:
+          BootSource:
+              Default: Source::Sources::Default
+
+# Same as the previous settings object, but for a different host
+/xyz/openbmc_project/control/host1/boot:
+    - Interface: xyz.openbmc_project.Control.Boot.Mode
+      Properties:
+          BootMode:
+              Default: Mode::Modes::Safe
+    - Interface: xyz.openbmc_project.Control.Boot.Source
+      Properties:
+          BootSource:
+              Default: Source::Sources::Default
+
+# This settings object has a property that needs to be validated, when changed.
+/xyz/openbmc_project/network/host0/intf:
+    - Interface: xyz.openbmc_project.Network.MACAddress
+      Properties:
+          MACAddress:
+              Default: '"00:00:00:00:00:00"'
+              Validation:
+                  Type: "regex"
+                  Validator: '^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$'
+
+/xyz/openbmc_project/control/host0/power_cap:
+    - Interface: xyz.openbmc_project.Control.Power.Cap
+      Properties:
+          PowerCap:
+              Default: 0
+              Validation:
+                  Type: "range"
+                  Validator: "0..1000"
+                  Unit: "Watts"
+          PowerCapEnable:
+               Default: 'false'

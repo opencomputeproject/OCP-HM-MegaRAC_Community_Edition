@@ -1,0 +1,65 @@
+diff -Naur a/include/CPUSensor.hpp b/include/CPUSensor.hpp
+--- a/include/CPUSensor.hpp	2021-03-01 21:10:12.563893499 +0530
++++ b/include/CPUSensor.hpp	2021-03-01 21:12:03.696812968 +0530
+@@ -36,6 +36,7 @@
+ 
+   private:
+     sdbusplus::asio::object_server& objServer;
++    std::shared_ptr<sdbusplus::asio::connection>& busConn;
+     boost::asio::posix::stream_descriptor inputDev;
+     boost::asio::deadline_timer waitTimer;
+     boost::asio::streambuf readBuf;
+diff -Naur a/src/CPUSensor.cpp b/src/CPUSensor.cpp
+--- a/src/CPUSensor.cpp	2021-03-01 21:16:06.035014174 +0530
++++ b/src/CPUSensor.cpp	2021-03-01 21:20:12.949445687 +0530
+@@ -44,7 +44,7 @@
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, maxReading,
+            minReading,EvStat,sensorUnit,sdrRecord,PowerState::on),
+-    objServer(objectServer), inputDev(io), waitTimer(io), path(path),
++    objServer(objectServer), busConn(conn),inputDev(io), waitTimer(io), path(path),
+     privTcontrol(std::numeric_limits<double>::quiet_NaN()),
+     dtsOffset(dtsOffset), show(show), pollTime(CPUSensor::sensorPollMs)
+ {
+@@ -271,6 +271,19 @@
+ {
+     if (show)
+     {
+-        thresholds::checkThresholds(this);
++        // give the power match callback to have a chance to run
++        // checkThresholds checks for host power state
++        auto timer = std::make_shared<boost::asio::steady_timer>(
++            busConn->get_io_context());
++        timer->expires_after(std::chrono::milliseconds(100));
++        timer->async_wait([this, timer](boost::system::error_code ec) {
++            if (ec)
++            {
++                // log the error but still check the thresholds
++                std::cerr << "Cpu sensor threshold timer error!\n";
++            }
++            thresholds::checkThresholds(this);
++        });
++
+     }
+ }
+diff -Naur a/src/Thresholds.cpp b/src/Thresholds.cpp
+--- a/src/Thresholds.cpp	2021-03-01 21:16:06.063014440 +0530
++++ b/src/Thresholds.cpp	2021-03-01 21:21:56.218500716 +0530
+@@ -420,6 +420,17 @@
+         return;
+     }
+ 
++    // readingState is verified before sensor read,
++    // but it can change during sensor read
++    // and return an incorrect value
++    if (assert && !sensor->readingStateGood())
++    {
++        std::cout << "bad readingState, ignore theshold assert " << sensor->name
++                  << " assert value " << assertValue << "\n";
++        return;
++    }
++
++
+     if (interface->set_property<bool, true>(property, assert))
+     {
+         try

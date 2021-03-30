@@ -1,0 +1,11 @@
+[Unit]
+Description=KCS Bridge Daemon(Sample service file)
+
+[Service]
+Type=dbus
+BusName=org.openbmc.HostIpmi
+ExecStart=/bin/kcsbridged --d="/dev/ipmi-kcs3"
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

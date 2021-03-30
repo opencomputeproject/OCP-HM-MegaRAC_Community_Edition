@@ -1,0 +1,129 @@
+// Power Operations SCSS
+
+.power-operations {
+  // Power Current status wrapper
+  .power__current-status {
+    border-bottom: 1px solid $border-color-01;
+    margin: 1.3em 0 1.2em 0;
+  }
+
+  // Power state indicator on/off
+  .power__state {
+    font-weight: 700;
+    margin-top: -0.3em;
+  }
+
+  // Power bar indicator
+  .power__indicator-bar {
+    font-weight: bold;
+    width: 100%;
+    padding: 1em 2em 0.7em;
+    margin-bottom: 3em;
+    background-size: 200% 100%;
+    background-image: linear-gradient(to right, darken($background-02, 3%) 50%, $accent-02--02 50%);
+    background-position: 0;
+    transition: background-position 2s ease;
+    overflow: hidden;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    p {
+      padding: 0;
+      margin: 0;
+      font-size: 1.2em;
+    }
+    &.power__state-on {
+      background-position: -100%;
+    }
+    &.power__state-off {
+      background-position: 0;
+      color: $primary-dark;
+    }
+    &.power__state-indet {
+      color: $text-02;
+      @include indeterminate-bar;
+    }
+    &.power__state-error {
+      background-position: 0;
+      color: $primary-dark;
+    }
+  }
+
+  .boot-options,
+  .boot-operations {
+    margin-bottom: 1em;
+  }
+
+  .boot-options {
+    .control-check {
+      padding-top: 4px;
+    }
+    .boot-checkbox {
+      padding-left: 2em;
+      text-transform: none;
+      font-weight: 400;
+      font-size: 16px;
+      color: $primary-dark;
+    }
+  }
+
+  .boot-options-wrapper {
+    padding: 0 2em 2em 0;
+  }
+
+  .operations-wrapper {
+    .reboot__operations,
+    .shutdown__operations {
+      margin-bottom: 1.5em;
+      .control-radio {
+        padding: 0.3em 1em 0 2em;
+        text-transform: none;
+        font-weight: 400;
+        font-size: 16px;
+        color: $primary-dark;
+      }
+    }
+
+    .alert-warning {
+      border: 1px solid $accent-03--01;
+      padding: 1em;
+      margin-bottom: 1em;
+      display: flex;
+      align-items: center;
+      .pending-icon {
+        padding: 0 1em 0 0;
+      }
+      .alert-pending {
+        margin-top: 0.3em;
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  .boot-settings-form {
+    background-color: $base-02--06;
+    padding: 2em;
+    .boot-form-actions {
+      margin-bottom: 4em;
+    }
+    .btn {
+      display: block;
+      float: right;
+      margin: 0.5em 0 0 1em;
+    }
+  }
+
+  .control-radio .control__indicator-on {
+    width: 20px;
+    height: 20px;
+    top: 3px;
+    left: 3px;
+  }
+
+  .control-radio .control__indicator-on:after {
+    top: 3px;
+    left: 3px;
+    width: 10px;
+    height: 10px;
+  }
+} //end power-operations

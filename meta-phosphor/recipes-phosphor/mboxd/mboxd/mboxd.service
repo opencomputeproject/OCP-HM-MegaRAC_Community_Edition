@@ -1,0 +1,14 @@
+[Unit]
+Description=Phosphor MBOX Daemon
+BindsTo=dev-aspeed\x2dlpc\x2dctrl.device
+After=dev-aspeed\x2dlpc\x2dctrl.device
+Requires=xyz.openbmc_project.Control.Host.service
+After=xyz.openbmc_project.Control.Host.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/env mboxd --flash {FLASH_SIZE} --window-size 1M
+SyslogIdentifier=mboxd
+
+[Install]
+WantedBy=multi-user.target

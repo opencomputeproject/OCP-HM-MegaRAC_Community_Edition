@@ -1,0 +1,33 @@
+description: >
+    NMI button is a Diagnostic Interrupt(Front Panel NMI).Diagnostic interrupt
+    is a non-maskable interrupt or signal for generating diagnostic traces
+    and core dumps from the operating system. The diagnostic interrupt button
+    is connected to the BMC through a front panel connector.
+    user can press NMI button on the front panel and then trigger NMI signal.
+methods:
+    - name: simPress
+      description: >
+        Emulate NMI button press.
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+properties:
+    - name: Enabled
+      type: boolean
+      default: true
+      description: >
+        Enable/disable NMI button.
+        false means NMI button is disabled
+        true means NMI button is enabled
+      errors:
+       - xyz.openbmc_project.Chassis.Common.Error.UnsupportedCommand
+       - xyz.openbmc_project.Chassis.Common.Error.IOError
+
+signals:
+    - name: Released
+      description: >
+        NMI button released signal
+    - name: Pressed
+      description: >
+        NMI button pressed signal

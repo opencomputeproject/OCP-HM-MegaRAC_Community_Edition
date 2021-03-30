@@ -1,0 +1,52 @@
+description:
+    Implement to provide the chassis power management
+
+properties:
+    - name: RequestedPowerTransition
+      type: enum[self.Transition]
+      default: 'Off'
+      description: >
+          The desired power transition to start on this chassis.
+          This will be preserved across AC power cycles of the BMC.
+
+    - name: CurrentPowerState
+      type: enum[self.PowerState]
+      description: >
+          A read-only property describing the current chassis power state.
+          A user can determine if a chassis is in transition by comparing
+          the CurrentPowerState and RequestedPowerTransition properties.
+
+    - name: LastStateChangeTime
+      type: uint64
+      description: >
+          The last time at which the chassis power changed state, as
+          tracked by the CurrentPowerState property, in epoch time,
+          in milliseconds.  This can be used to tell when the chassis
+          was last powered on or off.
+
+enumerations:
+    - name: Transition
+      description: >
+        The desired power transition for the chassis
+      values:
+        - name: 'Off'
+          description: >
+            Chassis power should be off
+        - name: 'On'
+          description: >
+            Chassis power should be on
+        - name: 'PowerCycle'
+          description: >
+            Chassis power should be cycled from off to on. There will be a 5
+            second delay between the off and the on.
+
+    - name: PowerState
+      description: >
+        The current state of the chassis power
+      values:
+        - name: 'Off'
+          description: >
+            Chassis power is off
+        - name: 'On'
+          description: >
+            Chassis power is on

@@ -1,0 +1,14 @@
+[Unit]
+Description=IPMB daemon
+PartOf=phosphor-ipmi-warm-reset.target
+
+After=phosphor-ipmi-host.service
+[Service]
+Restart=always
+ExecStart=/usr/bin/ipmbd 4 
+SyslogIdentifier=ipmbd
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy={SYSTEMD_DEFAULT_TARGET}
+

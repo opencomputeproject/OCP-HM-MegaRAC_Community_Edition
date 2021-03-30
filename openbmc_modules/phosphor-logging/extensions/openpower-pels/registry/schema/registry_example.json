@@ -1,0 +1,76 @@
+{
+    "PELs":
+    [
+        {
+            "Name": "xyz.openbmc_project.Power.Fault",
+            "Subsystem": "power_supply",
+            "Severity": "unrecoverable",
+            "ActionFlags": ["service_action", "report"],
+
+            "SRC":
+            {
+                "ReasonCode": "0x2030",
+                "SymptomIDFields": ["SRCWord3", "SRCWord6"],
+                "Words6To9":
+                {
+                    "6":
+                    {
+                        "Description": "Failing unit number",
+                        "AdditionalDataPropSource": "PS_NUM"
+                    }
+                }
+            },
+
+            "Documentation":
+            {
+                "Description": "A PGOOD Fault",
+                "Message": "PS %1 had a PGOOD Fault",
+                "MessageArgSources":
+                [
+                    "SRCWord6"
+                ],
+                "Notes": [
+                    "In the UserData section there is a JSON",
+                    "dump that provides debug information."
+                ]
+            },
+
+            "CalloutsUsingAD":
+            {
+                "ADName": "PS_NUM",
+                "CalloutsWithTheirADValues":
+                [
+                    {
+                        "ADValue": "0",
+                        "Callouts":
+                        [
+                            {
+                                "System": "system1",
+                                "CalloutList":
+                                [
+                                    {
+                                        "Priority": "high",
+                                        "LocCode": "E1"
+                                    },
+                                    {
+                                        "Priority": "low",
+                                        "LocCode": "P1"
+                                    }
+                                ]
+                            },
+                            {
+                                "CalloutList":
+                                [
+                                    {
+                                        "Priority": "high",
+                                        "Procedure": "no_vpd_for_fru"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}

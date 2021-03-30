@@ -1,0 +1,51 @@
+description: >
+   Implementation of BMC state management.  When rebooting we are in
+   transition.  When Ready all services required are running
+   successfully.  When we are Not Ready this implies not all services
+   have started that are required to be.
+
+properties:
+   - name: RequestedBMCTransition
+     type: enum[self.Transition]
+     default: 'None'
+     description: >
+         The desired BMC transition
+
+   - name: CurrentBMCState
+     type: enum[self.BMCState]
+     description: >
+         The current state of the BMC and is a read-only property.
+
+   - name: LastRebootTime
+     type: uint64
+     description: >
+        The last time at which the BMC came out of a reboot as
+        determined by its uptime, in epoch time, in milliseconds.
+
+enumerations:
+   - name: Transition
+     description: >
+       The desired transition for the BMC firmware
+     values:
+       - name: 'Reboot'
+         description: >
+           BMC system should be rebooted
+       - name: 'None'
+         description: >
+           No transition is in progress
+
+   - name: BMCState
+     description: >
+       The current state of the BMC firmware
+     values:
+       - name: 'Ready'
+         description: >
+           Ready implies all services started and are running successfully
+       - name: 'NotReady'
+         description: >
+           Not ready implies not all services have started or are not running successfully
+       - name: 'UpdateInProgress'
+         description: >
+           UpdateInProgress implies BMC is in firmware update mode. CurrentBMCState
+           will be set to "UpdateInProgress" while starting image download and
+           reset to Ready, once activation is done or error case during update process.

@@ -1,0 +1,51 @@
+diff -Naur a/libvncserver/rfbserver.c b/libvncserver/rfbserver.c
+--- a/libvncserver/rfbserver.c	2020-08-12 19:08:27.939241997 +0530
++++ b/libvncserver/rfbserver.c	2020-08-12 19:14:41.285149726 +0530
+@@ -164,6 +164,27 @@
+   rfbBool closedToo;
+ };
+ 
++uint32_t
++setKvmInstance(const uint32_t instance)
++{
++  FILE *fileWriter;
++  fileWriter = fopen("/var/kvm_instance", "w");
++  if(fileWriter > 0)
++  {
++      if(instance){
++         rfbLog("Set KVM Instance\n");
++         fputc(49,fileWriter);
++      }
++      else {
++         rfbLog("Reset KVM Instance\n");
++         fputc(48,fileWriter);
++      }
++      fclose(fileWriter);
++      return 0;
++  }
++  return -1;
++}
++
+ void
+ rfbClientListInit(rfbScreenInfoPtr rfbScreen)
+ {
+@@ -588,6 +609,9 @@
+ 
+     cl->clientGoneHook(cl);
+ 
++    /* set the KVM Instance to 0, as KVM session closing. */
++    setKvmInstance(0);
++
+     rfbLog("Client %s gone\n",cl->host);
+     free(cl->host);
+ 
+@@ -702,6 +726,9 @@
+         return;
+     }
+ 
++    /* Set the KVM Instance to 1, as KVM session started*/
++    setKvmInstance(1);
++
+     /* Check for the minor version use either of the two standard version of RFB */
+     /*
+      * UltraVNC Viewer detects FileTransfer compatible servers via rfb versions

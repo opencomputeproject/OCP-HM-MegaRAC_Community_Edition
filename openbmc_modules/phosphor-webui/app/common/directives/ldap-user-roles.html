@@ -1,0 +1,328 @@
+<!-- Add & Remove Role Groups Buttons -->
+<div class="row column">
+  <button
+    type="button"
+    ng-class="{'disabled' : roleGroupType === '' }"
+    ng-disabled="roleGroupType === ''"
+    class="btn btn-tertiary"
+    ng-click="addGroupFn(); $parent.newGroup={}"
+  >
+    <icon aria-hidden="true" file="icon-plus.svg"></icon>
+    <span>Add role group</span>
+  </button>
+  <button
+    type="button"
+    ng-disabled="roleGroupType === '' || !hasSelectedGroup"
+    class="btn btn-tertiary"
+    ng-click="removeMultipleRoleGroupsFn() "
+  >
+    <icon aria-hidden="true" file="icon-trashcan.svg"></icon>
+    <span>Remove role groups</span>
+  </button>
+</div>
+<!-- LDAP Role Groups Table -->
+<div class="ldap__table">
+  <!-- LDAP Role Groups Table Header -->
+  <div class="table__row-header row column" ng-class="{'disabled' : !enabled }">
+    <div class="row column">
+      <div class="table__cell-select">
+        <label class="control-check">
+          <span class="screen-reader-offscreen" id="select-all-groups"
+            >select or deselect all groups</span
+          >
+          <input
+            type="checkbox"
+            aria-labelledby="select-all-groups"
+            ng-disabled="!enabled || roleGroups.length < 1 "
+            ng-click="toggleAll()"
+            ng-checked="roleGroupIsSelectedChanged()"
+            ng-model="all"
+          />
+          <span class="control__indicator"></span>
+        </label>
+      </div>
+      <div class="table__cell-sort">
+        <div class="column small-2 sort_button_wrapper">
+          <button
+            class="sort-ascending"
+            aria-label="sort group names in ascending order"
+            ng-click="sortBy('RemoteGroup', false)"
+            ng-disabled="!enabled || roleGroups.length < 1 "
+          ></button>
+          <button
+            class="sort-descending"
+            aria-label="sort group names in descending order"
+            ng-click="sortBy('RemoteGroup', true)"
+            ng-disabled="!enabled || roleGroups.length < 1 "
+          ></button>
+        </div>
+      </div>
+      <div class="table__cell-ldap-group">
+        Group name
+      </div>
+      <div class="table__cell-sort">
+        <div class="column small-2 sort_button_wrapper">
+          <button
+            class="sort-ascending"
+            aria-label="sort group privileges in ascending order"
+            ng-click="sortBy('LocalRole', false)"
+            ng-disabled="!enabled || roleGroups.length < 1 "
+          ></button>
+          <button
+            class="sort-descending"
+            aria-label="sort group privileges in descending order"
+            ng-click="sortBy('LocalRole', true)"
+            ng-disabled="!enabled || roleGroups.length < 1 "
+          ></button>
+        </div>
+      </div>
+      <div class="table__cell-ldap-role">
+        Group privilege
+      </div>
+    </div>
+  </div>
+  <!-- LDAP Disabled Role Groups Table Row -->
+  <div class="empty__logs" ng-if="roleGroups.length < 1 || !enabled">
+    <p
+      ng-if="!roleGroups.length && roleGroupType"
+    >
+      No role groups have been created yet.
+    </p>
+    <p ng-if=" roleGroupType === '' " ng-class="{'disabled' : !enabled }">
+      LDAP authentication must be enabled before creating role groups.
+    </p>
+  </div>
+  <div
+    ng-repeat="group in roleGroups | orderBy:sortPropertyName:reverse track by $index "
+  >
+    <!-- Enabled LDAP Role Groups Table Rows -->
+    <div class="row column table__row-value" ng-if="enabled">
+      <div class="table__cell-select select-header">
+        <label class="control-check">
+          <span class="screen-reader-offscreen" id="select-group"
+            >select or deselect {{ group.RemoteGroup }}</span
+          >
+          <input
+            type="checkbox"
+            aria-labelledby="select-group"
+            ng-model="group.isSelected"
+            ng-change="roleGroupIsSelectedChanged(); optionToggled()"
+          />
+          <span class="control__indicator"></span>
+        </label>
+      </div>
+      <div class="table__cell-ldap">
+        {{ group.RemoteGroup }}
+      </div>
+      <div class="table__cell-ldap">
+        {{ group.LocalRole }}
+      </div>
+      <div class="table__cell-buttons">
+        <button
+          class="btn btn-tertiary"
+          type="button"
+          aria-label="edit group {{ group.RemoteGroup }}"
+          ng-click="editGroupFn(group.RemoteGroup, group.LocalRole, $index); newGroup.RemoteGroup = group.RemoteGroup; newGroup.LocalRole = group.LocalRole; selectedGroupIndex = $index"
+        >
+          <icon aria-hidden="true" file="icon-edit.svg"></icon>
+        </button>
+        <button
+          class="btn btn-tertiary"
+          type="button"
+          aria-label="delete group {{ group.RemoteGroup }}"
+          ng-class="{'disabled' : roleGroups.length < 1}"
+          ng-click="removeGroupFn($index); newGroup.RemoteGroup = group.RemoteGroup; newGroup.LocalRole = group.LocalRole; selectedGroupIndex = $index"
+        >
+          <icon aria-hidden="true" file="icon-trashcan.svg"></icon>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Add/Edit Role Group Modal -->
+<section
+  class="modal"
+  aria-labelledby="add-or-edit-group"
+  role="dialog"
+  ng-class="{'active': addGroup || editGroup}"
+>
+  <h3 id="add-or-edit-group" class="subhead">
+    {{ addGroup ? "Add new role group" : "Edit group privilege" }}
+  </h3>
+  <div class="modal__content-ldap">
+    <!-- Add Role Group Modal Content -->
+    <div ng-if="addGroup">
+      <form name="add__group__form" id="add__group__form" novalidate>
+        <div class="small-9">
+          <label for="group_name">Role group name</label>
+          <input
+            type="text"
+            name="group_name"
+            id="group_name"
+            ng-model="newGroup.RemoteGroup"
+            required
+          />
+          <div
+            ng-messages="add__group__form.group_name.$error"
+            class="form-error"
+            ng-class="{'visible' : add__group__form.group_name.$touched}"
+          >
+            <p ng-message="required">Field is required</p>
+          </div>
+        </div>
+        <div class="small-9">
+          <label for="group__role">Privilege</label>
+          <select
+            id="group__role"
+            class="select__group-role"
+            name="group__role"
+            ng-model="newGroup.LocalRole"
+            required
+          >
+            <option class="courier-bold" ng-value="">Select an option</option>
+            <option class="courier-bold" ng-repeat="privilege in privileges">{{
+              privilege
+            }}</option>
+          </select>
+          <div
+            ng-messages="add__group__form.group__role.$error"
+            class="form-error"
+            ng-class="{'visible' : add__group__form.group__role.$touched}"
+          >
+            <p ng-message="required">Field is required</p>
+          </div>
+        </div>
+      </form>
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          ng-class="{'disabled' : add__group__form.$invalid}"
+          ng-click="addRoleGroup(); $parent.addGroup=false; $parent.newGroup={}"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          ng-click="$parent.addGroup=false; $parent.newGroup={}"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+    <!-- Edit Role Group Modal Content -->
+    <div ng-if="editGroup">
+      <form name="edit__group__form" id="edit__group__form" novalidate>
+        <label>Role group name</label>
+        <div class="small-9 edit-group-name" ng-model="newGroup.RemoteGroup">
+          {{ newGroup.RemoteGroup }}
+        </div>
+        <div class="small-9">
+          <label for="group__role__edit">Privilege</label>
+          <select
+            id="group__role__edit"
+            name="group__role__edit"
+            ng-model="newGroup.LocalRole"
+            required
+          >
+            <option class="courier-bold" ng-repeat="privilege in privileges">{{
+              privilege
+            }}</option>
+          </select>
+          <div
+            ng-messages="edit__group__form.group__role__edit.$error"
+            class="form-error"
+            ng-class="{'visible' : edit__group__form.group__role__edit.$touched}"
+          >
+            <p ng-message="required">Field is required</p>
+          </div>
+        </div>
+      </form>
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          ng-click="editRoleGroup();$parent.editGroup=false; $parent.newGroup={}"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          ng-click="$parent.editGroup=false; $parent.newGroup={}"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- Remove Role Groups Modal -->
+<section
+  class="modal"
+  role="dialog"
+  aria-labelledby="remove-role-group"
+  ng-class="{'active': removeGroup}"
+>
+  <h3 id="remove-role-group" class="subhead">Remove role group</h3>
+  <div class="modal__content-ldap">
+    <p>Are you sure you want to remove "{{ newGroup.RemoteGroup }}"?</p>
+  </div>
+  <div class="form-actions">
+    <button
+      type="button"
+      class="btn btn-primary"
+      ng-click="removeRoleGroup(); $parent.removeGroup=false; newGroup={}"
+    >
+      Remove
+    </button>
+    <button
+      type="button"
+      class="btn btn-secondary"
+      ng-click="removeGroup=false; $parent.removeGroup=false; newGroup={}"
+    >
+      Cancel
+    </button>
+  </div>
+</section>
+<!-- Remove Multiple Role Groups Modal -->
+<section
+  class="modal"
+  role="dialog"
+  ng-class="{'active': removeMultipleGroups}"
+>
+  <div class="page-header">
+    <h3>Remove role group</h3>
+  </div>
+  <div class="modal__content-ldap">
+    <p>
+      Are you sure you want to remove
+      <span ng-repeat="groups in roleGroups | filter:{isSelected:true}"
+        >{{ $last && !$first ? " and " : $first ? "" : ", "
+        }}{{ "'" + groups.RemoteGroup + "'" }}?</span
+      >
+    </p>
+  </div>
+  <div class="form-actions">
+    <button
+      type="button"
+      class="btn btn-primary"
+      ng-click="removeMultipleRoleGroups();$parent.removeMultipleGroups=false; $parent.newGroup={}"
+    >
+      Remove
+    </button>
+    <button
+      type="button"
+      class="btn btn-secondary"
+      ng-click="removeMultipleGroups = false"
+    >
+      Cancel
+    </button>
+  </div>
+</section>
+<div
+  class="modal-overlay"
+  tabindex="-1"
+  ng-class="{'active': addGroup || editGroup || removeGroup || removeMultipleGroups}"
+></div>

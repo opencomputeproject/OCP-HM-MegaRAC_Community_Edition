@@ -1,0 +1,43 @@
+AM_CPPFLAGS = \
+	-I${top_srcdir} \
+	-I${top_builddir} \
+	-Igtest \
+	$(GTEST_CPPFLAGS)
+
+AM_CFLAGS = \
+	$(PTHREAD_CFLAGS) \
+	$(CODE_COVERAGE_CFLAGS) \
+	$(SDBUSPLUS_CFLAGS) \
+	$(PHOSPHOR_LOGGING_CFLAGS) \
+	$(PHOSPHOR_DBUS_INTERFACES_CFLAGS)
+
+AM_CXXFLAGS = \
+	$(PTHREAD_CXXFLAGS) \
+	$(CODE_COVERAGE_CXXFLAGS) \
+	$(SDBUSPLUS_CXXFLAGS) \
+	$(PHOSPHOR_LOGGING_CXXFLAGS) \
+	$(PHOSPHOR_DBUS_INTERFACES_CXXFLAGS)
+
+AM_LDFLAGS = \
+	-lgtest_main -lgtest -lstdc++fs \
+	$(PTHREAD_CFLAGS) \
+	$(SDBUSPLUS_LIBS) \
+	$(PHOSPHOR_LOGGING_LIBS) \
+	$(PHOSPHOR_DBUS_INTERFACES_LIBS) \
+	$(OESDK_TESTCASE_FLAGS) \
+	$(CODE_COVERAGE_LIBS)
+
+test_notification_SOURCES = \
+	%reldir%/test_error_notification.cpp \
+	%reldir%/test_snmp_conf_manager.cpp \
+	%reldir%/test_snmp_util.cpp \
+	%reldir%/test_snmp_serialize.cpp \
+	%reldir%/test_snmp_client.cpp
+
+test_notification_LDADD = $(top_builddir)/phosphor_network_snmpconf-snmp_conf_manager.o \
+	$(top_builddir)/phosphor_network_snmpconf-snmp_client.o \
+	$(top_builddir)/phosphor_network_snmpconf-snmp_serialize.o \
+    $(top_builddir)/phosphor_network_snmpconf-snmp_util.o \
+	$(top_builddir)/xyz/openbmc_project/Network/Client/Create/phosphor_network_snmpconf-server.o
+
+check_PROGRAMS += %reldir%/notification

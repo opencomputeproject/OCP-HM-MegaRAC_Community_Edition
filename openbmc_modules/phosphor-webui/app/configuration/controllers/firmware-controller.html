@@ -1,0 +1,144 @@
+<loader loading="loading"></loader>
+<div class="row column">
+  <h1>Firmware</h1>
+  <div class="column small-12 page-header">
+    <h2 class="inline">Manage BMC and server firmware</h2>
+  </div>
+</div>
+<div class="row column">
+  <p>Use the following tables to manage firmware image files. The image file that is listed at the top, the image with the highest boot priority, is used the next time that the device is booted. To change the boot priority for the image, click the arrow icons.</p>
+  <p><a ng-click="gotoAnchor()">Scroll down to upload an image file</a> to transfer a new firmware image to the BMC. After uploading a new image, Activate it to make it available for use.</p>
+</div>
+<firmware-list title="BMC images" version="bmcActiveVersion" firmwares="firmwares" filter-by="filters.bmc"></firmware-list>
+<firmware-list title="Server images" version="hostActiveVersion" firmwares="firmwares" filter-by="filters.host"></firmware-list>
+<div class="row column" id="upload">
+  <div class="column small-12 page-header">
+    <h2 class="inline bold">Specify image file location</h2>
+  </div>
+  <form id="firmware__upload-form" role="form" class="firmware__upload-form">
+    <p>Specify an image file located on your workstation or a TFTP server. An image file may contain firmware images for the server, BMC, or other hardware devices. Each image that you upload will be unpacked from the image file and added to the appropriate list above.</p>
+    <div class=" column firmware__upload-station">
+      <h3>Upload image file from workstation</h3>
+      <p>Select the image file saved on the workstation storage medium to upload to the server BMC.</p>
+      <label for="file-upload" class="inline firmware__upload-chooser">
+        <input id="file-upload" type="file" file="file" class="hide"/>
+        <span class="btn btn-secondary">Choose a file</span>
+        <span class="inline firmware__upload-file-name"><span ng-if="!file">No file chosen</span><span ng-if="file.name !== undefined">{{file.name}}</span></span>
+      </label>
+      <input type="button" value="Upload firmware" class="btn btn-primary float-right" ng-click="upload()"/>
+      <div class="inline uploading" ng-show="uploading">Upload in progress...</div>
+    </div>
+    <div class="column firmware__upload-tftp">
+      <h3>Download image file from TFTP server</h3>
+      <p>Specify both the TFTP server IP address and the image file name stored on it to download to the server BMC.</p>
+      <fieldset>
+        <div class="row">
+          <div class="column small-12 large-4">
+            <label for="tftp-ip">TFTP Server IP address</label>
+            <input name="tftp-ip" id="tftp-ip" type="text"  ng-model="download_host"/>
+          </div>
+          <div class="column small-12 large-4">
+            <label for="tftp-file-name">File name</label>
+            <input name="tftp-file-name" id="tftp-file-name" type="text"  ng-model="download_filename"/>
+          </div>
+          <div class="column small-12 large-4">
+            <input type="button" value="Download firmware" class="btn btn-primary float-right" ng-click="download()"/>
+          </div>
+        </div>
+        <div class="inline uploading" ng-show="downloading">Downloading in progress...</div>
+      </fieldset>
+    </div>
+  </form>
+</div>
+
+<!-- Firmware modals -->
+
+<section class="modal" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalDescription" role="dialog" ng-class="{'active': confirm_priority}">
+  <div class="modal__tftp-unreachable" role="document">
+    <div class="screen-reader-offscreen modal-description">Update image priority</div><!-- accessibility only; used for screen readers -->
+    <div class="page-header ">
+      <icon file="icon-warning.svg" aria-hidden="true"></icon><span class="accessible-text" role="alert">Warning</span>
+      <h3 class="modal-title inline">Change image priority</h3>
+    </div>
+    <div class="modal__content">
+      <p>Change firmware {{priority_image_version}} priority?</p>
+    </div>
+    <div class="modal__button-wrapper">
+      <button class="btn btn-secondary" ng-click="confirm_priority=false;">Cancel</button>
+      <button class="btn btn-primary" ng-click="confirmChangePriority()">Continue</button>
+    </div>
+  </div>
+</section>
+
+<section class="modal" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalDescription" role="dialog" ng-class="{'active': confirm_delete}">
+  <div class="modal__tftp-unreachable" role="document">
+    <div class="screen-reader-offscreen modal-description">Delete firmware image</div><!-- accessibility only; used for screen readers -->
+    <div class="page-header ">
+      <icon file="icon-warning.svg" aria-hidden="true"></icon><span class="accessible-text" role="alert">Warning</span>
+      <h3 class="modal-title inline">Delete image</h3>
+    </div>
+    <div class="modal__content">
+      <p>Delete firmware {{delete_image_version}}?</p>
+    </div>
+    <div class="modal__button-wrapper">
+      <button class="btn  btn-secondary" ng-click="confirm_delete=false;">Cancel</button>
+      <button class="btn  btn-primary" ng-click="confirmDeleteImage()">Continue</button>
+    </div>
+  </div>
+</section>
+
+<section class="modal" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalDescription" role="dialog" ng-class="{'active': activate_confirm}">
+  <div class="modal__activate" role="document">
+    <div class="screen-reader-offscreen modal-description">Activate modal</div><!-- accessibility only; used for screen readers -->
+    <div class="page-header ">
+      <h3 class="modal-title">
+        <icon class="icon__info" file="icon-information.svg"></icon>
+        <!-- We call "Host" firmware "server" firmware -->
+        Confirm {{activate_image_type == 'Host' ? 'server' : activate_image_type}} firmware file activation
+      </h3>
+    </div>
+    <div class="modal__content">
+      <div ng-switch on="activate_image_type">
+        <p ng-switch-when="BMC">When you activate the BMC firmware file, {{activate_image_version}}, the BMC must be rebooted before it will operate with the new firmware code. Note that when you reboot the BMC, the BMC will be unavailable for several minutes and you must log in again.</p>
+        <p ng-switch-when="Host">When you activate the server firmware file, {{activate_image_version}}, the new firmware will not operate until the next time the server boots.</p>
+      </div>
+      <form ng-if="activate_image_type == 'BMC'">
+        <fieldset>
+          <div class="row column">
+            <label class="control-radio bold" for="activate-without-reboot">Activate firmware file without rebooting BMC
+              <input type="radio" name="activate-without-reboot" id="activate-without-reboot" ng-model="activate.reboot" ng-value="false"/>
+              <span class="control__indicator control__indicator-on"></span>
+            </label>
+          </div>
+          <div class="row column">
+            <label class="control-radio bold" for="activate-with-reboot">Activate firmware file and automatically reboot BMC
+              <input type="radio" name="activate-with-reboot" id="activate-with-reboot" ng-model="activate.reboot" ng-value="true"/>
+              <span class="control__indicator control__indicator-on"></span>
+            </label>
+          </div>
+        </fieldset>
+      </form>
+      <form ng-if="activate_image_type == 'Host'">
+        <fieldset>
+          <div class="row column">
+            <label class="control-radio bold" for="activate-host-without-reboot">Activate firmware file without {{isServerOff() ? "booting" : "rebooting"}} server
+              <input type="radio" name="activate-host-without-reboot" id="activate-host-without-reboot" ng-model="activate.reboot" ng-value="false"/>
+              <span class="control__indicator control__indicator-on"></span>
+            </label>
+          </div>
+          <div class="row column">
+            <label class="control-radio bold" for="activate-host-with-reboot">Activate firmware file and automatically {{isServerOff() ? "boot" : "reboot"}} server
+              <input type="radio" name="activate-host-with-reboot" id="activate-host-with-reboot" ng-model="activate.reboot" ng-value="true"/>
+              <span class="control__indicator control__indicator-on"></span>
+            </label>
+          </div>
+        </fieldset>
+      </form>
+    </div>
+    <div class="modal__button-wrapper">
+      <button class="btn  btn-secondary" ng-click="activate_confirm=false;">Cancel</button>
+      <button class="btn  btn-primary" ng-click="activateConfirmed()">Continue</button>
+    </div>
+  </div>
+</section>
+<div class="modal-overlay" tabindex="-1" ng-class="{'active': (confirm_priority || activate_confirm || confirm_delete)}"></div>

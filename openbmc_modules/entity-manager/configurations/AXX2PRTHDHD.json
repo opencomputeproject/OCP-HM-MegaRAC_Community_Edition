@@ -1,0 +1,91 @@
+{
+    "Exposes": [
+        {
+            "Address": "$address",
+            "Bus": "$bus",
+            "Name": "PCIe Retimer $index FRU",
+            "Type": "EEPROM"
+        },
+        {
+            "Address": "0x74",
+            "Bus": "$bus",
+            "ChannelNames": [
+                "MiniSASHD1",
+                "MiniSASHD2",
+                "MiniSASHD3",
+                "MiniSASHD4"
+            ],
+            "Name": "PCIe Retimer $index Mux",
+            "Type": "PCA9544Mux"
+        },
+        {
+            "Class": "temp",
+            "FFGainCoefficient": 0.0,
+            "FFOffCoefficient": 0.0,
+            "ICoefficient": -0.1,
+            "ILimitMax": 100,
+            "ILimitMin": 30,
+            "Inputs": [
+                "PCIE Retimer Temp"
+            ],
+            "Name": "PCIE Retimer Temp",
+            "OutLimitMax": 100,
+            "OutLimitMin": 30,
+            "Outputs": [],
+            "PCoefficient": -0.15,
+            "SetPoint": 45.0,
+            "SlewNeg": -1,
+            "SlewPos": 0.0,
+            "Type": "Pid",
+            "Zones": [
+                "Zone 1",
+                "Zone 2",
+                "Zone 3",
+                "Zone 4",
+                "Zone 5",
+                "Zone 6"
+            ]
+        },
+        {
+            "Address": "0x4F",
+            "Bus": "$bus",
+            "Name": "PCIE Retimer Temp",
+            "Thresholds": [
+                {
+                    "Direction": "greater than",
+                    "Name": "upper critical",
+                    "Severity": 1,
+                    "Value": 115
+                },
+                {
+                    "Direction": "greater than",
+                    "Name": "upper non critical",
+                    "Severity": 0,
+                    "Value": 110
+                },
+                {
+                    "Direction": "less than",
+                    "Name": "lower non critical",
+                    "Severity": 0,
+                    "Value": 5
+                },
+                {
+                    "Direction": "less than",
+                    "Name": "lower critical",
+                    "Severity": 1,
+                    "Value": 0
+                }
+            ],
+            "Type": "TMP75"
+        }
+    ],
+    "Name": "PCIE Retimer",
+    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'AXX2PRTHDHD'})",
+    "Type": "Board",
+    "xyz.openbmc_project.Inventory.Decorator.Asset": {
+        "Manufacturer": "$BOARD_MANUFACTURER",
+        "Model": "$BOARD_PRODUCT_NAME",
+        "PartNumber": "$BOARD_PART_NUMBER",
+        "SerialNumber": "$BOARD_SERIAL_NUMBER"
+    }
+}

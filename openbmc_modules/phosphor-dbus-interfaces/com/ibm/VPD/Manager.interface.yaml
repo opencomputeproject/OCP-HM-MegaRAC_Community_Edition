@@ -1,0 +1,98 @@
+description: >
+    Implement to manage VPD data in system.
+methods:
+    - name: WriteKeyword
+      description: >
+          A method to update the keyword value for a given VPD record.
+      parameters:
+        - name: path
+          type: path
+          description: >
+              Path to the D-Bus object that represents the FRU.
+        - name: record
+          type: string
+          description: >
+              Record whose keyword value needs to be modified.
+        - name: keyword
+          type: string
+          description: >
+              Keyword whose value needs to be updated.
+        - name: value
+          type: array[byte]
+          description: >
+              Value to be updated for the keyword.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - com.ibm.VPD.Error.PathNotFound
+        - com.ibm.VPD.Error.RecordNotFound
+        - com.ibm.VPD.Error.KeywordNotFound
+
+    - name: GetFRUsByUnexpandedLocationCode
+      description: >
+          A method to get list of FRU D-BUS object paths for a given
+          unexpanded location code.
+      parameters:
+        - name: locationCode
+          type: string
+          description: >
+              An un-expanded Location code.
+        - name: nodeNumber
+          type: uint16
+          description: >
+              Denotes the node in case of a multi-node configuration,
+              ignored on a single node system.
+      returns:
+        - name: inventoryList
+          type: array[path]
+          description: >
+              List of all the FRUs D-Bus object paths for the given location
+              code.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - com.ibm.VPD.Error.LocationNotFound
+        - com.ibm.VPD.Error.NodeNotFound
+
+    - name: GetFRUsByExpandedLocationCode
+      description: >
+          A method to get list of FRU D-BUS object paths for a given expanded
+          location code.
+      parameters:
+        - name: locationCode
+          type: string
+          description: >
+              Location code in expanded format.
+      returns:
+        - name: inventoryList
+          type: array[path]
+          description: >
+              List of all the FRUs D-Bus object path for the given location
+              code.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - com.ibm.VPD.Error.LocationNotFound
+        - com.ibm.VPD.Error.NodeNotFound
+
+    - name: GetExpandedLocationCode
+      description: >
+          An api to get expanded location code corresponding to a given
+          un-expanded location code.
+          Expanded location codes gives the location of the FRU in the system.
+      parameters:
+        - name: locationCode
+          type: string
+          description: >
+              Location code in un-expanded format.
+        - name: nodeNumber
+          type: uint16
+          description: >
+              Denotes the node in case of multi-node configuration.
+              Ignored in case of single node configuration.
+      returns:
+        - name: locationCode
+          type: string
+          description: >
+              Location code in expanded format.
+      errors:
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - com.ibm.VPD.Error.LocationNotFound
+        - com.ibm.VPD.Error.NodeNotFound

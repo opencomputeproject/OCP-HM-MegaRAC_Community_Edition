@@ -1,0 +1,21 @@
+[Unit]
+Description=Start Host%i
+After=obmc-host-start-pre@%i.target
+Wants=obmc-host-starting@%i.target
+Before=obmc-host-starting@%i.target
+Before=obmc-host-started@%i.target
+Wants=obmc-power-on@%i.target
+After=obmc-power-on@%i.target
+Wants=mapper-wait@-org-openbmc-control-host%i.service
+After=mapper-wait@-org-openbmc-control-host%i.service
+Conflicts=obmc-host-stop@%i.target
+ConditionPathExists=!/run/openbmc/host@%i-on
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c "busctl call `mapper get-service /org/openbmc/control/host%i` /org/openbmc/control/host%i org.openbmc.control.Host boot"
+SyslogIdentifier=op-start-host
+
+[Install]
+WantedBy=obmc-host-start@%i.target

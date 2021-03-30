@@ -1,0 +1,12 @@
+--- a/src/FanMain.cpp	2021-03-12 12:54:10.763589165 +0530
++++ b/src/FanMain.cpp	2021-03-12 12:54:48.875911364 +0530
+@@ -47,7 +47,8 @@
+     "xyz.openbmc_project.Configuration.AspeedFan",
+     "xyz.openbmc_project.Configuration.I2CFan",
+     "xyz.openbmc_project.Configuration.NuvotonFan"};
+-static constexpr std::array<const char*, 1> pwmsensorTypes = {
++static constexpr std::array<const char*, 2> pwmsensorTypes = {
++	"xyz.openbmc_project.Configuration.IntelFanConnector",
+     	"xyz.openbmc_project.Configuration.NuvotonFanConnector"};
+ constexpr const char* redundancyConfiguration =
+     "xyz.openbmc_project.Configuration.FanRedundancy";

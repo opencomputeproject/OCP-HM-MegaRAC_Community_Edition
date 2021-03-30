@@ -1,0 +1,217 @@
+diff -Naur a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2020-06-10 21:15:02.548288072 +0530
++++ b/CMakeLists.txt	2020-06-10 21:15:02.532287917 +0530
+@@ -13,6 +13,13 @@
+ )
+ 
+ option (
++    SEL_LOGGER_MONITOR_DISCRETE_EVENTS
++    "Enable SEL Logger to monitor and automatically
++     log SEL records for dicrete sensor events"
++     ON
++)
++
++option (
+     REDFISH_LOG_MONITOR_PULSE_EVENTS
+     "Enable logger to monitor and automatically
+      log events to Redfish for pulse type assert-deassert sensor events"
+@@ -22,6 +29,7 @@
+ target_compile_definitions (
+     sel-logger PRIVATE
+     $<$<BOOL:${SEL_LOGGER_MONITOR_THRESHOLD_EVENTS}>: -DSEL_LOGGER_MONITOR_THRESHOLD_EVENTS>
++    $<$<BOOL:${SEL_LOGGER_MONITOR_DISCRETE_EVENTS}>: -DSEL_LOGGER_MONITOR_DISCRETE_EVENTS>
+     $<$<BOOL:${REDFISH_LOG_MONITOR_PULSE_EVENTS}>: -DREDFISH_LOG_MONITOR_PULSE_EVENTS>
+ )
+ 
+diff -Naur a/include/discrete_event_monitor.hpp b/include/discrete_event_monitor.hpp
+--- a/include/discrete_event_monitor.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/include/discrete_event_monitor.hpp	2020-06-26 12:18:29.709272333 +0530
+@@ -0,0 +1,165 @@
++/*
++//
++// Auther: selvaganapathim
++// Email : selvaganapathim@amiindia.co.in
++//
++*/
++
++#pragma once
++#include <sel_logger.hpp>
++#include <sensorutils.hpp>
++#include <sdrutils.hpp>
++#include <string_view>
++#include <variant>
++#include <map>
++
++enum class discreteEventOffsets : uint8_t
++{
++    state0 = 0x00,
++    state1 = 0x01,
++};
++
++/* Map a event-byte to it's name */
++const std::map<std::uint8_t, std::map<bool, std::string>> EVENT_TABLE = {
++    {0x03, {{true, "Asserted"},{false, "Deasserted"}}}};
++
++static constexpr const uint8_t discreteEventDataTriggerReadingByte2 = (1 << 6);
++static constexpr const uint8_t discreteEventDataTriggerReadingByte3 = (1 << 4);
++
++//static const std::string openBMCMessageRegistryVersion("0.1");
++
++inline static sdbusplus::bus::match::match startDiscreteEventMonitor(
++    std::shared_ptr<sdbusplus::asio::connection> conn)
++{
++    auto discreteEventMatcherCallback = [conn](
++                                             sdbusplus::message::message &msg) {
++        // This static set of std::pair<path, event> tracks asserted events to
++        // avoid duplicate logs or deasserts logged without an assert
++        static boost::container::flat_set<std::pair<std::string, std::string>>
++            assertedEvents;
++        // SEL event data is three bytes where 0xFF means unspecified
++        std::vector<uint8_t> eventData(selEvtDataMaxSize, 0xFF);
++
++        // Get the event type and assertion details from the message
++        std::string discreteInterface;
++        boost::container::flat_map<std::string, std::variant<std::vector<std::uint8_t>>>
++            propertiesChanged;
++        msg.read(discreteInterface, propertiesChanged);
++        std::string event = propertiesChanged.begin()->first;
++        std::vector<std::uint8_t> *pval = std::get_if<std::vector<uint8_t>>(&propertiesChanged.begin()->second);
++        if (!pval)
++        {
++            std::cerr << "discrete event direction has invalid type\n";
++            return;
++        }
++        std::vector<std::uint8_t> eventoffset = *pval;
++	std::cerr << "discrete event called\n";
++        // Set the IPMI threshold event type based on the event details from the
++        // message
++        if (event == "ActiveAlarmState")
++        {
++		std::cerr << "discrete event DiscreteAlarmState\n";
++	     if(eventoffset[0] == 0xFF && eventoffset[1] == 0xFF && eventoffset[2] == 0xFF){
++		return ;
++	     }
++
++	     eventData[0] = eventoffset[0]; 
++	     eventData[1] = eventoffset[1];
++	     eventData[2] = eventoffset[2];
++	   /* if(assert){
++            	eventData[0] =
++                	static_cast<uint8_t>(discreteEventOffsets::state1);
++	    }else{
++		eventData[0] =
++                        static_cast<uint8_t>(discreteEventOffsets::state0);
++	    }*/
++        }else{
++	    return;
++	}
++
++        // Indicate that bytes 2 and 3 are threshold sensor trigger values
++        eventData[0] |= discreteEventDataTriggerReadingByte2 |
++                        discreteEventDataTriggerReadingByte3;
++
++        // Get the sensor reading to put in the event data
++        sdbusplus::message::message getSensorValue =
++            conn->new_method_call(msg.get_sender(), msg.get_path(),
++                                  "org.freedesktop.DBus.Properties", "GetAll");
++        getSensorValue.append("xyz.openbmc_project.Sensor.Value");
++        boost::container::flat_map<std::string, std::variant<double, int64_t, uint8_t, bool>>
++            sensorValue;
++        try
++        {
++            sdbusplus::message::message getSensorValueResp =
++                conn->call(getSensorValue);
++            getSensorValueResp.read(sensorValue);
++        }
++        catch (sdbusplus::exception_t &)
++        {
++            std::cerr << "error getting sensor value from " << msg.get_path()
++                      << "\n";
++            return;
++        }
++
++        double sensorVal = 0;
++        auto findVal = sensorValue.find("Value");
++        if (findVal != sensorValue.end())
++        {
++            sensorVal =
++                std::visit(ipmi::VariantToDoubleVisitor(), findVal->second);
++        }
++
++        auto findSenType = sensorValue.find("DType");
++        if (findSenType != sensorValue.end())
++        {
++            sensorType = std::get<uint8_t>(findSenType->second);
++        }
++
++	auto findEventType = sensorValue.find("EventType");
++        if (findEventType != sensorValue.end())
++        {
++            eventType = std::get<uint8_t>(findEventType->second);
++        }
++
++        //eventData[1] = 0xFF;
++        //eventData[2] = 0xFF;
++        
++	//sensorType = getSensorTypeFromPath(msg.get_path());
++        sensorNum = getSensorNumberFromPath(msg.get_path());
++        //eventType = getSensorEventTypeFromPath(msg.get_path());
++        // Construct a human-readable message of this event for the log
++        std::string_view sensorName(msg.get_path());
++        sensorName.remove_prefix(
++            std::min(sensorName.find_last_of("/") + 1, sensorName.size()));
++
++        std::string state;
++        std::string redfishMessageID =
++            "OpenBMC." + openBMCMessageRegistryVersion;
++	//auto offset = EVENT_TABLE.find(eventType)->second;
++	//state = offset.find(assert)->second;
++        //if (assert)
++        //{
++           redfishMessageID += ".ActiveStateHigh";
++        //}
++        //else
++        //{
++         //  redfishMessageID += ".ActiveStateLow";
++        //}
++
++        std::string journalMsg(std::string(sensorName) + " sensor, " +
++                               state + ". Reading=" + std::to_string(sensorVal) + ".");
++
++        selAddSystemRecord(
++            journalMsg, std::string(msg.get_path()), eventData, /*assert*/true,
++            selBMCGenID, "REDFISH_MESSAGE_ID=%s", redfishMessageID.c_str(),
++            "REDFISH_MESSAGE_ARGS=%.*s,%f,%f", sensorName.length(),
++            sensorName.data(), sensorVal, 0.00);
++    };
++    sdbusplus::bus::match::match discreteEventMatcher(
++        static_cast<sdbusplus::bus::bus &>(*conn),
++        "type='signal',interface='org.freedesktop.DBus.Properties',member='"
++        "PropertiesChanged',arg0namespace='xyz.openbmc_project.Sensor."
++        "Discrete'",
++        std::move(discreteEventMatcherCallback));
++    return discreteEventMatcher;
++}
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2020-08-30 11:59:20.797022823 +0530
++++ b/src/sel_logger.cpp	2020-08-30 12:01:04.967675866 +0530
+@@ -22,6 +22,7 @@
+ #include <sdbusplus/asio/object_server.hpp>
+ #include <sel_logger.hpp>
+ #include <threshold_event_monitor.hpp>
++#include <discrete_event_monitor.hpp>
+ 
+ #include <filesystem>
+ #include <fstream>
+@@ -211,6 +212,11 @@
+         startThresholdAssertMonitor(conn);
+ #endif
+ 
++#ifdef SEL_LOGGER_MONITOR_DISCRETE_EVENTS
++   sdbusplus::bus::match::match discreteEventMonitor =
++       startDiscreteEventMonitor(conn);
++#endif
++
+ #ifdef REDFISH_LOG_MONITOR_PULSE_EVENTS
+     sdbusplus::bus::match::match pulseEventMonitor =
+         startPulseEventMonitor(conn);

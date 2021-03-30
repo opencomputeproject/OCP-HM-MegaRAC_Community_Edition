@@ -1,0 +1,103 @@
+- name: PowerSupplyInputFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: PowerSupplyShouldBeOn
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: PowerSupplyOutputOvercurrent
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: PowerSupplyOutputOvervoltage
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: PowerSupplyFanFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: PowerSupplyTemperatureFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: Shutdown
+  level: ERR
+
+- name: PowerOnFailure
+  level: ERR
+
+- name: PowerSequencerVoltageFault
+  level: ERR
+  meta:
+    - str: "RAIL=%d"
+      type: uint16
+    - str: "RAIL_NAME=%s"
+      type: string
+    - str: "RAW_STATUS=%s"
+      type: string
+
+- name: PowerSequencerPGOODFault
+  level: ERR
+  meta:
+    - str: "INPUT_NUM=%d"
+      type: uint16
+    - str: "INPUT_NAME=%s"
+      type: string
+    - str: "RAW_STATUS=%s"
+      type: string
+
+- name: PowerSequencerFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+
+- name: GPUPowerFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: GPUOverTemp
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory
+
+- name: MemoryPowerFault
+  level: ERR
+  meta:
+    - str: "RAW_STATUS=%s"
+      type: string
+  inherits:
+    - xyz.openbmc_project.Common.Callout.Inventory

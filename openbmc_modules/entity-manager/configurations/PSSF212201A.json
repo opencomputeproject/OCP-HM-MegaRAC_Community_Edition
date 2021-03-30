@@ -1,0 +1,127 @@
+[
+    {
+        "Exposes": [
+            {
+                "Address": "$address",
+                "Bus": "$bus",
+                "Name": "Solum 2100W PSU FRU",
+                "Type": "EEPROM"
+            },
+            {
+                "Class": "fan",
+                "FFGainCoefficient": 1.0,
+                "FFOffCoefficient": 0.0,
+                "ICoefficient": 0.0,
+                "ILimitMax": 0.0,
+                "ILimitMin": 0.0,
+                "Inputs": [
+                    "PSU$ADDRESS % 4 + 1 Fan Speed 1"
+                ],
+                "Name": "PSU$ADDRESS % 4 + 1 Fan 1",
+                "NegativeHysteresis": 2.0,
+                "OutLimitMax": 100.0,
+                "OutLimitMin": 30.0,
+                "Outputs": [
+                    "Pwm PSU$ADDRESS % 4 + 1 Fan 1"
+                ],
+                "PCoefficient": 0.0,
+                "PositiveHysteresis": 0.0,
+                "SlewNeg": 0.0,
+                "SlewPos": 0.0,
+                "Type": "Pid",
+                "Zones": [
+                    "PSU"
+                ]
+            },
+            {
+                "Class": "Floor",
+                "Inputs": [
+                    "PSU$ADDRESS % 4 + 1 Temperature"
+                ],
+                "Name": "PSU$ADDRESS % 4 + 1 LCC",
+                "NegativeHysteresis": 2,
+                "Output": [
+                    40.0,
+                    100.0
+                ],
+                "PositiveHysteresis": 0,
+                "Reading": [
+                    30.0,
+                    65.0
+                ],
+                "Type": "Stepwise",
+                "Zones": [
+                    "PSU"
+                ]
+            },
+            {
+                "Address": "$ADDRESS % 4 + 88",
+                "Bus": "$bus",
+                "Labels": [
+                    "pin",
+                    "pout1",
+                    "vin",
+                    "iin",
+                    "iout1",
+                    "temp1",
+                    "fan1"
+                ],
+                "Name": "PSU$ADDRESS % 4 + 1",
+                "Thresholds": [
+                    {
+                        "Direction": "greater than",
+                        "Label": "pin",
+                        "Name": "upper critical",
+                        "Severity": 1,
+                        "Value": 2769.2
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Label": "pin",
+                        "Name": "upper non critical",
+                        "Severity": 0,
+                        "Value": 2558.2
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Label": "iout1",
+                        "Name": "upper critical",
+                        "Severity": 1,
+                        "Value": 117
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Label": "iout1",
+                        "Name": "upper non critical",
+                        "Severity": 0,
+                        "Value": 100
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Label": "temp1",
+                        "Name": "upper critical",
+                        "Severity": 1,
+                        "Value": 65
+                    },
+                    {
+                        "Direction": "greater than",
+                        "Label": "temp1",
+                        "Name": "upper non critical",
+                        "Severity": 0,
+                        "Value": 60
+                    }
+                ],
+                "Type": "pmbus"
+            }
+        ],
+        "Name": "Solum 2100W PSU$ADDRESS % 4 + 1",
+        "Probe": "xyz.openbmc_project.FruDevice({'PRODUCT_PRODUCT_NAME': 'PSSF212201A'})",
+        "Type": "PowerSupply",
+        "xyz.openbmc_project.Inventory.Decorator.Asset": {
+            "Manufacturer": "$PRODUCT_MANUFACTURER",
+            "Model": "$PRODUCT_PRODUCT_NAME",
+            "PartNumber": "$PRODUCT_PART_NUMBER",
+            "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+        }
+    }
+]

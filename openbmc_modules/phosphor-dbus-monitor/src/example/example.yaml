@@ -1,0 +1,282 @@
+# Example PDM configuration file.
+
+- name: example path group
+  description: >
+    'A path group is a named collection of D-Bus object
+    paths and associated metadata.  These collections
+    serve only to be referenced by other configuration
+    directives.
+
+    The metadata element has different uses depending
+    on the referencing directive.
+
+    Within a single configuration file path group names
+    must be unique.  The same name can appear in multiple
+    configuration files; however, the referencing directive
+    will only search for the group in the same configuration
+    file.'
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst1
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst2
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst3
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+
+- name: example property group
+  description: >
+    'Like path groups, a property group is a named collection
+    of D-Bus property names and associated metadata.
+
+    Properties in a group must all have the same D-Bus type signature
+    and must be explicitly declared.'
+  class: group
+  group: property
+  type: uint32
+  members:
+    - interface: xyz.openbmc_project.Sensor.Value
+      meta: PROPERTY
+      property: ValueA
+    - interface: xyz.openbmc_project.Sensor.Value
+      meta: PROPERTY
+      property: ValueB
+
+- name: example property watch
+  description: >
+    'A property watch instructs PDM to maintain a cache of the state
+    of the specified properties on the specified D-Bus objects.
+
+    An optional set of filters can be applied to the specified properties,
+    where each property's cache is cleared when it fails to pass
+    any one filter. The property's cache is cleared so it will not have an
+    affect on any optional callback that may be triggered.
+
+    An optional callback can be triggered when property values change and
+    those values pass all filters that may be defined.'
+  class: watch
+  watch: property
+  paths: example path group
+  properties: example property group
+  callback: example count condition
+  filters:
+    - op: '>='
+      bound: 0
+    - op: '<='
+      bound: 100
+
+- name: example journal callback
+  description: >
+    'Callbacks are actions PDM should take when instructed to do so.
+
+    Some callback types refer to a group of paths and group of properties
+    in a similar fashion as the property watch directive.
+
+    The journal callback logs the specified message to the systemd journal
+    with the specified severity.
+
+    Additionally, the journal callback will add to the journal key value
+    pair metadata for each property in the specified property group with
+    the key being the property element metadata and the value being the
+    property value.'
+  class: callback
+  callback: journal
+  paths: example path group
+  properties: example property group
+  severity: INFO
+  message: Hello world from PDM!
+
+- name: example elog callback
+  description: >
+    'Callbacks are actions PDM should take when instructed to do so.
+
+    Some callback types refer to a group of paths and group of properties
+    in a similar fashion as the property watch directive.
+
+    The elog callback logs the elog and elog metadata.'
+  class: callback
+  callback: elog
+  paths: example path group
+  properties: example property group
+  error: xyz::openbmc_project::Common::Error::InvalidArgument
+  metadata:
+    - name: xyz::openbmc_project::Common::InvalidArgument::ARGUMENT_NAME
+      value: testing...
+      type: string
+    - name: xyz::openbmc_project::Common::InvalidArgument::ARGUMENT_VALUE
+      value: testing...
+      type: string
+
+- name: example elog with metadata capture callback
+  description: >
+    'Callbacks are actions pdm should take when instructed to do so.
+
+    This callback creates an elog, and it will capture the values of the
+    properties that passed its condition check in the metadata field
+    (that must be a string type) in the form:
+
+        |path1:property1=value1|path2:property2=value2|
+
+    Note that as this callback depends on the condition that called it to
+    fill in the result of its checks on each property, this callback should
+    use the same properties and paths keywords as the condition that calls it.
+
+    Currently an error log with only 1 metadata entry of type string is
+    supported.'
+
+  class: callback
+  callback: elog_with_metadata
+  paths: example path group
+  properties: example property group
+  error: xyz::openbmc_project::Common::Callout::Error::Inventory
+  metadata: xyz::openbmc_project::Common::Callout::Inventory::CALLOUT_INVENTORY_PATH
+
+- name: example event callback
+  description: >
+    'Callbacks are actions PDM should take when instructed to do so.
+
+    Some callback types refer to a group of paths and group of properties
+    in a similar fashion as the property watch directive.
+
+    The event callback creates the event D-Bus object with the given name
+    and the event message.
+    eg /xyz/openbmc_project/events/test/<id>'
+  class: callback
+  callback: event
+  paths: example path group
+  properties: example property group
+  eventName: test
+  eventMessage: "Test configuration changed."
+
+- name: example method callback
+  description: >
+    'The method callback invokes the specified D-Bus method.'
+  class: callback
+  callback: method
+  service: org.freedesktop.systemd1
+  path: /org/freedesktop/systemd1
+  interface: org.freedesktop.systemd1.Manager
+  method: StartUnit
+  args:
+    - value: foo.unit
+      type: string
+    - value: replace
+      type: string
+
+- name: example resolve callouts callback
+  description: >
+    'The resolve callout callback resolves all error log entries that
+    are associated with the inventory path specified by setting the
+    Resolved property in the entries to true.
+
+    A use case could be to watch the Present property on the inventory
+    item and resolve all errors for it when a new one is plugged in and
+    the property changes to true.'
+
+  class: callback
+  callback: resolve callout
+  paths: example path group
+  properties: example property group
+  callout: /xyz/openbmc_project/inventory/system/chassis/motherboard/fan0
+
+- name: example callback group
+  description: >
+    'Callbacks groups are simply named collections of other callbacks.
+    Configuration file directives can only refer to a single callback.
+    Through use of a group, these configuration file directives can
+    refer to more than one callback.
+
+    For example for a given event, one may wish to trace multiple
+    messages to the systemd journal.  The journal callback does not
+    support tracing multiple messages.  To do that, define a callback
+    group composed of multiple journal callbacks.'
+
+  class: callback
+  callback: group
+  members:
+    - example journal callback
+    - example deferred condition
+    - example elog callback
+
+- name: example count condition
+  description: >
+    'Conditions or conditional callbacks apply a test prior to invoking
+    the callback function.
+
+    All conditional callbacks must specify the callback to issue if
+    the condition evaluates.
+
+    The count condition applies the op comparison operator to the value of each
+    property in the specified groups.  It then counts the number of properties
+    that pass the comparison, and applies another comparison on the result
+    against the specified bound.
+
+    For example, a callback that requires at least three temperature sensors
+    in the group to be higher than 115 degrees might use a count condition
+    with an op of >, a count op of >=, a bound of 115, and a countbound of 3.
+
+    The optional oneshot parameter defaults to false.  If it is specified and
+    set to true, then the callback will only be called once for as long as the
+    condition is repeatedly passing.  The condition needs to fail at least
+    once to rearm the callback.'
+
+  class: condition
+  condition: count
+  paths: example path group
+  properties: example property group
+  callback: example callback group
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+  oneshot: true
+
+- name: example deferred condition
+  description: >
+    'Deferred conditions operate in the same fashion as conditional callbacks
+    with the added behavior that when the condition is tested and is met,
+    invocation of the callback is deferred by the interval specified.
+
+    When the configured time has elapsed, if the condition has not been reevaluated
+    the callback is invoked.
+
+    Any condition type can be deferred in this way by setting the defer attribute.'
+
+  class: condition
+  condition: count
+  paths: example path group
+  properties: example property group
+  defer: 1000us
+  callback: example callback group
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: errorlog path group
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/logging
+
+- name: pathwatch errorlog
+  description: >
+    'A pathwatch watches on the specified object path goup.
+    pathcallback are actions PDM should take when instructed to do so.'
+
+  class: pathwatch
+  pathwatch: path
+  paths: errorlog path group
+  pathcallback: create errorlog event
+
+- name: create errorlog event
+  description: >
+    'eventType specifies the type of the SNMP notification.'
+  class: pathcallback
+  pathcallback: eventpath
+  paths: errorlog path group
+  eventType: ErrorTrap

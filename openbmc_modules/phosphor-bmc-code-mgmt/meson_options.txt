@@ -1,0 +1,91 @@
+# Supported BMC layout types. Reference:
+# https://github.com/openbmc/docs/blob/master/code-update/flash-layout.md#supported-filesystem-choices
+# - static: NOR flash configured with fixed-sized MTD partitions.
+# - ubi: NOR flash device configured with UBI volumes.
+# - mmc: eMMC flash device configured with ext4 filesystems.
+option('bmc-layout', type: 'combo',
+    choices: ['static', 'ubi', 'mmc'],
+    value: 'static',
+    description: 'The BMC layout type.')
+
+# Features
+option('host-bios-upgrade', type: 'feature',
+    description: 'Enable host bios upgrade support.')
+
+option('sync-bmc-files', type: 'feature',
+    description: 'Enable sync of filesystem files.')
+
+option('tests', type: 'feature', description: 'Build tests')
+
+option('oe-sdk', type: 'feature', description: 'Enable OE SDK')
+
+option('verify-signature', type: 'feature',
+    description: 'Enable image signature validation.')
+
+# Variables
+option(
+    'active-bmc-max-allowed', type: 'integer',
+    value: 1,
+    description: 'The maximum allowed active BMC versions.',
+)
+
+option(
+    'hash-file-name', type: 'string',
+    value: 'hashfunc',
+    description: 'The name of the hash file.',
+)
+
+option(
+    'img-upload-dir', type: 'string',
+    value: '/tmp/images',
+    description: 'Directory where downloaded software images are placed.',
+)
+
+option(
+    'manifest-file-name', type: 'string',
+    value: 'MANIFEST',
+    description: 'The name of the MANIFEST file.',
+)
+
+option(
+    'media-dir', type: 'string',
+    value: '/run/media',
+    description: 'The base dir where all read-only partitions are mounted.',
+)
+
+option(
+    'optional-images', type: 'array',
+    choices: ['image-hostfw'],
+    value: [],
+    description: 'A list of additional image files in the BMC tarball.',
+)
+
+option(
+    'publickey-file-name', type: 'string',
+    value: 'publickey',
+    description: 'The name of the public key file.',
+)
+
+option(
+    'signature-file-ext', type: 'string',
+    value: '.sig',
+    description: 'The extension of the Signature file.',
+)
+
+option(
+    'signed-image-conf-path', type: 'string',
+    value: '/etc/activationdata/',
+    description: 'Path of public key and hash function files.',
+)
+
+option(
+    'sync-list-dir-path', type: 'string',
+    value: '/etc/',
+    description: 'The path to the sync list file directory.',
+)
+
+option(
+    'sync-list-file-name', type: 'string',
+    value: 'synclist',
+    description: 'The name of the sync list file.',
+)

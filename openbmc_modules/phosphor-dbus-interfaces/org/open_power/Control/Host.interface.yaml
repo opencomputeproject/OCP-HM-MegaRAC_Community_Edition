@@ -1,0 +1,55 @@
+description: >
+    Implement to provide host interface support.
+    This will define the interfaces using which, a OpenPower
+    machine can communicate with host on agreed commands.
+
+    This is for Internal use by the Firmware only. The D-Bus object
+    is visible for the REST but it must not be used.
+
+methods:
+    - name: Execute
+      description: >
+          Execute the requested command by the caller. This command will be
+          processed in first in first out order. See the Command enum
+          description below for details on all supported commands.
+      parameters:
+          - name: command
+            type: enum[self.Command]
+            description: Requested command to execute against the host
+          - name: data
+            type: variant[byte]
+            description: Data associated with the command.
+
+signals:
+    - name: CommandComplete
+      description: >
+        Signal indicating that a command has completed
+      properties:
+        - name: command
+          type: enum[self.Command]
+          description: Executed command
+        - name: result
+          type: enum[self.Result]
+          description: Result of the command execution
+
+enumerations:
+    - name: Command
+      description: >
+        The command to execute against the host
+      values:
+        - name: OCCReset
+          description: >
+            Host firmware should reset the OCC. This is invoked by
+            OCC error monitor application on detecting the error.
+            Sensor ID of the failing OCC will be sent as data.
+            This command will return once the command has been placed
+            in command Queue.
+
+    - name: Result
+      description: >
+        The result of the command execution
+      values:
+        - name: Success
+          description: Command execution was a success
+        - name: Failure
+          description: Command execution was a failure

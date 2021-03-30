@@ -1,0 +1,128 @@
+description: >
+    Provides user management functionality.
+    As communication to this service is done through authenticated
+    & authorized session, there won't be any validation for both.
+
+methods:
+    - name: CreateUser
+      description: >
+          Creates a new user. If the user already exists, then it will throw
+          an error.
+      parameters:
+        - name: UserName
+          type: string
+          description: >
+              User name which has to be created.
+        - name: GroupNames
+          type: array[string]
+          description: >
+              List of groups to which the user has to be added.
+        - name: Privilege
+          type: string
+          description: >
+              Privilege of the user to be added.
+        - name: Enabled
+          type: boolean
+          description: >
+              User enabled / disabled.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InsufficientPermission
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.User.Common.Error.UserNameExists
+        - xyz.openbmc_project.User.Common.Error.UserNameGroupFail
+        - xyz.openbmc_project.User.Common.Error.UserNamePrivFail
+        - xyz.openbmc_project.User.Common.Error.NoResource
+
+    - name: RenameUser
+      description: >
+          Rename's existing user to new one. All other properties of the
+          user will remain same.
+      parameters:
+        - name: UserName
+          type: string
+          description: >
+              User name which has to be updated.
+        - name: NewUserName
+          type: string
+          description: >
+              New User name to which user has to be updated.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InsufficientPermission
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.User.Common.Error.UserNameDoesNotExist
+        - xyz.openbmc_project.User.Common.Error.UserNameExists
+        - xyz.openbmc_project.User.Common.Error.UserNameGroupFail
+        - xyz.openbmc_project.User.Common.Error.UserNamePrivFail
+        - xyz.openbmc_project.User.Common.Error.NoResource
+
+    - name: GetUserInfo
+      description: >
+          Get user properites.
+          If its local user, method returns
+             -user privilege
+             -user groups
+             -user enabled state
+             -user locked state
+             -user password expired state
+             -remote user flag
+          If its ldap user, method returns
+             -user privilege
+             -remote user flag
+      parameters:
+        - name: UserName
+          type: string
+          description: >
+              User name whose properties have to be returned.
+      returns:
+        - name: UserInfo
+          type: dict[string,variant[string,array[string],boolean]]
+          description: >
+              Dictionary of user properties.
+              List of key name and data type of properties below.
+              UserPrivilege -> privilege of the user(string)
+              UserGroups    -> list of groups user belongs to(array[string])
+              UserEnabled   -> user enabled state(boolean)
+              UserLockedForFailedAttempt -> user locked state(boolean)
+              UserPasswordExpired -> user password expired(boolean)
+              RemoteUser    ->  remote or local user(boolean)
+
+              For detailed documentation of user properties refer
+              Attributes.interface.yaml
+              examples:
+                  1.UserInfo["RemoteUser"] returns true for ldap user
+                  and false for local user.
+                  2.UserInfo["UserGroups"] gets list of groups of user.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+        - xyz.openbmc_project.Common.Error.InsufficientPermission
+        - xyz.openbmc_project.Common.Error.InvalidArgument
+        - xyz.openbmc_project.User.Common.Error.UserNameDoesNotExist
+
+properties:
+    - name: AllPrivileges
+      type: array[string]
+      flags:
+          - const
+      description: >
+          Lists all available user privileges in the system.
+
+    - name: AllGroups
+      type: array[string]
+      flags:
+          - const
+      description: >
+          Lists all available groups in the system.
+
+signals:
+    - name: UserRenamed
+      description: >
+         Signal indicating user's name is updated.
+      properties:
+         - name: UserName
+           type: string
+           description: Name of the user which got renamed.
+         - name: NewUserName
+           type: string
+           description: New name of the user.

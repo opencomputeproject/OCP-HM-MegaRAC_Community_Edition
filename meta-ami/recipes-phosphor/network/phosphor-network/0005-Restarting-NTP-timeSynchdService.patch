@@ -1,0 +1,10 @@
+--- a/ethernet_interface.cpp	2020-05-20 17:33:59.599920988 +0530
++++ b/ethernet_interface.cpp	2020-05-20 17:35:55.940319427 +0530
+@@ -537,6 +537,7 @@
+     writeConfigurationFile();
+     // timesynchd reads the NTP server configuration from the
+     // network file.
++    manager.restartSystemdUnit(timeSynchdService);
+     manager.restartSystemdUnit(networkdService);
+     return ntpServers;
+ }

@@ -1,0 +1,44 @@
+<div role="dialog" class="uib-modal__content  remote-logging-server__modal">
+  <button type="button" class="btn  btn--close  float-right" ng-click="$close()">
+    <icon file="icon-close.svg"></icon>
+  </button>
+  <div class="modal-header">
+    <h2 class="modal-title" id="dialog_label">{{activeModalProps.title}}</h2>
+  </div>
+  <form name="form">
+    <div ng-if="activeModal !== 2" class="modal-body">
+      <label for="remoteServerIP">Hostname or IP Address</label>
+      <input id="remoteServerIP" type="text" required name="hostname"
+        ng-model="remoteServerForm.hostname" />
+      <div ng-if="form.hostname.$invalid && form.hostname.$dirty"
+        class="form__validation-message">
+        <span ng-show="form.hostname.$error.required">Field is required</span>
+      </div>
+      <label for="remoteServerPort">Port</label>
+      <p class="label__helper-text">Value must be between 0 – 65535</p>
+      <input id="remoteServerPort" type="number" required name="port"
+        min="0" max="65535" ng-model="remoteServerForm.port"/>
+      <div ng-if="form.port.$invalid && form.port.$dirty"
+        class="form__validation-message">
+        <span ng-show="form.port.$error.required">Field is required</span>
+        <span ng-show="form.port.$error.min || form.port.$error.max">
+          Value must be between 0 – 65535
+        </span>
+      </div>
+    </div>
+    <div ng-if="activeModal === 2" class="modal-body">
+      <p>Are you sure you want to remove remote logging server
+      {{remoteServer.hostname}}?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" ng-click="$close()" type="button">
+        Cancel
+      </button>
+      <button class="btn btn-primary" type="submit"
+        ng-click="$close(activeModal)" ng-disabled="form.$invalid"
+        ng-class="{'disabled': form.$invalid}">
+        {{activeModalProps.actionLabel}}
+      </button>
+    </div>
+  </form>
+</div>

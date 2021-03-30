@@ -1,0 +1,69 @@
+diff -Naur a/app/common/directives/app-navigation.html b/app/common/directives/app-navigation.html
+--- a/app/common/directives/app-navigation.html	2020-09-22 13:12:31.744077562 -0400
++++ b/app/common/directives/app-navigation.html	2020-09-22 13:15:40.881260928 -0400
+@@ -55,6 +55,11 @@
+             <span>Reboot BMC</span>
+           </a>
+         </li>
++	<li ng-class="{'active': (path == '/server-control/reset')}">
++          <a href="#/server-control/reset" tabindex="{{(showControlMenu) ? 0 : -1}}">
++            <span>Restore Factory Default</span>
++          </a>
++        </li>
+         <li ng-class="{'active': (path == '/server-control/remote-console')}">
+           <a href="#/server-control/remote-console" tabindex="{{(showControlMenu) ? 0 : -1}}">
+             <span>Serial over LAN console</span>
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-09-22 13:12:31.744077562 -0400
++++ b/app/common/services/api-utils.js	2020-09-22 13:16:25.360573602 -0400
+@@ -1943,6 +1943,24 @@
+                   });
+           return deferred.promise;
+         },
++	resetDefaultNetwork: function() {
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + 
++                '/xyz/openbmc_project/network/action/Reset',
++            withCredentials: true,
++            data: JSON.stringify({'data': []})
++          })
++        },
++	resetDefaultBMC: function() {
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + 
++                '/xyz/openbmc_project/software/action/Reset',
++            withCredentials: true,
++            data: JSON.stringify({'data': []})
++          })
++        }
+       };
+       return SERVICE;
+     }
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2020-09-22 13:12:31.748077504 -0400
++++ b/app/index.js	2020-09-22 13:16:53.244138660 -0400
+@@ -86,6 +86,7 @@
+ 
+ import server_control_index from './server-control/index.js';
+ import bmc_reboot_controller from './server-control/controllers/bmc-reboot-controller.js';
++import restore_default_controller from './server-control/controllers/restore-default-controller.js';
+ import power_operations_controller from './server-control/controllers/power-operations-controller.js';
+ import power_usage_controller from './server-control/controllers/power-usage-controller.js';
+ import remote_console_window_controller from './server-control/controllers/remote-console-window-controller.js';
+diff -Naur a/app/server-control/index.js b/app/server-control/index.js
+--- a/app/server-control/index.js	2020-09-22 13:12:31.748077504 -0400
++++ b/app/server-control/index.js	2020-09-22 13:16:42.316309476 -0400
+@@ -68,6 +68,11 @@
+                     require('./controllers/power-operations-controller.html'),
+                 'controller': 'powerOperationsController',
+                 authenticated: true
++              })
++              .when('/server-control/reset',{
++                'template': require('./controllers/restore-default-controller.html'),
++                'controller': 'restoreDefaultController',
++                authenticated: true
+               });
+         }
+       ]);

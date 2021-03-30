@@ -1,0 +1,140 @@
+description: >
+    The sample events below serve to illustrate PIM features
+    and are also used by the PIM test suite.
+
+events:
+    - name: setProperty + propertyChangedTo example
+      description: >
+          Sets the value of ExampleProperty1 on /changeme
+          when the value of ExampleProperty2 on
+          /testing/trigger2 changes to yyyxxx.
+      type: match
+      signatures:
+          - type: signal
+            interface: org.freedesktop.DBus.Properties
+            path: /testing/trigger2
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty2
+            value:
+              type: string
+              value: yyyxxx
+      actions:
+          - name: setProperty
+            interface: xyz.openbmc_project.Example.Iface1
+            property: ExampleProperty1
+            paths:
+                - /changeme
+            value:
+              type: string
+              value: changed
+
+    - name: createObjects + propertyChangedTo example
+      description: >
+          Create /createme1 and /createme2 when the value of
+          ExampleProperty2 on /testing/trigger5 changes to abc123.
+      type: match
+      signatures:
+          - type: signal
+            interface: org.freedesktop.DBus.Properties
+            path: /testing/trigger5
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty2
+            value:
+              type: string
+              value: abc123
+      actions:
+          - name: createObjects
+            objs:
+              /createme1:
+                xyz.openbmc_project.Example.Iface1:
+                  ExampleProperty1:
+                    value: foo
+                    type: string
+                xyz.openbmc_project.Example.Iface2:
+                  ExampleProperty2:
+                    value: bar
+                    type: string
+                  ExampleProperty3:
+                    value: 999
+                    type: int64
+              /createme2:
+                xyz.openbmc_project.Example.Iface1:
+                  ExampleProperty1:
+                    value: bar
+                    type: string
+                xyz.openbmc_project.Example.Iface2:
+                  ExampleProperty2:
+                    value: foo
+                    type: string
+                  ExampleProperty3:
+                    value: 888
+                    type: int64
+
+    - name: startup event example
+      description: >
+          Create /createme3 at startup if ExampleProperty1 on /changeme
+          equals changed.
+      type: startup
+      filters:
+          - name: propertyIs
+            path: /changeme
+            interface: xyz.openbmc_project.Example.Iface1
+            property: ExampleProperty1
+            value:
+                value: changed
+                type: string
+            dbusMember: "sdbusplus::xyz::openbmc_project::Example::\
+                server::Iface1"
+      actions:
+          - name: createObjects
+            objs:
+              /createme3:
+                xyz.openbmc_project.Example.Iface1:
+                  ExampleProperty1:
+                    value: foo
+                    type: string
+
+    - name: conditional setProperty example
+      description: >
+          Sets the ExampleProperty1 on the /changeme object when
+          the value of ExampleProperty3 on /testing/trigger7
+          changes to 10 and the value of the ExampleProperty3
+          value on /changeme is 22.
+      type: match
+      signatures:
+          - type: signal
+            path: /testing/trigger7
+            interface: org.freedesktop.DBus.Properties
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty3
+            value:
+              value: 10
+              type: int64
+      actions:
+          - name: setProperty
+            interface: xyz.openbmc_project.Example.Iface1
+            property: ExampleProperty1
+            paths:
+                - /changeme
+            value:
+              type: string
+              value: changed
+            conditions:
+              - name: propertyIs
+                interface: xyz.openbmc_project.Example.Iface2
+                property: ExampleProperty3
+                value:
+                  value: 22
+                  type: int64
+
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

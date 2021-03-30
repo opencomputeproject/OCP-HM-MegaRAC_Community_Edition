@@ -1,0 +1,48 @@
+description: >
+    Monitor Post code coming and buffer all of them based on boot cycle
+    into file system.
+
+properties:
+    - name: CurrentBootCycleCount
+      type: uint16
+      description: >
+          It is used to indicate number of boot cycles that have
+          post codes archived. It starts from 1 and is limited to
+          MaxBootCycleNum.
+    - name: MaxBootCycleNum
+      type: uint16
+      description: >
+          The max cached boot cycles for post code.
+          It is used to indicate end user what's the max boot number,
+          and make sure get command parameter less than it.
+methods:
+    - name: GetPostCodesWithTimeStamp
+      description: >
+          Method to get the cached post codes of the indicated boot cycle with timestamp.
+      parameters:
+        - name: Index
+          type: uint16
+          description: >
+              Index indicates which boot cycle of post codes is requested.
+              1 is for the most recent boot cycle. CurrentBootCycleCount is for the
+              oldest boot cycle.
+      returns:
+        - name: Codes
+          type: dict[uint64, uint64]
+          description: >
+            An array of post codes and timestamp in microseconds since epoch
+    - name: GetPostCodes
+      description: >
+          Method to get the cached post codes of the indicated boot cycle.
+      parameters:
+        - name: Index
+          type: uint16
+          description: >
+              Index indicates which boot cycle of post codes is requested.
+              1 is for the most recent boot cycle. CurrentBootCycleCount is for the
+              oldest boot cycle.
+      returns:
+        - name: Codes
+          type: array[uint64]
+          description: >
+            An array of post codes of one boot cycle.

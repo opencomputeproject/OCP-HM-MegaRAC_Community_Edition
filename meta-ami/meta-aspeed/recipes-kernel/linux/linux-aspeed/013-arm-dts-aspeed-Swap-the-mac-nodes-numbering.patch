@@ -1,0 +1,46 @@
+From 5062a1605ffb58125c4e22d507dd9eaa7407b28d Mon Sep 17 00:00:00 2001
+From: Tejas Patil <tejaspp@amiindia.co.in>
+Date: Fri, 26 Feb 2021 06:53:23 +0000
+Subject: [PATCH 14/14] arm-dts-aspeed-Swap-the-mac-nodes-numbering
+
+---
+ arch/arm/boot/dts/aspeed-g5.dtsi | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-g5.dtsi b/arch/arm/boot/dts/aspeed-g5.dtsi
+index 31261f6ce..08c58cbae 100644
+--- a/arch/arm/boot/dts/aspeed-g5.dtsi
++++ b/arch/arm/boot/dts/aspeed-g5.dtsi
+@@ -149,14 +149,6 @@
+ 			reg = <0x1e6c2000 0x80>;
+ 		};
+ 
+-		mac0: ethernet@1e660000 {
+-			compatible = "aspeed,ast2500-mac", "faraday,ftgmac100";
+-			reg = <0x1e660000 0x180>;
+-			interrupts = <2>;
+-			clocks = <&syscon ASPEED_CLK_GATE_MAC1CLK>;
+-			status = "disabled";
+-		};
+-
+ 		mac1: ethernet@1e680000 {
+ 			compatible = "aspeed,ast2500-mac", "faraday,ftgmac100";
+ 			reg = <0x1e680000 0x180>;
+@@ -165,6 +157,14 @@
+ 			status = "disabled";
+ 		};
+ 
++		mac0: ethernet@1e660000 {
++			compatible = "aspeed,ast2500-mac", "faraday,ftgmac100";
++			reg = <0x1e660000 0x180>;
++			interrupts = <2>;
++			clocks = <&syscon ASPEED_CLK_GATE_MAC1CLK>;
++			status = "disabled";
++		};
++
+ 		ehci0: usb@1e6a1000 {
+ 			compatible = "aspeed,ast2500-ehci", "generic-ehci";
+ 			reg = <0x1e6a1000 0x100>;
+-- 
+2.17.1
+

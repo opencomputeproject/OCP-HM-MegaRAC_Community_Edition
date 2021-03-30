@@ -1,0 +1,21 @@
+<!doctype html>
+<html ng-app="app" ng-csp lang="en">
+
+<head>
+    <meta http-equiv="Content-Security-Policy">
+    <meta charset="UTF-8">
+    <title>OpenBMC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <base href="/">
+</head>
+<body ng-style="dataService.bodyStyle" ng-attr-id="{{!dataService.showNavigation ? 'login': ''}}">
+
+    <app-header ng-if="dataService.showNavigation" path="dataService.path"></app-header>
+    <app-navigation ng-if="dataService.showNavigation" path="dataService.path" show-navigation="dataService.showNavigation"></app-navigation>
+    <toast ng-if="dataService.showNavigation"></toast>
+
+    <main ng-view ng-class="{'content__container': dataService.showNavigation, 'login__wrapper': !dataService.showNavigation}">
+    </main>
+</body>
+</html>

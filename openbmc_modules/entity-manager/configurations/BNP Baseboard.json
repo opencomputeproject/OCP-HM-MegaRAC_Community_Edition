@@ -1,0 +1,93 @@
+{
+    "Exposes": [
+        {
+            "Direction": "Input",
+            "Index": 32,
+            "Name": "Reset Button",
+            "Polarity": "Low",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Out",
+            "Index": 33,
+            "Name": "Reset Out",
+            "Polarity": "Low",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Both",
+            "Index": 34,
+            "Name": "Power Button",
+            "Polarity": "Low",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Both",
+            "Index": 35,
+            "Name": "Power Up",
+            "Polarity": "Low",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Input",
+            "Index": 219,
+            "Name": "Power Good",
+            "Polarity": "High",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Input",
+            "Index": 59,
+            "Name": "Node ID GPIO 0",
+            "Polarity": "High",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Input",
+            "Index": 60,
+            "Name": "Node ID GPIO 1",
+            "Polarity": "High",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Input",
+            "Index": 61,
+            "Name": "Node ID GPIO 2",
+            "Polarity": "High",
+            "Type": "Gpio"
+        },
+        {
+            "Direction": "Input",
+            "Index": 62,
+            "Name": "Node ID GPIO 3",
+            "Polarity": "High",
+            "Type": "Gpio"
+        },
+        {
+            "GpioPins": [
+                59,
+                60,
+                61,
+                62
+            ],
+            "Name": "Multi Node ID",
+            "Type": "MultiNodeID"
+        },
+        {
+            "Address": "0x18",
+            "Bus": 1,
+            "Name": "Multi Node Presence Detector",
+            "Type": "MultiNodePresence"
+        }
+    ],
+    "Name": "BNP Baseboard",
+    "Probe": "xyz.openbmc_project.FruDevice({'PRODUCT_PRODUCT_NAME': '.*BNP'})",
+    "ProductId": 124,
+    "Type": "Board",
+    "xyz.openbmc_project.Inventory.Decorator.Asset": {
+        "Manufacturer": "$PRODUCT_MANUFACTURER",
+        "Model": "$PRODUCT_PRODUCT_NAME",
+        "PartNumber": "$PRODUCT_PART_NUMBER",
+        "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+    }
+}

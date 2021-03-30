@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# config: 2 20
+# @brief: Get all the available elogs from BMC.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="elog"
+
+entries=$(busctl --list --no-pager tree \
+                 xyz.openbmc_project.Logging | grep \
+                 '/xyz/openbmc_project/logging/entry/')
+
+#check for elog entries.
+if [ -z "$entries" ]; then
+    log_info "No $desc entries"
+    exit 0
+fi
+
+command="busctl call --verbose --no-pager \
+                xyz.openbmc_project.Logging \
+                /xyz/openbmc_project/logging \
+                org.freedesktop.DBus.ObjectManager \
+                GetManagedObjects"
+
+file_name="elogall.log"
+
+add_cmd_output "$command" "$file_name" "$desc"

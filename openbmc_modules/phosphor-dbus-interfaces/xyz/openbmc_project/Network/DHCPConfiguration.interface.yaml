@@ -1,0 +1,24 @@
+description: >
+    This defines DHCP client configuration.
+properties:
+    - name: DNSEnabled
+      type: boolean
+      description: >
+          if true then the DNS servers received from the DHCP server
+          will be used and take precedence over any statically configured ones.
+    - name: NTPEnabled
+      type: boolean
+      description: >
+          if true then the NTP servers received from the DHCP server
+          will be used by systemd-timesyncd and take precedence over any
+          statically configured ones.
+    - name: HostNameEnabled
+      type: boolean
+      description: >
+          if true then the hostname received from the DHCP server
+          will be set as the transient hostname of the system.
+    - name: SendHostNameEnabled
+      type: boolean
+      description: >
+          if true then DHCP option 12 is enabled i.e machine`s hostname will be
+          sent to the DHCP server.

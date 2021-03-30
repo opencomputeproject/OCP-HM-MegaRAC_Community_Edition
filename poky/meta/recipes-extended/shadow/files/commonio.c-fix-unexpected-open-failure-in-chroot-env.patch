@@ -1,0 +1,49 @@
+From 66533c7c6f347d257020675a1ed6e0c59cbbc3f0 Mon Sep 17 00:00:00 2001
+From: Chen Qi <Qi.Chen@windriver.com>
+Date: Thu, 17 Jul 2014 15:53:34 +0800
+Subject: [PATCH] commonio.c-fix-unexpected-open-failure-in-chroot-env
+
+Upstream-Status: Inappropriate [OE specific]
+
+commonio.c: fix unexpected open failure in chroot environment
+
+When using commands with '-R <newroot>' option in our pseudo environment,
+we would usually get the 'Pemission Denied' error. This patch serves as
+a workaround to this problem.
+
+Note that this patch doesn't change the logic in the code, it just expands
+the codes.
+
+Signed-off-by: Chen Qi <Qi.Chen@windriver.com>
+
+---
+ lib/commonio.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/lib/commonio.c b/lib/commonio.c
+index 16fa7e7..d6bc297 100644
+--- a/lib/commonio.c
++++ b/lib/commonio.c
+@@ -632,10 +632,18 @@ int commonio_open (struct commonio_db *db, int mode)
+ 	db->cursor = NULL;
+ 	db->changed = false;
+ 
+-	fd = open (db->filename,
+-	             (db->readonly ? O_RDONLY : O_RDWR)
+-	           | O_NOCTTY | O_NONBLOCK | O_NOFOLLOW);
+-	saved_errno = errno;
++	if (db->readonly) {
++		fd = open (db->filename,
++			   (true ? O_RDONLY : O_RDWR)
++			   | O_NOCTTY | O_NONBLOCK | O_NOFOLLOW);
++		saved_errno = errno;
++	} else {
++		fd = open (db->filename,
++			   (false ? O_RDONLY : O_RDWR)
++			   | O_NOCTTY | O_NONBLOCK | O_NOFOLLOW);
++		saved_errno = errno;
++	}
++
+ 	db->fp = NULL;
+ 	if (fd >= 0) {
+ #ifdef WITH_TCB

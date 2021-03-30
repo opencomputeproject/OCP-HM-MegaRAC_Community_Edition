@@ -1,0 +1,98 @@
+description: >
+    This interface contains a Create method, which can be implemented
+    to allow creation of xyz.openbmc_project.Logging.Entry objects
+    directly over D-Bus, without needing the errors defined in
+    the *.Error/metadata.yaml files.
+
+methods:
+    - name: Create
+      description: >
+          Create a xyz.openbmc_project.Logging.Entry object.
+      parameters:
+        - name: Message
+          type: string
+          description: >
+            The Message property of the event entry.
+        - name: Severity
+          type: enum[xyz.openbmc_project.Logging.Entry.Level]
+          description: >
+            The Severity property of the event entry.
+        - name: AdditionalData
+          type: dict[string, string]
+          description: >
+            The AdditionalData property of the event entry.
+            e.g.:
+              {
+                "key1": "value1",
+                "key2": "value2"
+              }
+            ends up in AdditionaData like:
+              ["KEY1=value1", "KEY2=value2"]
+
+    - name: CreateWithFFDCFiles
+      description: >
+          Create an xyz.openbmc_project.Logging.Entry object and pass in an
+          array of file descriptors for files that contain FFDC (first failure
+          data capture) data which may be used by event log extensions that
+          support storing it with their event logs.  The other arguments are
+          the same as with Create().  The FFDC argument is ignored by the
+          base phosphor-logging event logs.
+
+          When the method call is complete the descriptors must be closed and
+          the files can be deleted if desired.
+      parameters:
+        - name: Message
+          type: string
+          description: >
+            The Message property of the event entry.
+        - name: Severity
+          type: enum[xyz.openbmc_project.Logging.Entry.Level]
+          description: >
+            The Severity property of the event entry.
+        - name: AdditionalData
+          type: dict[string, string]
+          description: >
+            The AdditionalData property of the event entry.
+            e.g.:
+              {
+                "key1": "value1",
+                "key2": "value2"
+              }
+            ends up in AdditionaData like:
+              ["KEY1=value1", "KEY2=value2"]
+        - name: FFDC
+          type: array[struct[enum[self.FFDCFormat], byte, byte, unixfd]]
+          description: >
+            File descriptors for any files containing FFDC, along with metadata
+            about the contents:
+
+              FFDCFormat- The format type of the contained data.
+              subType - The format subtype, used for the 'Custom' type.
+              version - The version of the data format, used for the 'Custom'
+                        type.
+              unixfd - The file descriptor to the data file.
+
+            e.g.:
+            [
+              {"xyz.openbmc_project.Logging.Create.FFDCFormat.JSON", 0, 0, 5},
+              {"xyz.openbmc_project.Logging.Create.FFDCFormat.Custom", 1, 2, 6}
+            ]
+
+
+enumerations:
+    - name: FFDCFormat
+      description: >
+        format types
+      values:
+        - name: JSON
+          description: >
+            Valid fully formed JSON, e.g. {"foo":"bar"}
+        - name: CBOR
+          description: >
+            Valid CBOR (Concise Binary Object Representation)
+        - name: Text
+          description: >
+            ASCII text
+        - name: Custom
+          description: >
+            Something other than the above formats

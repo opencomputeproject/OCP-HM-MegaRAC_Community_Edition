@@ -1,0 +1,180 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2020-08-10 13:21:43.444875502 +0530
++++ b/app/common/services/api-utils.js	2020-08-10 17:43:58.542095437 +0530
+@@ -1808,6 +1808,55 @@
+                 return response.data;
+               });
+         },
++        getNBDInstance: function() {
++          var deferred = $q.defer();
++          $http({
++            method: 'GET',
++            url: DataService.getHost() +
++                '/xyz/openbmc_project/VirtualMedia/Nbd/nbd0',
++            withCredentials: true
++          })
++              .then(
++                  function(response) {
++                    var json = JSON.stringify(response.data);
++                    var content = JSON.parse(json);
++                    deferred.resolve(content.data.Active);
++                  },
++                  function(error) {
++                    console.log(error);
++                    deferred.reject(error);
++                  });
++          return deferred.promise;
++        },
++        getEjectStatus: function() {
++          var deferred = $q.defer();
++          $http({
++            method: 'GET',
++            url: DataService.getHost() +
++                '/xyz/openbmc_project/VirtualMedia/Nbd/nbd0',
++            withCredentials: true
++          })
++              .then(
++                  function(response) {
++                    var json = JSON.stringify(response.data);
++                    var content = JSON.parse(json);
++                    deferred.resolve(content.data.Eject);
++                  },
++                  function(error) {
++                    console.log(error);
++                    deferred.reject(error);
++                  });
++          return deferred.promise;
++        },
++        setEjectStatus: function(instance) {
++          return $http({
++            method: 'PUT',
++            url: DataService.getHost() +
++                '/xyz/openbmc_project/VirtualMedia/Nbd/nbd0/attr/Eject',
++            withCredentials: true,
++            data: JSON.stringify({'data': instance})
++          })
++        },
+       };
+       return SERVICE;
+     }
+diff -Naur a/app/server-control/controllers/virtual-media-controller.html b/app/server-control/controllers/virtual-media-controller.html
+--- a/app/server-control/controllers/virtual-media-controller.html	2020-08-10 13:21:43.472875488 +0530
++++ b/app/server-control/controllers/virtual-media-controller.html	2020-08-10 17:37:04.019101151 +0530
+@@ -4,7 +4,7 @@
+   <p ng-if="devices.length < 1">
+     There are no Virtual Media devices available.
+   </primary>
+-  <div ng-repeat="device in devices track by $index" class="vm__upload">
++  <div ng-repeat="device in devices track by $index" class="vm__upload" id="VmWrap">
+     <h2 class="h3">{{device.deviceName}}</h2>
+     <div class="vm__upload-chooser">
+       <!-- name and error message -->
+@@ -12,7 +12,7 @@
+         <div class="vm__upload-controls">
+           <!-- Button -->
+           <label class="vm__upload-choose-label">
+-            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive"/>
++            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive" accept=".nrg,.iso,.img,.ima,.ISO,.NRG,.IMG,.IMA"/>
+             <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:device.isActive}">Choose file</span>
+           </label>
+           <div class="vm__upload-name">
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2020-08-10 13:21:43.472875488 +0530
++++ b/app/server-control/controllers/virtual-media-controller.js	2020-08-10 17:42:37.593430001 +0530
+@@ -30,21 +30,37 @@
+       $scope.devices.push(vmDevice);
+ 
+       $scope.startVM = function(index) {
+-        $scope.devices[index].isActive = true;
+-        var file = $scope.devices[index].file;
+-        var id = $scope.devices[index].id;
+-        var host = dataService.getHost().replace('https://', '');
+-        var token = $cookies.get('XSRF-TOKEN');
+-        var server =
+-            new NBDServer('wss://' + host + '/vm/0/' + id, token, file, id);
+-        $scope.devices[index].nbdServer = server;
+-        nbdServerService.addConnection(id, server, file);
+-        server.start();
++        APIUtils.getNBDInstance().then(
++          function(instance){
++            if(instance == false) {
++               $scope.devices[index].isActive = true;
++               var file = $scope.devices[index].file;
++               var id = $scope.devices[index].id;
++               var host = dataService.getHost().replace('https://', '');
++               var token = $cookies.get('XSRF-TOKEN');
++               var server =
++                   new NBDServer('wss://' + host + '/vm/0/' + id, token, file, id);
++               $scope.devices[index].nbdServer = server;
++               nbdServerService.addConnection(id, server, file);
++               server.start();
++            }
++            else {
++               window.alert('WARNING! Already Master Virtual Media Session is running.\n'
++               + 'Please try after some time.');
++               $scope.resetFile(index);
++            }
++          },
++          function(error) {
++            $log.error(JSON.stringify(error));
++            return $q.reject();
++          });
+       };
++
+       $scope.stopVM = function(index) {
+         $scope.devices[index].isActive = false;
+         var server = $scope.devices[index].nbdServer;
+         server.stop();
++	$scope.resetFile(index);
+       };
+ 
+       $scope.resetFile = function(index) {
+@@ -52,6 +68,24 @@
+         $scope.devices[index].file = '';
+       };
+ 
++      $scope.isEjected = function(index) {
++         APIUtils.getEjectStatus().then(
++           function(Status) {
++             if(Status == true) {
++                var file_name = document.getElementById('file-upload').value;
++                file_name = file_name.substring(file_name.lastIndexOf("\\")
++                                                + 1, file_name.length);
++                $scope.devices[index].isActive = false;
++                $scope.resetFile(index);
++                APIUtils.setEjectStatus(false).then(
++                  function(data) {
++                    toastService.error('Image' +
++                                       ' has been Ejected from Host Machine.');
++                  });
++             }
++           });
++      }
++
+       function findExistingConnection(vmDevice) {
+         // Checks with existing connections kept in nbdServerService for an open
+         // Websocket connection.
+@@ -122,7 +156,7 @@
+ 
+   this.stop = function() {
+     this.ws.close();
+-    this.state = NBD_STATE_UNKNOWN;
++//  this.state = NBD_STATE_UNKNOWN;
+   };
+ 
+   this._on_ws_error = function(ev) {
+@@ -130,6 +164,14 @@
+   };
+ 
+   this._on_ws_close = function(ev) {
++    /* Check if the user has directly ejected the
++    * image from the Host Machine.*/
++    var scope = angular.element(document.getElementById('VmWrap')).scope();
++    scope.$apply(function(){
++      scope.isEjected(0);
++    });
++    this.state = NBD_STATE_UNKNOWN;
++
+     console.log(
+         'vm/0/' + id + ' closed with code: ' + ev.code +
+         ' reason: ' + ev.reason);

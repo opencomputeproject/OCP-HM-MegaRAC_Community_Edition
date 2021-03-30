@@ -1,0 +1,74 @@
+<header id="header" class="header">
+  <!-- HEADER -->
+  <div class="header__info-section">
+    <span class="header__title">OpenBMC</span>
+    <div class="header__actions" uib-dropdown>
+      <button id="user-actions" type="button" uib-dropdown-toggle>
+        <icon class="icon-user" file="icon-avatar.svg"></icon>
+        {{username}}
+      </button>
+      <ul class="dropdown-menu" uib-dropdown-menu role="menu" aria-labelledby="user-actions">
+        <li role="menuitem"><a href="#/profile-settings" class="btn">Profile settings</a></li>
+        <li role="menuitem"><button ng-click="logout()" type="button" class="btn">Log out</button></li>
+      </ul>
+    </div>
+  </div>
+  <div class="header__functions-section">
+    <div class="logo__wrapper">
+      <img
+        src="../../assets/images/logo.svg"
+        class="header__logo"
+        alt="company logo"
+      />
+    </div>
+    <div class="inline header__server-name">
+      <p class="header__hostname">{{ dataService.hostname }}</p>
+      <p class="header__server-ip courier-bold">{{ dataService.server_id }}</p>
+    </div>
+    <div class="header__functions" ng-class="{'active' : toggle}">
+      <button
+        type="button"
+        class="header__action header__action--info"
+        ng-click="toggle = !toggle"
+      >
+        <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+      </button>
+      <a href="#/server-health/event-log" class="header__action">
+        Server health
+        <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+        <span>
+            <status-icon status="{{ dataService.server_health == 'Critical' ? 'error' :
+                                    dataService.server_health == 'Warning' ? 'warn' :
+                                    dataService.server_health == 'Good' ? 'on' : null }}">
+            </status-icon>
+          {{ dataService.server_health }}
+        </span>
+      </a>
+      <a href="#/server-control/power-operations" class="header__action">
+        Server power
+        <icon aria-hidden="true" file="icon-chevron-right.svg"></icon>
+        <span>
+          <status-icon status="{{ dataService.server_state == 'Quiesced' ? 'error' :
+                                  dataService.server_state == 'Running' ? 'on' :
+                                  dataService.server_state == 'Off' ? 'off' :
+                                  dataService.server_state == 'Unreachable' ? 'off' : null }}">
+          </status-icon>
+          {{ dataService.server_state | quiescedToError }}
+        </span>
+      </a>
+      <p class="header__refresh">
+        Data last refreshed<span>{{
+          dataService.last_updated | localeDate
+        }}</span>
+      </p>
+      <button
+        class="header__action header__action--refresh"
+        ng-click="refresh()"
+        aria-label="refresh page data"
+      >
+        <span>Refresh</span>
+        <icon file="icon-restart.svg"></icon>
+      </button>
+    </div>
+  </div>
+</header>

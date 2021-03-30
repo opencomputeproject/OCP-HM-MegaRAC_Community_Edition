@@ -1,0 +1,17 @@
+[Unit]
+Description=Console Client on %i
+Wants=dropbearkey.service
+After=dropbearkey.service
+
+[Service]
+# Unit defaults to a templated service
+Environment="DROPBEAR_RSAKEY_DIR=/etc/dropbear"
+EnvironmentFile=/etc/default/dropbear
+EnvironmentFile=-/etc/default/obmc-console-client
+ExecStart=/usr/sbin/dropbear -r ${DROPBEAR_RSAKEY_DIR}/dropbear_rsa_host_key -c "/usr/bin/obmc-console-client -c /etc/obmc-console/client.%i.conf" -p %i -F $DROPBEAR_EXTRA_ARGS
+SyslogIdentifier=console-client-%i
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+
+[Install]
+WantedBy=default.target

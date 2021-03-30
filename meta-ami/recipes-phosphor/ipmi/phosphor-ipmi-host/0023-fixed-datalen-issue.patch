@@ -1,0 +1,54 @@
+diff -Naur a/apphandler.cpp b/apphandler.cpp
+--- a/apphandler.cpp	2020-12-02 17:21:32.225451875 +0530
++++ b/apphandler.cpp	2020-12-02 18:04:17.439881099 +0530
+@@ -62,6 +62,8 @@
+ using BMC = sdbusplus::xyz::openbmc_project::State::server::BMC;
+ namespace fs = std::filesystem;
+ 
++#define WRMINLEN 4
++#define SYSTEMINFOLEN 2
+ #define MAXCH 15
+ #define KG 1
+ #define READ_KEY 0
+@@ -1469,7 +1471,7 @@
+ }
+ 
+ ipmi::RspType<> ipmiAppSetSystemInfo(uint8_t paramSelector, uint8_t data1,
+-                                     std::vector<uint8_t> configData)
++                                     std::vector<uint8_t> configData,ipmi::message::Payload& req)
+ {
+     if (paramSelector >= invalidParamSelectorStart &&
+         paramSelector <= invalidParamSelectorEnd)
+@@ -1480,6 +1482,10 @@
+     {
+         return ipmi::responseParmNotSupported();
+     }
++    if (req.size() != SYSTEMINFOLEN )
++    {
++        return ipmi::responseReqDataLenInvalid();
++    }
+ 
+     if (paramSelector == 0)
+     {
+@@ -1736,7 +1742,7 @@
+ ipmi::RspType<std::vector<uint8_t>>
+     ipmiMasterWriteRead(bool isPrivateBus, uint3_t busId, uint4_t channelNum,
+                         bool reserved, uint7_t slaveAddr, uint8_t readCount,
+-                        std::vector<uint8_t> writeData)
++                        std::vector<uint8_t> writeData,ipmi::message::Payload& req)
+ {
+     if (readCount > maxIPMIWriteReadSize)
+     {
+@@ -1749,6 +1755,12 @@
+         log<level::ERR>("Master write read command: Read & write count are 0");
+         return ipmi::responseInvalidFieldRequest();
+     }
++    syslog(LOG_WARNING,"#### data_len :%d \n",req.size());
++    if (req.size() < WRMINLEN )
++    {
++        return ipmi::responseReqDataLenInvalid();
++    }
++
+ #ifdef ENABLE_I2C_WHITELIST_CHECK
+     if (!isCmdWhitelisted(static_cast<uint8_t>(busId),
+                           static_cast<uint8_t>(slaveAddr), writeData))

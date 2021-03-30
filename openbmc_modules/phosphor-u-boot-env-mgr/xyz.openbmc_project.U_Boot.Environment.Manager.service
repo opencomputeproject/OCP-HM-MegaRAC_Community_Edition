@@ -1,0 +1,13 @@
+[Unit]
+Description=Phosphor U-Boot environment manager
+
+[Service]
+Restart=always
+RestartSec=2
+ExecStart=/usr/bin/phosphor-u-boot-env-mgr
+StartLimitInterval=0
+Type=dbus
+BusName=xyz.openbmc_project.U_Boot.Environment.Manager
+
+[Install]
+WantedBy=basic.target

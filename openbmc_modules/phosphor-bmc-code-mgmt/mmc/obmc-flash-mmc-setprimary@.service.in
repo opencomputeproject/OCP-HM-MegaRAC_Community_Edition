@@ -1,0 +1,7 @@
+[Unit]
+Description=Set %I as primary version
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/bin/obmc-flash-bmc mmc-setprimary %i

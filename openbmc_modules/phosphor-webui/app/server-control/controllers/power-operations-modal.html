@@ -1,0 +1,48 @@
+<!-- Shutdown and Reboot modal -->
+<div class="uib-modal__content">
+  <button
+    aria-label="Close"
+    type="button"
+    class="btn  btn--close  float-right"
+    ng-click="$dismiss()"
+  >
+    <icon file="icon-close.svg"></icon>
+  </button>
+  <div class="modal-header" id="modal-operation">
+    <h3>
+      <icon file="icon-warning.svg" aria-hidden="true"></icon>
+      {{
+        activeModal === 2 || activeModal === 3
+          ? "Server shutdown will cause outage"
+          : "Server reboot will cause outage"
+      }}
+    </h3>
+  </div>
+  <div class="modal-body">
+    <p ng-if="activeModal === 2 || activeModal === 3">
+      Are you sure you want to
+      {{ activeModal === 2 ? "orderly" : "immediate" }}
+      shutdown?
+    </p>
+    <p ng-if="activeModal === 0 || activeModal === 1">
+      Are you sure you want to
+      {{ activeModal === 0 ? "orderly" : "immediate" }}
+      reboot?
+    </p>
+  </div>
+  <div class="modal-footer">
+    <!-- Power operation confirm buttons -->
+    <button
+      type="submit"
+      class="btn btn-primary"
+      ng-click="$close(activeModal)"
+    >
+      <span ng-if="activeModal === 0 || activeModal === 1">Reboot</span>
+      <span ng-if="activeModal === 2 || activeModal === 3">Shutdown</span>
+    </button>
+    <!-- Cancel modal power confirmation -->
+    <button type="button" class="btn btn-secondary" ng-click="$dismiss()">
+      Cancel
+    </button>
+  </div>
+</div>

@@ -1,0 +1,104 @@
+{
+ "effecterPDRs": [
+   {
+    "pdrType" : 11,
+    "entries" : [{
+        "type" : 33,
+        "instance" : 0,
+        "container" : 0,
+        "effecters" : [{
+            "set" : {
+                "id" : 196,
+                "size" : 1,
+                "states" : [1,2]
+            },
+            "dbus" : {
+                "path": "/xyz/openbmc_project/state/host0",
+                "interface": "xyz.openbmc_project.State.OperatingSystem.Status",
+                "property_name": "OperatingSystemState",
+                "property_type": "string",
+                "property_values": [
+                         "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.Standby",
+                         "xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.BootComplete"
+                ]
+             }
+        }]
+    },
+    {
+       "type" : 45,
+       "instance" : 0,
+       "container" : 0,
+       "effecters" : [{
+           "set" : {
+               "id" : 260,
+               "size" : 2,
+               "states" : [9]
+           },
+           "dbus" : {
+                "path": "/xyz/openbmc_project/state/chassis0",
+                "interface": "xyz.openbmc_project.State.Chassis",
+                "property_name": "RequestedPowerTransition",
+                "property_type": "string",
+                "property_values":[
+                        "xyz.openbmc_project.State.Chassis.Transition.Off"
+  ]
+           }
+       }]
+    },
+    {
+        "type" : 31,
+        "instance" : 0,
+        "container" : 0,
+        "effecters" : [{
+            "set" : {
+                "id" : 129,
+                "size" : 1,
+                "states" : [6]
+            },
+            "dbus" : {
+                "path": "/xyz/openbmc_project/state/host0",
+                "interface": "xyz.openbmc_project.State.Host",
+                "property_name": "RequestedHostTransition",
+                "property_type": "string",
+                "property_values": [
+                        "xyz.openbmc_project.State.Host.Transition.ForceWarmReboot"
+                ]
+            }
+        }]
+     }]
+  },
+  {
+    "pdrType" : 9,
+    "entries" : [{
+        "type" : 193,
+        "instance" : 0,
+        "base_unit":72,
+        "rate_unit":0,
+        "effecter_resolutioninit":1,
+        "effecter_data_size":4,
+        "range_field_format":3,
+        "dbus" : {
+                "path": "/xyz/openbmc_project/state/host0",
+                "interface": "xyz.openbmc_project.Control.Boot.RebootAttempts",
+                "property_name": "AttemptsLeft",
+                "property_type": "uint32_t"
+        }
+    },
+    {
+      "type": 31,
+      "instance": 0,
+      "base_unit": 21,
+      "rate_unit": 3,
+      "effecter_resolution_init": 1,
+      "effecter_data_size": 4,
+      "range_field_format": 4,
+      "dbus" : {
+              "path":"/xyz/openbmc_project/state/scheduledHostTransition",
+              "interface":"xyz.openbmc_project.State.ScheduledHostTransition",
+              "property_name":"ScheduledTime",
+              "property_type":"uint64_t"
+      }
+    }]
+   }]
+}
+

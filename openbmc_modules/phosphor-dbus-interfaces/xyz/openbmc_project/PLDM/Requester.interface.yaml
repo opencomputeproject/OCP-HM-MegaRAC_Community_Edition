@@ -1,0 +1,51 @@
+description: >
+    Implement to provide features needed to build a PLDM Request message. This
+    API would be used by PLDM requester apps on the BMC.
+
+    Any OpenBMC implementation must provide exactly one implementation of
+    xyz.openbmc_project.PLDM.Requester on /xyz/openbmc_project/pldm.
+
+    PLDM stands for Platform Level Data Model. More information about PLDM (and
+    MCTP) can be found at https://www.dmtf.org/standards/pmci.
+
+methods:
+    - name: GetInstanceId
+      description: >
+          Obtain a new PLDM instance id, for the input MCTP EID, to be used in a
+          PLDM request message. Instance ids help distinguish PLDM response
+          messages when a PLDM requester sends out multiple request messages,
+          without waiting for a response message. Refer the PLDM specification
+          DSP0240 version 1.0.0. Also refer
+          https://github.com/openbmc/docs/blob/master/designs/pldm-stack.md#Requester.
+
+          The instance id starts at 0 and can go upto 31 (5 bits), for each MCTP
+          EID that a PLDM requester is communicating with. An implementation of
+          this API should track instance ids in terms of whether they're in use
+          (request message with that instance id has been sent out, and the
+          corresponding response message hasn't been received yet) or not, and
+          grant unused ids via this method. An implementation may also
+          optionally implement the instance id expiry, as per the spec DSP0240
+          v1.0.0. The spec recommends implementing the same.
+
+          If there's a call to this method when all 32 ids have already been
+          granted to the input eid, then the
+          xyz.openbmc_project.Common.Error.TooManyResources exception will be
+          thrown. The recommendation for the caller upon receiving this
+          exception is to retry calling this method, at least once, after a
+          time period equal to the maximum instance id expiration interval,
+          which is 6 seconds as per DSP0240 v1.0.0. If the exception persists
+          post this interval, the way of handling the same (further retries,
+          report an error, etc) is left to the user.
+      parameters:
+        - name: eid
+          type: byte
+          description: >
+            The MCTP endpoint, specified by 'eid' (endpoint id), for which the
+            new PLDM instance id needs to be generated.
+      returns:
+        - name: instanceid
+          type: byte
+          description: >
+            PLDM instance id.
+      errors:
+        - xyz.openbmc_project.Common.Error.TooManyResources

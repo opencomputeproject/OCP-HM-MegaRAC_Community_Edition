@@ -1,0 +1,488 @@
+# Test PDM configuration file.  This file validates that all
+# possible configuration file directives result in an application
+# that builds.  For an example with documentation please see
+# example.yaml
+
+- name: test path group
+  class: group
+  group: path
+  members:
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst1
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst2
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst3
+    - meta: PATH
+      path: /xyz/openbmc_project/testing/inst4
+
+- name: test byte property group
+  class: group
+  group: property
+  type: byte
+  members:
+    - interface: xyz.openbmc_project.byteIface
+      meta: PROPERTY
+      property: byteValue
+
+- name: test u16 property group
+  class: group
+  group: property
+  type: uint16
+  members:
+    - interface: xyz.openbmc_project.U16Iface
+      meta: PROPERTY
+      property: u16Value
+
+- name: test u32 property group
+  class: group
+  group: property
+  type: uint32
+  members:
+    - interface: xyz.openbmc_project.U32Iface
+      meta: PROPERTY
+      property: u32Value
+
+- name: test u64 property group
+  class: group
+  group: property
+  type: uint64
+  members:
+    - interface: xyz.openbmc_project.U64Iface
+      meta: PROPERTY
+      property: u64Value
+
+- name: test s16 property group
+  class: group
+  group: property
+  type: int16
+  members:
+    - interface: xyz.openbmc_project.S16Iface
+      meta: PROPERTY
+      property: s16Value
+
+- name: test s32 property group
+  class: group
+  group: property
+  type: int32
+  members:
+    - interface: xyz.openbmc_project.S32Iface
+      meta: PROPERTY
+      property: s32Value
+
+- name: test s64 property group
+  class: group
+  group: property
+  type: int64
+  members:
+    - interface: xyz.openbmc_project.S64Iface
+      meta: PROPERTY
+      property: s64Value
+
+- name: test string property group
+  class: group
+  group: property
+  type: string
+  members:
+    - interface: xyz.openbmc_project.StringIface
+      meta: PROPERTY
+      property: StringValue
+
+- name: test bool property group
+  class: group
+  group: property
+  type: boolean
+  members:
+    - interface: xyz.openbmc_project.BoolIface
+      meta: PROPERTY
+      property: BoolValue
+
+- name: test byte watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test byte property group
+
+- name: test u16 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test u16 property group
+
+- name: test u32 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test u32 property group
+
+- name: test u64 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test u64 property group
+
+- name: test s16 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test s16 property group
+
+- name: test s32 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test s32 property group
+
+- name: test s64 watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test s64 property group
+
+- name: test bool watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test bool property group
+
+- name: test string watch
+  class: watch
+  watch: property
+  paths: test path group
+  properties: test string property group
+
+- name: test byte journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test byte property group
+  severity: DEBUG
+  message: Testing...
+
+- name: test u16 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test u16 property group
+  severity: INFO
+  message: Testing...
+
+- name: test u32 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test u32 property group
+  severity: NOTICE
+  message: Testing...
+
+- name: test u64 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test u64 property group
+  severity: WARNING
+  message: Testing...
+
+- name: test s16 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test s16 property group
+  severity: ERR
+  message: Testing...
+
+- name: test s32 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test s32 property group
+  severity: CRIT
+  message: Testing...
+
+- name: test s64 journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test s64 property group
+  severity: ALERT
+  message: Testing...
+
+- name: test bool journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test bool property group
+  severity: EMERG
+  message: Testing...
+
+- name: test string journal
+  class: callback
+  callback: journal
+  paths: test path group
+  properties: test string property group
+  severity: INFO
+  message: Testing...
+
+- name: test string elog
+  class: callback
+  callback: elog
+  paths: test path group
+  properties: test string property group
+  error: xyz::openbmc_project::Common::Error::InvalidArgument
+  metadata:
+    - name: xyz::openbmc_project::Common::InvalidArgument::ARGUMENT_NAME
+      value: testing...
+      type: string
+    - name: xyz::openbmc_project::Common::InvalidArgument::ARGUMENT_VALUE
+      value: testing...
+      type: string
+
+- name: test int32 elog
+  class: callback
+  callback: elog
+  paths: test path group
+  properties: test string property group
+  error: xyz::openbmc_project::Common::Callout::Error::Device
+  metadata:
+    - name: xyz::openbmc_project::Common::Callout::Device::CALLOUT_ERRNO
+      value: 123
+      type: int32
+    - name: xyz::openbmc_project::Common::Callout::Device::CALLOUT_DEVICE_PATH
+      value: testing...
+      type: string
+
+- name: test int64 elog
+  class: callback
+  callback: elog
+  paths: test path group
+  properties: test string property group
+  error: xyz::openbmc_project::Common::File::Error::Seek
+  metadata:
+    - name: xyz::openbmc_project::Common::File::Seek::OFFSET
+      value: 123
+      type: int64
+    - name: xyz::openbmc_project::Common::File::Seek::WHENCE
+      value: 123
+      type: int32
+    - name: xyz::openbmc_project::Common::File::Seek::ERRNO
+      value: 123
+      type: int32
+    - name: xyz::openbmc_project::Common::File::Seek::PATH
+      value: testing...
+      type: string
+
+- name: test no metadata elog
+  class: callback
+  callback: elog
+  paths: test path group
+  properties: test string property group
+  error: xyz::openbmc_project::Common::Error::InternalFailure
+
+- name: test elog that captures the passing string metadata
+  class: callback
+  callback: elog_with_metadata
+  paths: test path group
+  properties: test string property group
+  error: xyz::openbmc_project::Common::Callout::Error::Inventory
+  metadata: xyz::openbmc_project::Common::Callout::Inventory::CALLOUT_INVENTORY_PATH
+
+- name: test elog that captures the passing int64_t metadata
+  class: callback
+  callback: elog_with_metadata
+  paths: test path group
+  properties: test s64 property group
+  error: xyz::openbmc_project::Common::Callout::Error::Inventory
+  metadata: xyz::openbmc_project::Common::Callout::Inventory::CALLOUT_INVENTORY_PATH
+
+- name: test method
+  class: callback
+  callback: method
+  service: org.test
+  path: /test
+  interface: org.test
+  method: Test
+  args:
+    - value: 123
+      type: string
+    - value: false
+      type: boolean
+    - value: true
+      type: boolean
+    - value: 123
+      type: byte
+    - value: 123
+      type: uint16
+    - value: 123
+      type: uint32
+    - value: 123
+      type: uint64
+    - value: 123
+      type: int16
+    - value: 123
+      type: int32
+    - value: 123
+      type: int64
+
+- name: test count lt
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  callback: test method
+  countop: '<'
+  countbound: 3
+  op: '<'
+  bound: 115
+  oneshot: true
+
+- name: test count lte
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  callback: test method
+  defer: 1000us
+  countop: '<='
+  countbound: 3
+  op: '<='
+  bound: 115
+  oneshot: false
+
+- name: test count gt
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  defer: 1000us
+  callback: test method
+  countop: '>'
+  countbound: 3
+  op: '>'
+  bound: 115
+
+- name: test count gte
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  defer: 1000us
+  callback: test method
+  countop: '>='
+  countbound: 3
+  op: '>='
+  bound: 115
+
+- name: test count eq
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count neq
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test byte property group
+  defer: 1000us
+  callback: test method
+  countop: '!='
+  countbound: 3
+  op: '!='
+  bound: 115
+
+- name: test count u16
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test u16 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count u32
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test u32 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count u64
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test u64 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count s16
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test s16 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count s32
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test s32 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count s64
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test s64 property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: 115
+
+- name: test count bool
+  class: condition
+  condition: count
+  paths: test path group
+  properties: test bool property group
+  defer: 1000us
+  callback: test method
+  countop: '=='
+  countbound: 3
+  op: '=='
+  bound: false
+
+- name: test resolve errors
+  class: callback
+  callback: resolve callout
+  paths: test path group
+  properties: test byte property group
+  callout: /test/inventory/path

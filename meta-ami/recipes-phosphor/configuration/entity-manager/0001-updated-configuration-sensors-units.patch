@@ -1,0 +1,637 @@
+--- a/configurations/AHW1UM2RISER.json	2020-08-10 10:02:19.616447867 +0530
++++ b/configurations/AHW1UM2RISER.json	2020-08-10 10:03:41.506380581 +0530
+@@ -50,6 +50,7 @@
+                 "Address": "0x4e",
+                 "Bus": "$bus",
+                 "Name": "Riser 1 Temp",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+                 "Thresholds": [
+                     {
+                         "Direction": "greater than",
+@@ -152,4 +153,4 @@
+             "SerialNumber": "$BOARD_SERIAL_NUMBER"
+         }
+     }
+-]
+\ No newline at end of file
++]
+--- a/configurations/FBTP.json	2020-08-10 10:02:19.620447967 +0530
++++ b/configurations/FBTP.json	2020-08-11 11:30:27.933379832 +0530
+@@ -802,6 +802,7 @@
+             "CpuID": 1,
+             "DtsCritOffset": -2.0,
+             "Name": "CPU 1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -826,6 +827,7 @@
+             "CpuID": 2,
+             "DtsCritOffset": -2.0,
+             "Name": "CPU 2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1577,4 +1579,4 @@
+         "PartNumber": "$PRODUCT_PART_NUMBER",
+         "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+     }
+-}
+\ No newline at end of file
++}
+--- "a/configurations/STP Baseboard.json"	2020-08-10 10:02:19.620447967 +0530
++++ "b/configurations/STP Baseboard.json"	2020-08-11 11:33:22.427876885 +0530
+@@ -603,6 +603,7 @@
+             "Address": "0x4C",
+             "Bus": 6,
+             "Name": "BMC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Name1": "TMP421 Internal Temp",
+             "Thresholds": [
+                 {
+@@ -796,6 +797,7 @@
+             "Address": "0x30",
+             "CpuID": 1,
+             "Name": "CPU 1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -818,6 +820,7 @@
+             "Address": "0x31",
+             "CpuID": 2,
+             "Name": "CPU 2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -847,4 +850,4 @@
+         "PartNumber": "$PRODUCT_PART_NUMBER",
+         "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+     }
+-}
+\ No newline at end of file
++}
+--- "a/configurations/Intel Front Panel.json"	2020-08-10 10:02:19.620447967 +0530
++++ "b/configurations/Intel Front Panel.json"	2020-08-10 10:15:59.561843355 +0530
+@@ -10,6 +10,7 @@
+             "Address": "0x4D",
+             "Bus": "$bus",
+             "Name": "Front Panel Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -53,4 +54,4 @@
+         "SerialNumber": "$BOARD_SERIAL_NUMBER"
+     },
+     "xyz.openbmc_project.Inventory.Item.Panel": {}
+-}
+\ No newline at end of file
++}
+--- "a/configurations/Flextronics S-1100ADU00-201 PSU.json"	2020-08-10 10:02:19.620447967 +0530
++++ "b/configurations/Flextronics S-1100ADU00-201 PSU.json"	2020-08-10 10:10:11.469402988 +0530
+@@ -5,6 +5,7 @@
+                 "Address": "$address",
+                 "Bus": "$bus",
+                 "Name": "PSU $ADDRESS % 4 + 1 FRU",
++		"EvStat": 1,
+                 "Type": "EEPROM"
+             },
+             {
+@@ -18,6 +19,8 @@
+                     "PSU$ADDRESS % 4 + 1 Fan Speed 1"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1 Fan 1",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++		"EvStat": 162,
+                 "NegativeHysteresis": 2.0,
+                 "OutLimitMax": 100.0,
+                 "OutLimitMin": 30.0,
+@@ -44,6 +47,8 @@
+                     "PSU$ADDRESS % 4 + 1 Temperature"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1 Temperature",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++		"EvStat": 162,
+                 "NegativeHysteresis": 5.0,
+                 "OutLimitMax": 100,
+                 "OutLimitMin": 30,
+@@ -64,6 +69,7 @@
+                     "PSU$ADDRESS % 4 + 1 Temperature"
+                 ],
+                 "Name": "PSU $ADDRESS % 4 + 1 LCC",
++		"EvStat": 162,
+                 "NegativeHysteresis": 2,
+                 "Output": [
+                     40.0,
+@@ -92,6 +98,7 @@
+                     "fan1"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1",
++		"EvStat": 162,
+                 "Thresholds": [
+                     {
+                         "Direction": "greater than",
+@@ -149,4 +156,4 @@
+             "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+         }
+     }
+-]
+\ No newline at end of file
++]
+--- "a/configurations/R1000 Chassis.json"	2020-08-10 10:02:19.620447967 +0530
++++ "b/configurations/R1000 Chassis.json"	2020-08-10 10:26:59.351034524 +0530
+@@ -4,6 +4,8 @@
+             "BindConnector": "1U System Fan connector 1",
+             "Index": 0,
+             "Name": "Fan 1a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -24,6 +26,8 @@
+             "BindConnector": "1U System Fan connector 1",
+             "Index": 1,
+             "Name": "Fan 1b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -44,6 +48,8 @@
+             "BindConnector": "1U System Fan connector 2",
+             "Index": 2,
+             "Name": "Fan 2a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -64,6 +70,8 @@
+             "BindConnector": "1U System Fan connector 2",
+             "Index": 3,
+             "Name": "Fan 2b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -84,6 +92,8 @@
+             "BindConnector": "1U System Fan connector 3",
+             "Index": 4,
+             "Name": "Fan 3a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -104,6 +114,8 @@
+             "BindConnector": "1U System Fan connector 3",
+             "Index": 5,
+             "Name": "Fan 3b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -124,6 +136,8 @@
+             "BindConnector": "1U System Fan connector 4",
+             "Index": 6,
+             "Name": "Fan 4a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -144,6 +158,8 @@
+             "BindConnector": "1U System Fan connector 4",
+             "Index": 7,
+             "Name": "Fan 4b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -164,6 +180,8 @@
+             "BindConnector": "1U System Fan connector 5",
+             "Index": 8,
+             "Name": "Fan 5a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -184,6 +202,8 @@
+             "BindConnector": "1U System Fan connector 5",
+             "Index": 9,
+             "Name": "Fan 5b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -204,6 +224,8 @@
+             "BindConnector": "1U System Fan connector 6",
+             "Index": 10,
+             "Name": "Fan 6a",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -224,6 +246,8 @@
+             "BindConnector": "1U System Fan connector 6",
+             "Index": 11,
+             "Name": "Fan 6b",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++	     "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -245,8 +269,10 @@
+             "C2": 42,
+             "MaxCFM": 17.5,
+             "Name": "System Airflow",
++	     "Unit": "",
+             "TachMaxPercent": 100,
+             "TachMinPercent": 20,
++	     "EvStat": 231,
+             "Tachs": [
+                 "Fan 1a",
+                 "Fan 1b",
+@@ -267,6 +293,8 @@
+             "AlphaF": 4.352,
+             "AlphaS": 0.512,
+             "Name": "Exit Air Temp",
++	     "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	     "EvStat": 231,
+             "PowerFactorMax": 1.0,
+             "PowerFactorMin": 0.4,
+             "QMax": 88,
+@@ -628,4 +656,4 @@
+         "AssetTag": "$PRODUCT_ASSET_TAG"
+     },
+     "xyz.openbmc_project.Inventory.Item.System": {}
+-}
+\ No newline at end of file
++}
+--- "a/configurations/1Ux16 Riser.json"	2020-08-10 09:48:17.028462467 +0530
++++ "b/configurations/1Ux16 Riser.json"	2020-08-10 09:51:33.889276171 +0530
+@@ -50,6 +50,7 @@
+                 "Address": "0x48",
+                 "Bus": "$bus",
+                 "Name": "Riser 1 Temp",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+                 "Thresholds": [
+                     {
+                         "Direction": "greater than",
+@@ -152,4 +153,4 @@
+             "SerialNumber": "$BOARD_SERIAL_NUMBER"
+         }
+     }
+-]
+\ No newline at end of file
++]
+--- "a/configurations/2Ux8 Riser.json"	2020-08-10 09:48:17.028462467 +0530
++++ "b/configurations/2Ux8 Riser.json"	2020-08-10 09:52:42.121661872 +0530
+@@ -50,6 +50,7 @@
+                 "Address": "0x48",
+                 "Bus": "$bus",
+                 "Name": "Riser 1 Temp",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+                 "Thresholds": [
+                     {
+                         "Direction": "greater than",
+@@ -152,4 +153,4 @@
+             "SerialNumber": "$BOARD_SERIAL_NUMBER"
+         }
+     }
+-]
+\ No newline at end of file
++]
+--- "a/configurations/WFT Baseboard.json"	2020-08-10 10:02:19.620447967 +0530
++++ "b/configurations/WFT Baseboard.json"	2020-08-11 11:25:22.468712768 +0530
+@@ -3,8 +3,10 @@
+         {
+             "Index": 0,
+             "Name": "Baseboard 12Volt",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
+             "ScaleFactor": 0.1124,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -36,6 +38,8 @@
+         {
+             "Index": 4,
+             "Name": "P0V83_LAN_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -67,6 +71,8 @@
+         {
+             "Index": 3,
+             "Name": "P105_PCH_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -98,7 +104,9 @@
+         {
+             "Index": 5,
+             "Name": "P12V_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "ScaleFactor": 0.1124,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -130,7 +138,9 @@
+         {
+             "Index": 6,
+             "Name": "P1V8_PCH",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "ScaleFactor": 0.7505,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -162,8 +172,10 @@
+         {
+             "Index": 1,
+             "Name": "P3V3",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
+             "ScaleFactor": 0.4107,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -201,7 +213,9 @@
+             ],
+             "Index": 7,
+             "Name": "P3VBAT",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "ScaleFactor": 0.3333,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -234,8 +248,10 @@
+             "CPURequired": 1,
+             "Index": 8,
+             "Name": "PVCCIN_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
+             "ScaleFactor": 0.7505,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -268,8 +284,10 @@
+             "CPURequired": 2,
+             "Index": 9,
+             "Name": "PVCCIN_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
+             "ScaleFactor": 0.7505,
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -302,7 +320,9 @@
+             "CPURequired": 1,
+             "Index": 14,
+             "Name": "PVCCIO_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -335,6 +355,8 @@
+             "CPURequired": 2,
+             "Index": 15,
+             "Name": "PVCCIO_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++	    "EvStat": 231,
+             "PowerState": "On",
+             "Thresholds": [
+                 {
+@@ -368,7 +390,9 @@
+             "CPURequired": 1,
+             "Index": 10,
+             "Name": "PVDQ_ABC_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -401,7 +425,9 @@
+             "CPURequired": 2,
+             "Index": 12,
+             "Name": "PVDQ_ABC_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -434,7 +460,9 @@
+             "CPURequired": 1,
+             "Index": 11,
+             "Name": "PVDQ_DEF_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -467,7 +495,9 @@
+             "CPURequired": 2,
+             "Index": 13,
+             "Name": "PVDQ_DEF_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+             "PowerState": "On",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -499,6 +529,8 @@
+         {
+             "Index": 2,
+             "Name": "PVNN_PCH_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -671,7 +703,9 @@
+             "Address": "0x8",
+             "Class": "METemp",
+             "Name": "SSB Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "PowerState": "BiosPost",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -704,6 +738,8 @@
+             "Address": "0x7c",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU1 P12V PVCCIO VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -736,6 +772,8 @@
+             "Address": "0x70",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU1 P12V PVCCIN VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -768,6 +806,8 @@
+             "Address": "0x74",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU1 VR Mem ABC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -800,6 +840,8 @@
+             "Address": "0x78",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU1 VR Mem DEF Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -832,6 +874,8 @@
+             "Address": "0x9c",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU2 P12V PVCCIO VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -864,6 +908,8 @@
+             "Address": "0x50",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU2 P12V PVCCIN VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -896,6 +942,8 @@
+             "Address": "0x94",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU2 VR Mem ABC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -928,6 +976,8 @@
+             "Address": "0x98",
+             "Class": "PxeBridgeTemp",
+             "Name": "CPU2 VR Mem DEF Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -960,6 +1010,8 @@
+             "Address": "0xAC",
+             "Class": "PxeBridgeTemp",
+             "Name": "VR P1V05 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1412,6 +1464,8 @@
+             "Bus": 6,
+             "Name": "Right Rear Board Temp",
+             "Name1": "Right Rear TMP421 Internal Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1444,6 +1498,8 @@
+             "Address": "0x4A",
+             "Bus": 6,
+             "Name": "BMC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1476,6 +1532,8 @@
+             "Address": "0x49",
+             "Bus": 6,
+             "Name": "Left Rear Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1508,6 +1566,8 @@
+             "Address": "0x48",
+             "Bus": 6,
+             "Name": "VR 1 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1540,6 +1600,8 @@
+             "Address": "0x4B",
+             "Bus": 6,
+             "Name": "VR 2 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1611,4 +1673,4 @@
+         "ProductId": 123
+     },
+     "xyz.openbmc_project.Inventory.Item.System": {}
+-}
+\ No newline at end of file
++}
+--- "a/configurations/WFT Baseboard.json"	2020-08-11 12:00:26.045693825 +0530
++++ "b/configurations/WFT Baseboard.json"	2020-08-11 12:18:51.842780687 +0530
+@@ -1635,6 +1635,7 @@
+             "Bus": 0,
+             "CpuID": 1,
+             "Name": "CPU 1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "PresenceGpio": [
+                 {
+                     "Name": "CPU1_PRESENCE",
+@@ -1648,6 +1649,7 @@
+             "Bus": 0,
+             "CpuID": 2,
+             "Name": "CPU 2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+             "PresenceGpio": [
+                 {
+                     "Name": "CPU2_PRESENCE",

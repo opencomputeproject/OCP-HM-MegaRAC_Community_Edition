@@ -1,0 +1,7 @@
+[Unit]
+Description=Copy uboot from the currently booted bmc chip to the alternate chip
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/bin/obmc-flash-bmc mirroruboot

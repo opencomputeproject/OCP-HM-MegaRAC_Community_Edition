@@ -1,0 +1,22 @@
+bin_PROGRAMS = kcsbridged
+
+kcsbridged_SOURCES = kcsbridged.cpp
+kcsbridged_LDFLAGS = \
+	$(SYSTEMD_LIBS) \
+	$(PHOSPHOR_LOGGING_LIBS)
+kcsbridged_CXXFLAGS = \
+	-flto \
+	-Wno-psabi \
+	$(SYSTEMD_CFLAGS) \
+	$(SDBUSPLUS_CFLAGS) \
+	$(PHOSPHOR_LOGGING_CFLAGS) \
+	-DBOOST_ERROR_CODE_HEADER_ONLY \
+	-DBOOST_SYSTEM_NO_DEPRECATED \
+	-DBOOST_COROUTINES_NO_DEPRECATION_WARNING \
+	-DBOOST_ASIO_DISABLE_THREADS \
+	-DBOOST_ALL_NO_LIB
+
+if HAVE_SYSTEMD
+SYSTEMD_UNIT = phosphor-ipmi-kcs@.service
+systemdsystemunit_DATA = $(SYSTEMD_UNIT)
+endif  # HAVE_SYSTEMD

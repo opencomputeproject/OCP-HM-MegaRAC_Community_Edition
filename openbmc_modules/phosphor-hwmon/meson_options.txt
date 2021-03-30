@@ -1,0 +1,21 @@
+option(
+    'busname-prefix',
+    description: 'The DBus busname prefix.',
+    type: 'string',
+    value: 'xyz.openbmc_project.Hwmon')
+option(
+    'negative-errno-on-fail',
+    description: 'Set sensor value to -errno on read failures.',
+    type: 'boolean')
+option(
+    'sensor-root',
+    description: 'The DBus sensors namespace root.',
+    type: 'string',
+    value: '/xyz/openbmc_project/sensors')
+option(
+    'tests', type: 'feature', description: 'Build tests.',
+)
+option(
+    'update-functional-on-fail',
+    description: 'Update functional property on read failures.  Incompatible with negative-errno-on-fail.',
+    type: 'boolean')

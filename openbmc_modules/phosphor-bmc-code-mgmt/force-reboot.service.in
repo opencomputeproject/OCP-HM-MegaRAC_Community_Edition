@@ -1,0 +1,9 @@
+[Unit]
+Description=Force reboot of the BMC
+Requires=reboot-guard-disable.service
+After=reboot-guard-disable.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/sbin/reboot

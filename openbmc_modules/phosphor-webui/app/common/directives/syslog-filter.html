@@ -1,0 +1,32 @@
+<section id="sys-log-filter" class="row column" aria-label="system log filtering">
+    <div class="inline sys-log__severity-filter">
+        <p class="filter-label">Filter by severity</p>
+        <button ng-repeat="severity in severityList" class="btn" ng-click="toggleSeverity(severity)"
+                ng-class="((selectedSeverityList.indexOf(severity) > -1) || ((severity == 'All') && (selectedSeverityList.length == 0))) ? 'btn-primary' : 'btn-secondary'">{{severity}}
+        </button>
+    </div>
+    <div class="inline sys-log__date-filter">
+        <p class="filter-label">Filter by date range</p>
+        <div class="inline">
+            <label for="sys-log-filter-start-date">Start Date</label>
+            <input id="sys-log-filter-start-date" type="date" max="{{end_date | date:'yyyy-MM-dd'}}" placeholder="MM/DD/YYYY" ng-model="start_date"/>
+        </div>
+        <strong>&ndash;</strong>
+        <div class="inline">
+            <label for="sys-log-filter-end-date">End Date</label>
+            <input id="sys-log-filter-end-date" type="date" min="{{start_date | date:'yyyy-MM-dd'}}" placeholder="MM/DD/YYYY" ng-model="end_date"/>
+        </div>
+    </div>
+    <div class="inline sys-log__status-filter">
+        <p class="filter-label">Filter by Type</p>
+        <!-- Type Filter-->
+        <div class="dropdown__wrapper">
+            <button type="button" class="dropdown__button" ng-click="typeFilter = !typeFilter">{{selectedType}}</button>
+            <ul class="dropdown__list inline" ng-show="typeFilter">
+              <li ng-repeat="typeName in filterTypes">
+                <button type="button" ng-click="selectType(typeName);">{{typeName}}</button>
+              </li>
+            </ul>
+        </div>
+    </div>
+</section>

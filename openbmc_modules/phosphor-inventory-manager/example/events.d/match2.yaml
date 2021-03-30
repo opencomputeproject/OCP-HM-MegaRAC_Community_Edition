@@ -1,0 +1,121 @@
+description: >
+    The sample events below serve to illustrate PIM features
+    and are also used by the PIM test suite.
+
+events:
+    - name: destroyObject + propertyChangedTo example
+      description: >
+          Destroys the /deleteme1 and /deleteme2 objects
+          When the value of ExampleProperty2 on
+          /testing/trigger1 changes to xxxyyy.
+      type: match
+      signatures:
+          - type: signal
+            path: /testing/trigger1
+            interface: org.freedesktop.DBus.Properties
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty2
+            value:
+              type: string
+              value: xxxyyy
+      actions:
+          - name: destroyObjects
+            paths:
+              - /deleteme1
+              - /deleteme2
+
+    - name: destroyObject + propertyChangedTo<int64> example
+      description: >
+          Destroys the /deleteme3 object when the value of
+          ExampleProperty3 on /testing/trigger3
+          changes to 10.
+      type: match
+      signatures:
+          - type: signal
+            path: /testing/trigger3
+            interface: org.freedesktop.DBus.Properties
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty3
+            value:
+              value: 10
+              type: int64
+      actions:
+          - name: destroyObjects
+            paths:
+              - /deleteme3
+
+    - name: propertyIs example
+      description: >
+          Destroys the /deleteme3 object when the value of
+          ExampleProperty3 on /testing/trigger4 is 99
+          and the value of ExampleProperty2 on /testing/trigger4
+          changes to "123".
+      type: match
+      signatures:
+          - type: signal
+            path: /testing/trigger4
+            interface: org.freedesktop.DBus.Properties
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty2
+            value:
+              value: 123
+              type: string
+          - name: propertyIs
+            path: /testing/trigger4
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty3
+            service: phosphor.inventory.test.example
+            value:
+              value: 99
+              type: int64
+      actions:
+          - name: destroyObjects
+            paths:
+              - /deleteme3
+
+    - name: conditional destroyObject example
+      description: >
+          Destroys the /deleteme3 object when the value of
+          ExampleProperty3 on /testing/trigger6
+          changes to 10 and the value of the ExampleProperty3
+          value on /deleteme3 is 22.
+          Destroys the /deleteme4 object when the value of
+          ExampleProperty3 on /testing/trigger6
+          changes to 10 and the value of the ExampleProperty3
+          value on /deleteme4 is 22.
+      type: match
+      signatures:
+          - type: signal
+            path: /testing/trigger6
+            interface: org.freedesktop.DBus.Properties
+            member: PropertiesChanged
+      filters:
+          - name: propertyChangedTo
+            interface: xyz.openbmc_project.Example.Iface2
+            property: ExampleProperty3
+            value:
+              value: 10
+              type: int64
+      actions:
+          - name: destroyObjects
+            paths:
+              - /deleteme3
+              - /deleteme4
+            conditions:
+              - name: propertyIs
+                interface: xyz.openbmc_project.Example.Iface2
+                property: ExampleProperty3
+                value:
+                  value: 22
+                  type: int64
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

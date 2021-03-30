@@ -1,0 +1,21 @@
+src_test_well_known_SOURCES = %reldir%/well_known.cpp src/processing.cpp \
+	src/associations.cpp
+
+src_test_need_to_introspect_SOURCES = %reldir%/need_to_introspect.cpp \
+	src/processing.cpp src/associations.cpp
+
+src_test_associations_SOURCES = %reldir%/associations.cpp \
+    src/associations.cpp
+
+src_test_name_change_SOURCES = %reldir%/name_change.cpp \
+		src/associations.cpp src/processing.cpp
+
+src_test_interfaces_added_SOURCES = %reldir%/interfaces_added.cpp \
+		src/associations.cpp src/processing.cpp
+
+check_PROGRAMS += \
+	%reldir%/well_known \
+	%reldir%/need_to_introspect \
+	%reldir%/associations \
+	%reldir%/name_change \
+	%reldir%/interfaces_added

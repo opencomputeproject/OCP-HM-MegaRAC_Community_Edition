@@ -1,0 +1,10 @@
+[Unit]
+Description=LPC Snoop Daemon
+After=systemd-modules-load.service
+
+[Service]
+Restart=always
+ExecStart=@bindir@/snoopd -d "/dev/@SNOOP_DEVICE@" -b "@POST_CODE_BYTES@"
+
+[Install]
+WantedBy=@SYSTEMD_TARGET@

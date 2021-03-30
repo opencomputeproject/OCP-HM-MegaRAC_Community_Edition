@@ -1,0 +1,48 @@
+diff -Naur b/transporthandler.cpp c/transporthandler.cpp
+--- b/transporthandler.cpp	2020-08-25 11:15:50.605587078 -0400
++++ c/transporthandler.cpp	2020-08-25 11:26:50.335026644 -0400
+@@ -45,6 +45,8 @@
+ using sdbusplus::xyz::openbmc_project::Network::server::IP;
+ using sdbusplus::xyz::openbmc_project::Network::server::Neighbor;
+ 
++static in_addr current_dhcp_addr{};
++static uint8_t current_ether_mode;
+ namespace cipher
+ {
+ 
+@@ -1511,6 +1513,8 @@
+             {
+                 return responseCommandNotAvailable();
+             }
++			if (current_ether_mode == 1)  // if set static ip address before set netmask, then netmask no need to use dhcp address.
++				current_ether_mode = 0;
+             in_addr ip;
+             std::array<uint8_t, sizeof(ip)> bytes;
+             if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+@@ -1561,6 +1565,12 @@
+ 					return responseInvalidFieldRequest();
+                 case IPSrc::Static:
+                 {
++					auto ifaddr = channelCall<getIfAddr4>(channel);
++					current_ether_mode = 1;
++            		if (ifaddr)
++            		{
++                		current_dhcp_addr = ifaddr->address;	
++           	 		}
+                     channelCall<setDHCPv4Property>(
+                         channel, EthernetInterface::DHCPConf::none);
+                     return responseSuccess();
+@@ -1606,6 +1616,13 @@
+                 return responseReqDataLenInvalid();
+             }
+             copyInto(netmask, bytes);
++			if (current_ether_mode == 1)
++			{
++				channelCall<reconfigureIfAddr4>(channel, current_dhcp_addr,
++                                            netmaskToPrefix(netmask));
++				current_ether_mode= 0;
++			}
++			else
+             channelCall<reconfigureIfAddr4>(channel, std::nullopt,
+                                             netmaskToPrefix(netmask));
+             return responseSuccess();

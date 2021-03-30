@@ -1,0 +1,140 @@
+{
+    "Exposes": [
+
+	     {
+            "Class": "fan",
+            "FFGainCoefficient": 1.0,
+            "FFOffCoefficient": 0.0,
+            "ICoefficient": 0.0,
+            "ILimitMax": 0.0,
+            "ILimitMin": 0.0,
+            "Inputs": [
+                "MB_FAN0_TACH"
+            ],
+            "Name": "MB_FAN0_TACH",
+            "OutLimitMax": 100.0,
+            "OutLimitMin": 10.0,
+            "Outputs": [
+                "Pwm 1"
+            ],
+            "PCoefficient": 0.0,
+            "SlewNeg": 0.0,
+            "SlewPos": 0.0,
+            "Type": "Pid",
+            "Zones": [
+                "Zone 1"
+            ]
+        },
+        {
+            "Class": "fan",
+            "FFGainCoefficient": 1.0,
+            "FFOffCoefficient": 0.0,
+            "ICoefficient": 0.0,
+            "ILimitMax": 0.0,
+            "ILimitMin": 0.0,
+            "Inputs": [
+                "MB_FAN1_TACH"
+            ],
+            "Name": "MB_FAN1_TACH",
+            "OutLimitMax": 100.0,
+            "OutLimitMin": 10.0,
+            "Outputs": [
+                "Pwm 2"
+            ],
+            "PCoefficient": 0.0,
+            "SlewNeg": 0.0,
+            "SlewPos": 0.0,
+            "Type": "Pid",
+            "Zones": [
+                "Zone 2"
+            ]
+        },
+                {
+            "Class": "temp",
+            "Inputs": [
+                "MB_INLET_TEMP"
+            ],
+            "Name": "MB_INLET_TEMP_STP",
+            "NegativeHysteresis": 0,
+            "Output": [
+                13.0,
+                14.0,
+                16.0,
+                17.0,
+                18.0,
+                19.0,
+                23.0,
+                26.0,
+                30.0,
+                35.0,
+                70.0
+            ],
+            "PositiveHysteresis": 0,
+            "Reading": [
+                20.0,
+                22.0,
+                24.0,
+                26.0,
+                28.0,
+                30.0,
+                32.0,
+                34.0,
+                36.0,
+                38.0,
+                40.0
+            ],
+            "Type": "Stepwise",
+            "Zones": [
+                "Zone 1"
+            ]
+        },
+          {
+            "Class": "temp",
+            "Inputs": [
+                "MEZZ_SENSOR_TEMP"
+            ],
+            "Name": "MEZZ_SENSOR_TEMP_STP",
+            "NegativeHysteresis": 1,
+            "Output": [
+                10.0,
+                23.0,
+                25.0,
+                27.0,
+                29.0,
+                31.0,
+                70.0
+            ],
+            "PositiveHysteresis": 1,
+            "Reading": [
+                84.0,
+                85.0,
+                87.0,
+                89.0,
+                91.0,
+                93.0,
+                95.0
+            ],
+            "Type": "Stepwise",
+            "Zones": [
+                "Zone 2"
+            ]
+        },
+                {
+            "FailSafePercent": 100,
+            "MinThermalOutput": 10,
+            "Name": "Zone 1",
+            "Type": "Pid.Zone"
+        },
+        {
+            "FailSafePercent": 100,
+            "MinThermalOutput": 10,
+            "Name": "Zone 2",
+            "Type": "Pid.Zone"
+        }
+
+    ],
+    "Name": "Zone Configuration",
+    "Probe": "xyz.openbmc_project.FruDevice({'PRODUCT_PRODUCT_NAME': '.*Tioga*'})", 
+    "Type" :"Zone"
+}
+

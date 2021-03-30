@@ -1,0 +1,14 @@
+--- a/pwmtachtool.c	2020-11-25 18:22:26.412037957 -0500
++++ b/pwmtachtool.c	2020-11-25 17:58:53.118266333 -0500
+@@ -104,6 +104,11 @@
+ 		}
+ 		*fan_num = (unsigned char)strtol( argv[ ++i ], NULL, 10);
+ 		*rpm_value = (unsigned int)strtol( argv[ ++i ], NULL, 10);
++		if(*rpm_value < 0 || *rpm_value > 255)
++		{
++			printf("set-pwm-dutycycle-value should be 0 to 255 \n");
++			return -1;
++		}
+ 		action = SET_PWM_DUTYCYCLE_VALUE;
+ 	}
+ 	else if( strcmp( argv[i], "--get-pwm-dutycycle" ) == 0)

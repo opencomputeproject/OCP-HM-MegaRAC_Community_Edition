@@ -1,0 +1,10 @@
+[Unit]
+Description=IPMI SEL Logging Service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/sel-logger
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

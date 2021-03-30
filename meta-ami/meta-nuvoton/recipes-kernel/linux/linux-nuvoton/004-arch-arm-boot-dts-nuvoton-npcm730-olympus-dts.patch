@@ -1,0 +1,70 @@
+diff --git a/arch/arm/boot/dts/nuvoton-npcm730-gsj-gpio.dtsi b/arch/arm/boot/dts/nuvoton-npcm730-gsj-gpio.dtsi
+old mode 100644
+new mode 100755
+diff --git a/arch/arm/boot/dts/nuvoton-npcm730-gsj.dts b/arch/arm/boot/dts/nuvoton-npcm730-gsj.dts
+old mode 100644
+new mode 100755
+index 801ed73d9..5ceffd672
+--- a/arch/arm/boot/dts/nuvoton-npcm730-gsj.dts
++++ b/arch/arm/boot/dts/nuvoton-npcm730-gsj.dts
+@@ -78,6 +78,7 @@
+ 			status = "okay";
+ 			spi-nor@0 {
+ 				compatible = "jedec,spi-nor";
++				spi-max-frequency = <5000000>;
+ 				#address-cells = <1>;
+ 				#size-cells = <1>;
+ 				reg = <0>;
+diff --git a/arch/arm/boot/dts/nuvoton-npcm730.dtsi b/arch/arm/boot/dts/nuvoton-npcm730.dtsi
+old mode 100644
+new mode 100755
+index 20e13489b..a81602854
+--- a/arch/arm/boot/dts/nuvoton-npcm730.dtsi
++++ b/arch/arm/boot/dts/nuvoton-npcm730.dtsi
+@@ -44,6 +44,46 @@
+ 	};
+ 
+ 	ahb {
++		udc5:udc@f0835000 {
++			compatible = "nuvoton,npcm750-udc";
++			reg = <0xf0835000 0x1000
++			       0xfffd2800 0x800>;
++			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
++			status = "disabled";
++			clocks = <&clk NPCM7XX_CLK_SU>;
++			clock-names = "clk_usb_bridge";
++		};
++
++		udc6:udc@f0836000 {
++			compatible = "nuvoton,npcm750-udc";
++			reg = <0xf0836000 0x1000
++			       0xfffd3000 0x800>;
++			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
++			status = "disabled";
++			clocks = <&clk NPCM7XX_CLK_SU>;
++			clock-names = "clk_usb_bridge";
++		};
++
++		udc7:udc@f0837000 {
++			compatible = "nuvoton,npcm750-udc";
++			reg = <0xf0837000 0x1000
++			       0xfffd3800 0x800>;
++			interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
++			status = "disabled";
++			clocks = <&clk NPCM7XX_CLK_SU>;
++			clock-names = "clk_usb_bridge";
++		};
++
++		udc8:udc@f0838000 {
++			compatible = "nuvoton,npcm750-udc";
++			reg = <0xf0838000 0x1000
++			       0xfffd4000 0x800>;
++			interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
++			status = "disabled";
++			clocks = <&clk NPCM7XX_CLK_SU>;
++			clock-names = "clk_usb_bridge";
++		};
++
+ 		udc9:udc@f0839000 {
+ 			compatible = "nuvoton,npcm750-udc";
+ 			reg = <0xf0839000 0x1000

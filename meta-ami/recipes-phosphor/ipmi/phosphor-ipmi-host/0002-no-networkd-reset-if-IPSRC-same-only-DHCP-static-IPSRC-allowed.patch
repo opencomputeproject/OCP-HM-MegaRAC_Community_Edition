@@ -1,0 +1,30 @@
+diff -Naur a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2020-08-25 11:10:11.161397681 -0400
++++ b/transporthandler.cpp	2020-08-25 11:15:50.605587078 -0400
+@@ -1533,6 +1533,18 @@
+             {
+                 return responseInvalidFieldRequest();
+             }
++			auto currentSrc = IPSrc::Static;
++			EthernetInterface::DHCPConf dhcp =
++                channelCall<getDHCPProperty>(channel);
++            if ((dhcp == EthernetInterface::DHCPConf::v4) ||
++                (dhcp == EthernetInterface::DHCPConf::both))
++            {
++                currentSrc = IPSrc::DHCP;
++            }   
++			if (currentSrc == flag)
++			{
++				return responseSuccess();
++			}
+             switch (static_cast<IPSrc>(static_cast<uint8_t>(flag)))
+             {
+                 case IPSrc::DHCP:
+@@ -1546,6 +1558,7 @@
+                     return responseSuccess();
+                 }
+                 case IPSrc::Unspecified:
++					return responseInvalidFieldRequest();
+                 case IPSrc::Static:
+                 {
+                     channelCall<setDHCPv4Property>(

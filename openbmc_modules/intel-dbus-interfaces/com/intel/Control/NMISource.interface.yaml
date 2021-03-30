@@ -1,0 +1,46 @@
+description: >
+    An interface for NMI signal source.
+properties:
+    - name: BMCSource
+      type: enum[self.BMCSourceSignal]
+      description: >
+          Keeps track of NMI signal source in BMC.
+      default: 'None'
+    - name: Enabled
+      type: boolean
+      description: >
+          whether the BMC enables NMI event.
+      default: true
+
+enumerations:
+   - name: BMCSourceSignal
+     description: >
+       The type of NMI source.
+     values:
+       - name: None
+         description: >
+           NONE NMI signal.
+       - name: FpBtn
+         description: >
+           Via Front Panel NMI button.
+       - name: WdPreTimeout
+         description: >
+           Via watchdog pre-timeout.
+       - name: PefMatch
+         description: >
+           Via PEF match.
+       - name: ChassisCmd
+         description: >
+           Via Chassis command.
+       - name: MemoryError
+         description: >
+           Via memory error.
+       - name: PciSerrPerr
+         description: >
+           Via PCI SERR PERR.
+       - name: SouthbridgeNmi
+         description: >
+           Via southbridge NMI.
+       - name: ChipsetNmi
+         description: >
+           Via chipset NMI.

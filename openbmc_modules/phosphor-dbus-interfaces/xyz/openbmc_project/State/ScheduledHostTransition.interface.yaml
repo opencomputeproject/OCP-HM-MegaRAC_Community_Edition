@@ -1,0 +1,35 @@
+description: >
+    Implement to schedule Epoch time to power on/off the Host.
+properties:
+    - name: ScheduledTime
+      type: uint64
+      default: 0
+      description: >
+          ScheduledTime is a date time when the host will be
+          powered on/off. The time is the Epoch time, number
+          of seconds since 1 Jan 1970 00::00::00 UTC.
+
+          When ScheduledTime is 0, it means the functionality
+          is disabled.
+          When ScheduledTime is smaller than current time,
+          error InvalidTime will be thrown.
+          When the controller detects the ScheduledTime has passed,
+          it will execute the ScheduledTransition and reset the
+          value to 0. Once the transition starts, there won't be
+          any retries.
+          When the real time changes, the controller shall check if
+          the time is still in the future. If so, it will stop the
+          existing timer and restart it with new wait time. Otherwise,
+          stop the existing timer and execute the ScheduledTransition.
+          When ScheduledTime is reached, but the host is not ready
+          to power on/off, e.g. when BMC is rebooting, BMC shall
+          set the host ScheduledTransition after it is ready.
+      errors:
+        - xyz.openbmc_project.ScheduledTime.Error.InvalidTime
+
+    - name: ScheduledTransition
+      type: enum[xyz.openbmc_project.State.Host.Transition]
+      default: 'On'
+      description: >
+          The desired power transition to support scheduled power on/off.
+          The default operation supports scheduled power on.

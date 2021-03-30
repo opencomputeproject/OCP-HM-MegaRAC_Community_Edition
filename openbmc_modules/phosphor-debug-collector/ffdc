@@ -1,0 +1,95 @@
+#!/bin/sh
+
+help=$'FFDC File Collection Script
+
+Collects various FFDC files and system parameters and places them in a .tar
+
+usage: ffdc [OPTION]
+
+Options:
+   -d, --dir <directory>  Specify destination directory. Defaults to /tmp if
+                          invalid or unspecified.
+   -D, --disable_dreport  Disable dreport based dump collection
+   -h, --help             Display this help text and exit.
+'
+
+declare -a arr=(
+# Commands to be outputted into individual files
+# Format: "File name" "Command"
+      "FW_level.txt"              "cat /etc/os-release"
+      "BMC_OS.txt"                "uname -a"
+      "BMC_uptime.txt"            "uptime"
+      "BMC_disk_usage.txt"        "df -hT"
+
+      "systemctl_status.txt"      "systemctl status | cat"
+      "failed_services.txt"       "systemctl --failed"
+      "host_console.txt"          "cat /var/log/obmc-console.log"
+
+      "BMC_proc_list.txt"         "top -n 1 -b"
+      "BMC_journalctl.txt"        "journalctl --no-pager"
+      "BMC_dmesg.txt"             "dmesg"
+      "BMC_procinfo.txt"          "cat /proc/cpuinfo"
+      "BMC_meminfo.txt"           "cat /proc/meminfo"
+
+# Copy all content from these directories into directories in the .tar
+# Format: "Directory name" "Directory to copy"
+      "obmc"                      "/var/lib/obmc/"
+      "core"                      "/var/lib/systemd/coredump"
+)
+
+dir=$"ffdc_$(date +"%Y-%m-%d_%H-%M-%S")"
+dest="/tmp"
+disable_dreport=false
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    -d|--dir)
+      mkdir -p "$2"
+      if [ $? -eq 0 ]; then
+        dest="$2"
+      else
+        echo "Failed to create the destination directory specified."
+        break
+      fi
+      shift 2
+      ;;
+    -D|--disable_dreport)
+      disable_dreport=true
+      shift
+      ;;
+    -h|--help)
+      echo "$help"
+      exit
+      ;;
+    *)
+      echo "Unknown option $1. Display available options with -h or --help"
+      exit
+      ;;
+  esac
+done
+
+echo "Using destination directory $dest"
+
+if [ $disable_dreport = false ]; then
+  dreport -d $dest -v
+  exit
+fi
+
+mkdir -p "$dest/$dir"
+
+for ((i=0;i<${#arr[@]};i+=2)); do
+  if [ -d "${arr[i+1]}" ]; then
+    echo "Copying contents of ${arr[i+1]} to directory ./${arr[i]} ..."
+    mkdir "$dest/$dir/${arr[i]}"
+    cp -r ${arr[i+1]}/* $dest/$dir/${arr[i]}
+  else
+    echo "Collecting ${arr[i]}..."
+    ${arr[i+1]} >> "$dest/$dir/${arr[i]}"
+  fi
+done
+
+tar -cf "$dest/$dir.tar" -C $dest $dir
+echo "Contents in $dest/$dir.tar"
+
+rm -r "$dest/$dir"

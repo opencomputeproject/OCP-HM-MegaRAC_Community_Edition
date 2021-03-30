@@ -1,0 +1,21 @@
+description: >
+    Provides general information about the object status.
+
+properties:
+    - name: Active
+      type: boolean
+      description: >
+          `True`, if object is occupied by active process, `False` otherwise.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure
+
+    - name: ExitCode
+      type: int32
+      description: >
+          If process terminates this property will contain returned exit code.
+      flags:
+        - const
+      errors:
+          - xyz.openbmc_project.Common.Error.InternalFailure

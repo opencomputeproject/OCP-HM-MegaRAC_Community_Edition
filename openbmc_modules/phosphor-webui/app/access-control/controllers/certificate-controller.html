@@ -1,0 +1,73 @@
+<loader loading="loading"></loader>
+<div id="configuration-cert" class="page">
+  <h1 class="page-title">SSL certificates</h1>
+  <section class="section">
+    <div class="section-content">
+      <div ng-repeat="certificate in certificates | filter:{isExpiring:true}">
+        <div class="alert alert-warning" role="alert">
+          <icon file="icon-warning.svg" aria-hidden="true"></icon>
+          The uploaded {{ certificate.name }} is expiring in
+          {{ getDays(certificate.ValidNotAfter) === 0
+              ? "less than one day!"
+              : getDays(certificate.ValidNotAfter) + " days!" }}
+          Consider replacing it with a new certificate.
+        </div>
+      </div>
+      <div ng-repeat="certificate in certificates | filter:{isExpired:true}">
+        <div class="alert alert-danger" role="alert">
+          <icon file="icon-critical.svg" aria-hidden="true"></icon>
+          The uploaded {{ certificate.name }} has expired! Consider replacing it
+          with a new certificate.
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-content">
+      <button
+        type="button"
+        class="btn  btn-tertiary"
+        ng-disabled="availableCertificateTypes.length === 0"
+        ng-click="addCertModal()">
+        <icon class="icon-add" file="icon-plus.svg" aria-hidden="true"></icon>
+        Add new certificate
+      </button>
+      <button type="button" class="btn btn-tertiary" ng-click="addCsrModal()">
+        <icon class="icon-add" file="icon-plus.svg" aria-hidden="true"></icon>
+        Generate CSR
+      </button>
+    </div>
+  <!-- TODO: Replace table with resusable table component -->
+    <div class="section-content certificate__table">
+      <div class="table__row-header">
+        <div class="row">
+          <div class="certificate__type-header">
+            Certificate
+          </div>
+          <div class="certificate__issue-header">
+            Issued by
+          </div>
+          <div class="certificate__issue-header">
+            Issued to
+          </div>
+          <div class="certificate__date-header">
+            Valid from
+          </div>
+          <div class="certificate__status-header"></div>
+          <div class="certificate__date-header">
+            Valid until
+          </div>
+          <div class="certificate__actions-header">
+            Actions
+          </div>
+        </div>
+      </div>
+      <div ng-if="certificates.length < 1" class="empty__logs">
+        There have been no certificates added.
+      </div>
+      <div ng-repeat="certificate in certificates">
+        <certificate cert="certificate" reload="loadCertificates()"></certificate>
+      </div>
+    </div>
+  </section>
+</div>

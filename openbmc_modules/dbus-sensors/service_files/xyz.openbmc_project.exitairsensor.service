@@ -1,0 +1,16 @@
+[Unit]
+Description=Exit Air Temp Sensor
+StopWhenUnneeded=false
+Requires=xyz.openbmc_project.Settings.service
+After=xyz.openbmc_project.Settings.service
+Requires=xyz.openbmc_project.EntityManager.service
+After=xyz.openbmc_project.EntityManager.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStart=/usr/bin/exitairtempsensor
+
+[Install]
+WantedBy=multi-user.target
+

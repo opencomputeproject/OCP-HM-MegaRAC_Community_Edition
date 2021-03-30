@@ -1,0 +1,38 @@
+diff --git a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+index 9c0de9f2f..5e3f4965c 100755
+--- a/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
++++ b/arch/arm/boot/dts/nuvoton-npcm750-runbmc-olympus.dts
+@@ -1130,33 +1130,6 @@
+ 		};
+ 	};
+ 
+-	jtag {
+-		compatible = "nuvoton,npcm750-jtag";
+-		enable_pspi_jtag = <1>;
+-		pspi-index = <2>;
+-		tck {
+-			label = "tck";
+-			gpios = <&gpio0 19 0>; /* gpio19 */
+-			regbase = <0xf0010000 0x1000>;
+-		};
+-
+-		tdi {
+-			label = "tdi";
+-			gpios = <&gpio0 18 0>; /* gpio18 */
+-			regbase = <0xf0010000 0x1000>;
+-		};
+-
+-		tdo {
+-			label = "tdo";
+-			gpios = <&gpio0 17 0>; /* gpio17 */
+-			regbase = <0xf0010000 0x1000>;
+-		};
+-		tms {
+-			label = "tms";
+-			gpios = <&gpio0 16 0>; /* gpio16 */
+-			regbase = <0xf0010000 0x1000>;
+-		};
+-	};
+ };
+ 
+ &gcr {

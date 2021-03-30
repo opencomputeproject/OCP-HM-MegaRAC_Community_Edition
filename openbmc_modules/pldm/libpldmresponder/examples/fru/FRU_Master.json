@@ -1,0 +1,27 @@
+# This is the master config file for generating PLDM FRU records from the D-Bus
+# inventory objects. "service" is the name of D-Bus service hosting the
+# inventory D-Bus objects, "root_path" is the root path for all the inventory
+# D-Bus objects and "entities" section specifies the type of FRU's for which
+# FRU records are created in the FRU table. FRU Record Set PDR and Entity
+# Association PDR are generated for matching FRU. In this example, PLDM FRU
+# records will be created for all FRU's of type Board and CPU. The "entity_type"
+# field is the PLDM entity type for Board and CPU. For each FRU type,
+# corresponding config JSON's are needed for each record. In the example
+# directory, Board_General.json is the config to generate the General FRU
+# record for FRU of type Board and Board_VINI.json is the config to generate
+# the OEM record (VINI is a record in IBM IPZ VPD format) for FRU of type Board.
+# For all instances of the same FRU, the same config JSON will apply.
+{
+    "service":"xyz.openbmc_project.Inventory.Manager",
+    "root_path":"/xyz/openbmc_project/inventory",
+    "entities":[
+        {
+            "interface" : "xyz.openbmc_project.Inventory.Item.Board",
+            "entity_type" : 64
+        },
+        {
+            "interface" : "xyz.openbmc_project.Inventory.Item.Cpu",
+            "entity_type" : 135
+        }
+    ]
+}

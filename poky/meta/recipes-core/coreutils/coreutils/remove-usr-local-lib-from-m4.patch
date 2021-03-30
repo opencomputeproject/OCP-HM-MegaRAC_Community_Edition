@@ -1,0 +1,42 @@
+From a26530083a29eeee910bfd606ecc621acecd547a Mon Sep 17 00:00:00 2001
+From: Khem Raj <raj.khem@gmail.com>
+Date: Wed, 3 Aug 2011 14:12:30 -0700
+Subject: [PATCH] coreutils: Fix build on uclibc
+
+We have problem using hardcoded directories like /usr/local here
+which will be checked for cross builds. This is a special case which
+is valid for AIX only. We do not have AIX as one of our supported
+build host or target. Therefore we get rid of the hardcoded paths
+and make life easier for cross compilation process.
+
+Signed-off-by: Khem Raj <raj.khem@gmail.com>
+
+Upstream-Status: Inappropriate [Upstream does care for AIX while we may not]
+
+---
+ m4/getloadavg.m4 | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/m4/getloadavg.m4 b/m4/getloadavg.m4
+index 8e96965..63782a2 100644
+--- a/m4/getloadavg.m4
++++ b/m4/getloadavg.m4
+@@ -41,18 +41,6 @@ AC_CHECK_FUNC([getloadavg], [],
+        [LIBS="-lutil $LIBS" gl_func_getloadavg_done=yes])
+    fi
+ 
+-   if test $gl_func_getloadavg_done = no; then
+-     # There is a commonly available library for RS/6000 AIX.
+-     # Since it is not a standard part of AIX, it might be installed locally.
+-     gl_getloadavg_LIBS=$LIBS
+-     if test $cross_compiling != yes; then
+-       LIBS="-L/usr/local/lib $LIBS"
+-     fi
+-     AC_CHECK_LIB([getloadavg], [getloadavg],
+-                  [LIBS="-lgetloadavg $LIBS" gl_func_getloadavg_done=yes],
+-                  [LIBS=$gl_getloadavg_LIBS])
+-   fi
+-
+    # Set up the replacement function if necessary.
+    if test $gl_func_getloadavg_done = no; then
+      HAVE_GETLOADAVG=0

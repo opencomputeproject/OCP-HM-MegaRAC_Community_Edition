@@ -1,0 +1,12 @@
+[Unit]
+Description=Phosphor IPMI BT DBus Bridge
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/env btbridged
+SyslogIdentifier=btbridged
+Type=dbus
+BusName={BUSNAME}
+
+[Install]
+WantedBy=multi-user.target

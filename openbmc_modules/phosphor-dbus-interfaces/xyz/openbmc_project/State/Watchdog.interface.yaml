@@ -1,0 +1,97 @@
+description: >
+    Implement the watchdog function.
+
+methods:
+    - name: ResetTimeRemaining
+      description: >
+          Resets the time remaining to the configured interval.
+          This is equivalent to reading the Interval and writing it
+          into the TimeRemaining. Optionally the watchdog can be enabled
+          during the reset process.
+      parameters:
+        - name: EnableWatchdog
+          type: boolean
+          description: >
+              If true the watchdog will be enabled when the reset
+              is performed.
+      errors:
+        - xyz.openbmc_project.Common.Error.InternalFailure
+
+properties:
+    - name: Initialized
+      type: boolean
+      description: >
+          Whether the host has configured the watchdog yet.
+      default: false
+    - name: Enabled
+      type: boolean
+      description: >
+          The watchdog is enabled or not.
+      default: false
+    - name: ExpireAction
+      type: enum[self.Action]
+      description: >
+          The action the watchdog should perform when it expires.
+      default: 'HardReset'
+    - name: Interval
+      type: uint64
+      description: >
+          Time interval to arm the watchdog, in milli-second.
+      default: 30000
+    - name: TimeRemaining
+      type: uint64
+      description: >
+          Time remaining before timeout, in milli-second.
+          Setting this property can re-arm the watchdog.
+      default: 0
+    - name: CurrentTimerUse
+      type: enum[self.TimerUse]
+      description: >
+          The host defined user of this timer.
+      default: 'Reserved'
+    - name: ExpiredTimerUse
+      type: enum[self.TimerUse]
+      description: >
+          The timer user at the time of expiration.
+      default: 'Reserved'
+
+enumerations:
+   - name: Action
+     description: >
+       The type of action to perform.
+     values:
+       - name: 'None'
+         description: >
+           Do nothing.
+       - name: 'HardReset'
+         description: >
+           Perform a reset of the system.
+       - name: 'PowerOff'
+         description: >
+           Perform a power off of the system.
+       - name: 'PowerCycle'
+         description: >
+           Perform a power cycle of the system.
+
+   - name: TimerUse
+     description: >
+       The type of timer use.
+     values:
+       - name: 'Reserved'
+         description: >
+           Reserved.
+       - name: 'BIOSFRB2'
+         description: >
+           BIOS FRB2.
+       - name: 'BIOSPOST'
+         description: >
+           BIOS POST.
+       - name: 'OSLoad'
+         description: >
+           OS Load.
+       - name: SMSOS
+         description: >
+           SMS OS.
+       - name: 'OEM'
+         description: >
+           OEM.

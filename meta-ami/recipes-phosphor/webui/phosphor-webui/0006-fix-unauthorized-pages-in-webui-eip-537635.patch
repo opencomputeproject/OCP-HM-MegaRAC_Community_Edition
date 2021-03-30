@@ -1,0 +1,15 @@
+diff -Naur b/app/common/services/apiInterceptor.js a/app/common/services/apiInterceptor.js
+--- b/app/common/services/apiInterceptor.js	2020-08-17 15:55:23.782840171 +0530
++++ a/app/common/services/apiInterceptor.js	2020-08-17 15:58:00.168433873 +0530
+@@ -56,7 +56,10 @@
+               // this global redirect and handle forbidden
+               // requests in context of user action
+               if (dataService.path != '/login') {
+-                $location.url('/unauthorized');
++              // $location.url('/unauthorized');
++		sessionStorage.clear();
++		$location.path('/logout');
++		window.location.reload();
+               }
+             } else if (rejection.status == -1) {
+               dataService.server_unreachable = true;

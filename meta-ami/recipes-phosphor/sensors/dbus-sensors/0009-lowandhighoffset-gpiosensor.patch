@@ -1,0 +1,263 @@
+diff -Naur a/include/AcpiSensor.hpp b/include/AcpiSensor.hpp
+--- a/include/AcpiSensor.hpp	2020-09-28 13:15:11.984277274 +0530
++++ b/include/AcpiSensor.hpp	2020-09-29 20:03:44.334046033 +0530
+@@ -11,8 +11,8 @@
+     sdbusplus::asio::object_server& objectServer,
+     std::shared_ptr<sdbusplus::asio::connection>& conn, std::shared_ptr<sdbusplus::asio::connection> bus, 
+     boost::asio::io_service& io, const std::string& sensorName,
+-    const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType,uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
++    const std::string& sensorConfiguration,uint16_t EvStat, const std::string& sensorUnit,
++    uint8_t DType,uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset, struct sdr::SdrRecord sdrRecord);
+ 
+     ~AcpiSensor();
+ 
+@@ -28,7 +28,7 @@
+     std::vector<uint8_t> data;
+     uint8_t al;
+     uint8_t EventType;
+-    uint8_t EventOffset;
++    uint8_t LowOffset, HighOffset;
+     void setupRead(void);
+     void handleResponse(const boost::system::error_code& err);
+ };
+diff -Naur a/include/EventSensor.hpp b/include/EventSensor.hpp
+--- a/include/EventSensor.hpp	2020-09-28 13:15:11.984277274 +0530
++++ b/include/EventSensor.hpp	2020-09-29 19:41:24.107491674 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType,uint8_t EventType,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord);
++    uint8_t DType,uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset, struct sdr::SdrRecord sdrRecord);
+ 
+     ~EventSensor();
+ 
+@@ -27,7 +27,7 @@
+     std::vector<uint8_t> data;
+     uint8_t al;
+     uint8_t EventType;
+-    uint8_t EventOffset;
++    uint8_t LowOffset, HighOffset;
+     void setupRead(void);
+     void handleResponse(const boost::system::error_code& err);
+ };
+diff -Naur a/include/GpioSensor.hpp b/include/GpioSensor.hpp
+--- a/include/GpioSensor.hpp	2020-09-28 13:15:11.984277274 +0530
++++ b/include/GpioSensor.hpp	2020-09-29 19:14:52.338058489 +0530
+@@ -12,7 +12,7 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType,uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord);
++    uint8_t DType,uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset , struct sdr::SdrRecord sdrRecord);
+ 
+     ~GpioSensor();
+ 
+@@ -25,7 +25,7 @@
+     int errCount;
+     uint8_t DType;
+     uint8_t EventType;
+-    uint8_t EventOffset;
++    uint8_t LowOffset, HighOffset;
+     void setupRead(void);
+     void handleResponse(const boost::system::error_code& err);
+ };
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2020-09-28 13:15:11.984277274 +0530
++++ b/include/sensor.hpp	2020-09-29 22:35:54.980646773 +0530
+@@ -392,20 +392,18 @@
+ {
+     DiscSensor(const std::string& name,
+            const std::string& configurationPath, const std::string& objectType,
+-           const double max, const double min,uint16_t EvStat, const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
+-        name(name),
+-        configurationPath(configurationPath), objectType(objectType),
+-        maxValue(max), minValue(min),
+-        hysteresis((max - min) * 0.01), eventStat(EvStat), Unit(sensorUnit),SdrVersion(sdrRecord.SdrVersion),
+-	RecordType(sdrRecord.RecordType),RecordLen(sdrRecord.RecordLen),OwnerId(sdrRecord.OwnerId),
+-        OwnerLun(sdrRecord.OwnerLun),EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
+-        SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),SensorType(sdrRecord.SensorType),
+-        EventType(sdrRecord.EventType),SensorUnit1(sdrRecord.SensorUnit1),ModifierUnit(sdrRecord.ModifierUnit),
+-        MaxReading(sdrRecord.MaxReading),MinReading(sdrRecord.MinReading),SensorUnit2(sdrRecord.SensorUnit2),
+-        Linearization(sdrRecord.Linearization),NominalReading(sdrRecord.NominalReading),NormalMax(sdrRecord.NormalMax),
+-        NormalMin(sdrRecord.NormalMin),PositiveHysteris(sdrRecord.PositiveHysteris),NegativeHysteresis(sdrRecord.NegativeHysteresis),
+-        IdStringLen(sdrRecord.IdStringLen)
+-
++           const double max, const double min,uint16_t EvStat, uint8_t lOffset, uint8_t hOffset, const std::string& sensorUnit,
++	   struct sdr::SdrRecord sdrRecord) :
++        name(name),configurationPath(configurationPath), objectType(objectType),maxValue(max), minValue(min),
++        hysteresis((max - min) * 0.01), eventStat(EvStat), loffset(lOffset), hoffset(hOffset), Unit(sensorUnit),
++	SdrVersion(sdrRecord.SdrVersion),RecordType(sdrRecord.RecordType),RecordLen(sdrRecord.RecordLen),
++	OwnerId(sdrRecord.OwnerId),OwnerLun(sdrRecord.OwnerLun),EntityId(sdrRecord.EntityId),
++	EntityInstance(sdrRecord.EntityInstance),SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),
++	SensorType(sdrRecord.SensorType),EventType(sdrRecord.EventType),SensorUnit1(sdrRecord.SensorUnit1),
++	ModifierUnit(sdrRecord.ModifierUnit),MaxReading(sdrRecord.MaxReading),MinReading(sdrRecord.MinReading),
++	SensorUnit2(sdrRecord.SensorUnit2),Linearization(sdrRecord.Linearization),NominalReading(sdrRecord.NominalReading),
++	NormalMax(sdrRecord.NormalMax),NormalMin(sdrRecord.NormalMin),PositiveHysteris(sdrRecord.PositiveHysteris),
++	NegativeHysteresis(sdrRecord.NegativeHysteresis),IdStringLen(sdrRecord.IdStringLen)
+     {
+     }
+     virtual ~DiscSensor() = default;
+@@ -416,6 +414,7 @@
+     double maxValue;
+     double minValue;
+     uint16_t eventStat;
++    uint8_t loffset, hoffset;
+     uint8_t SdrVersion;
+     uint8_t RecordType;
+     uint8_t RecordLen;
+@@ -525,15 +524,14 @@
+             internalSet = true;
+             sensorInterface->set_property("Value", newValue);
+ 	    if (newValue == 0){
+-               discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({0x00, 0xFF, 0xFF}));
+-               discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x00));
+-           }else if(newValue == 1){
+-               discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({0x01, 0xFF, 0xFF}));
+-                discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x01));
+-           }
+-
++            	discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({loffset, 0xFF, 0xFF}));
++            	discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(loffset == 0xFF ? loffset
++								: (0x01 << loffset)));
++            }else if(newValue == 1){
++            	discreteInterfaceState->set_property("EventData",std::vector<uint8_t>({hoffset, 0xFF, 0xFF}));
++           	discreteInterfaceState->set_property("ActiveAlarmState",static_cast<uint8_t>(0x01 << hoffset));
++            }
+             value = newValue;
+-
+             internalSet = false;
+             double diff = std::abs(value - newValue);
+             if (std::isnan(diff) || diff > hysteresis)
+diff -Naur a/src/AcpiSensor.cpp b/src/AcpiSensor.cpp
+--- a/src/AcpiSensor.cpp	2020-09-28 13:15:00.092047598 +0530
++++ b/src/AcpiSensor.cpp	2020-09-29 22:54:09.411648070 +0530
+@@ -27,10 +27,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn, std::shared_ptr<sdbusplus::asio::connection> bus,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType, uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) :
++    uint8_t DType, uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset, struct sdr::SdrRecord sdrRecord) :
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat, sensorUnit,sdrRecord),
++           minReading,EvStat, LowOffset, HighOffset, sensorUnit,sdrRecord),
+     path(path), objServer(objectServer), waitTimer(io), errCount(0)
+ {
+ 
+@@ -64,7 +64,6 @@
+         "org.openbmc.Associations");
+     sensorInterface->register_property("DType",DType);
+     sensorInterface->register_property("EventType",EventType);
+-    sensorInterface->register_property("EventOffset",EventOffset); 
+     setInitialProperties(conn);
+ 
+     std::function<void(sdbusplus::message::message&)> PgoodEventMatcherCallback =
+diff -Naur a/src/EventMain.cpp b/src/EventMain.cpp
+--- a/src/EventMain.cpp	2020-09-28 13:15:00.092047598 +0530
++++ b/src/EventMain.cpp	2020-09-29 20:10:03.162390687 +0530
+@@ -193,12 +193,12 @@
+ 	   acpi[sensorName] = std::make_unique<AcpiSensor>(
+              sensorPath, sensorType, objectServer,
+              dbusConnection, bus, io, sensorName,
+-             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, sensorEventOffset,sdrRecord);
++             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, 0x00, 0x00,sdrRecord);
+ 	}else{	
+           sensors[sensorName] = std::make_unique<EventSensor>(
+              sensorPath, sensorType, objectServer,
+              dbusConnection, io, sensorName,
+-             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, sensorEventOffset,sdrRecord);
++             *interfacePath,EvStat,sensorUnit,sensorDType, sensorEventType, 0x00, 0x00 ,sdrRecord);
+ 	}
+     }
+ }
+diff -Naur a/src/EventSensor.cpp b/src/EventSensor.cpp
+--- a/src/EventSensor.cpp	2020-09-28 13:15:00.088047521 +0530
++++ b/src/EventSensor.cpp	2020-09-29 22:53:55.627502286 +0530
+@@ -28,10 +28,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType, uint8_t EventType,uint8_t EventOffset,struct sdr::SdrRecord sdrRecord) : EventType( sdrRecord.EventType ),
++    uint8_t DType, uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset, struct sdr::SdrRecord sdrRecord) : EventType( sdrRecord.EventType ),
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat, sensorUnit,sdrRecord),
++           minReading,EvStat, LowOffset, HighOffset, sensorUnit,sdrRecord),
+     path(path), objServer(objectServer),
+     /*inputDev(io, open(path.c_str(), O_RDONLY)),*/ waitTimer(io), errCount(0)
+ {
+@@ -65,7 +65,6 @@
+         "org.openbmc.Associations");
+     sensorInterface->register_property("DType",DType);
+     sensorInterface->register_property("EventType",EventType);
+-    sensorInterface->register_property("EventOffset",EventOffset);
+     setInitialProperties(conn);
+     //setupRead();
+ }
+diff -Naur a/src/GpioMain.cpp b/src/GpioMain.cpp
+--- a/src/GpioMain.cpp	2020-09-28 13:15:00.088047521 +0530
++++ b/src/GpioMain.cpp	2020-09-29 19:52:08.761502887 +0530
+@@ -181,14 +181,24 @@
+ uint8_t sensorEventType = std::visit(VariantToUnsignedIntVisitor(), findSensorEventType->second);
+ */
+         //Digital Event Offset
+-        auto findSensorEventOffset = baseConfiguration->second.find("EventOffset");
+-        if (findSensorEventOffset == baseConfiguration->second.end())
++        auto findSensorLowOffset = baseConfiguration->second.find("LowOffset");
++        if (findSensorLowOffset == baseConfiguration->second.end())
+         {
+-            std::cerr << "could not determine configuration EventType for "
++            std::cerr << "could not determine configuration LowOffset for "
+                       << deviceName << "\n";
+            continue;
+         }
+-        uint8_t sensorEventOffset = std::visit(VariantToUnsignedIntVisitor(), findSensorEventOffset->second);
++        uint8_t sensorLowOffset = std::visit(VariantToUnsignedIntVisitor(), findSensorLowOffset->second);
++
++	//Digital Event Offset
++        auto findSensorHighOffset = baseConfiguration->second.find("HighOffset");
++        if (findSensorHighOffset == baseConfiguration->second.end())
++        {
++            std::cerr << "could not determine configuration HighOffset for "
++                      << deviceName << "\n";
++           continue;
++        }
++        uint8_t sensorHighOffset = std::visit(VariantToUnsignedIntVisitor(), findSensorHighOffset->second);
+ 
+         // on rescans, only update sensors we were signaled by
+         auto findSensor = sensors.find(sensorName);
+@@ -235,7 +245,7 @@
+         sensors[sensorName] = std::make_unique<GpioSensor>(
+             sensorPath, sensorType, objectServer,
+             dbusConnection, io, sensorName,
+-            *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorEventOffset,sdrRecord);
++            *interfacePath,EvStat,sensorUnit,sensorDType,sensorEventType,sensorLowOffset, sensorHighOffset,sdrRecord);
+     }
+ }
+ 
+diff -Naur a/src/GpioSensor.cpp b/src/GpioSensor.cpp
+--- a/src/GpioSensor.cpp	2020-09-28 13:15:00.088047521 +0530
++++ b/src/GpioSensor.cpp	2020-09-29 22:53:43.115370019 +0530
+@@ -30,10 +30,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& conn,
+     boost::asio::io_service& io, const std::string& sensorName,
+     const std::string& sensorConfiguration,uint16_t EvStat , const std::string& sensorUnit,
+-    uint8_t DType, uint8_t EventType,uint8_t EventOffset, struct sdr::SdrRecord sdrRecord) :
++    uint8_t DType, uint8_t EventType,uint8_t LowOffset, uint8_t HighOffset, struct sdr::SdrRecord sdrRecord) :
+     DiscSensor(boost::replace_all_copy(sensorName, " ", "_"),
+            sensorConfiguration, objectType, maxReading,
+-           minReading,EvStat, sensorUnit, sdrRecord),
++           minReading,EvStat, LowOffset, HighOffset , sensorUnit, sdrRecord),
+     path(path), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), errCount(0)
+ {
+@@ -53,7 +53,6 @@
+         "org.openbmc.Associations");
+     sensorInterface->register_property("DType",DType);
+     sensorInterface->register_property("EventType",EventType);
+-    sensorInterface->register_property("EventOffset",EventOffset);
+     setInitialProperties(conn);
+     setupRead();
+ }

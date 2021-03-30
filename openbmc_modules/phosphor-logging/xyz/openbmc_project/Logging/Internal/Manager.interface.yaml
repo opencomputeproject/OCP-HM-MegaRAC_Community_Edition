@@ -1,0 +1,39 @@
+description: >
+    Implement to provide event/error logging management features.
+    This interface should be instantiated for the phosphor::logging namespace,
+    and only one is required.
+methods:
+    - name: Commit
+      description: >
+          Write the requested error/event entry with its associated metadata
+          fields to flash. The "level" of the committed error log is same as the
+          level defined in error YAML definitions.
+      parameters:
+        - name: transactionId
+          type: uint64
+          description: >
+              The unique identifier of the journal entry(ies) to be committed.
+        - name: errMsg
+          type: string
+          description: >
+              The error exception message associated with the error
+              event log to be committed.
+    - name: CommitWithLvl
+      description: >
+          Write the requested error/event entry with its associated metadata
+          fields to flash. This interface allows the caller to override the
+          error level specified in the error YAML definition.
+      parameters:
+        - name: transactionId
+          type: uint64
+          description: >
+              The unique identifier of the journal entry(ies) to be committed.
+        - name: errMsg
+          type: string
+          description: >
+              The error exception message associated with the error
+              event log to be committed.
+        - name: errLvl
+          type: uint32
+          description: >
+              The error level/severity indicator.

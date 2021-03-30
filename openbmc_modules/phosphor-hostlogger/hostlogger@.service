@@ -1,0 +1,13 @@
+[Unit]
+Description=Host logger for %i
+BindsTo=obmc-console@%i.service
+After=obmc-console@%i.service
+
+[Service]
+ExecStart=/usr/bin/env hostlogger
+EnvironmentFile=/etc/hostlogger/%i.conf
+Restart=always
+SyslogIdentifier=hostlogger-%i
+
+[Install]
+WantedBy=multi-user.target
