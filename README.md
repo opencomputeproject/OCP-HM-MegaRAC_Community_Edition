@@ -1,6 +1,6 @@
 # OCP AMI OpenBMC
 
-The OCP AMI Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP complaint platform. 
+The OCP AMI Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platform. 
 It includes platform specific features and out-of-band remote management.
 
 Project uses same technologies as used by openbmc LF
