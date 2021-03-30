@@ -1,6 +1,7 @@
-# OCP AMI OpenBMC
+# OCP AMI's OpenBMC
+An improved source tree based on openbmc-LF fully managed and maintained by AMI and contributed to OCP
 
-The OCP AMI Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platform. 
+The OCP AMI's Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platforms. 
 It includes platform specific features and out-of-band remote management.
 
 Project uses same technologies as used by openbmc LF
@@ -49,7 +50,7 @@ It will list of all the available target machines in the repo.
 
 ```
 
-Once you know the target, then set it as mentioned below, Rightnow we are supporting tiogapass:
+Once you know the target, then set it as mentioned below, Currently we are supporting tiogapass platform:
 
 ```
 TEMPLATECONF=meta-ami/meta-tiogapass/conf  . openbmc-env
