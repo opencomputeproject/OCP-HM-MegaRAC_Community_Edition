@@ -1,10 +1,9 @@
-# OpenBMC
+# OCP AMI OpenBMC
 
-[![Build Status](https://openpower.xyz/buildStatus/icon?job=openbmc-build)](https://openpower.xyz/job/openbmc-build/)
+The OCP AMI Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP complaint platform. 
+It includes platform specific features and out-of-band remote management.
 
-The OpenBMC project can be described as a Linux distribution for embedded
-devices that have a BMC; typically, but not limited to, things like servers,
-top of rack switches or RAID appliances. The OpenBMC stack uses technologies
+Project uses same technologies as used by openbmc LF
 such as [Yocto](https://www.yoctoproject.org/),
 [OpenEmbedded](https://www.openembedded.org/wiki/Main_Page),
 [systemd](https://www.freedesktop.org/wiki/Software/systemd/), and
@@ -12,10 +11,10 @@ such as [Yocto](https://www.yoctoproject.org/),
 customization for your server platform.
 
 
-## Setting up your OpenBMC project
+## Setting up your project
 
 ### 1) Prerequisite
-- Ubuntu 14.04
+- Ubuntu 18.04
 
 ```
 sudo apt-get install -y git build-essential libsdl1.2-dev texinfo gawk chrpath diffstat
@@ -46,21 +45,11 @@ of supported hardware targets, see the following example:
 
 ```
 $ . setup
-Target machine must be specified. Use one of:
+It will list of all the available target machines in the repo.
 
-centriq2400-rep         nicole                     stardragon4800-rep2
-f0b                     olympus                    swift
-fp5280g2                olympus-nuvoton            tiogapass
-gsj                     on5263m5                   vesnin
-hr630                   palmetto                   witherspoon
-hr855xg2                qemuarm                    witherspoon-128
-lanyang                 quanta-q71l                witherspoon-tacoma
-mihawk                  rainier                    yosemitev2
-msn                     romulus                    zaius
-neptune                 s2600wf
 ```
 
-Once you know the target (e.g. romulus), source the `setup` script as follows:
+Once you know the target, then set it as mentioned below, Rightnow we are supporting tiogapass:
 
 ```
 TEMPLATECONF=meta-ami/meta-tiogapass/conf  . openbmc-env
@@ -73,34 +62,29 @@ TEMPLATECONF=meta-ami/meta-tiogapass/conf  . openbmc-env
 bitbake obmc-phosphor-image
 ```
 
-Additional details can be found in the [docs](https://github.com/openbmc/docs)
-repository.
-
 ## Supported Features
 
 **Feature List**
-* Host management: Power, Cooling, LEDs, Inventory, Events, Watchdog
-* Full IPMI 2.0 Compliance with DCMI
-* Code Update Support for multiple BMC/BIOS images
+* IPMI v2.0 and DCMI v1.5
+* Sensor monitoring, Event log and FRU
 * Web-based user interface
 * REST interfaces
 * D-Bus based interfaces
-* SSH based SOL
 * Remote KVM
-* Hardware Simulation
-* Automated Testing
 * User management
 * Virtual media
+* Fimware Update
+* Redfish v1.9
+* Lan, KCS and IPMB interfaces
+* Certificate management
+* LDAP
+* Chassis Power control
+* Post code
+* Thermal management
+* Watchdog
+* NTP
+* I2c, Fan and PWM, ADC, Snoop, GPIO, UART, LPC and PECI
 
-**Features In Progress**
-* OpenCompute Redfish Compliance
-* Verified Boot
+## More documents can be found from
 
-**Features Requested but need help**
-* OpenBMC performance monitoring
-
-
-## Finding out more
-
-Dive deeper into OpenBMC by opening the
 [docs](https://github.com/openbmc/docs) repository.
