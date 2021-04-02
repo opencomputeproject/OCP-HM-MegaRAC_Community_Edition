@@ -35,8 +35,6 @@ mac_check() {
 while read IFACE UBDEV; do
 	mac_check "$IFACE" "$UBDEV"
 done <<-END_CONF
-	eth0 ethaddr
-	eth1 eth1addr
-	eth2 eth2addr
-	eth3 eth3addr
+	eth0 eth1addr
+	eth1 ethaddr
 END_CONF
