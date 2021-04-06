@@ -285,32 +285,14 @@ pdh_ctnt = ''
 pdmk_ctnt = ''
 with open('projdef.cfg', 'r') as pdf:
     pdc_ctnt = pdf.read()
-with open('projdef.h', 'r') as pdf:
-    pdh_ctnt = pdf.read()
-with open('projdef.mk', 'r') as pdf:
-    pdmk_ctnt = pdf.read()
-with open('core_macros', 'r') as cmf:
-    cm_ctnt = cmf.read()
 for f,v in features.iteritems():
     pdc_ctnt = update_prjdef_cfg(pdc_ctnt, f, v)
-    pdh_ctnt = update_prjdef_header(pdh_ctnt, f, v)
-    pdmk_ctnt = update_prjdef_make(pdmk_ctnt, f, v)
-    cm_ctnt = update_core_macro(cm_ctnt, f, v)
 
 for c,v in configs.iteritems():
     pdc_ctnt = update_prjdef_cfg(pdc_ctnt, c, v)
-    pdh_ctnt = update_prjdef_header(pdh_ctnt, c, v)
-    pdmk_ctnt = update_prjdef_make(pdmk_ctnt, c, v)
-    cm_ctnt = update_core_macro(cm_ctnt, c, v)
 
 with open('projdef.mod.cfg', 'w') as pdf:
     pdf.write(pdc_ctnt)
-with open('projdef.mod.h', 'w') as pdf:
-    pdf.write(pdh_ctnt)
-with open('projdef.mod.mk', 'w') as pdf:
-    pdf.write(pdmk_ctnt)
-with open('core_macros_mod', 'w') as cmf:
-    cmf.write(cm_ctnt)
 
 final_layer = list(set(layer) - set(['recipes-osp']))
 DELIMIT = "\n## DO NOT EDIT BELOW - ADDED BY DEVNET\n"

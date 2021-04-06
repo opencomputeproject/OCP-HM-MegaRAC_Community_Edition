@@ -17,25 +17,7 @@ else
     BUILDDIR_NAME="build"
 fi
 
-if [ ! -n "$CONFIG" ]; then
-    CONFIG="OSP.cfg"
-fi
-
 CURR_DIR=$(pwd)
-
-fetch_spx_sources()
-{
-    metaname=$(echo $TEMPLATECONF | cut -d'/' -f2)
-    replace=""
-    platform=${metaname//meta-/$replace}
-    builddir_name=$BUILDDIR_NAME
-    fetch="meta-ami/recipes-osp/common/fetch-spx-git.sh"
-    SRC_DIR="$CURR_DIR/$BUILDDIR_NAME/tmp/work-shared/$platform/ami/build-src-lnk"
-    if [ -f $fetch ] && [ ! -f $SRC_DIR/done ];then
-    	$fetch $platform $builddir_name
-    fi
-
-}
 
 #check only TEMPLATECONF is defined.
 if [ -n "$TEMPLATECONF" ]; then
@@ -50,34 +32,16 @@ if [ -n "$TEMPLATECONF" ]; then
         #do fetch only machine meta layer is existed
         if [ "$temp_metaname" == "$platform_name" ]; then
             #echo "FOUND:$temp_metaname"
-            if [[ $temp_metaname == *"-osp" ]];then
-
-               #echo "found AMI flavor platform ***********"
-               fetch_spx_sources
-               SPX_SRC_DIR="$CURR_DIR/$BUILDDIR_NAME/tmp/work-shared/$platform/ami"
-               #python meta-ami/recipes-osp/common/update-features-macro.py $TEMPLATECONF $SPX_SRC_DIR
-               python update-features-macro.py $TEMPLATECONF $CONFIG
-               cp projdef.mod.mk $SPX_SRC_DIR/projdef.mk
-               cp projdef.mod.cfg $SPX_SRC_DIR/projdef.cfg
-               cp projdef.mod.h $SPX_SRC_DIR/projdef.h
-               python meta-ami/recipes-osp/common/update-secure-boot-recipe.py $platform_name
-               break
+            if [ ! -d $BUILDDIR_NAME/tmp ]; then
+                mkdir -p $BUILDDIR_NAME/tmp
             fi
-        else
-               #echo "found OpenBMC_LF platform ***********"
-               if [ ! -d $BUILDDIR_NAME/tmp ]; then
-                  mkdir -p $BUILDDIR_NAME/tmp
-               fi
 
-               python update-features-macro.py $TEMPLATECONF OSP.cfg
-               cp projdef.mod.mk $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.mk
-               cp projdef.mod.cfg $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.cfg
-               cp projdef.mod.h $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.h
-               break
+            python update-features-macro.py $TEMPLATECONF OSP.cfg
+            cp projdef.mod.cfg $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.cfg
+            break
         fi
     done
 fi
-
 
 echo "### Initializing OE build env ###"
 . $OBMCROOT/oe-init-build-env
