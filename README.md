@@ -88,4 +88,4 @@ bitbake obmc-phosphor-image
 
 ## More documents can be found from
 
-[docs](https://github.com/openbmc/docs) repository.
+[docs](https://github.com/opencomputeproject/AMI-Tioga-Pass-OpenBMC/tree/master/docs) repository.
