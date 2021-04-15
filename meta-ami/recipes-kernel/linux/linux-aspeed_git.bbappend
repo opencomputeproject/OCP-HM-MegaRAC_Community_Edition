@@ -6,6 +6,7 @@ SRC_URI += "file://0010-mm_bigphysarea.patch"
 SRC_URI += "file://0014-flash-layout-v2019-uboot.patch"
 SRC_URI += "file://0015-drivers_net_ethernet_faraday_ftgmac100.h.patch"
 SRC_URI += "file://0016-kernel-source-drivers-net-ethernet-faraday-ftgmac100.c.patch"
+SRC_URI += "file://0018-drivers_net_ethernet_faraday_ftgmac100.patch"
 SRC_URI += "file://0022-dma-mapping-retive-NULL-device-support.patch"
 SRC_URI += "file://kernel.cfg"
 
