@@ -61,7 +61,7 @@ The Software Project is an open source software project led by contributors, cod
  The approved charter of the Software Project shall be published on the OCP website under its corresponding Project web page. 
 
 - The scope of the Software Project shall include software development under an OSI-approved open source license.
-- The specifications must be under the “OCP Software Contributor License Agreement.”
+- The specifications must be under the [OCP Software Contributor License Agreement](https://www.opencompute.org/documents/software-contributor-license-agreement)
  
 ## Software Contribution Guidelines
 The Software Project accepts contributions via GitHub pull requests. The following section outlines the process for merging contributions to the source code and the spec.
