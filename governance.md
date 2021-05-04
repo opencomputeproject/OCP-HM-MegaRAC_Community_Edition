@@ -17,12 +17,13 @@ A Software Sub-Project enters into the Incubation Phase when the following crite
 |Leadership|Corporate Member(s) who are identified as Volunteer Leader(s) to serve as Software Sub-Project Lead (SPL).|
 |Approval|Formal recommendation to IC or Foundation Staff
 |
+
 The Incubation Team (Foundation Staff, PL(s) and key stakeholders) will create a support plan for the Incubation Software Sub-Project to include the following:
 
- ●  Resource allocation/development time. 
- ●  Requirements and their prioritizations. 
- ●  Infrastructure to support the Software Sub-Project. 
- ●  Marketing investment to ensure that the Incubation Software      Sub-Project gains support and contributors after launch.
+ - Resource allocation/development time. 
+ - Requirements and their prioritizations. 
+ - Infrastructure to support the Software Sub-Project. 
+ - Marketing investment to ensure that the Incubation Software Sub-Project gains support and contributors after launch.
  
 b. **Impact Phase** 
 
@@ -61,8 +62,8 @@ The Software Project is an open source software project led by contributors, cod
  2. **Charter and Scope of the Software Project**
  The approved charter of the Software Project shall be published on the OCP website under its corresponding Project web page. 
 
-●  The scope of the Software Project shall include software development under an OSI-approved open source license.
-●  The specifications must be under the “OCP Software Contributor License Agreement.”
+- The scope of the Software Project shall include software development under an OSI-approved open source license.
+- The specifications must be under the “OCP Software Contributor License Agreement.”
  
 ## Software Contribution Guidelines
 The Software Project accepts contributions via GitHub pull requests. The following section outlines the process for merging contributions to the source code and the spec.
@@ -71,20 +72,20 @@ The Software Project accepts contributions via GitHub pull requests. The followi
  Issues are used as the primary method for tracking anything to do with the source code and specification repository.
  2. **Issue Types**
 For the source code contributions, the issue types could be any of the following: 
-●  *Sub-task*: This is the sub-task of an issue. In a logged issue, there can be different tasks to resolve, which are called sub-tasks. 
-● *Bug*: A problem that impairs or prevents the functions of the product. 
-● *Epic*: A big user story that needs to be broken down. 
-● Improvement: An improvement or enhancement to an existing feature or task. 
-● *New feature*: A new feature of the product, which is yet to be developed. 
-● *Task*: A task that needs to be done to achieve the team's goal.
+- *Sub-task*: This is the sub-task of an issue. In a logged issue, there can be different tasks to resolve, which are called sub-tasks. 
+- *Bug*: A problem that impairs or prevents the functions of the product. 
+- *Epic*: A big user story that needs to be broken down. 
+- *Improvement*: An improvement or enhancement to an existing feature or task. 
+- *New feature*: A new feature of the product, which is yet to be developed. 
+- *Task*: A task that needs to be done to achieve the team's goal.
 
 Specification issue types are listed below: 
 
-● *Discussion*: These are support or functionality inquiries that we want to have a record for future reference. Depending on the discussion, these can turn into "Spec Change" issues. 
+- *Discussion*: These are support or functionality inquiries that we want to have a record for future reference. Depending on the discussion, these can turn into "Spec Change" issues. 
 
-● *Proposal*: Used for items that propose new ideas or functionality that require a larger discussion. This allows for feedback from the community before a specification change is actually written. All issues that are proposals should both have a label and an issue title of "Proposal: [the rest of the title]." A proposal can become a "Spec Change" and does not require a milestone. 
+- *Proposal*: Used for items that propose new ideas or functionality that require a larger discussion. This allows for feedback from the community before a specification change is actually written. All issues that are proposals should both have a label and an issue title of "Proposal: [the rest of the title]." A proposal can become a "Spec Change" and does not require a milestone. 
 
-● *Spec Change*: These track specific spec changes and ideas until they are complete. They can evolve from "Proposal" and "Discussion" items, or they can be submitted individually depending on the size. Each spec change should be placed into a milestone.
+- *Spec Change*: These track specific spec changes and ideas until they are complete. They can evolve from "Proposal" and "Discussion" items, or they can be submitted individually depending on the size. Each spec change should be placed into a milestone.
 
 ## Software Community & Membership
 The Software Project requires no admission processes, contracts, or membership fees. Any individual or organization who are OCP members, can use and contribute to a Software Project. We welcome any contributions that lead to the success of the project - including software development, documentation, testing, delivery and advocacy.
