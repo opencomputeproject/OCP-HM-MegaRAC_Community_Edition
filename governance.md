@@ -33,7 +33,6 @@ The Software Sub-Project is expected to enter the Impact Phase within 12 months 
 |Charter|Charter has been created, aligned with the top-level Project Charter and approved by the IC via a vote.|
 |Leadership|Initial SPL appointments are made by the PLs and approved by Foundation.|
 |Approval|Review of all of the above criteria by the IC and Foundation.
-|
 
 c. **Termination Phase** 
 
