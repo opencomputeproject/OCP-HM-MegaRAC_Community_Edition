@@ -16,7 +16,6 @@ A Software Sub-Project enters into the Incubation Phase when the following crite
 |Tenets|Software Sub-Project need meets 3 out of the 4 OCP Tenets.|
 |Leadership|Corporate Member(s) who are identified as Volunteer Leader(s) to serve as Software Sub-Project Lead (SPL).|
 |Approval|Formal recommendation to IC or Foundation Staff
-|
 
 The Incubation Team (Foundation Staff, PL(s) and key stakeholders) will create a support plan for the Incubation Software Sub-Project to include the following:
 
