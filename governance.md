@@ -135,8 +135,8 @@ Specification Maintainers are responsible for organizing activities around devel
  -  The TSC members are initially the Software Project’s code Committers when the Software Project exits the “Incubation Phase” and enters the “Impact Phase”. The Committers will determine the Project’s code repository. 
  
  -  Any meetings of the TSC are intended to be open to the public and can be conducted electronically, via teleconference, or in person.
- - The TSC may -
-		-	Establish workflow procedures for the submission, approval, and closure/archiving of Project.
+ - The TSC may 
+		- Establish workflow procedures for the submission, approval, and closure/archiving of Project.
 		- Set requirements for the promotion of contributors to committer status, as applicable. 
 		- Amend, adjust, refine and/or eliminate the roles of contributors, and committers, and create new roles, and publicly document any TSC roles, as it sees fit.
 
