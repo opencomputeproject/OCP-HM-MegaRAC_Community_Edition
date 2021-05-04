@@ -135,10 +135,11 @@ Specification Maintainers are responsible for organizing activities around devel
  -  The TSC members are initially the Software Project’s code Committers when the Software Project exits the “Incubation Phase” and enters the “Impact Phase”. The Committers will determine the Project’s code repository. 
  
  -  Any meetings of the TSC are intended to be open to the public and can be conducted electronically, via teleconference, or in person.
- - The TSC may 
-		- Establish workflow procedures for the submission, approval, and closure/archiving of Project.
-		- Set requirements for the promotion of contributors to committer status, as applicable. 
-		- Amend, adjust, refine and/or eliminate the roles of contributors, and committers, and create new roles, and publicly document any TSC roles, as it sees fit.
+ - The TSC may
+  
+ 	- Establish workflow procedures for the submission, approval, and closure/archiving of Project.
+	- Set requirements for the promotion of contributors to committer status, as applicable. 
+	- Amend, adjust, refine and/or eliminate the roles of contributors, and committers, and create new roles, and publicly document any TSC roles, as it sees fit.
 
 - The TSC shall elect a chair who will preside over meetings of the TSC. The TSC shall elect a new chair every 12 months. A current or previous chairperson is eligible to serve any number of terms as chair.
 - The TSC shall review its membership every 12 months, in the month following the election of the TSC chair. Membership on the TSC is limited to OCP Corporate Tiered Members and code committers (or persons employed by a code committing company). Members are added or removed by majority vote of the TSC. An existing TSC member that has not committed code within the prior 12 months shall be disqualified from the TSC.
