@@ -70,12 +70,12 @@ The Software Project accepts contributions via GitHub pull requests. The followi
  Issues are used as the primary method for tracking anything to do with the source code and specification repository.
  2. **Issue Types**
 For the source code contributions, the issue types could be any of the following: 
-- *Sub-task*: This is the sub-task of an issue. In a logged issue, there can be different tasks to resolve, which are called sub-tasks. 
-- *Bug*: A problem that impairs or prevents the functions of the product. 
-- *Epic*: A big user story that needs to be broken down. 
-- *Improvement*: An improvement or enhancement to an existing feature or task. 
-- *New feature*: A new feature of the product, which is yet to be developed. 
-- *Task*: A task that needs to be done to achieve the team's goal.
+	- *Sub-task*: This is the sub-task of an issue. In a logged issue, there can be different tasks to resolve, which are called sub-tasks. 
+	- *Bug*: A problem that impairs or prevents the functions of the product. 
+	- *Epic*: A big user story that needs to be broken down. 
+	- *Improvement*: An improvement or enhancement to an existing feature or task. 
+	- *New feature*: A new feature of the product, which is yet to be developed. 
+	- *Task*: A task that needs to be done to achieve the team's goal.
 
 Specification issue types are listed below: 
 
@@ -113,6 +113,7 @@ The Software Project is developed and designed using a collaborative effort by a
 	○ Adding features
 
 ● *Committers*: Committers are contributors who have earned the ability to modify (“commit”) source code, documentation or other technical artifacts in a Software Project’s repository. A contributor may become a committer by a majority approval of the existing committers. A committer may be also removed by a majority approval of the other existing committers.
+
 ● *Maintainers*: There are two types of maintainers 
 
 	 - Source code maintainers  
