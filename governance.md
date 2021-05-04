@@ -126,7 +126,7 @@ Specification Maintainers are responsible for organizing activities around devel
 
 ● *Participants*: They are required for specification management only and are those that have made contributions to the Working Group or to the specification repository.
 
-● *ICR*: The ICR is an ambassador to other OCP Project Communities. They will work with the PLs and other ICRs to ensure that the Software Project is fitting within the OCP ecosystem.
+● *ICR (IC Representative)*: The ICR is an ambassador to other OCP Project Communities. They will work with the PLs and other ICRs to ensure that the Software Project is fitting within the OCP ecosystem.
 
 ●  *Technical Steering Committee (TSC)* `Optional`- TSC may be formed to provide leadership and resolve technical differences that may arise from time to time. The decision to create or dissolve a TSC must be approved by the OCP Foundation
 
