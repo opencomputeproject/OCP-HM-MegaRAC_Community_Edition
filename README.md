@@ -1,7 +1,7 @@
-# OCP AMI's OpenBMC
+# "OpenEdition" : AMI's OpenBMC
 An improved source tree based on openbmc-LF fully managed and maintained by AMI and contributed to OCP
 
-The OCP AMI's Openbmc project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platforms. 
+The AMI's OpenEdition project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platforms. 
 It includes platform specific features and out-of-band remote management.
 
 Project uses same technologies as used by openbmc LF
