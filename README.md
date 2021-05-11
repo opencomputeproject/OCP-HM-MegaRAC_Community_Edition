@@ -1,4 +1,4 @@
-# "OpenEdition" : AMI's OpenBMC
+# "Megarac OpenEdition" : AMI's OpenBMC
 An improved source tree based on openbmc-LF fully managed and maintained by AMI and contributed to OCP
 
 The AMI's OpenEdition project is forked from OpenBMC Linux distribution to support BMC functionality in OCP compliant platforms. 
