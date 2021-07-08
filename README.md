@@ -49,6 +49,8 @@ $ . setup
 It will list of all the available target machines in the repo.
 
 ```
+Root User:
+Use root user to build the image for the targetted platform.
 
 Once you know the target, then set it as mentioned below, Currently we are supporting tiogapass platform:
 
