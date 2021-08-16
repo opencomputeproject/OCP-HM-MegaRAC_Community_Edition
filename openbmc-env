@@ -23,8 +23,8 @@ CURR_DIR=$(pwd)
 if [ -n "$TEMPLATECONF" ]; then
     platform_name=${TEMPLATECONF//\/conf/""}
     #echo "conf:$platform_name"
-    ami=$(ls -d meta-ami/meta-*)
-    evb=$(ls -d meta-evb/meta-evb-aspeed/meta*)
+    ami=$(\ls -d meta-ami/meta-*)
+    evb=$(\ls -d meta-evb/meta-evb-aspeed/meta*)
     platform_list="${ami}"$'\n'"${evb}"
 
     for temp_metaname in $platform_list; do
