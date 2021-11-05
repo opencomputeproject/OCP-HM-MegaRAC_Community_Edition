@@ -1,0 +1,259 @@
+From e2f0267b2a68c16d05edb35cf205c41fd7bb4e54 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <JeffLin2@quantatw.com>
+Date: Fri, 20 Nov 2020 15:49:28 +0800
+Subject: [PATCH] ADCSensor: Add PollRate and fix PowerState Always
+
+    If set "PowerState" as "On" then there will create the handler to
+check the host state is running or not. However, "PowerState" with
+default "always" will not create the handler and cause ADCSensor crashed
+by function isPowerOn when calling function checkThresholdsPowerDelay.
+    For example, in our platform, we have only one ADCSensor which is
+for p3v battery and need to be updated once per day.
+
+Tested:
+Test the threshold low/high for the following test case by using
+"busctl set-property" to trigger threshold event and checking the
+time in "ipmitool sel elist".
+1. one sensor with PowerState is Always:
+   When trigger low threshold it will delay 5 seconds to assert
+   threshold event and the service is still alive.
+   When trigger high threshold it will immediately assert the threshold
+   event.
+2. one sensor with other PowerState("On","BiosPost") will have the same
+   behavior with case 1.
+
+Test the following polling time by adding log in function updateValue:
+PollRate not write in configuration: polling time is 0.5 sec.
+PollRate with zero (value 0): polling time is 0.5 sec.
+PollRate with negative value (value -1.0): polling time is 0.5 sec.
+PollRate with positive value (value 2.0): polling time is 2.0 sec.
+
+Signed-off-by: Jeff Lin <JeffLin2@quantatw.com>
+Change-Id: I9044dd3b3844161721134f30a4de3229602a9172
+---
+ include/ADCSensor.hpp  |  5 +++--
+ include/Thresholds.hpp | 49 ++----------------------------------------
+ src/ADCSensor.cpp      |  9 ++++----
+ src/ADCSensorMain.cpp  | 17 +++++++++++++--
+ src/Thresholds.cpp     | 46 +++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 71 insertions(+), 55 deletions(-)
+
+diff --git a/include/ADCSensor.hpp b/include/ADCSensor.hpp
+index d1edf6d..9ba0060 100644
+--- a/include/ADCSensor.hpp
++++ b/include/ADCSensor.hpp
+@@ -66,8 +66,8 @@ class ADCSensor : public Sensor, public std::enable_shared_from_this<ADCSensor>
+               std::shared_ptr<sdbusplus::asio::connection>& conn,
+               boost::asio::io_service& io, const std::string& sensorName,
+               std::vector<thresholds::Threshold>&& thresholds,
+-              const double scaleFactor, PowerState readState,
+-              const std::string& sensorConfiguration,
++              const double scaleFactor, const float pollRate,
++              PowerState readState, const std::string& sensorConfiguration,
+               std::optional<BridgeGpio>&& bridgeGpio);
+     ~ADCSensor() override;
+     void setupRead(void);
+@@ -79,6 +79,7 @@ class ADCSensor : public Sensor, public std::enable_shared_from_this<ADCSensor>
+     std::shared_ptr<boost::asio::streambuf> readBuf;
+     std::string path;
+     double scaleFactor;
++    unsigned int sensorPollMs;
+     std::optional<BridgeGpio> bridgeGpio;
+     thresholds::ThresholdTimer thresholdTimer;
+     void handleResponse(const boost::system::error_code& err);
+diff --git a/include/Thresholds.hpp b/include/Thresholds.hpp
+index 559f4df..9b9799d 100644
+--- a/include/Thresholds.hpp
++++ b/include/Thresholds.hpp
+@@ -98,53 +98,8 @@ struct ThresholdTimer
+         }
+     }
+ 
+-    void startTimer(const Threshold& threshold, bool assert, double assertValue)
+-    {
+-        struct TimerUsed timerUsed = {};
+-        constexpr const size_t waitTime = 5;
+-        TimerPair* pair = nullptr;
+-
+-        for (TimerPair& timer : timers)
+-        {
+-            if (!timer.first.used)
+-            {
+-                pair = &timer;
+-                break;
+-            }
+-        }
+-        if (pair == nullptr)
+-        {
+-            pair = &timers.emplace_back(timerUsed,
+-                                        boost::asio::deadline_timer(io));
+-        }
+-
+-        pair->first.used = true;
+-        pair->first.level = threshold.level;
+-        pair->first.direction = threshold.direction;
+-        pair->first.assert = assert;
+-        pair->second.expires_from_now(boost::posix_time::seconds(waitTime));
+-        pair->second.async_wait([this, pair, threshold, assert,
+-                                 assertValue](boost::system::error_code ec) {
+-            pair->first.used = false;
+-
+-            if (ec == boost::asio::error::operation_aborted)
+-            {
+-                return; // we're being canceled
+-            }
+-            if (ec)
+-            {
+-
+-                std::cerr << "timer error: " << ec.message() << "\n";
+-
+-                return;
+-            }
+-            if (isPowerOn())
+-            {
+-                assertThresholds(sensor, assertValue, threshold.level,
+-                                 threshold.direction, assert);
+-            }
+-        });
+-    }
++    void startTimer(const Threshold& threshold, bool assert,
++                    double assertValue);
+ 
+     boost::asio::io_service& io;
+     std::list<TimerPair> timers;
+diff --git a/src/ADCSensor.cpp b/src/ADCSensor.cpp
+index 3cd40e8..57a6434 100644
+--- a/src/ADCSensor.cpp
++++ b/src/ADCSensor.cpp
+@@ -34,7 +34,6 @@
+ #include <string>
+ #include <vector>
+ 
+-static constexpr unsigned int sensorPollMs = 500;
+ static constexpr size_t warnAfterErrorCount = 10;
+ static constexpr unsigned int gpioBridgeEnableMs = 20;
+ // scaling factor from hwmon
+@@ -49,7 +48,8 @@ ADCSensor::ADCSensor(const std::string& path,
+                      std::shared_ptr<sdbusplus::asio::connection>& conn,
+                      boost::asio::io_service& io, const std::string& sensorName,
+                      std::vector<thresholds::Threshold>&& thresholdsIn,
+-                     const double scaleFactor, PowerState readState,
++                     const double scaleFactor, const float pollRate,
++                     PowerState readState,
+                      const std::string& sensorConfiguration,
+                      std::optional<BridgeGpio>&& bridgeGpio) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+@@ -59,8 +59,9 @@ ADCSensor::ADCSensor(const std::string& path,
+            conn, readState),
+     std::enable_shared_from_this<ADCSensor>(), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
+-    scaleFactor(scaleFactor), bridgeGpio(std::move(bridgeGpio)),
+-    thresholdTimer(io, this)
++    scaleFactor(scaleFactor),
++    sensorPollMs(static_cast<unsigned int>(pollRate * 1000)),
++    bridgeGpio(std::move(bridgeGpio)), thresholdTimer(io, this)
+ {
+     sensorInterface = objectServer.add_interface(
+         "/xyz/openbmc_project/sensors/voltage/" + name,
+diff --git a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+index 5265321..edc055a 100644
+--- a/src/ADCSensorMain.cpp
++++ b/src/ADCSensorMain.cpp
+@@ -36,6 +36,7 @@
+ #include <vector>
+ 
+ static constexpr bool debug = false;
++static constexpr float pollRateDefault = 0.5;
+ 
+ namespace fs = std::filesystem;
+ 
+@@ -216,6 +217,18 @@ void createSensors(
+                     }
+                 }
+ 
++                auto findPollRate = baseConfiguration->second.find("PollRate");
++                float pollRate = pollRateDefault;
++                if (findPollRate != baseConfiguration->second.end())
++                {
++                    pollRate = std::visit(VariantToFloatVisitor(),
++                                          findPollRate->second);
++                    if (pollRate <= 0.0f)
++                    {
++                        pollRate = pollRateDefault; // polling time too short
++                    }
++                }
++
+                 auto findPowerOn = baseConfiguration->second.find("PowerState");
+                 PowerState readState = PowerState::always;
+                 if (findPowerOn != baseConfiguration->second.end())
+@@ -277,8 +290,8 @@ void createSensors(
+ 
+                 sensor = std::make_shared<ADCSensor>(
+                     path.string(), objectServer, dbusConnection, io, sensorName,
+-                    std::move(sensorThresholds), scaleFactor, readState,
+-                    *interfacePath, std::move(bridgeGpio));
++                    std::move(sensorThresholds), scaleFactor, pollRate,
++                    readState, *interfacePath, std::move(bridgeGpio));
+                 sensor->setupRead();
+             }
+         }));
+diff --git a/src/Thresholds.cpp b/src/Thresholds.cpp
+index df56b21..5466ff5 100644
+--- a/src/Thresholds.cpp
++++ b/src/Thresholds.cpp
+@@ -341,6 +341,52 @@ static std::vector<ChangeParam> checkThresholds(Sensor* sensor, double value)
+     return thresholdChanges;
+ }
+ 
++void ThresholdTimer::startTimer(const Threshold& threshold, bool assert,
++                                double assertValue)
++{
++    struct TimerUsed timerUsed = {};
++    constexpr const size_t waitTime = 5;
++    TimerPair* pair = nullptr;
++
++    for (TimerPair& timer : timers)
++    {
++        if (!timer.first.used)
++        {
++            pair = &timer;
++            break;
++        }
++    }
++    if (pair == nullptr)
++    {
++        pair = &timers.emplace_back(timerUsed, boost::asio::deadline_timer(io));
++    }
++
++    pair->first.used = true;
++    pair->first.level = threshold.level;
++    pair->first.direction = threshold.direction;
++    pair->first.assert = assert;
++    pair->second.expires_from_now(boost::posix_time::seconds(waitTime));
++    pair->second.async_wait([this, pair, threshold, assert,
++                             assertValue](boost::system::error_code ec) {
++        pair->first.used = false;
++
++        if (ec == boost::asio::error::operation_aborted)
++        {
++            return; // we're being canceled
++        }
++        if (ec)
++        {
++            std::cerr << "timer error: " << ec.message() << "\n";
++            return;
++        }
++        if (sensor->readingStateGood())
++        {
++            assertThresholds(sensor, assertValue, threshold.level,
++                             threshold.direction, assert);
++        }
++    });
++}
++
+ bool checkThresholds(Sensor* sensor)
+ {
+     bool status = true;
+-- 
+2.17.1
+

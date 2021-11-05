@@ -1,0 +1,193 @@
+From 4316e23899a6c40fec66c4b9fa65920823069d84 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Thu, 20 May 2021 06:39:18 +0700
+Subject: [PATCH] Support setting the DefaultValue of the absented source
+ sensors
+
+Section "5.7 Comparison" of IEEE Std 754-1985 said "Every NaN shall compare
+unordered with everything, including itself". This means the comparison shall
+return false, if any of the operands is NaN, except != shall return true.
+
+In phosphor-virtual-sensor, when the dbus sensor object is not available,
+function getSensorValue() is returning NaN. This value then is set to the
+variable value of expression. This causes the exprtkTools' failures in
+calculating min/max/sum... expression. The exprtkTools does't support NaN
+values. So function getSensorValue() should not return NaN. The DefaultValue
+should be set to replace the current NaN reponses. This value is depend on the
+expression. If the expression is Max() the DefaultValue will be Min value of
+the sensor type. If the expression is Min() the Max value of the sensor should
+be applied. Because phosphor-virtual-sensordon't know the type of the
+expression, so the DefaultValue should be set by user in DbusParam settings
+of virtual sensor configuration.
+
+The commit adds "DefaultValue" in DbusParam setting of phosphor-virtual-sensor.
+If the option is not set, the default value will be NaN for backward
+compatible. Function getSensorValue() will return this value when the sensor
+is not available.
+
+Tested:
+	1. Configure the virtual as S0_MEM_Temp.
+        {
+            "Desc": {
+                "Name": "S0_MEM_Temp",
+                "SensorType": "temperature"
+            },
+            "Params": {
+                "DbusParam": [
+                    {
+                        "ParamName": "S0_DIMM_VR1_Temp",
+                        "Desc": {
+                            "Name": "S0_DIMM_VR1_Temp",
+                            "SensorType": "temperature"
+                        },
+                        "DefaultValue" : 0
+                    },
+                    {
+                        "ParamName": "S0_DIMM_VR2_Temp",
+                        "Desc": {
+                            "Name": "S0_DIMM_VR2_Temp",
+                            "SensorType": "temperature"
+                        },
+                        "DefaultValue" : 0
+                    }
+                ]
+            },
+            "Expression": "max(S0_DIMM_VR1_Temp, S0_DIMM_VR2_Temp)"
+        }
+	2. Only install dimm2 in the system.
+	3. max_power should equal dimm2_pwr but not NaN.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+---
+ dbusSensor.hpp             | 12 ++++++++----
+ virtualSensor.cpp          | 11 ++++++++---
+ virtualSensor.hpp          |  6 ++++--
+ virtual_sensor_config.json | 27 +++++++++++++++++++++++++++
+ 4 files changed, 47 insertions(+), 9 deletions(-)
+
+diff --git a/dbusSensor.hpp b/dbusSensor.hpp
+index 4a105c9..8353efe 100644
+--- a/dbusSensor.hpp
++++ b/dbusSensor.hpp
+@@ -17,9 +17,11 @@ class DbusSensor
+      *
+      * @param[in] bus     - Handle to system dbus
+      * @param[in] path    - The Dbus path of sensor
++     * @param[in] value   - The reponsed value when Dbus path is not available
+      */
+-    DbusSensor(sdbusplus::bus::bus& bus, const std::string& path, void* ctx) :
+-        bus(bus), path(path),
++    DbusSensor(sdbusplus::bus::bus& bus, const std::string& path,
++               const double& value, void* ctx) :
++        bus(bus), path(path), defaultValue(value),
+         signal(
+             bus,
+             sdbusplus::bus::match::rules::propertiesChanged(path, sensorIntf),
+@@ -38,7 +40,7 @@ class DbusSensor
+             servName = getService(bus, path, sensorIntf);
+             if (servName.empty())
+             {
+-                return std::numeric_limits<double>::quiet_NaN();
++                return defaultValue;
+             }
+         }
+         /*
+@@ -55,7 +57,7 @@ class DbusSensor
+         }
+         catch(const std::exception& e)
+         {
+-            ret = std::numeric_limits<double>::quiet_NaN();
++            ret = defaultValue;
+         }
+ 
+         return ret;
+@@ -68,6 +70,8 @@ class DbusSensor
+     std::string path;
+     /** @brief service name for the sensor daemon */
+     std::string servName;
++    /** @brief the response value when the dbus object is not available */
++    double defaultValue;
+     /** @brief signal for sensor value change */
+     sdbusplus::server::match::match signal;
+ };
+diff --git a/virtualSensor.cpp b/virtualSensor.cpp
+index e136db1..f8a6a2d 100644
+--- a/virtualSensor.cpp
++++ b/virtualSensor.cpp
+@@ -193,9 +193,14 @@ void VirtualSensor::initVirtualSensor(const Json& sensorConfig,
+                 {
+                     std::string objPath(sensorDbusPath);
+                     objPath += sensorType + "/" + name;
+-
+-                    auto paramPtr =
+-                        std::make_unique<SensorParam>(bus, objPath, this);
++                    double defVal =
++                        std::numeric_limits<double>::quiet_NaN();
++                    if (j.find("DefaultValue") != j.end())
++                    {
++                        defVal = j["DefaultValue"];
++                    }
++                    auto paramPtr = std::make_unique<SensorParam>(bus, objPath,
++                                        defVal, this);
+                     std::string name = j["ParamName"];
+                     symbols.create_variable(name);
+                     paramMap.emplace(std::move(name), std::move(paramPtr));
+diff --git a/virtualSensor.hpp b/virtualSensor.hpp
+index ba802db..9066ed8 100644
+--- a/virtualSensor.hpp
++++ b/virtualSensor.hpp
+@@ -47,10 +47,12 @@ class SensorParam
+      *
+      * @param[in] bus     - Handle to system dbus
+      * @param[in] path    - The Dbus path of sensor
++     * @param[in] value   - The reponsed value when Dbus path is not available
+      * @param[in] ctx     - sensor context for update
+      */
+-    SensorParam(sdbusplus::bus::bus& bus, std::string path, void* ctx) :
+-        dbusSensor(std::make_unique<DbusSensor>(bus, path, ctx)),
++    SensorParam(sdbusplus::bus::bus& bus, std::string path, double value,
++                void* ctx) :
++        dbusSensor(std::make_unique<DbusSensor>(bus, path, value, ctx)),
+         paramType(dbusParam)
+     {}
+ 
+diff --git a/virtual_sensor_config.json b/virtual_sensor_config.json
+index a394fae..489b197 100644
+--- a/virtual_sensor_config.json
++++ b/virtual_sensor_config.json
+@@ -42,5 +42,32 @@
+ 			]
+ 		},
+ 		"Expression" : "P1 * (P2 + 5 - P3 * 0.01)"
++	},
++	{
++		"Desc": {
++			"Name": "S0_MEM_Temp",
++			"SensorType": "temperature"
++		},
++		"Params": {
++			"DbusParam": [
++				{
++					"ParamName": "S0_DIMM_VR1_Temp",
++					"Desc": {
++						"Name": "S0_DIMM_VR1_Temp",
++						"SensorType": "temperature"
++					},
++					"DefaultValue" : 0
++				},
++				{
++					"ParamName": "S0_DIMM_VR2_Temp",
++					"Desc": {
++						"Name": "S0_DIMM_VR2_Temp",
++						"SensorType": "temperature"
++					},
++					"DefaultValue" : 0
++				}
++			]
++		},
++		"Expression": "max(S0_DIMM_VR1_Temp, S0_DIMM_VR2_Temp)"
+ 	}
+ ]
+-- 
+2.17.1
+

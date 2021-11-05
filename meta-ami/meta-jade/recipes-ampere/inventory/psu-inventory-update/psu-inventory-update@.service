@@ -1,0 +1,15 @@
+[Unit]
+Description=Init PSU Inventory for PSU %I
+Wants=mapper-wait@-xyz-openbmc_project-inventory.service
+After=mapper-wait@-xyz-openbmc_project-inventory.service
+Wants=phosphor-gpio-presence@%i.service
+After=phosphor-gpio-presence@%i.service
+
+[Service]
+Restart=no
+ExecStartPre=sleep 2
+ExecStart=/usr/bin/psu-inventory-update.sh %i
+SyslogIdentifier=psu-inventory-update
+
+[Install]
+WantedBy=multi-user.target

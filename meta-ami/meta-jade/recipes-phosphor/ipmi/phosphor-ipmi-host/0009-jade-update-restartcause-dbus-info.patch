@@ -1,0 +1,28 @@
+From 2f6ead6ceca727b54cad1b882fe3b267bf28cb83 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Thu, 21 Oct 2021 14:12:02 -0400
+Subject: [PATCH] jade: update restartcause dbus info
+
+---
+ chassishandler.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/chassishandler.cpp b/chassishandler.cpp
+index 1edc4b6..f0aa707 100755
+--- a/chassishandler.cpp
++++ b/chassishandler.cpp
+@@ -979,9 +979,9 @@ static IpmiRestartCause
+ static std::optional<uint4_t> getRestartCause(ipmi::Context::ptr ctx)
+ {
+     constexpr const char* restartCausePath =
+-        "/xyz/openbmc_project/control/host0/restart_cause";
++        "/xyz/openbmc_project/state/host0";
+     constexpr const char* restartCauseIntf =
+-        "xyz.openbmc_project.Control.Host.RestartCause";
++        "xyz.openbmc_project.State.Host";
+ 
+     std::string service;
+     boost::system::error_code ec =
+-- 
+2.17.1
+

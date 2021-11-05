@@ -1,0 +1,29 @@
+From 58a264f45e5412a575f0e8e0e033ee491b1f4d79 Mon Sep 17 00:00:00 2001
+From: Hieu Huynh <hieu.huynh@amperecomputing.com>
+Date: Thu, 6 May 2021 06:34:09 +0000
+Subject: [PATCH] Fix build issue when virtual media is enabled
+
+The bmcweb compile is failing when Virtual Media is enabled. This patch
+correct the code to compile success.
+
+Signed-off-by: Hieu Huynh <hieu.huynh@amperecomputing.com>
+---
+ redfish-core/lib/virtual_media.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/virtual_media.hpp b/redfish-core/lib/virtual_media.hpp
+index 685ee5c..99542c4 100644
+--- a/redfish-core/lib/virtual_media.hpp
++++ b/redfish-core/lib/virtual_media.hpp
+@@ -635,7 +635,7 @@ class VirtualMediaActionInsertMedia : public Node
+                                 }
+ 
+                                 bool paramsValid = validateParams(
+-                                    asyncResp->res, imageUrl, inserted,
++                                    asyncResp, imageUrl, inserted,
+                                     transferMethod, transferProtocolType);
+ 
+                                 if (paramsValid == false)
+-- 
+2.17.1
+

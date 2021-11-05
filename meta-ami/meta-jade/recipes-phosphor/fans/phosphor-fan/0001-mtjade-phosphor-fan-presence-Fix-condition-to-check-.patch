@@ -1,0 +1,45 @@
+From efb60a63e1723e8564a099826b7058813442e9ab Mon Sep 17 00:00:00 2001
+From: "Chanh Nguyen" <chnguyen@amperecomputing.com>
+Date: Thu, 12 Nov 2020 04:19:45 +0000
+Subject: [PATCH] mtjade: phosphor-fan-presence: Fix condition to check Fan
+ Present value
+
+Signed-off-by: Chanh Nguyen <chnguyen@amperecomputing.com>
+---
+ presence/tach.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/presence/tach.cpp b/presence/tach.cpp
+index 6cddc23..add01c4 100644
+--- a/presence/tach.cpp
++++ b/presence/tach.cpp
+@@ -78,7 +78,7 @@ bool Tach::start()
+ 
+     // Set the initial state of the sensor.
+     currentState = std::any_of(state.begin(), state.end(), [](const auto& s) {
+-        return std::get<double>(s) != 0;
++        return std::get<double>(s) > 500;
+     });
+ 
+     return currentState;
+@@ -104,7 +104,7 @@ bool Tach::present()
+     }
+ 
+     return std::any_of(values.begin(), values.end(),
+-                       [](const auto& v) { return v != 0; });
++                       [](const auto& v) { return v > 500; });
+ }
+ 
+ void Tach::propertiesChanged(size_t sensor, sdbusplus::message::message& msg)
+@@ -128,7 +128,7 @@ void Tach::propertiesChanged(size_t sensor,
+ 
+         auto newState =
+             std::any_of(state.begin(), state.end(),
+-                        [](const auto& s) { return std::get<double>(s) != 0; });
++                        [](const auto& s) { return std::get<double>(s) > 500; });
+ 
+         if (currentState != newState)
+         {
+-- 
+2.25.1
+

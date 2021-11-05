@@ -1,0 +1,48 @@
+From b8b74a1dc6b18494ecfd6443e2149a75a2ced8f5 Mon Sep 17 00:00:00 2001
+From: Hieu Huynh <hieu.huynh@amperecomputing.com>
+Date: Mon, 19 Apr 2021 09:07:50 +0000
+Subject: [PATCH] Correct ipmitool get system guid
+
+This commit correct the ipmitool get system guid command by change the
+uuid service name.
+
+Signed-off-by: Hieu Huynh <hieu.huynh@amperecomputing.com>
+---
+ apphandler.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/apphandler.cpp b/apphandler.cpp
+index 90818a9..6548b36 100644
+--- a/apphandler.cpp
++++ b/apphandler.cpp
+@@ -788,22 +788,22 @@ auto ipmiAppGetBtCapabilities()
+ 
+ auto ipmiAppGetSystemGuid() -> ipmi::RspType<std::array<uint8_t, 16>>
+ {
+-    static constexpr auto bmcInterface =
+-        "xyz.openbmc_project.Inventory.Item.Bmc";
++    static constexpr auto uuidService =
++        "xyz.openbmc_project.Inventory.Manager";
++    static constexpr auto uuidObject =
++        "/xyz/openbmc_project/inventory/system/chassis/motherboard";
+     static constexpr auto uuidInterface = "xyz.openbmc_project.Common.UUID";
+     static constexpr auto uuidProperty = "UUID";
+ 
+     ipmi::Value propValue;
+     try
+     {
+-        // Get the Inventory object implementing BMC interface
+         auto busPtr = getSdBus();
+-        auto objectInfo = ipmi::getDbusObject(*busPtr, bmcInterface);
+ 
+         // Read UUID property value from bmcObject
+         // UUID is in RFC4122 format Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
+         propValue =
+-            ipmi::getDbusProperty(*busPtr, objectInfo.second, objectInfo.first,
++            ipmi::getDbusProperty(*busPtr, uuidService, uuidObject,
+                                   uuidInterface, uuidProperty);
+     }
+     catch (const InternalFailure& e)
+-- 
+2.17.1
+

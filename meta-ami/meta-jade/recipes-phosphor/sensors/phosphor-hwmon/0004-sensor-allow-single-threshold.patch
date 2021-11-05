@@ -1,0 +1,56 @@
+From f9f6f2aa9429436ef8aa4cee36227e5b394c61d9 Mon Sep 17 00:00:00 2001
+From: "Thang Q. Nguyen" <thang@os.amperecomputing.com>
+Date: Sat, 29 May 2021 13:31:16 +0000
+Subject: [PATCH] sensor: allow single threshold
+
+Currently, sensors require a couple of LC/UC and/or LNC/UNC. However, in
+real hardware design, there might be only one of LC, UC, LNC or UNC.
+This change allows to specify only a single sensor threshold.
+
+Signed-off-by: Thang Q. Nguyen <thang@os.amperecomputing.com>
+---
+ thresholds.hpp | 23 ++++++++++++++++-------
+ 1 file changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/thresholds.hpp b/thresholds.hpp
+index 4d2fcff..b5bffdc 100644
+--- a/thresholds.hpp
++++ b/thresholds.hpp
+@@ -91,18 +91,27 @@ auto addThreshold(const std::string& sensorType, const std::string& sensorID,
+ 
+     auto tLo = env::getEnv(Thresholds<T>::envLo, sensorType, sensorID);
+     auto tHi = env::getEnv(Thresholds<T>::envHi, sensorType, sensorID);
+-    if (!tLo.empty() && !tHi.empty())
+-    {
+-        static constexpr bool deferSignals = true;
+-        auto& bus = *std::get<sdbusplus::bus::bus*>(info);
++    static constexpr bool deferSignals = true;
++    auto& bus = *std::get<sdbusplus::bus::bus*>(info);
++
++    iface = std::make_shared<T>(bus, objPath.c_str(), deferSignals);
+ 
+-        iface = std::make_shared<T>(bus, objPath.c_str(), deferSignals);
++    if (!tLo.empty())
++    {
+         auto lo = stod(tLo) * std::pow(10, scale);
+-        auto hi = stod(tHi) * std::pow(10, scale);
+         (*iface.*Thresholds<T>::setLo)(lo);
+-        (*iface.*Thresholds<T>::setHi)(hi);
+         (*iface.*Thresholds<T>::alarmLo)(value <= lo);
++    }
++
++    if (!tHi.empty())
++    {
++        auto hi = stod(tHi) * std::pow(10, scale);
++        (*iface.*Thresholds<T>::setHi)(hi);
+         (*iface.*Thresholds<T>::alarmHi)(value >= hi);
++    }
++
++    if (!tLo.empty() || !tHi.empty())
++    {
+         auto type = Thresholds<T>::type;
+         obj[type] = iface;
+     }
+-- 
+2.25.1
+

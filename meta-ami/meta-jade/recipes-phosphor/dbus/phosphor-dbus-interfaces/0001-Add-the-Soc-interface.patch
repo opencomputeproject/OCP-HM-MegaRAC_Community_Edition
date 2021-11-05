@@ -1,0 +1,77 @@
+From 0e3751ab65edcd53e0179fe71851bbb2e3a70b41 Mon Sep 17 00:00:00 2001
+From: Chanh Nguyen <chanh@amperemail.onmicrosoft.com>
+Date: Tue, 26 Jan 2021 09:41:41 +0700
+Subject: [PATCH] Add the Soc interface
+
+Add the Soc interface, which includes the SocLimitPower property.
+It help sync the SOC power limit with the Dbus Object
+
+Signed-off-by: Chanh Nguyen <chanh@amperemail.onmicrosoft.com>
+---
+ .../openbmc_project/Control/Power/Soc/meson.build  | 14 ++++++++++++++
+ gen/xyz/openbmc_project/Control/Power/meson.build  | 14 ++++++++++++++
+ .../Control/Power/Soc.interface.yaml               |  9 +++++++++
+ 3 files changed, 37 insertions(+)
+ create mode 100644 gen/xyz/openbmc_project/Control/Power/Soc/meson.build
+ create mode 100644 xyz/openbmc_project/Control/Power/Soc.interface.yaml
+
+diff --git a/gen/xyz/openbmc_project/Control/Power/Soc/meson.build b/gen/xyz/openbmc_project/Control/Power/Soc/meson.build
+new file mode 100644
+index 0000000..ba7d745
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Power/Soc/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Power/Soc__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Power/Soc.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Power/Soc',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Power/meson.build b/gen/xyz/openbmc_project/Control/Power/meson.build
+index 05628ec..4671224 100644
+--- a/gen/xyz/openbmc_project/Control/Power/meson.build
++++ b/gen/xyz/openbmc_project/Control/Power/meson.build
+@@ -44,3 +44,17 @@ generated_others += custom_target(
+     build_by_default: true,
+ )
+ 
++subdir('Soc')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Power/Soc__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Power/Soc.interface.yaml',  ],
++    output: [ 'Soc.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Power/Soc',
++    ],
++    build_by_default: true,
++)
+diff --git a/xyz/openbmc_project/Control/Power/Soc.interface.yaml b/xyz/openbmc_project/Control/Power/Soc.interface.yaml
+new file mode 100644
+index 0000000..8c86ee7
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Power/Soc.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to specify a SoC power limit.
++
++properties:
++    - name: SocPowerLimit
++      type: uint32
++      description: >
++          Soc Power Limit value. This could for example be specified in absolute
++          wattage. The unit of measurement must be Watts.
+-- 
+2.17.1
+

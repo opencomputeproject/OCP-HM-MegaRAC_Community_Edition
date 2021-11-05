@@ -1,0 +1,277 @@
+From 080aa7767ed3c2e6afd790992f14a2fe9cbb2e8f Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Wed, 28 Apr 2021 22:59:15 +0700
+Subject: [PATCH] AmpereSoC: Support CPU Present properties in socsensor dbus
+
+Present property of interface system/chassis/motherboard/CPU_* is used to
+identify the installed status of CPU. In Mt.Jade platform, the low status
+of Gpio pin SLAVE_PRESENT_L indentifies the installed status of CPU2.
+So AmpereSoC daemon will use PresentGpio setting in sensor configuration
+to match CPU present status.
+This commit supports updating the present property of interface
+system/chassis/motherboard/CPU_* in socsensor dbus.
+
+Tested:
+	1. Set PresenceGpio for CPU2 in entity-manager.
+	"PresenceGpio": [
+	{
+		"Name": "SLAVE_PRESENT_L",
+		"Polarity": "Low"
+	}
+	],
+	2. CPU_2 dbus property should be False when SLAVE_PRESENT_L is low.
+---
+ include/AmpereSoC.hpp | 83 ++++++++++++++++++++++++++++++++++++++
+ src/AmpereSoCMain.cpp | 93 +++++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 169 insertions(+), 7 deletions(-)
+
+diff --git a/include/AmpereSoC.hpp b/include/AmpereSoC.hpp
+index 407d9af..318238d 100644
+--- a/include/AmpereSoC.hpp
++++ b/include/AmpereSoC.hpp
+@@ -5,6 +5,7 @@
+ #include <boost/asio/streambuf.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
+ #include <sensor.hpp>
++#include <gpiod.hpp>
+ 
+ #include <memory>
+ #include <string>
+@@ -58,3 +59,85 @@ class SoCProperty
+     double minReading;
+     unsigned int sensorScaleFactor;
+ };
++
++// this is added to socsensor.hpp to avoid having every sensor have to link
++// against libgpiod, if another sensor needs it we may move it to utils
++inline bool cpuIsPresent(const SensorData* sensorData)
++{
++    std::string gpioName = "";
++    bool activeHigh = true;
++    bool matchedPolarity = false;
++    bool matchedPresenceGpio = false;
++    static boost::container::flat_map<std::string, bool> cpuPresence;
++
++    for (const SensorBaseConfiguration& suppConfig : *sensorData)
++    {
++        if (suppConfig.first.find("PresenceGpio") !=
++            std::string::npos)
++        {
++            auto findName = suppConfig.second.find("Name");
++            if (findName != suppConfig.second.end())
++            {
++                matchedPresenceGpio = true;
++                gpioName = std::visit(
++                    VariantToStringVisitor(), findName->second);
++                auto findPolarity =
++                    suppConfig.second.find("Polarity");
++                if (findPolarity != suppConfig.second.end())
++                {
++                    matchedPolarity = true;
++                    if (std::string("Low") ==
++                        std::visit(VariantToStringVisitor(),
++                                    findPolarity->second))
++                    {
++                        activeHigh = false;
++                    }
++                }
++            }
++            break;
++        }
++    }
++    /* Set CPU present to true for soc don't have PresenceGpio setting */
++    if (!matchedPresenceGpio)
++    {
++        std::cerr << "No PresenceGpio setting." << std::endl;
++        return true;
++    }
++
++    /* Set CPU present to false when there is no Gpio name setting */
++    if (gpioName.empty())
++    {
++        std::cerr << "No PresenceGpio Name setting." << std::endl;
++        return false;
++    }
++
++    /* Set CPU present to false when there is no Polarity setting */
++    if (!matchedPolarity)
++    {
++        std::cerr << "No PresenceGpio Polarity setting." << std::endl;
++        return false;
++    }
++
++    auto line = gpiod::find_line(gpioName);
++    if (!line)
++    {
++        std::cerr << "Error requesting gpio: " << gpioName << "\n";
++        return false;
++    }
++
++    bool resp;
++    try
++    {
++        line.request({"socsensor", gpiod::line_request::DIRECTION_INPUT,
++                      activeHigh ? 0 : gpiod::line_request::FLAG_ACTIVE_LOW});
++        resp = line.get_value();
++    }
++    catch (std::system_error&)
++    {
++        std::cerr << "Error reading gpio: " << gpioName << "\n";
++        return false;
++    }
++    cpuPresence[gpioName] = resp;
++
++    return resp;
++}
+\ No newline at end of file
+diff --git a/src/AmpereSoCMain.cpp b/src/AmpereSoCMain.cpp
+index 669dbba..c5aae67 100644
+--- a/src/AmpereSoCMain.cpp
++++ b/src/AmpereSoCMain.cpp
+@@ -51,6 +51,10 @@ static boost::container::flat_map<std::string, std::shared_ptr<SoCSensor>>
+ static boost::container::flat_map<std::string, std::string> sensorTable;
+ static boost::container::flat_map<std::string, SoCProperty> propMatch;
+ static boost::container::flat_map<std::string, int> numSocSensors;
++boost::container::flat_map<std::string,
++                           std::shared_ptr<sdbusplus::asio::dbus_interface>>
++    inventoryIfaces;
++std::vector<std::string> socInventNames;
+ 
+ static std::vector<SoCProperty> socProperties;
+ static std::regex i2cDevRegex(R"((\d+)-([a-fA-F0-9]+))");
+@@ -595,14 +599,32 @@ static bool matchSensor(
+     return true;
+ }
+ 
++bool addSoCInventory(sdbusplus::asio::object_server& objectServer,
++                        const std::string& name, bool present)
++{
++    std::string socName = std::regex_replace(name, illegalDbusRegex, "_");
++    if (inventoryIfaces.find(socName) == inventoryIfaces.end())
++    {
++        std::cerr << "Add inventory " << socName << ":" << present << "\n";
++        auto iface = objectServer.add_interface(
++            cpuInventoryPath + std::string("/") + socName,
++            "xyz.openbmc_project.Inventory.Item");
++        iface->register_property("PrettyName", socName);
++        iface->register_property("Present", present);
++        iface->initialize();
++        inventoryIfaces[socName] = std::move(iface);
++    }
++
++    return true;
++}
++
+ static bool parseSensorConfig(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+     std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
+     const std::pair<std::string, boost::container::flat_map<
+                     std::string, BasicVariantType>>* baseConfig,
+     SensorData* sensorData, std::string* interfacePath, std::string sensorType,
+-    size_t thresholdConfSize, fs::path directory,
+-    int* numSensors)
++    size_t thresholdConfSize, fs::path directory, int* numSensors)
+ {
+     int numCreated = 0;
+ 
+@@ -661,6 +683,7 @@ static bool parseSensorConfig(
+     {
+         findLabels = std::get<std::vector<std::string>>(findLabelObj->second);
+     }
++
+     bool ret = false;
+     for (const auto& sensorPath : sensorPaths)
+     {
+@@ -683,6 +706,54 @@ static bool parseSensorConfig(
+     return true;
+ }
+ 
++bool createCpuPresentDbus(sdbusplus::asio::object_server& objectServer,
++    const ManagedObjectType& sensorConfigs)
++{
++    const std::pair<std::string, boost::container::flat_map<
++                                         std::string, BasicVariantType>>*
++            baseConfig = nullptr;
++    const SensorData* sensorData = nullptr;
++    for (const std::pair<sdbusplus::message::object_path, SensorData>&
++            sensor : sensorConfigs)
++    {
++        sensorData = &(sensor.second);
++        for (const char* type : sensorTypes)
++        {
++            auto sensorBase = sensorData->find(type);
++            if (sensorBase != sensorData->end())
++            {
++                baseConfig = &(*sensorBase);
++                break;
++            }
++        }
++        if (baseConfig == nullptr)
++        {
++            std::cerr << "Can find SoC sensor type " << std::endl;
++            continue;
++        }
++
++        auto findSOCName = baseConfig->second.find("Name");
++        if (findSOCName == baseConfig->second.end())
++        {
++            std::cerr << "could not determine configuration" << std::endl;
++            continue;
++        }
++
++        std::string socName =
++                std::visit(VariantToStringVisitor(), findSOCName->second);
++        if (std::empty(socName))
++        {
++            std::cerr << "Cannot find soc name, invalid configuration\n";
++            continue;
++        }
++
++        auto present = cpuIsPresent(sensorData);
++        addSoCInventory(objectServer, socName, present);
++    }
++
++    return true;
++}
++
+ static void createSensorsCallback(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+     std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
+@@ -698,6 +769,15 @@ static void createSensorsCallback(
+         removeAllSensors();
+     }
+ 
++    if (inventoryIfaces.size() == 0)
++    {
++        if (!createCpuPresentDbus(objectServer, sensorConfigs))
++        {
++            std::cerr << "Can not find SoC config " << std::endl;
++            return;
++        }
++    }
++
+     if (!findFiles(fs::path("/sys/class/hwmon"), "name", busPaths))
+     {
+         std::cerr << "No SOC sensors in system\n";
+@@ -786,14 +866,13 @@ static void createSensorsCallback(
+                           sensorData,
+                           interfacePath, sensorType, thresholdConfSize,
+                           directory, &numCreated);
++
+         numSocSensors[socName] = numCreated;
+-        if constexpr (debug)
+-        {
+-            std::cerr << "Device " << socName;
+-            std::cerr << " created " << numCreated << " sensors \n";
+-        }
++        std::cerr << "Device " << socName;
++        std::cerr << " created " << numCreated << " sensors \n";
+     }
+ 
++
+     return;
+ }
+ 
+-- 
+2.17.1
+

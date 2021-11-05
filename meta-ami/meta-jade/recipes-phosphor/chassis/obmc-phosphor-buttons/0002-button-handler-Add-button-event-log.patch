@@ -1,0 +1,80 @@
+From 3a6dab587a2490ca5175e2f3b68af786da4c169d Mon Sep 17 00:00:00 2001
+From: Chanh Nguyen <chanh@os.amperecomputing.com>
+Date: Wed, 30 Jun 2021 11:32:28 +0700
+Subject: [PATCH] button-handler: Add button event log
+
+Support the Redfish log once the power button and the reset
+button were pressed.
+
+Signed-off-by: Chanh Nguyen <chanh@os.amperecomputing.com>
+---
+ src/button_handler.cpp | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/src/button_handler.cpp b/src/button_handler.cpp
+index 7223108..7c878dc 100644
+--- a/src/button_handler.cpp
++++ b/src/button_handler.cpp
+@@ -5,6 +5,7 @@
+ #include <phosphor-logging/log.hpp>
+ #include <xyz/openbmc_project/State/Chassis/server.hpp>
+ #include <xyz/openbmc_project/State/Host/server.hpp>
++#include <systemd/sd-journal.h>
+ 
+ namespace phosphor
+ {
+@@ -29,6 +30,9 @@ constexpr auto mapperObjPath = "/xyz/openbmc_project/object_mapper";
+ constexpr auto mapperService = "xyz.openbmc_project.ObjectMapper";
+ constexpr auto ledGroupBasePath = "/xyz/openbmc_project/led/groups/";
+ 
++std::string message;
++std::string redfishMsgId;
++
+ Handler::Handler(sdbusplus::bus::bus& bus) : bus(bus)
+ {
+     try
+@@ -149,6 +153,13 @@ void Handler::powerPressed(sdbusplus::message::message& msg)
+         method.append(hostIface, "RequestedHostTransition", state);
+ 
+         bus.call(method);
++
++        message = "The power button pressed";
++        redfishMsgId = "OpenBMC.0.1.PowerButtonPressed";
++
++        sd_journal_send("MESSAGE=%s", message.c_str(),
++                        "REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
++                        NULL);
+     }
+     catch (SdBusError& e)
+     {
+@@ -179,6 +190,13 @@ void Handler::longPowerPressed(sdbusplus::message::message& msg)
+         method.append(chassisIface, "RequestedPowerTransition", state);
+ 
+         bus.call(method);
++
++        message = "The power button long pressed";
++        redfishMsgId = "OpenBMC.0.1.PowerButtonPressed";
++
++        sd_journal_send("MESSAGE=%s", message.c_str(),
++                        "REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
++                        NULL);
+     }
+     catch (SdBusError& e)
+     {
+@@ -209,6 +227,13 @@ void Handler::resetPressed(sdbusplus::message::message& msg)
+         method.append(hostIface, "RequestedHostTransition", state);
+ 
+         bus.call(method);
++
++        message = "The reset button pressed";
++        redfishMsgId = "OpenBMC.0.1.ResetButtonPressed";
++
++        sd_journal_send("MESSAGE=%s", message.c_str(),
++                        "REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
++                        NULL);
+     }
+     catch (SdBusError& e)
+     {
+-- 
+2.17.1
+

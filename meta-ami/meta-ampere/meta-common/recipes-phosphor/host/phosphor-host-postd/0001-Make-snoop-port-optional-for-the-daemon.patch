@@ -1,0 +1,165 @@
+From f80411d787d59c82da16ddfd3b8c8903b5acfbe1 Mon Sep 17 00:00:00 2001
+From: Manojkiran Eda <manojkiran.eda@gmail.com>
+Date: Fri, 19 Feb 2021 11:20:33 +0530
+Subject: [PATCH] Make snoop port optional for the daemon
+
+- In the current state, the daemon only works on the bmc
+  systems that has the snooping port enabled, but for IBM
+  systems, we communicate the progress codes aka post codes
+  via pldm.
+
+- In addition to the host, we also have couple of bmc
+  applications that can post these codes during the early
+  boot sequence.
+
+- The intent behind this commit is to make the snooping port
+  argument optional for the snooping service, so that the
+  daemon can still host the raw interface & the Raw value
+  property for pldm to write into, even when the snooping
+  device is not present.
+
+- This commit would try to address the following mailing list
+  proposal.
+  https://lore.kernel.org/openbmc/4795347F-477D-45EF-A145-0C7B163FE01B@getmailspring.com/
+
+TestedBy:
+- meson builddir
+- ninja -C builddir
+- copy the snoopd daemon into a witherspoon system and make sure
+  it hosts the dbus interface.
+
+- meson builddir
+- ninja -C builddir -Dsnoop-device=/dev/aspeed-lpc-snoop0
+- copy the snoopd daemon into witherspoon and it fails to start
+  beacause it could not find the snoop port.
+root@witherspoon:/tmp# Unable to open: /dev/aspeed-lpc-snoop0
+[1]+  Done(255)               ./snoopd
+
+Signed-off-by: Manojkiran Eda <manojkiran.eda@gmail.com>
+Change-Id: I941897a7aea795f418494087ac8aa1fbc6ecf633
+---
+ lpcsnoop.service.in |  2 +-
+ main.cpp            | 36 +++++++++++++++++++-----------------
+ meson.build         |  8 ++++++--
+ 3 files changed, 26 insertions(+), 20 deletions(-)
+
+diff --git a/lpcsnoop.service.in b/lpcsnoop.service.in
+index da7493d..6ace17e 100644
+--- a/lpcsnoop.service.in
++++ b/lpcsnoop.service.in
+@@ -4,7 +4,7 @@ After=systemd-modules-load.service
+ 
+ [Service]
+ Restart=always
+-ExecStart=@bindir@/snoopd -d "/dev/@SNOOP_DEVICE@" -b "@POST_CODE_BYTES@"
++ExecStart=@bindir@/snoopd @SNOOPD_ARGS@
+ 
+ [Install]
+ WantedBy=@SYSTEMD_TARGET@
+diff --git a/main.cpp b/main.cpp
+index 1094e43..db0532d 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -32,7 +32,6 @@
+ #include <sdeventplus/source/io.hpp>
+ #include <thread>
+ 
+-static const char* snoopFilename = "/dev/aspeed-lpc-snoop0";
+ static size_t codeSize = 1; /* Size of each POST code in bytes */
+ 
+ static void usage(const char* name)
+@@ -41,9 +40,9 @@ static void usage(const char* name)
+             "Usage: %s [-d <DEVICE>]\n"
+             "  -b, --bytes <SIZE>     set POST code length to <SIZE> bytes. "
+             "Default is %zu\n"
+-            "  -d, --device <DEVICE>  use <DEVICE> file. Default is '%s'\n"
++            "  -d, --device <DEVICE>  use <DEVICE> file.\n"
+             "  -v, --verbose  Prints verbose information while running\n\n",
+-            name, codeSize, snoopFilename);
++            name, codeSize);
+ }
+ 
+ /*
+@@ -119,7 +118,7 @@ int main(int argc, char* argv[])
+     // clang-format off
+     static const struct option long_options[] = {
+         {"bytes",  required_argument, NULL, 'b'},
+-        {"device", required_argument, NULL, 'd'},
++        {"device", optional_argument, NULL, 'd'},
+         {"verbose", no_argument, NULL, 'v'},
+         {0, 0, 0, 0}
+     };
+@@ -144,7 +143,13 @@ int main(int argc, char* argv[])
+                 }
+                 break;
+             case 'd':
+-                snoopFilename = optarg;
++                postFd = open(optarg, O_NONBLOCK);
++                if (postFd < 0)
++                {
++                    fprintf(stderr, "Unable to open: %s\n", optarg);
++                    return -1;
++                }
++
+                 break;
+             case 'v':
+                 verbose = true;
+@@ -155,13 +160,6 @@ int main(int argc, char* argv[])
+         }
+     }
+ 
+-    postFd = open(snoopFilename, O_NONBLOCK);
+-    if (postFd < 0)
+-    {
+-        fprintf(stderr, "Unable to open: %s\n", snoopFilename);
+-        return -1;
+-    }
+-
+     auto bus = sdbusplus::bus::new_default();
+ 
+     // Add systemd object manager.
+@@ -175,11 +173,15 @@ int main(int argc, char* argv[])
+     try
+     {
+         sdeventplus::Event event = sdeventplus::Event::get_default();
+-        sdeventplus::source::IO reporterSource(
+-            event, postFd, EPOLLIN | EPOLLET,
+-            std::bind(PostCodeEventHandler, std::placeholders::_1,
+-                      std::placeholders::_2, std::placeholders::_3, &reporter,
+-                      verbose));
++        if (postFd > 0)
++        {
++
++            sdeventplus::source::IO reporterSource(
++                event, postFd, EPOLLIN | EPOLLET,
++                std::bind(PostCodeEventHandler, std::placeholders::_1,
++                          std::placeholders::_2, std::placeholders::_3,
++                          &reporter, verbose));
++        }
+         // Enable bus to handle incoming IO and bus events
+         bus.attach_event(event.get(), SD_EVENT_PRIORITY_NORMAL);
+         rc = event.loop();
+diff --git a/meson.build b/meson.build
+index 8bda862..8e659ed 100644
+--- a/meson.build
++++ b/meson.build
+@@ -21,10 +21,14 @@ systemd = dependency('systemd')
+ 
+ conf_data = configuration_data()
+ conf_data.set('bindir', get_option('prefix') / get_option('bindir'))
+-conf_data.set('SNOOP_DEVICE', get_option('snoop-device'))
+-conf_data.set('POST_CODE_BYTES', get_option('post-code-bytes'))
+ conf_data.set('SYSTEMD_TARGET', get_option('systemd-target'))
+ 
++snoopd_args = '-b ' + get_option('post-code-bytes').to_string()
++if get_option('snoop-device') != ''
++  snoopd_args += ' -d /dev/' + get_option('snoop-device')
++endif
++conf_data.set('SNOOPD_ARGS', snoopd_args)
++
+ configure_file(
+   input: 'lpcsnoop.service.in',
+   output: 'lpcsnoop.service',
+-- 
+2.17.1
+

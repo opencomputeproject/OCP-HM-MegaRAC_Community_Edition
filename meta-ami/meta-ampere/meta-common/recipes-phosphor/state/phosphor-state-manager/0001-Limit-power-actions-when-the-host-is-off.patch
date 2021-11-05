@@ -1,0 +1,45 @@
+From d2312ea5ae4aee4b8c745e09698d68dfebce56b1 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Fri, 16 Jul 2021 11:05:42 +0700
+Subject: [PATCH] Limit power actions when the host is off
+
+When the host is off, power reset/soft/cycle should not affect.
+This commit supports that limitation.
+
+Tested:
+	1. Power off the host.
+	2. Try power soft, power reset, power cycle.
+	3. These action should not affect.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+
+%% original patch: 0001-Limit-power-actions-when-the-host-is-off.patch
+---
+ host_state_manager.cpp | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/host_state_manager.cpp b/host_state_manager.cpp
+index ffb37b1..f42bbfe 100644
+--- a/host_state_manager.cpp
++++ b/host_state_manager.cpp
+@@ -135,7 +135,16 @@ void Host::determineInitialState()
+ void Host::executeTransition(Transition tranReq)
+ {
+     auto sysdUnit = SYSTEMD_TARGET_TABLE.find(tranReq)->second;
+-
++    if ((sysdUnit == HOST_STATE_SOFT_POWEROFF_TGT ||
++        sysdUnit == HOST_STATE_REBOOT_TGT ||
++        sysdUnit == HOST_STATE_WARM_REBOOT ||
++        sysdUnit == HOST_STATE_FORCE_WARM_REBOOT) &&
++        !stateActive(HOST_STATE_POWERON_MIN_TGT) &&
++        !stateActive(HOST_STATE_QUIESCE_TGT))
++    {
++        std::remove("/run/openbmc/host@0-request");
++        return;
++    }
+     auto method = this->bus.new_method_call(SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH,
+                                             SYSTEMD_INTERFACE, "StartUnit");
+ 
+-- 
+2.17.1
+

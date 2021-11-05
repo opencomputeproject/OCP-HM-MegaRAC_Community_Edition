@@ -1,0 +1,130 @@
+From 679c2c7aa6f1d5ab37a94fa51bb811c2ba0aa767 Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Sun, 25 Apr 2021 06:55:46 +0700
+Subject: [PATCH] AmpereSoc: Handle PowerState option
+
+This commit handles PowerState option in entity-manager configuration file for
+socsensor daemon.
+
+Tested:
+	1. Add PowerState option in entity-manger configuation file.
+	2. Power off the host.
+	3. All of the host sensors should be removed.
+
+Signed-off-by: ThuBaNguyen <thu@os.amperecomputing.com>
+
+%% original patch: 0008-AmpereSoc-Handle-PowerState-option.patch
+---
+ include/AmpereSoC.hpp |  3 ++-
+ src/AmpereSoC.cpp     | 12 +++++++++---
+ src/AmpereSoCMain.cpp | 21 ++++++++++++++++++---
+ 3 files changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/include/AmpereSoC.hpp b/include/AmpereSoC.hpp
+index c799b4a..407d9af 100644
+--- a/include/AmpereSoC.hpp
++++ b/include/AmpereSoC.hpp
+@@ -20,7 +20,8 @@ class SoCSensor : public Sensor, public std::enable_shared_from_this<SoCSensor>
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& sensorConfiguration,
+               std::string& sensorTypeName, unsigned int factor, double max,
+-              double min, const std::string& label, size_t tSize);
++              double min, const std::string& label, size_t tSize,
++              ReadState readState);
+     ~SoCSensor() override;
+     void setupRead(void);
+ 
+diff --git a/src/AmpereSoC.cpp b/src/AmpereSoC.cpp
+index e665d2c..3982cd0 100644
+--- a/src/AmpereSoC.cpp
++++ b/src/AmpereSoC.cpp
+@@ -45,10 +45,10 @@ SoCSensor::SoCSensor(const std::string& path, const std::string& objectType,
+                      const std::string& sensorConfiguration,
+                      std::string& sensorTypeName, unsigned int factor,
+                      double max, double min, const std::string& label,
+-                     size_t tSize) :
++                     size_t tSize, ReadState readState) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(thresholdsIn), sensorConfiguration, objectType, max, min,
+-           conn),
++           conn, readState),
+     std::enable_shared_from_this<SoCSensor>(), objServer(objectServer),
+     inputDev(io), waitTimer(io), path(path), pathRatedMax(""), pathRatedMin(""),
+     sensorFactor(factor), minMaxReadCounter(0)
+@@ -194,7 +194,8 @@ void SoCSensor::handleResponse(const boost::system::error_code& err)
+             incrementError();
+         }
+     }
+-    else
++    else if (err != boost::system::errc::no_such_device &&
++             err != boost::system::errc::no_such_device_or_address)
+     {
+         std::cerr << "System error " << err << "\n";
+         incrementError();
+@@ -226,5 +227,10 @@ void SoCSensor::handleResponse(const boost::system::error_code& err)
+ 
+ void SoCSensor::checkThresholds(void)
+ {
++    if (!readingStateGood())
++    {
++        return;
++    }
++
+     thresholds::checkThresholds(this);
+ }
+diff --git a/src/AmpereSoCMain.cpp b/src/AmpereSoCMain.cpp
+index 9cda8b6..669dbba 100644
+--- a/src/AmpereSoCMain.cpp
++++ b/src/AmpereSoCMain.cpp
+@@ -247,7 +247,7 @@ static bool matchSensor(
+     SensorData* sensorData, std::string* interfacePath, std::string sensorType,
+     size_t thresholdConfSize, fs::path sensorPath,
+     std::vector<std::string> socNames,
+-    std::vector<std::string> findLabels)
++    std::vector<std::string> findLabels, ReadState readState)
+ {
+     bool maxLabel = false;
+     std::regex sensorNameRegEx("([A-Za-z]+)[0-9]*_");
+@@ -589,7 +589,7 @@ static bool matchSensor(
+         sensorPathStr, sensorType, objectServer, dbusConnection, io,
+         sensorName, std::move(sensorThresholds), *interfacePath,
+         findSensorType->second, factor, socProperty->maxReading,
+-        socProperty->minReading, labelHead, thresholdConfSize);
++        socProperty->minReading, labelHead, thresholdConfSize, readState);
+     sensors[sensorName]->setupRead();
+ 
+     return true;
+@@ -640,6 +640,20 @@ static bool parseSensorConfig(
+         }
+     }
+ 
++    auto findPowerOn = baseConfig->second.find("PowerState");
++    ReadState readState = initReadState(PowerState::always);
++    if (findPowerOn != baseConfig->second.end())
++    {
++        std::string powerState =
++            std::visit(VariantToStringVisitor(), findPowerOn->second);
++        /* PowerState is "On" but match string is Running */
++        if (powerState == "On")
++        {
++            powerState = power::sOn;
++        }
++        setMatchString(powerState, &readState);
++    }
++
+     /* Find array of labels to be exposed if it is defined in config */
+     std::vector<std::string> findLabels;
+     auto findLabelObj = baseConfig->second.find("Labels");
+@@ -652,7 +666,8 @@ static bool parseSensorConfig(
+     {
+         ret = matchSensor(io, objectServer, dbusConnection, baseConfig,
+                           sensorData, interfacePath, sensorType,
+-                          thresholdConfSize, sensorPath, socNames, findLabels);
++                          thresholdConfSize, sensorPath, socNames, findLabels,
++                          readState);
+         if (!ret)
+         {
+             continue;
+-- 
+2.17.1
+

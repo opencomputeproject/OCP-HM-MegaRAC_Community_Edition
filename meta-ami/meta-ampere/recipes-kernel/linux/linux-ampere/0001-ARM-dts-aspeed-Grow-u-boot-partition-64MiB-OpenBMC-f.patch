@@ -1,0 +1,112 @@
+From 81a984fdba1a92c9a4f91e56471ff4ff191dc53c Mon Sep 17 00:00:00 2001
+From: Troy Lee <troy_lee@aspeedtech.com>
+Date: Tue, 16 Mar 2021 08:59:32 +0000
+Subject: [PATCH] ARM: dts: aspeed: Grow u-boot partition 64MiB OpenBMC flash
+ layout
+
+Aspeed AST2600 u-boot requires 600KiB+ flash space. Sharing the same
+openbmc-flash-layout-64.dtsi requires to resize the flash partition.
+
+The updated flash layout as follows:
+- u-boot: 896 KiB
+- u-boot-env: 128 KiB
+- kernel: 9MiB
+- rofs: 32 MiB
+- rwfs: 22 MiB
+
+Signed-off-by: Troy Lee <troy_lee@aspeedtech.com>
+Reviewed-by: Joel Stanley <joel@jms.id.au>
+Link: https://lore.kernel.org/r/20210316085932.2601-1-troy_lee@aspeedtech.com
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+---
+ arch/arm/boot/dts/aspeed-ast2600-evb.dts      | 32 +------------------
+ .../arm/boot/dts/openbmc-flash-layout-64.dtsi | 18 +++++------
+ 2 files changed, 10 insertions(+), 40 deletions(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-ast2600-evb.dts b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+index 89be13197780..2cfae9cfed3a 100644
+--- a/arch/arm/boot/dts/aspeed-ast2600-evb.dts
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+@@ -121,37 +121,7 @@
+ 		m25p,fast-read;
+ 		label = "bmc";
+ 		spi-max-frequency = <50000000>;
+-
+-		partitions {
+-			compatible = "fixed-partitions";
+-			#address-cells = <1>;
+-			#size-cells = <1>;
+-
+-			u-boot@0 {
+-				reg = <0x0 0xe0000>; // 896KB
+-				label = "u-boot";
+-			};
+-
+-			u-boot-env@e0000 {
+-				reg = <0xe0000 0x20000>; // 128KB
+-				label = "u-boot-env";
+-			};
+-
+-			kernel@100000 {
+-				reg = <0x100000 0x900000>; // 9MB
+-				label = "kernel";
+-			};
+-
+-			rofs@a00000 {
+-				reg = <0xa00000 0x2000000>; // 32MB
+-				label = "rofs";
+-			};
+-
+-			rwfs@6000000 {
+-				reg = <0x2a00000 0x1600000>; // 22MB
+-				label = "rwfs";
+-			};
+-		};
++#include "openbmc-flash-layout-64.dtsi"
+ 	};
+ };
+ 
+diff --git a/arch/arm/boot/dts/openbmc-flash-layout-64.dtsi b/arch/arm/boot/dts/openbmc-flash-layout-64.dtsi
+index 91163867be34..31f59de5190b 100644
+--- a/arch/arm/boot/dts/openbmc-flash-layout-64.dtsi
++++ b/arch/arm/boot/dts/openbmc-flash-layout-64.dtsi
+@@ -9,27 +9,27 @@ partitions {
+ 	#size-cells = <1>;
+ 
+ 	u-boot@0 {
+-		reg = <0x0 0x60000>; // 384KB
++		reg = <0x0 0xe0000>; // 896KB
+ 		label = "u-boot";
+ 	};
+ 
+-	u-boot-env@60000 {
+-		reg = <0x60000 0x20000>; // 128KB
++	u-boot-env@e0000 {
++		reg = <0xe0000 0x20000>; // 128KB
+ 		label = "u-boot-env";
+ 	};
+ 
+-	kernel@80000 {
+-		reg = <0x80000 0x500000>; // 5MB
++	kernel@100000 {
++		reg = <0x100000 0x900000>; // 9MB
+ 		label = "kernel";
+ 	};
+ 
+-	rofs@580000 {
+-		reg = <0x580000 0x2a80000>; // 42.5MB
++	rofs@a00000 {
++		reg = <0xa00000 0x2000000>; // 32MB
+ 		label = "rofs";
+ 	};
+ 
+-	rwfs@3000000 {
+-		reg = <0x3000000 0x1000000>; // 16MB
++	rwfs@6000000 {
++		reg = <0x2a00000 0x1600000>; // 22MB
+ 		label = "rwfs";
+ 	};
+ };
+-- 
+2.17.1
+

@@ -1,0 +1,28 @@
+From 518d75f931a5cc28aecc33fb35e45fb6b1595036 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Thu, 21 Oct 2021 14:12:18 -0400
+Subject: [PATCH] jade: update restartcause dbus info
+
+---
+ src/chassiscommands.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/chassiscommands.cpp b/src/chassiscommands.cpp
+index 7c2533e..98228db 100644
+--- a/src/chassiscommands.cpp
++++ b/src/chassiscommands.cpp
+@@ -376,9 +376,9 @@ static bool setButtonEnabled(const std::string& buttonPath, const bool disabled)
+ static bool getRestartCause(std::string& restartCause)
+ {
+     constexpr const char* restartCausePath =
+-        "/xyz/openbmc_project/control/host0/restart_cause";
++        "/xyz/openbmc_project/state/host0";
+     constexpr const char* restartCauseIntf =
+-        "xyz.openbmc_project.Control.Host.RestartCause";
++        "xyz.openbmc_project.State.Host";
+     std::shared_ptr<sdbusplus::asio::connection> busp = getSdBus();
+ 
+     try
+-- 
+2.17.1
+

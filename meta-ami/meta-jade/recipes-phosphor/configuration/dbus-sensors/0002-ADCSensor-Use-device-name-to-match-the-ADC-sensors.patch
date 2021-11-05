@@ -1,0 +1,107 @@
+From 51749d151bdd147bacd93428f60910cb8914beae Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Sun, 18 Apr 2021 22:10:32 +0700
+Subject: [PATCH] ADCSensor: Use device name to match the ADC sensors
+
+The names of ADC devices are defined in device tree. They can be any kind of
+string. They should not be used to filter the ADC devices. They must be used
+to match the ADC sensors with the sensor configuration as other sensor types.
+This commit matches ADC device name with "iio_hwmon" for backward compatible
+before adding support "DevName" option in the sensor configuration.
+
+Tested:
+	1. Configure the ADC device in DTS.
+	Ex:
+	iio-hwmon {
+		compatible = "iio-hwmon";
+		io-channels = <&adc 14>;
+	};
+	2. iio-hwmon should be detected as ADC devices.
+
+Signed-off-by: ThuBaNguyen <thu@os.amperecomputing.com>
+Change-Id: I32dbb582edc0e5c83e4ac63e7ae19e1158f4526f
+---
+ src/ADCSensorMain.cpp | 33 +++++++++------------------------
+ 1 file changed, 9 insertions(+), 24 deletions(-)
+
+diff --git a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+index edc055a..16e4c12 100644
+--- a/src/ADCSensorMain.cpp
++++ b/src/ADCSensorMain.cpp
+@@ -40,30 +40,13 @@ static constexpr float pollRateDefault = 0.5;
+ 
+ namespace fs = std::filesystem;
+ 
++static std::string defaultADCName = "iio-hwmon";
+ static constexpr std::array<const char*, 1> sensorTypes = {
+     "xyz.openbmc_project.Configuration.ADC"};
+ static std::regex inputRegex(R"(in(\d+)_input)");
+ 
+ static boost::container::flat_map<size_t, bool> cpuPresence;
+ 
+-// filter out adc from any other voltage sensor
+-bool isAdc(const fs::path& parentPath)
+-{
+-    fs::path namePath = parentPath / "name";
+-
+-    std::ifstream nameFile(namePath);
+-    if (!nameFile.good())
+-    {
+-        std::cerr << "Failure reading " << namePath.string() << "\n";
+-        return false;
+-    }
+-
+-    std::string name;
+-    std::getline(nameFile, name);
+-
+-    return name == "iio_hwmon";
+-}
+-
+ void createSensors(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+     boost::container::flat_map<std::string, std::shared_ptr<ADCSensor>>&
+@@ -90,10 +73,6 @@ void createSensors(
+             // configuration
+             for (auto& path : paths)
+             {
+-                if (!isAdc(path.parent_path()))
+-                {
+-                    continue;
+-                }
+                 std::smatch match;
+                 std::string pathStr = path.string();
+ 
+@@ -104,6 +83,8 @@ void createSensors(
+                 // convert to 0 based
+                 size_t index = std::stoul(indexStr) - 1;
+ 
++                fs::path device = path.parent_path() / "device";
++                std::string deviceName = fs::canonical(device).stem();
+                 const SensorData* sensorData = nullptr;
+                 const std::string* interfacePath = nullptr;
+                 const std::pair<
+@@ -130,6 +111,12 @@ void createSensors(
+                     {
+                         continue;
+                     }
++
++                    if (defaultADCName != deviceName)
++                    {
++                        continue;
++                    }
++
+                     auto findIndex = baseConfiguration->second.find("Index");
+                     if (findIndex == baseConfiguration->second.end())
+                     {
+@@ -152,8 +139,6 @@ void createSensors(
+                 }
+                 if (sensorData == nullptr)
+                 {
+-                    std::cerr << "failed to find match for " << path.string()
+-                              << "\n";
+                     continue;
+                 }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,40 @@
+diff -Naur i/env/sf.c j/env/sf.c
+--- i/env/sf.c	2021-10-13 22:43:50.070061487 -0400
++++ j/env/sf.c	2021-10-13 22:42:31.289283586 -0400
+@@ -8,6 +8,8 @@
+  *
+  * (C) Copyright 2008 Atmel Corporation
+  */
++#define DEBUG
++
+ #include <common.h>
+ #include <dm.h>
+ #include <environment.h>
+@@ -35,6 +37,8 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#define debug(fmt,args...)   printf(fmt ,##args)
++
+ static struct spi_flash *env_flash;
+ 
+ static int setup_flash_device(void)
+@@ -195,6 +199,8 @@
+ 	int	ret = 1;
+ 	env_t	env_new;
+ 
++	struct mtd_info *mtd = &env_flash->mtd;
++
+ 	ret = setup_flash_device();
+ 	if (ret)
+ 		return ret;
+@@ -218,6 +224,9 @@
+ 		goto done;
+ 
+ 	sector = DIV_ROUND_UP(CONFIG_ENV_SIZE, CONFIG_ENV_SECT_SIZE);
++	debug("%s: ~~~~CONFIG_ENV_SIZE=0x%08lx, CONFIG_ENV_SECT_SIZE=0x%08lx, sector_num=0x%08lx\n", __func__, CONFIG_ENV_SIZE, CONFIG_ENV_SECT_SIZE, sector);
++	debug("%s: ~~~~Erase_Addr=0x%08lx, Erase_Size=0x%08lx\n", __func__, CONFIG_ENV_OFFSET, sector*CONFIG_ENV_SECT_SIZE);
++	debug("%s: ~~~~MTD name=%s, MTD index=0x%08lx, MTD size=0x%08lx\n", __func__, mtd->name, mtd->index, mtd->size);
+ 
+ 	puts("Erasing SPI flash...");
+ 	ret = spi_flash_erase(env_flash, CONFIG_ENV_OFFSET,

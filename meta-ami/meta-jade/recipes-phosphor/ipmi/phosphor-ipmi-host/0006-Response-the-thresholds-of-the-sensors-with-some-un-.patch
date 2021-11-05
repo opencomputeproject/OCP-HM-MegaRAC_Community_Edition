@@ -1,0 +1,143 @@
+From c0a0b0294f10e26532a3af6e0e272ff3f9184bd6 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Wed, 7 Jul 2021 10:08:25 +0700
+Subject: [PATCH] Response the thresholds of the sensors with some un-set
+ thresholds
+
+The sensor packages such as dbus-sensors and phosphor-hwmon packages supports
+creating the dbus interface for the sensors which have some the un-set
+thresholds.
+But phosphor-ipmi-host requires the sensors have enough "WarningLow",
+"WarningHigh", "CriticalLow" and "CriticalHigh" thresholds. It doesn't
+response the sensor thresholds to ipmitool request if the sensors miss any
+kind of these thresholds. This commit removes that limitation.
+
+Tested:
+	1. Call "ipmitool sensor list".
+	2. Check the thresholds of the sensors.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+
+%% original patch: 0006-sensorhandler-Supports-reporting-the-un-set-threshol.patch
+
+%% original patch: 0006-Response-the-thresholds-of-the-sensors-with-some-un-.patch
+---
+ sensorhandler.cpp | 92 ++++++++++++++++++++++++++---------------------
+ 1 file changed, 52 insertions(+), 40 deletions(-)
+
+diff --git a/sensorhandler.cpp b/sensorhandler.cpp
+index 775f651..d0a6d19 100644
+--- a/sensorhandler.cpp
++++ b/sensorhandler.cpp
+@@ -486,56 +486,68 @@ get_sdr::GetSensorThresholdsResponse getSensorThresholds(uint8_t sensorNum)
+     const auto info = iter->second;
+ 
+     auto service = ipmi::getService(bus, info.sensorInterface, info.sensorPath);
++    try
++    {
++        auto warnThresholds = ipmi::getAllDbusProperties(
++            bus, service, info.sensorPath, warningThreshIntf);
++        auto warnLow = ipmi::mappedVariant<double>(warnThresholds,
++            "WarningLow", std::numeric_limits<double>::quiet_NaN());
++        auto warnHigh = ipmi::mappedVariant<double>(warnThresholds,
++            "WarningHigh", std::numeric_limits<double>::quiet_NaN());
+ 
+-    auto warnThresholds = ipmi::getAllDbusProperties(
+-        bus, service, info.sensorPath, warningThreshIntf);
+-
+-    double warnLow = std::visit(ipmi::VariantToDoubleVisitor(),
+-                                warnThresholds["WarningLow"]);
+-    double warnHigh = std::visit(ipmi::VariantToDoubleVisitor(),
+-                                 warnThresholds["WarningHigh"]);
++        if (std::isfinite(warnLow))
++        {
++            warnLow *= std::pow(10, info.scale - info.exponentR);
++            resp.lowerNonCritical = static_cast<uint8_t>(
++                (warnLow - info.scaledOffset) / info.coefficientM);
++            resp.validMask |= static_cast<uint8_t>(
++                ipmi::sensor::ThresholdMask::NON_CRITICAL_LOW_MASK);
++        }
+ 
+-    if (warnLow != 0)
++        if (std::isfinite(warnHigh))
++        {
++            warnHigh *= std::pow(10, info.scale - info.exponentR);
++            resp.upperNonCritical = static_cast<uint8_t>(
++                (warnHigh - info.scaledOffset) / info.coefficientM);
++            resp.validMask |= static_cast<uint8_t>(
++                ipmi::sensor::ThresholdMask::NON_CRITICAL_HIGH_MASK);
++        }
++    }
++    catch(const std::exception& e)
+     {
+-        warnLow *= std::pow(10, info.scale - info.exponentR);
+-        resp.lowerNonCritical = static_cast<uint8_t>(
+-            (warnLow - info.scaledOffset) / info.coefficientM);
+-        resp.validMask |= static_cast<uint8_t>(
+-            ipmi::sensor::ThresholdMask::NON_CRITICAL_LOW_MASK);
++        // No warning thresholds
+     }
+ 
+-    if (warnHigh != 0)
++    try
+     {
+-        warnHigh *= std::pow(10, info.scale - info.exponentR);
+-        resp.upperNonCritical = static_cast<uint8_t>(
+-            (warnHigh - info.scaledOffset) / info.coefficientM);
+-        resp.validMask |= static_cast<uint8_t>(
+-            ipmi::sensor::ThresholdMask::NON_CRITICAL_HIGH_MASK);
+-    }
++        auto critThresholds = ipmi::getAllDbusProperties(
++            bus, service, info.sensorPath, criticalThreshIntf);
++        auto critLow = ipmi::mappedVariant<double>(critThresholds,
++            "CriticalLow", std::numeric_limits<double>::quiet_NaN());
++        auto critHigh = ipmi::mappedVariant<double>(critThresholds,
++            "CriticalHigh", std::numeric_limits<double>::quiet_NaN());
+ 
+-    auto critThresholds = ipmi::getAllDbusProperties(
+-        bus, service, info.sensorPath, criticalThreshIntf);
+-    double critLow = std::visit(ipmi::VariantToDoubleVisitor(),
+-                                critThresholds["CriticalLow"]);
+-    double critHigh = std::visit(ipmi::VariantToDoubleVisitor(),
+-                                 critThresholds["CriticalHigh"]);
++        if (std::isfinite(critLow))
++        {
++            critLow *= std::pow(10, info.scale - info.exponentR);
++            resp.lowerCritical = static_cast<uint8_t>(
++                (critLow - info.scaledOffset) / info.coefficientM);
++            resp.validMask |= static_cast<uint8_t>(
++                ipmi::sensor::ThresholdMask::CRITICAL_LOW_MASK);
++        }
+ 
+-    if (critLow != 0)
+-    {
+-        critLow *= std::pow(10, info.scale - info.exponentR);
+-        resp.lowerCritical = static_cast<uint8_t>(
+-            (critLow - info.scaledOffset) / info.coefficientM);
+-        resp.validMask |= static_cast<uint8_t>(
+-            ipmi::sensor::ThresholdMask::CRITICAL_LOW_MASK);
++        if (std::isfinite(critHigh))
++        {
++            critHigh *= std::pow(10, info.scale - info.exponentR);
++            resp.upperCritical = static_cast<uint8_t>(
++                (critHigh - info.scaledOffset) / info.coefficientM);
++            resp.validMask |= static_cast<uint8_t>(
++                ipmi::sensor::ThresholdMask::CRITICAL_HIGH_MASK);
++        }
+     }
+-
+-    if (critHigh != 0)
++    catch(const std::exception& e)
+     {
+-        critHigh *= std::pow(10, info.scale - info.exponentR);
+-        resp.upperCritical = static_cast<uint8_t>(
+-            (critHigh - info.scaledOffset) / info.coefficientM);
+-        resp.validMask |= static_cast<uint8_t>(
+-            ipmi::sensor::ThresholdMask::CRITICAL_HIGH_MASK);
++        // No critical thresholds
+     }
+ 
+     return resp;
+-- 
+2.17.1
+

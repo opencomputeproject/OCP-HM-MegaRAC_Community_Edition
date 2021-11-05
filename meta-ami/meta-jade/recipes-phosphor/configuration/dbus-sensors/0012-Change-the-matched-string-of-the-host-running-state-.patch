@@ -1,0 +1,40 @@
+From 5d4d3c7f263e7903e77ae9bf25466a58fa976ddb Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Mon, 14 Jun 2021 10:20:43 +0700
+Subject: [PATCH] Change the matched string of the host running state to
+ ".Running"
+
+Dbus-sensors detects the running state of the host by maching the "Running"
+string in the CurrentHostState. From commit "host state transitioning support",
+phosphor-state-manager updates transition state TransitioningToOff or
+TransitioningToRunning to CurrentHostState. This causes the dbus-sensors
+services detect the wrong state of the host. This commit corrects the matching
+string from "Running" to ".Running".
+
+Tested:
+	1. Power off the host.
+	2. Power on the host.
+	3. The sensor with configuration "PowerState"="On" should be only read
+	   when the host is running.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+---
+ include/Utils.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/Utils.hpp b/include/Utils.hpp
+index 512c147..773e0cf 100644
+--- a/include/Utils.hpp
++++ b/include/Utils.hpp
+@@ -97,7 +97,7 @@ const static constexpr char* busname = "xyz.openbmc_project.State.Host";
+ const static constexpr char* interface = "xyz.openbmc_project.State.Host";
+ const static constexpr char* path = "/xyz/openbmc_project/state/host0";
+ const static constexpr char* property = "CurrentHostState";
+-const static constexpr char* sOn = "Running";
++const static constexpr char* sOn = ".Running";
+ const static constexpr char* sAlways = "Always";
+ } // namespace power
+ 
+-- 
+2.17.1
+

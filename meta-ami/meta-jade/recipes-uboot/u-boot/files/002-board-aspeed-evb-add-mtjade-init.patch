@@ -1,0 +1,453 @@
+diff -Naur c/board/aspeed/evb_ast2500/Makefile d/board/aspeed/evb_ast2500/Makefile
+--- c/board/aspeed/evb_ast2500/Makefile	2021-10-11 22:33:22.947803068 -0400
++++ d/board/aspeed/evb_ast2500/Makefile	2021-10-11 22:35:16.096917691 -0400
+@@ -1 +1 @@
+-obj-y += evb_ast2500.o
++obj-y += evb_ast2500.o mtjade_init.o
+diff -Naur c/board/aspeed/evb_ast2500/mtjade_init.c d/board/aspeed/evb_ast2500/mtjade_init.c
+--- c/board/aspeed/evb_ast2500/mtjade_init.c	1969-12-31 19:00:00.000000000 -0500
++++ d/board/aspeed/evb_ast2500/mtjade_init.c	2021-10-11 22:37:45.306385999 -0400
+@@ -0,0 +1,443 @@
++#include <common.h>
++#include <dm.h>
++#include <ram.h>
++#include <timer.h>
++#include <asm/io.h>
++#include <asm/arch/timer.h>
++#include <linux/err.h>
++#include <dm/uclass.h>
++
++
++#define SCU_REG_BASE		0x1e6e2000
++#define SCU_RST_CONTROL			  0x04
++#define SCU_MISC_CONTROL		  0x2C
++#define SCU_HARDWARE_STRAP                0x70
++#define SCU_7C                            0x7C
++#define SCU_CONTROL1 			  0x80
++#define SCU_CONTROL2 			  0x84
++#define SCU_CONTROL3 			  0x88
++#define SCU_CONTROL4 			  0x8C
++#define SCU_CONTROL5 			  0x90
++#define SCU_CONTROL6			  0x94
++#define SCU_CONTROL7 			  0xA0
++#define SCU_CONTROL8 			  0xA4
++#define SCU_CONTROL9 			  0xA8
++#define SCU_WDT_RST  			  0x9C
++
++#define GPIO_REG_BASE		0x1e780000
++#define GPIOABCD_OFFSET 		  0x00
++#define GPIOEFGH_OFFSET 		  0x20
++#define GPIOIJKL_OFFSET			  0x70
++#define GPIOMNOP_OFFSET 		  0x78
++#define GPIOQRST_OFFSET 		  0x80
++#define GPIOUVWX_OFFSET 		  0x88
++#define GPIOYZAAAB_OFFSET	 	 0x1E0
++#define GPIO_DAT  			      0x00
++#define GPIO_DIR  			      0x04
++
++#define WDT_REG_BASE		0x1e785000
++#define WDT2_COUNTER_RELOAD_OFFSET 		  0x24
++#define WDT2_COUNTER_RESTART_OFFSET 		  0x28
++#define WDT2_CONTROL_OFFSET 		  0x2c
++
++#define LPC_REG_BASE		0x1e789000
++#define HICRA_OFFSET 		0x9C
++
++void multipin_configuration()
++{
++	unsigned long reg32;                                                                                \
++																										\
++	*((volatile u_long *) SCU_REG_BASE) = 0x1688A8A8;	/* unlock SCU */								\
++																										\
++	/* SCU80 Multi-function Pin Control #1  */                                 							\
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL1));                                               \
++	reg32 = reg32 & ~(1<<31);  /* Enable UART4 RXD4                */                                   \
++	reg32 = reg32 & ~(1<<30);  /* Enable UART4 TXD4                */                                   \
++	reg32 = reg32 & ~(1<<29);  /* Enable UART4 NRTS4               */                                   \
++	reg32 = reg32 & ~(1<<28);  /* Enable UART4 NDTR4               */                                   \
++	reg32 = reg32 & ~(1<<27);  /* Enable UART4 NRI4                */                                   \
++	reg32 = reg32 & ~(1<<26);  /* Enable UART4 NDSR4               */                                   \
++	reg32 = reg32 & ~(1<<25);  /* Enable UART4 NDCD4               */                                   \
++	reg32 = reg32 & ~(1<<24);  /* Enable UART4 NCTS4               */                                   \
++	reg32 = reg32 & ~(1<<23);  /* Enable UART3 RXD3                */                                   \
++	reg32 = reg32 & ~(1<<22);  /* Enable UART3 TXD3                */                                   \
++	reg32 = reg32 & ~(1<<21);  /* Enable UART3 NRTS3               */                                   \
++	reg32 = reg32 & ~(1<<20);  /* Enable UART3 NDTR3               */                                   \
++	reg32 = reg32 & ~(1<<19);  /* Enable UART3 NRI3                */                                   \
++	reg32 = reg32 & ~(1<<18);  /* Enable UART3 NDSR3               */                                   \
++	reg32 = reg32 & ~(1<<17);  /* Enable UART3 NDCD3               */                                   \
++	reg32 = reg32 & ~(1<<16);  /* Enable UART3 NCTS3               */                                   \
++	reg32 = reg32 & ~(1<<15);  /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<14);  /* Enable LPC LPCPME#               */                                   \
++	reg32 = reg32 & ~(1<<13);  /* Enable LPC LPCPD#/LPCSMI#        */                                   \
++	reg32 = reg32 & ~(1<<12);  /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<11);  /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<10);  /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<9);   /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<8);   /* Reserved, must keep at value '0' */                                   \
++	reg32 = reg32 & ~(1<<7);   /* Enable Timer8 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<6);   /* Enable Timer7 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<5);   /* Enable Timer6 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<4);   /* Enable Timer5 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<3);   /* Enable Timer4 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<2);   /* Enable Timer3 Pulse output       */                                   \
++	reg32 = reg32 & ~(1<<1);   /* Enable MAC2LINK input            */                                   \
++	reg32 = reg32 & ~(1<<0);   /* Enable MAC1LINK input            */                                   \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL1)) = reg32;   											\
++																										\
++	/* SCU84 Multi-function Pin Control #2  */                                							\
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL2));                                               \
++	reg32 = reg32 | (1<<31);    /* Enable UART2 RXD1 or VPB9         */                                 \
++	reg32 = reg32 | (1<<30);    /* Enable UART2 TXD1 or VPB8         */                                 \
++	reg32 = reg32 & ~(1<<29);   /* Enable UART2 NRTS1 or VPB7        */                                 \
++	reg32 = reg32 & ~(1<<28);   /* Enable UART2 NDTR1 or VPB6        */                                   \
++	reg32 = reg32 & ~(1<<27);   /* Enable UART2 NRI1 or VPB5         */                                   \
++	reg32 = reg32 & ~(1<<26);   /* Enable UART2 NDSR1 or VPB4        */                                   \
++	reg32 = reg32 & ~(1<<25);   /* Enable UART2 NDCD1 or VPB3        */                                   \
++	reg32 = reg32 & ~(1<<24);   /* Enable UART2 NCTS1 or VPB2        */                                   \
++	reg32 = reg32 | (1<<23);    /* Enable UART1 RXD1 		         */                                   \
++	reg32 = reg32 | (1<<22);    /* Enable UART1 TXD1			        */                                   \
++	reg32 = reg32 & ~(1<<21);    /* Enable UART1 NRTS1 or VPCLK       */                                   \
++	reg32 = reg32 & ~(1<<20);    /* Enable UART1 NDTR1 or VPVS        */                                   \
++	reg32 = reg32 & ~(1<<19);    /* Enable UART1 NRI1 or VPHS         */                                   \
++	reg32 = reg32 & ~(1<<18);    /* Enable UART1 NDSR1		       */                                   \
++	reg32 = reg32 & ~(1<<17);    /* Enable UART1 NDCD1		        */                                   \
++	reg32 = reg32 & ~(1<<16);    /* Enable UART1 NCTS1                */                                   \
++	reg32 = reg32 | (1<<15);    /* Enable VGA/CRT DDCDAT output      */                                   \
++	reg32 = reg32 | (1<<14);    /* Enable VGA/CRT DDCCLK output      */                                   \
++	reg32 = reg32 | (1<<13);    /* Enable VGA/CRT VGAVS output       */                                   \
++	reg32 = reg32 | (1<<12);    /* Enable VGA/CRT VGAHS output       */                                   \
++	reg32 = reg32 | (1<<11);   /* Enable Master SGPIO SGPMI input   */                                   \
++	reg32 = reg32 | (1<<10);   /* Enable Master SGPIO SGPMO output  */                                   \
++	reg32 = reg32 | (1<<9);    /* Enable Master SGPIO SGPMLD output */                                   \
++	reg32 = reg32 | (1<<8);    /* Enable Master SGPIO SGPMCK output */                                   \
++	reg32 = reg32 & ~(1<<7);   /* Enable I2C4 dedicated Alert SALT4 output  */                           \
++	reg32 = reg32 & ~(1<<6);   /* Enable I2C3 dedicated Alert SALT3 output  */                           \
++	reg32 = reg32 & ~(1<<5);   /* Enable I2C2 dedicated Alert SALT2 output  */                           \
++	reg32 = reg32 & ~(1<<4);   /* Enable I2C1 dedicated Alert SALT1 output  */                           \
++	reg32 = reg32 & ~(1<<3);   /* Enable Slave SGPIO SGPS1I1 input   */                                   \
++	reg32 = reg32 & ~(1<<2);   /* Enable Slave SGPIO SGPS1I0 input   */                                   \
++	reg32 = reg32 & ~(1<<1);   /* Enable Slave SGPIO SGPS1LD input   */                                   \
++	reg32 = reg32 & ~(1<<0);   /* Enable Slave SGPIO SGPS1CK input   */                                   \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL2)) = reg32;   										     \
++                                                                                                         \
++	/* SCU88 Multi-function Pin Control #3 = 0x01000000 => 0x00000000 */                                 \
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL3));                                                \
++	reg32 = reg32 &	~(1<<31);  /* Enable MAC#1 MDIO1                                         */          \
++	reg32 = reg32 & ~(1<<30);  /* Enable MAC#1 MDC1                                          */          \
++	reg32 = reg32 & ~(1<<29);  /* Enable SPI2MISO           		                         */          \
++	reg32 = reg32 & ~(1<<28);  /* Enable SPI2MOSI			                                 */          \
++	reg32 = reg32 & ~(1<<27);  /* Enable SPI2CLK#                 		                     */          \
++	reg32 = reg32 & ~(1<<26);  /* Enable SPI2CS0# 		                                     */          \
++	reg32 = reg32 & ~(1<<25);  /* Enable FWSPICS2# 		                                     */          \
++	reg32 = reg32 |  (1<<24);  /* Enable FWSPICS1#     	                                     */          \
++	reg32 = reg32 & ~(1<<23);  /* Reserved								                     */          \
++	reg32 = reg32 & ~(1<<22);  /* Reserved                              		             */          \
++	reg32 = reg32 & ~(1<<21);  /* Reserved                                  				 */          \
++	reg32 = reg32 & ~(1<<20);  /* Reserved 													 */          \
++	reg32 = reg32 & ~(1<<19);  /* Enable VPIR9                                               */          \
++	reg32 = reg32 & ~(1<<18);  /* Enable VPIR8                                               */          \
++	reg32 = reg32 & ~(1<<17);  /* Enable VPIR7                                               */          \
++	reg32 = reg32 & ~(1<<16);  /* Enable VPIR6                                               */          \
++	reg32 = reg32 & ~(1<<15);  /* Enable VPIR5                                               */          \
++	reg32 = reg32 & ~(1<<14);  /* Enable VPIR4                                               */          \
++	reg32 = reg32 & ~(1<<13);  /* Enable VPIR3                                               */          \
++	reg32 = reg32 & ~(1<<12);  /* Enable VPIR2                                               */          \
++	reg32 = reg32 & ~(1<<11);  /* Reserved                                                 	 */          \
++	reg32 = reg32 & ~(1<<10);  /* Reserved                                                	 */          \
++	reg32 = reg32 & ~(1<<9);   /* Enable VPIG9                                               */          \
++	reg32 = reg32 & ~(1<<8);   /* Enable VPIG8                                               */          \
++	reg32 = reg32 & ~(1<<7);   /* Enable PWM7 or VPIG7                                       */          \
++	reg32 = reg32 | (1<<6);    /* Enable PWM6 or VPIG6                                       */          \
++	reg32 = reg32 & ~(1<<5);   /* Enable PWM5 or VPIG5                                       */          \
++	reg32 = reg32 & ~(1<<4);   /* Enable PWM4 or VPIG4                                       */          \
++	reg32 = reg32 & ~(1<<3);   /* Enable PWM3 or VPIG3                                       */          \
++	reg32 = reg32 & ~(1<<2);   /* Enable PWM2 or VPIG2                                       */          \
++	reg32 = reg32 | (1<<1);    /* Enable PWM1 or VPIG1                                       */          \
++	reg32 = reg32 | (1<<0);    /* Enable PWM0 or VPIG0                                       */          \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL3)) = reg32;                                                \
++																										 \
++	/* SCU8C Multi-function Pin Control #4  */                                 							 \
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL4));                                                \
++	reg32 = reg32 & ~(1<<31);  /* Disable GPIOP internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<30);  /* Disable GPIOO internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<29);  /* Disable GPION internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<28);  /* Disable GPIOM internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<27);  /* Disable GPIOL internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<26);  /* Disable GPIOK internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<25);  /* Disable GPIOJ internal pull down resistor     */                       \
++	reg32 = reg32 & ~(1<<24);  /* Disable GPIOI internal pull down resistor     */               		 \
++	reg32 = reg32 & ~(1<<23);  /* Disable GPIOH/GPIOAC internal pull down resistor     */                \
++	reg32 = reg32 & ~(1<<22);  /* Disable GPIOG/GPIOAB internal pull down resistor     */                \
++	reg32 = reg32 & ~(1<<21);  /* Disable GPIOF/GPIOAA internal pull down resistor     */                \
++	reg32 = reg32 & ~(1<<20);  /* Disable GPIOE/GPIOZ internal pull down resistor     */                 \
++	reg32 = reg32 & ~(1<<19);  /* Disable GPIOD/GPIOY internal pull down resistor     */                 \
++	reg32 = reg32 & ~(1<<18);  /* Disable GPIOC/GPIOS internal pull down resistor     */                 \
++	reg32 = reg32 |  (1<<17);  /* Disable GPIOB/GPIOR internal pull down resistor     */                 \
++	reg32 = reg32 & ~(1<<16);  /* Disable GPIOA/GPIOQ internal pull down resistor     */                 \
++	reg32 = reg32 & ~(1<<15);  /* Enable GPIOE6 pass-through to GPIOE7 function */                       \
++	reg32 = reg32 & ~(1<<14);  /* Enable GPIOE4 pass-through to GPIOE5 function */                       \
++	reg32 = reg32 & ~(1<<13);  /* Enable GPIOE2 pass-through to GPIOE3 function */                       \
++	reg32 = reg32 & ~(1<<12);  /* Enable GPIOE0 pass-through to GPIOE1 function */                       \
++	reg32 = reg32 & ~(1<<11);  /* Enable GPIOD6 pass-through to GPIOD7 function */                       \
++	reg32 = reg32 & ~(1<<10);  /* Enable GPIOD4 pass-through to GPIOD5 function */                       \
++	reg32 = reg32 & ~(1<<9);   /* Enable GPIOD2 pass-through to GPIOD3 function */                       \
++	reg32 = reg32 & ~(1<<8);   /* Enable GPIOD0 pass-through to GPIOD1 function */                       \
++	reg32 = reg32 & ~(1<<7);   /* Enable VPOB9 function                         */                       \
++	reg32 = reg32 & ~(1<<6);   /* Enable VPOB8 function                         */                       \
++	reg32 = reg32 & ~(1<<5);   /* Enable VPOB7 function                         */                       \
++	reg32 = reg32 & ~(1<<4);   /* Enable VPOB6 or BMCINT output level function  */                       \
++	reg32 = reg32 & ~(1<<3);   /* Enable VPOB5 or I2C6 dedicated Alert SALT6 output  */                  \
++	reg32 = reg32 |  (1<<2);   /* Enable VPOB4 or I2C5 dedicated Alert SALT5 output  */                  \
++	reg32 = reg32 & ~(1<<1);   /* Enable VPOB3 or BMCINT function               */                       \
++	reg32 = reg32 & ~(1<<0);   /* Enable VPOB2 or SPI2CS1 function              */                       \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL4)) = reg32;                                                \
++ 																										 \
++	/* SCU90 Multi-function Pin Control #5  */                                							 \
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL5));                                                \
++	reg32 = reg32 & ~(1<<31);  /* Enable Parallel NOR function          */                               \
++	reg32 = reg32 & ~(1<<30);  /* Enable LPC plus function              */                               \
++	reg32 = reg32 & ~(1<<29);  /* Enable USB2.0 Host port #1 function   */                               \
++	reg32 = reg32 & ~(1<<28);  /* Reserved                              */                               \
++	reg32 = reg32 & ~(1<<27);  /* Enable I2C14 function pins            */                               \
++	reg32 = reg32 | (1<<26);  /* Enable I2C13 function pins            */                               \
++	reg32 = reg32 | (1<<25);  /* Enable I2C12 function pins            */                               \
++	reg32 = reg32 | (1<<24);  /* Enable I2C11 function pins            */                               \
++	reg32 = reg32 | (1<<23);  /* Enable I2C10 function pins            */                               \
++	reg32 = reg32 | (1<<22);   /* Enable I2C9 function pins             */                               \
++	reg32 = reg32 | (1<<21);   /* Enable I2C8 function pins             */                               \
++	reg32 = reg32 | (1<<20);   /* Enable I2C7 function pins             */                               \
++	reg32 = reg32 | (1<<19);   /* Enable I2C6 function pins            */                               \
++	reg32 = reg32 | (1<<18);   /* Enable I2C5 function pins             */                               \
++	reg32 = reg32 | (1<<17);   /* Enable I2C4 function pins             */                               \
++	reg32 = reg32 | (1<<16);   /* Enable I2C3 function pins             */                               \
++	reg32 = reg32 & ~(1<<15);  /* RGMII2/RMII2 RX pins internal pull down */                             \
++	reg32 = reg32 & ~(1<<14);  /* RGMII2/RMII2 TX pins internal pull down */                             \
++	reg32 = reg32 & ~(1<<13);  /* RGMII1/RMII1 RX pins internal pull down */                             \
++	reg32 = reg32 & ~(1<<12);  /* RGMII1/RMII1 TX pins internal pull down */                             \
++	/*                                                                                                   \
++	 * RMII/RMGII TX driving strength                                                                    \
++	 * x0: RGMII TXCK/RCLKO normal driving                                                               \
++	 * x1: RGMII TXCK/RCLKO high driving                                                                 \
++	 * 0x: RMII TXEN/TXD[1:0] normal driving                                                             \
++	 * 1x: RMII TXEN/TXD[1:0] high driving                                                               \
++	 */                                                                                                  \
++	reg32 = reg32 & ~(1<<11);  /* RMGII2/RGII2 IO driving strength */                                    \
++	reg32 = reg32 & ~(1<<10);  /* RMGII2/RGII2 IO driving strength */                                    \
++	reg32 = reg32 & ~(1<<9);    /* RMGII1/RGII1 IO driving strength */                                    \
++	reg32 = reg32 & ~(1<<8);    /* RMGII1/RGII1 IO driving strength */                                    \
++	reg32 = reg32 & ~(1<<7);   /* Enable UART6 function pins            */                               \
++	reg32 = reg32 & ~(1<<6);   /* Reserved                              */                               \
++                                                                                                         \
++	/*                                                                                                   \
++	 * Enable digital video function pins                                                                \
++	 * 0x: disable                                                                                       \
++	 * 10: 24 bits (R8/G8/B8) video mode                                                                 \
++	 * 11: Reserved                                                                                      \
++	 */                                                           								         \
++	reg32 = reg32 & ~(1<<5);  /* Enable digital video function pins */                                   \
++	reg32 = reg32 & ~(1<<4);  /* Enable digital video function pins */                                   \
++	reg32 = reg32 & ~(1<<3);  /* Enable SD1 port 8 bits mode     */                                      \
++	reg32 = reg32 |  (1<<2);  /* Enable MAC#2 MDC2/MDIO2 function pins  */                               \
++	reg32 = reg32 & ~(1<<1);  /* Enable SD2 function pins               */                               \
++	reg32 = reg32 & ~(1<<0);  /* Enable SD1 function pins               */                               \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL5)) = reg32;                                                \
++																										 \
++	/* SCU94 Multi-function Pin Control #6  */                                 							 \
++    reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL6));                                                \
++    reg32 = reg32 & 0x00000000;																			 \
++   	/*                                                                                                   \
++	 * Select USB2.0 port #2 function mode                                                               \
++	 * 00: USB 1.1 HID controller                                                                         \
++	 * 01: USB 2.0 Device controller                                                                     \
++	 * 1x: USB 2.0 Host2 controller                                                                      \
++	 */                                                                                                  \
++	reg32 = reg32 |  (1<<14);  /* Select USB2.0 port #2 function mode  */                                \
++	reg32 = reg32 & ~(1<<13);  /* Select USB2.0 port #2 function mode  */                                \
++	reg32 = reg32 & ~(1<<12);  /* Enable Slave SGPIO port 2 function pin  */                             \
++   	/*                                                                                                   \
++	 * Enable digital video output function pins                                                         \
++	 * 00: disable                                                                                       \
++	 * 01: (R8/G8/B8)24 bits single or 12 bits dual edge video mode                                      \
++	 * 1x: disable                                                              						 \
++	 */                                                                                                  \
++	reg32 = reg32 & ~(1<<1);  /* Enable SD2 function pins               */                               \
++	reg32 = reg32 & ~(1<<0);  /* Enable SD1 function pins               */                               \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL6)) = reg32;                                                \
++																										 \
++	/* SCUA0 Multi-function Pin Control #7  */                                 							 \
++	reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL7));                                                \
++	reg32 &= 0x00000000;                                                                                 \
++	reg32 = reg32 | (1<<19);   /* Enable GPIOV3                        */                                \
++	reg32 = reg32 | (1<<13);   /* Enable GPIOU5                        */                                \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL7)) = reg32;                                                \
++																										 \
++	/* SCUA4 Multi-function Pin Control #8  */                                 							 \
++    reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL8));                                                \
++	/* SCU94[1] = 1  select Video pin */																 \
++	reg32 = reg32 & ~(1<<31);  /* Enable I2C14 dedicated Alert SALT14 or VPOR9 function pin   */         \
++	reg32 = reg32 & ~(1<<30);  /* Enable I2C13 dedicated Alert SALT13 or VPOR8 function pin   */         \
++	reg32 = reg32 & ~(1<<29);  /* Enable I2C12 dedicated Alert SALT12 or VPOR7 function pin   */         \
++	reg32 = reg32 & ~(1<<28);  /* Enable I2C11 dedicated Alert SALT11 or VPOR6 function pin   */         \
++	reg32 = reg32 & ~(1<<27);  /* Enable I2C10 dedicated Alert SALT10 or VPOR5 function pin   */         \
++	reg32 = reg32 & ~(1<<26);  /* Enable I2C9 dedicated Alert SALT9 or VPOR4 function pin   */           \
++	reg32 = reg32 & ~(1<<25);  /* Enable I2C8 dedicated Alert SALT8 or VPOR3 function pin   */           \
++	reg32 = reg32 & ~(1<<24);  /* Enable I2C7 dedicated Alert SALT7 or VPOR2 function pin   */           \
++	reg32 = reg32 & ~(1<<23);  /* Enable VPOG9 function pin   */                                         \
++	reg32 = reg32 & ~(1<<22);   /* Enable VPOG8 function pin   */                                        \
++	reg32 = reg32 & ~(1<<20);   /* Enable VPOG6 function pin   */                                        \
++	reg32 = reg32 & ~(1<<19);   /* Enable SIOSCI# or VPOG5 function pin   */                             \
++	reg32 = reg32 & ~(1<<18);   /* Enable SIOPBO# or VPOG4 function pin   */                             \
++	reg32 = reg32 & ~(1<<17);   /* Enable SIOPWRGD# or VPOG3 function pin */                             \
++	reg32 = reg32 & ~(1<<16);   /* Enable SIOPBI# or VPOG2 function pin   */                             \
++	reg32 = reg32 |  (1<<15);  /* Enable SDA2 function pin      		*/                               \
++	reg32 = reg32 |  (1<<14);  /* Enable SCL2 function pin      		*/                               \
++	reg32 = reg32 |  (1<<13);  /* Enable SDA1 function pin      		*/                               \
++	reg32 = reg32 |  (1<<12);  /* Enable SCL1 function pin      		*/                               \
++	reg32 = reg32 & ~(1<<11);  /* Enable SIOONCTRL# function pin      		*/                       	 \
++	reg32 = reg32 & ~(1<<10);  /* Enable SIOPWREQ# function pin      		*/                       	 \
++	reg32 = reg32 & ~(1<<9);   /* Enable SIOS5# function pin      		*/                       		 \
++	reg32 = reg32 & ~(1<<8);   /* Enable SIOS3# function pin      		*/                       		 \
++	reg32 = reg32 |  (1<<7);   /* Enable GPIX7 input function pin */                      				 \
++	reg32 = reg32 |  (1<<6);   /* Enable GPIX6 input function pin */                      				 \
++	reg32 = reg32 |  (1<<5);   /* Enable GPIX5 input function pin */                      				 \
++	reg32 = reg32 |  (1<<4);   /* Enable GPIX4 input function pin */                      				 \
++	reg32 = reg32 & ~(1<<3);   /* Enable GPIX3 input function pin */                      				 \
++	reg32 = reg32 & ~(1<<2);   /* Enable GPIX2 input function pin */                      				 \
++	reg32 = reg32 & ~(1<<1);   /* Enable GPIX1 input function pin */                      				 \
++	reg32 = reg32 & ~(1<<0);   /* Enable GPIX0 input function pin */                      				 \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL8)) = reg32;                                                \
++																										 \
++	/* SCUA8 Multi-function Pin Control #9  */                                 							 \
++    reg32 = *((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL9));                                                \
++	reg32 = reg32 & ~(1<<31);  /* Reserved                              */                               \
++	reg32 = reg32 & ~(1<<30);  /* Reserved                              */                               \
++	reg32 = reg32 & ~(1<<29);  /* Reserved                              */                               \
++	reg32 = reg32 & ~(1<<28);  /* Reserved                              */                               \
++	reg32 = reg32 & ~(1<<27);  /* Enable GPIOE[7:6] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<26);  /* Enable GPIOE[5:4] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<25);  /* Enable GPIOE[3:2] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<24);  /* Enable GPIOE[1:0] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<23);  /* Enable GPIOD[7:6] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<22);  /* Enable GPIOD[5:4] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<21);  /* Enable GPIOD[3:2] pass through debounce mode   */                      \
++	reg32 = reg32 & ~(1<<20);  /* Enable GPIOD[1:0] pass through debounce mode   */                      \
++	reg32 = reg32 |  (1<<19);  /* Disable ADC15 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<18);  /* Disable ADC14 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<17);  /* Disable ADC13 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<16);  /* Disable ADC12 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<15);  /* Disable ADC11 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<14);  /* Disable ADC10 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<13);  /* Disable ADC09 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<12);  /* Disable ADC08 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<11);  /* Disable ADC07 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<10);  /* Disable ADC06 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<9);   /* Disable ADC05 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<8);   /* Disable ADC04 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<7);   /* Disable ADC03 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<6);   /* Disable ADC02 internal pull down   */                              	 \
++	reg32 = reg32 |  (1<<5);   /* Disable ADC01 internal pull down   */                              	 		\
++	reg32 = reg32 |  (1<<4);   /* Disable ADC00 internal pull down   */                              	 		\
++	/* SCU94[1] = 1  select Video pin */																 		\
++	reg32 = reg32 & ~(1<<3);   /* Enable VPOCLK or WDTRST2 function pin */                      	     		\
++	reg32 = reg32 & ~(1<<2);   /* Enable VPOVS or WDTRST1 function pin */                      			 		\
++	reg32 = reg32 & ~(1<<1);   /* Enable VPOHS function pin */                      			         		\
++	reg32 = reg32 & ~(1<<0);   /* Enable VPODE function pin */                      			         		\
++	*((volatile u_long *) (SCU_REG_BASE + SCU_CONTROL9)) = reg32; 										 \
++																										 \
++	/* SCU2C SCU_MISC_CONTROL */                                 							             \
++	reg32 =	*((volatile u_long *) (SCU_REG_BASE + SCU_MISC_CONTROL));									 \
++	reg32 |= 0x20000000; 																				 \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_MISC_CONTROL)) = reg32;                                    \
++    																									 \
++	*((volatile u_long *) SCU_REG_BASE) = 0x00000000;	/*lock SCU */									 \
++																										 		\
++                                                                                                         		\
++	/* config GPIO data and direction */                                                                 		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOABCD_OFFSET + GPIO_DAT) |= 0x0100008A;  /* Data: GPIODCBA */       \
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOABCD_OFFSET + GPIO_DIR) |= 0x01000001;  /* Dir : GPIODCBA */       \
++                                                                                                                \
++	/* config extend GPIO data and direction */                                                                 \
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOEFGH_OFFSET + GPIO_DAT) |= 0x0000422A;  /* Data: GPIOHGFE */       \
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOEFGH_OFFSET + GPIO_DIR) |= 0xFF00420A;  /* Dir : GPIOHGFE */       \
++   	         																									\
++   	/* Port 80h re-direction */                                                                                 \
++    /* Assign command source to LPC */    																		\
++    *((volatile ulong *) (0x1e780068)) = 0x01000000;														    \
++    *((volatile ulong *) (0x1e78006C)) = 0x00000000;															\
++																												\
++    /* enable snoop */																							\
++    *((volatile ulong *) (0x1e789090)) = 0x80;																	\
++    *((volatile ulong *) (0x1e789080)) = 0x01;																	\
++																												\
++	/* Set Uart1 to debug console */																			\
++    *(volatile ulong *) (LPC_REG_BASE + HICRA_OFFSET ) &=  0xF0F0FFFF;											\
++    																	                                        \
++    /* set re-direct register */																				\
++    *((volatile ulong*)(0x1e789080)) &= ~(0xFF000000);															\
++    *((volatile ulong*)(0x1e789080)) |= ((1 << 31) | (1 << 30) | (7 << 24)) ;								    \
++    /*--- end of port 80 re-direction ---*/																		\
++                                                                                                           		\
++	/* config simple GPIO 0 data and direction */                                                        		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOIJKL_OFFSET + GPIO_DAT) |= 0x20000004;  /* Data: GPIOLKJI */ 		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOIJKL_OFFSET + GPIO_DIR) |= 0x2000000C;  /* Dir : GPIOLKJI */ 		\
++                                                                                                         		\
++	/* config simple GPIO 1 data and direction */                                                        		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOMNOP_OFFSET + GPIO_DAT) |= 0x00001004; /* Data: GPIOPONM */ 		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOMNOP_OFFSET + GPIO_DAT) &= 0xFFFFFFF7; /* Data: GPIOPONM Enable over current detect in default*/ 		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOMNOP_OFFSET + GPIO_DIR) |= 0x20000008;  /* Dir : GPIOPONM */ 		\
++                                                                                                         		\
++	/* config simple GPIO 2 data and direction */                                                        		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOQRST_OFFSET + GPIO_DAT) |= 0x00000000;  /* Data: GPIOTSRQ */ 		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOQRST_OFFSET + GPIO_DIR) |= 0x00020000;  /* Dir : GPIOTSRQ */ 		\
++                                                                                                         		\
++	/* config simple GPIO 3 data and direction */                                                        		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOUVWX_OFFSET + GPIO_DAT) &= 0xFFFFF7FF;  /* Data: GPIOXWVU */       \
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOUVWX_OFFSET + GPIO_DIR) |= 0x00000820;  /* Dir : GPIOXWVU */ 		\
++                                                                                                         		\
++	/* config simple GPIO 4 data and direction */                                                        		\
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOYZAAAB_OFFSET + GPIO_DAT) |= 0x00100008;  /* Data: GPIOABAAZY */   \
++	*(volatile ulong *) (GPIO_REG_BASE + GPIOYZAAAB_OFFSET + GPIO_DIR) |= 0x00140004;  /* Dir : GPIOABAAZY */   \
++                                                                                                                \
++    /* Configure FAN */                                                                                         \
++	*((volatile u_long *) SCU_REG_BASE) = 0x1688A8A8;	/* unlock SCU */                                        \
++	*((volatile u_long *) (SCU_REG_BASE + SCU_RST_CONTROL)) &= ~(0x00000200);                                   \
++	*((volatile u_long *) SCU_REG_BASE) = 0x00000000;	/*lock SCU */									 		\
++	                                                                                                            \
++	/* set clock division and period of type M/N */                                                             \
++	*((volatile ulong *) 0x1e786000) = 0x000F0F01;  /* enable PWM, and set to type M */                  		\
++	*((volatile ulong *) 0x1e786004) = 0xFF01FF02;                                                       		\
++                                                                                                         		\
++	/* set PWM duty cycle to 50% */                                                                      		\
++	*((volatile ulong *) 0x1e786008) = 0x80008000;  /* PWM B, PWM A */                                   		\
++	*((volatile ulong *) 0x1e78600C) = 0x80008000;  /* PWM D, PWM C */                                   		\
++	                                                                                                         	\
++	/* Reset WDT2 timer to count down within 60 seconds */                                                                      		\
++//	*((volatile u_long *) (WDT_REG_BASE + WDT2_COUNTER_RELOAD_OFFSET)) = 0x3938700;                                   
++//	*((volatile u_long *) (WDT_REG_BASE + WDT2_COUNTER_RESTART_OFFSET)) = 0x4755;                                   
++                                                                                                         		
++}
++
++void disable_watchdog2()
++{
++	ulong tmp;
++	writel(0x1688a8a8,SCU_REG_BASE); //unlock SCU
++
++	writel(0x00020000,(SCU_REG_BASE+SCU_7C)); //Disable 2nd boot watchdog timer
++
++	tmp = readl(WDT_REG_BASE+WDT2_CONTROL_OFFSET);
++	tmp &= 0xFFFFFFFE; 			// Disable WDT2
++	writel(tmp,(WDT_REG_BASE+WDT2_CONTROL_OFFSET));
++
++	writel(1,SCU_REG_BASE); //Lock SCU
++}
++
++
++void mtjade_configuration()
++{
++	disable_watchdog2();
++/*
++	multipin_configuration();
++*/
++}
++

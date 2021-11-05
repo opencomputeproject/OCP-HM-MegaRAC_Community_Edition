@@ -1,0 +1,31 @@
+From 0440cef8a5901290608dfa36614ab4bf226cf62c Mon Sep 17 00:00:00 2001
+From: Hieu Huynh <hieu.huynh@amperecomputing.com>
+Date: Tue, 25 May 2021 10:07:17 +0000
+Subject: [PATCH] Add the user_mgmt.hpp to Makefile.am file for access from
+ external
+
+This commit adds the user_mgmt.hpp to Makefile.am file for access
+from external.
+
+Signed-off-by: Hieu Huynh <hieu.huynh@amperecomputing.com>
+---
+ Makefile.am | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 82fdd5d..e7f64dc 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -181,7 +181,8 @@ endif
+ 
+ nobase_include_HEADERS = \
+ 	user_channel/channel_layer.hpp \
+-	user_channel/user_layer.hpp
++	user_channel/user_layer.hpp \
++	user_channel/user_mgmt.hpp
+ 
+ # Forcing the build of self and then subdir
+ SUBDIRS = include libipmid libipmid-host user_channel . test softoff
+-- 
+2.17.1
+

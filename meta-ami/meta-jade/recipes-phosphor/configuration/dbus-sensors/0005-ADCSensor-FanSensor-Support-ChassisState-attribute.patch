@@ -1,0 +1,129 @@
+From 2661dcd07746fe7a1fabcb273612847080a125e2 Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Wed, 28 Apr 2021 21:29:16 +0700
+Subject: [PATCH] ADCSensor,FanSensor: Support ChassisState attribute
+
+Some ADC voltage and Fan sensors are using the host power domain. Their
+available state is defended on chassis power state but not the host state.
+This commit handles ChassisState option in sensor configuration.
+The configuration value of ChassisState will be matched with the end string
+value of CurrentPowerState property in xyz.openbmc_project.State.Chassis
+interface.
+
+Tested:
+	1. Add configuration:
+	{
+            "Index": 0,
+            "Name": "S0_0V8_VDDC_SOC",
+            "ScaleFactor": 1,
+            "ChassisState": "On",
+            "Type": "ADC"
+        }
+	-- S0_0V8_VDDC_SOC sensor is updated when CurrentPowerState is On.
+	2. Turn on the chassis, but force the host failed to boot. Verify
+	the value of S0_0V8_VDDC_SOC.
+	3. Turn off the chassis. Value of S0_0V8_VDDC_SOC should be nan.
+
+Signed-off-by: ThuBaNguyen <thu@os.amperecomputing.com>
+---
+ include/Utils.hpp     |  9 +++++++++
+ src/ADCSensorMain.cpp | 19 +++++++++++++++++++
+ src/FanMain.cpp       | 18 ++++++++++++++++++
+ 3 files changed, 46 insertions(+)
+
+diff --git a/include/Utils.hpp b/include/Utils.hpp
+index aada55b..512c147 100644
+--- a/include/Utils.hpp
++++ b/include/Utils.hpp
+@@ -112,6 +112,15 @@ const static constexpr char* property = "OperatingSystemState";
+ const static constexpr char* sBiosPost = "BiosPost";
+ } // namespace post
+ 
++namespace chassis
++{
++const static constexpr char* busname = "xyz.openbmc_project.State.Chassis";
++const static constexpr char* interface = "xyz.openbmc_project.State.Chassis";
++const static constexpr char* path = "/xyz/openbmc_project/state/chassis0";
++const static constexpr char* property = "CurrentPowerState";
++const static constexpr char* sOn = "On";
++} // namespace chassis
++
+ namespace association
+ {
+ const static constexpr char* interface =
+diff --git a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+index 8d281d7..6852fb5 100644
+--- a/src/ADCSensorMain.cpp
++++ b/src/ADCSensorMain.cpp
+@@ -225,6 +225,8 @@ void createSensors(
+                         pollRate = pollRateDefault; // polling time too short
+                     }
+                 }
++
++                bool isMatchState = false;
+                 auto findPowerOn = baseConfiguration->second.find("PowerState");
+                 ReadState readState = initReadState(PowerState::always);
+                 if (findPowerOn != baseConfiguration->second.end())
+@@ -237,6 +239,23 @@ void createSensors(
+                         powerState = power::sOn;
+                     }
+                     setMatchString(powerState, &readState);
++                    isMatchState = true;
++                }
++
++                /* Only support one state match per sensor */
++                if (!isMatchState)
++                {
++                    auto findChassisMatch =
++                        baseConfiguration->second.find("ChassisState");
++                    if (findChassisMatch != baseConfiguration->second.end())
++                    {
++                        std::string chassisState = std::visit(
++                            VariantToStringVisitor(), findChassisMatch->second);
++                        readState = ReadState(chassis::busname, chassis::path,
++                                        chassis::interface, chassis::property,
++                                        chassisState);
++                        isMatchState = true;
++                    }
+                 }
+ 
+                 auto findCPU = baseConfiguration->second.find("CPURequired");
+diff --git a/src/FanMain.cpp b/src/FanMain.cpp
+index 9e20832..b0b3657 100644
+--- a/src/FanMain.cpp
++++ b/src/FanMain.cpp
+@@ -343,6 +343,7 @@ void createSensors(
+                     redundancy = &systemRedundancy;
+                 }
+ 
++                bool isMatchState = false;
+                 ReadState powerState = initReadState(PowerState::on);
+                 auto findPower = baseConfiguration->second.find("PowerState");
+                 if (findPower != baseConfiguration->second.end())
+@@ -355,6 +356,23 @@ void createSensors(
+                         sPower = power::sOn;
+                     }
+                     setMatchString(sPower, &powerState);
++                    isMatchState = true;
++                }
++
++                /* Only support one state match per sensor */
++                if (!isMatchState)
++                {
++                    auto findChassisMatch =
++                        baseConfiguration->second.find("ChassisState");
++                    if (findChassisMatch != baseConfiguration->second.end())
++                    {
++                        std::string chassisState = std::visit(
++                            VariantToStringVisitor(), findChassisMatch->second);
++                        powerState = ReadState(chassis::busname, chassis::path,
++                                        chassis::interface, chassis::property,
++                                        chassisState);
++                        isMatchState = true;
++                    }
+                 }
+ 
+                 constexpr double defaultMaxReading = 25000;
+-- 
+2.17.1
+

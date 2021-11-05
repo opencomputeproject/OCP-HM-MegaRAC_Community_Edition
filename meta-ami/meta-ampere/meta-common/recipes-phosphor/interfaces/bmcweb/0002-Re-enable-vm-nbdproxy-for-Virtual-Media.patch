@@ -1,0 +1,48 @@
+From 8e304891712a712dc245e14ed5e832cd2250b940 Mon Sep 17 00:00:00 2001
+From: "Thang Q. Nguyen" <thang@os.amperecomputing.com>
+Date: Tue, 23 Mar 2021 04:18:27 +0000
+Subject: [PATCH] Re-enable vm-nbdproxy for Virtual Media
+
+Community complains that no active support for virtual media and no
+backend codes were implemented. This make the vm-nbdproxy option becomes
+redundant and should be removed.
+Refer to https://github.com/openbmc/bmcweb/issues/188.
+However, we need this option for Virtual Media support so re-enable it
+locally.
+
+Signed-off-by: Thang Q. Nguyen <thang@os.amperecomputing.com>
+Change-Id: Icce94b85f01b2de0f1c6151850d162f031fe9c6a
+---
+ meson.build       | 2 +-
+ meson_options.txt | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 66a066b..cef0a49 100644
+--- a/meson.build
++++ b/meson.build
+@@ -81,7 +81,7 @@ feature_map = {
+ 'static-hosting'                  : '-DBMCWEB_ENABLE_STATIC_HOSTING',
+ 'insecure-tftp-update'            : '-DBMCWEB_INSECURE_ENABLE_REDFISH_FW_TFTP_UPDATE',
+ 'validate-unsecure-feature'       : '-DBMCWEB_ENABLE_VALIDATION_UNSECURE_FEATURE',
+-#'vm-nbdproxy'                     : '-DBMCWEB_ENABLE_VM_NBDPROXY',
++'vm-nbdproxy'                     : '-DBMCWEB_ENABLE_VM_NBDPROXY',
+ 'vm-websocket'                    : '-DBMCWEB_ENABLE_VM_WEBSOCKET',
+ }
+ 
+diff --git a/meson_options.txt b/meson_options.txt
+index 9611631..3144fb3 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -10,7 +10,7 @@ option('vm-websocket', type : 'feature', value : 'enabled', description : '''Ena
+ # this interface, so for the moment this appears to be dead code;  In leiu of
+ # removing it, it has been disabled to try to give those that use it the
+ # opportunity to upstream their backend implementation
+-#option('vm-nbdproxy', type: 'feature', value : 'disabled', description : 'Enable the Virtual Media WebSocket.')
++option('vm-nbdproxy', type: 'feature', value : 'disabled', description : 'Enable the Virtual Media WebSocket.')
+ option('rest', type : 'feature', value : 'enabled', description : '''Enable Phosphor REST (D-Bus) APIs. Paths directly map Phosphor D-Bus object paths, for example, \'/xyz/openbmc_project/logging/entry/enumerate\'. See https://github.com/openbmc/docs/blob/master/rest-api.md.''')
+ option('redfish', type : 'feature',value : 'enabled', description: 'Enable Redfish APIs.  Paths are under \'/redfish/v1/\'. See https://github.com/openbmc/bmcweb/blob/master/DEVELOPING.md#redfish.')
+ option('host-serial-socket', type : 'feature', value : 'enabled', description : 'Enable host serial console WebSocket. Path is \'/console0\'.  See https://github.com/openbmc/docs/blob/master/console.md.')
+-- 
+2.25.1
+

@@ -1,0 +1,45 @@
+From 6b70362748dd877f7aca986ed80c18f3046c126e Mon Sep 17 00:00:00 2001
+From: Chanh Nguyen <chanh@os.amperecomputing.com>
+Date: Fri, 26 Mar 2021 11:52:50 +0700
+Subject: [PATCH] psu-ng: Remove the define IBM_VPD
+
+This commit will remove the define IBM_VPD.
+That is temp commit. It will was reverted after the
+phosphor-power-supply fix some issue relate to IBM_VPD
+
+Signed-off-by: Chanh Nguyen <chanh@os.amperecomputing.com>
+---
+ meson.build                            | 1 -
+ phosphor-power-supply/power_supply.cpp | 2 ++
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index 7d90fa3..380238c 100644
+--- a/meson.build
++++ b/meson.build
+@@ -87,7 +87,6 @@ conf.set(
+     'SEQUENCER', sequencer_class)
+ conf.set10(
+     'DEVICE_ACCESS', get_option('device-access'))
+-conf.set10('IBM_VPD', get_option('ibm-vpd'))
+ 
+ configure_file(output: 'config.h', configuration: conf)
+ 
+diff --git a/phosphor-power-supply/power_supply.cpp b/phosphor-power-supply/power_supply.cpp
+index 82bd9aa..7b793ac 100644
+--- a/phosphor-power-supply/power_supply.cpp
++++ b/phosphor-power-supply/power_supply.cpp
+@@ -112,8 +112,10 @@ void PowerSupply::onOffConfig(uint8_t data)
+         try
+         {
+             std::vector<uint8_t> configData{data};
++#ifdef IBM_VPD
+             pmbusIntf->writeBinary(ON_OFF_CONFIG, configData,
+                                    Type::HwmonDeviceDebug);
++#endif
+         }
+         catch (...)
+         {
+-- 
+2.17.1
+

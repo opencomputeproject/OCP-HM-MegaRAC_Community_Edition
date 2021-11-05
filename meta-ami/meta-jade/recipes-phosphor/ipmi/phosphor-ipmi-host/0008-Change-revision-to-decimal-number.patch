@@ -1,0 +1,42 @@
+From 733a7cfe19bb8d6a180a35ba003e275dfdf93728 Mon Sep 17 00:00:00 2001
+From: "Thang Q. Nguyen" <thang@os.amperecomputing.com>
+Date: Tue, 17 Aug 2021 10:45:59 +0000
+Subject: [PATCH] Change revision to decimal number
+
+Ampere OpenBMC uses the revision format of XX.YY.xxxx where XX and YY
+are decimal number. However, phosphor-host-ipmid currently considers
+them as hexa-decimal. It makes the "ipmitool mc info" command display
+wrong BMC revision.
+This commit fixes the issue
+
+Signed-off-by: Thang Q. Nguyen <thang@os.amperecomputing.com>
+Change-Id: Ibc30a10013273e89af989a09499739a10c916e16
+---
+ apphandler.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apphandler.cpp b/apphandler.cpp
+index f5db550..ecb6ba5 100644
+--- a/apphandler.cpp
++++ b/apphandler.cpp
+@@ -498,7 +498,7 @@ int convertVersion(std::string s, Revision& rev)
+         if (location != std::string::npos)
+         {
+             rev.major =
+-                static_cast<char>(std::stoi(s.substr(0, location), 0, 16));
++                static_cast<char>(std::stoi(s.substr(0, location), 0, 10));
+             token = s.substr(location + 1);
+         }
+ 
+@@ -508,7 +508,7 @@ int convertVersion(std::string s, Revision& rev)
+             if (location != std::string::npos)
+             {
+                 rev.minor = static_cast<char>(
+-                    std::stoi(token.substr(0, location), 0, 16));
++                    std::stoi(token.substr(0, location), 0, 10));
+                 token = token.substr(location + 1);
+             }
+         }
+-- 
+2.25.1
+

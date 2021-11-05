@@ -1,0 +1,89 @@
+diff -Naur a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+--- a/src/ADCSensorMain.cpp	2021-10-21 12:43:13.700801258 +0530
++++ b/src/ADCSensorMain.cpp	2021-10-21 14:46:44.956459095 +0530
+@@ -40,30 +40,13 @@
+ 
+ namespace fs = std::filesystem;
+ 
++static std::string defaultADCName = "iio-hwmon";
+ static constexpr std::array<const char*, 1> sensorTypes = {
+     "xyz.openbmc_project.Configuration.ADC"};
+ static std::regex inputRegex(R"(in(\d+)_input)");
+ 
+ static boost::container::flat_map<size_t, bool> cpuPresence;
+ 
+-// filter out adc from any other voltage sensor
+-bool isAdc(const fs::path& parentPath)
+-{
+-    fs::path namePath = parentPath / "name";
+-
+-    std::ifstream nameFile(namePath);
+-    if (!nameFile.good())
+-    {
+-        std::cerr << "Failure reading " << namePath.string() << "\n";
+-        return false;
+-    }
+-
+-    std::string name;
+-    std::getline(nameFile, name);
+-
+-    return name == "iio_hwmon";
+-}
+-
+ void createSensors(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+     boost::container::flat_map<std::string, std::shared_ptr<ADCSensor>>&
+@@ -90,10 +73,6 @@
+             // configuration
+             for (auto& path : paths)
+             {
+-                if (!isAdc(path.parent_path()))
+-                {
+-                    continue;
+-                }
+                 std::smatch match;
+                 std::string pathStr = path.string();
+ 
+@@ -104,6 +83,8 @@
+                 // convert to 0 based
+                 size_t index = std::stoul(indexStr) - 1;
+ 
++		fs::path device = path.parent_path() / "device";
++                std::string deviceName = fs::canonical(device).stem();
+                 const SensorData* sensorData = nullptr;
+                 const std::string* interfacePath = nullptr;
+                 const std::pair<
+@@ -130,6 +111,24 @@
+                     {
+                         continue;
+                     }
++
++		    auto findDevName =
++                        baseConfiguration->second.find("DevName");
++                    if (findDevName != baseConfiguration->second.end())
++                    {
++                        const std::string& sName =
++                            std::get<std::string>(findDevName->second);
++                        if (sName != deviceName)
++                        {
++                            continue;
++                        }
++                    }
++                    /* No DevName setting and device name is not iio-hwmon */
++                    else if (defaultADCName != deviceName)
++                    {
++                        continue;
++                    }
++
+                     auto findIndex = baseConfiguration->second.find("Index");
+                     if (findIndex == baseConfiguration->second.end())
+                     {
+@@ -152,8 +151,6 @@
+                 }
+                 if (sensorData == nullptr)
+                 {
+-                    std::cerr << "failed to find match for " << path.string()
+-                              << "\n";
+                     continue;
+                 }
+ 

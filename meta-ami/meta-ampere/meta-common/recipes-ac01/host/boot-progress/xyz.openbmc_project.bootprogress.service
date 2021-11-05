@@ -1,0 +1,15 @@
+[Unit]
+Description=Ampere Altra Boot Progress Handling
+Wants=obmc-host-started@%i.target
+After=obmc-host-started@%i.target
+Conflicts=obmc-host-stop@%i.target
+
+[Service]
+Restart=on-failure
+ExecStart=/usr/sbin/ampere_boot_progress.sh
+SyslogIdentifier=ampere-boot-progress
+RemainAfterExit=no
+
+[Install]
+WantedBy=obmc-host-start@%i.target
+

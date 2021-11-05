@@ -1,0 +1,24 @@
+diff -Naur e/common/board_r.c f/common/board_r.c
+--- e/common/board_r.c	2021-10-11 22:47:10.243789304 -0400
++++ f/common/board_r.c	2021-10-11 22:50:11.309517492 -0400
+@@ -632,6 +632,12 @@
+ 	return 0;
+ }
+ 
++static int board_mtjade_init(void)
++{
++	mtjade_configuration();
++	return 0;
++}
++
+ /*
+  * We hope to remove most of the driver-related init and do it if/when
+  * the driver is later used.
+@@ -824,6 +830,7 @@
+ #if defined(CONFIG_PRAM)
+ 	initr_mem,
+ #endif
++	board_mtjade_init,	
+ 	run_main_loop,
+ };
+ 

@@ -1,0 +1,31 @@
+From 4530556d5c823479e09a2009f055ad007ddf34cc Mon Sep 17 00:00:00 2001
+From: Hieu Huynh <hieu.huynh@amperecomputing.com>
+Date: Thu, 10 Jun 2021 06:25:57 +0000
+Subject: [PATCH] Do not return error while verify internal area
+
+FRU of some systems might come with a non-standard internal area header.
+Any error return in this case shoud be avoided so as not to affect the
+normal operation of other features like FRU read and FRU write.
+
+Signed-off-by: Hieu Huynh <hieu.huynh@amperecomputing.com>
+---
+ writefrudata.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/writefrudata.cpp b/writefrudata.cpp
+index 67e28a1..925eabe 100644
+--- a/writefrudata.cpp
++++ b/writefrudata.cpp
+@@ -552,7 +552,8 @@ int ipmiPopulateFruAreas(uint8_t* fruData, const size_t dataLen,
+             {
+                 log<level::ERR>("Err validating FRU area",
+                                 entry("OFFSET=%d", areaOffset));
+-                return rc;
++                if (fruEntry != IPMI_FRU_INTERNAL_OFFSET)
++                    return rc;
+             }
+             else
+             {
+-- 
+2.17.1
+

@@ -1,0 +1,74 @@
+From d41ae688547a6df978aed2c9cda2120f8fba8e5e Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Thu, 22 Apr 2021 14:42:51 +0700
+Subject: [PATCH] ADCSensor: Add support DevName option
+
+This commit adds support DevName option in sensor configuration for ADC
+sensor type. The configured name will be used to match with the defined name
+in DTS.
+
+Tested:
+	1. Configure the different device names for ADC devices in DTS.
+        Ex:
+        iio-hwmon {
+                compatible = "iio-hwmon";
+                io-channels = <&adc0mux 0>, <&adc0mux 1>;
+        };
+        iio-hwmon-adc14 {
+                compatible = "iio-hwmon";
+                io-channels = <&adc 14>;
+        };
+        iio-hwmon-battery {
+                compatible = "iio-hwmon";
+                io-channels = <&adc 15>;
+        };
+	2. Add DevName in the sensor configuration of entity-manager.
+	Ex:
+        {
+                "Index": 0,
+                "Name": "VBAT_RTC",
+                "DevName":"iio-hwmon-battery",
+                "Type": "ADC"
+        },
+        {
+                "Index": 0,
+                "Name": "3V3_SB",
+                "DevName":"iio-hwmon-adc14",
+                "Type": "ADC"
+        }
+	3. All configured sensors should be added.
+
+Signed-off-by: ThuBaNguyen <thu@os.amperecomputing.com>
+Change-Id: I4ff1cf176216775413ff64750a4b220c6378832f
+---
+ src/ADCSensorMain.cpp | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/ADCSensorMain.cpp b/src/ADCSensorMain.cpp
+index 16e4c12..3a9f8cd 100644
+--- a/src/ADCSensorMain.cpp
++++ b/src/ADCSensorMain.cpp
+@@ -112,7 +112,19 @@ void createSensors(
+                         continue;
+                     }
+ 
+-                    if (defaultADCName != deviceName)
++                    auto findDevName =
++                        baseConfiguration->second.find("DevName");
++                    if (findDevName != baseConfiguration->second.end())
++                    {
++                        const std::string& sName =
++                            std::get<std::string>(findDevName->second);
++                        if (sName != deviceName)
++                        {
++                            continue;
++                        }
++                    }
++                    /* No DevName setting and device name is not iio-hwmon */
++                    else if (defaultADCName != deviceName)
+                     {
+                         continue;
+                     }
+-- 
+2.17.1
+

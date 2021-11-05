@@ -1,0 +1,265 @@
+From 453759fbdb81b35a9ed55baa69119ce16f062f22 Mon Sep 17 00:00:00 2001
+From: ThuBaNguyen <thu@os.amperecomputing.com>
+Date: Thu, 6 May 2021 09:32:12 +0700
+Subject: [PATCH] FanSensor: Add xyz.openbmc_project.Control.FanPwm to
+ sensors/fan_tach path
+
+Phosphor-fan monitoring and controlling require interface
+xyz.openbmc_project.Control.FanPwm in the fan inventory object.
+But FanSensor daemon of dbus-sensor only adds
+/xyz/openbmc_project/sensors/fan_tach to inventory list, and this path
+does not support xyz.openbmc_project.Control.FanPwm interface.
+This commit add xyz.openbmc_project.Control.FanPwm to
+/xyz/openbmc_project/sensors/fan_tach.
+
+Tested:
+	1. Power on the host.
+	2. The fan speed algorithms should work normally.
+
+Signed-off-by: ThuBaNguyen <thu@os.amperecomputing.com>
+---
+ include/TachSensor.hpp |   8 ++-
+ src/FanMain.cpp        |  27 ++++++++--
+ src/TachSensor.cpp     | 112 ++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 139 insertions(+), 8 deletions(-)
+
+diff --git a/include/TachSensor.hpp b/include/TachSensor.hpp
+index e50f015..a980f5e 100644
+--- a/include/TachSensor.hpp
++++ b/include/TachSensor.hpp
+@@ -73,7 +73,8 @@ class TachSensor : public Sensor
+                const std::string& sensorConfiguration,
+                const std::pair<size_t, size_t>& limits,
+                const ReadState& powerState,
+-               const std::optional<std::string>& led);
++               const std::optional<std::string>& led,
++               const std::string& pwmPath, const std::string& sensorType);
+     ~TachSensor() override;
+ 
+   private:
+@@ -82,16 +83,21 @@ class TachSensor : public Sensor
+     std::unique_ptr<PresenceSensor> presence;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> itemIface;
+     std::shared_ptr<sdbusplus::asio::dbus_interface> itemAssoc;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> controlInterface;
+     boost::asio::posix::stream_descriptor inputDev;
+     boost::asio::deadline_timer waitTimer;
+     boost::asio::streambuf readBuf;
+     std::string path;
+     std::optional<std::string> led;
++    std::string pwmPath;
++    double pwmMax;
+     bool ledState = false;
+     size_t errCount;
+     void setupRead(void);
+     void handleResponse(const boost::system::error_code& err);
+     void checkThresholds(void) override;
++    void setPwmValue(uint32_t value);
++    uint32_t getPwmValue(bool errThrow);
+ };
+ 
+ inline void logFanInserted(const std::string& device)
+diff --git a/src/FanMain.cpp b/src/FanMain.cpp
+index b0b3657..159d99a 100644
+--- a/src/FanMain.cpp
++++ b/src/FanMain.cpp
+@@ -432,12 +432,29 @@ void createSensors(
+                     }
+                 }
+ 
++                bool addControlIntf = true;
+                 findLimits(limits, baseConfiguration);
+-                tachSensors[sensorName] = std::make_unique<TachSensor>(
+-                    path.string(), baseType, objectServer, dbusConnection,
+-                    std::move(presenceSensor), redundancy, io, sensorName,
+-                    std::move(sensorThresholds), *interfacePath, limits,
+-                    powerState, led);
++                if (!addControlIntf)
++                {
++                    tachSensors[sensorName] = std::make_unique<TachSensor>(
++                        path.string(), baseType, objectServer, dbusConnection,
++                        std::move(presenceSensor), redundancy, io, sensorName,
++                        std::move(sensorThresholds), *interfacePath, limits,
++                        powerState, led, "", "");
++                }
++                else
++                {
++                    if (!pwmPath.empty() && fs::exists(pwmPath))
++                    {
++                        tachSensors[sensorName] = std::make_unique<TachSensor>(
++                            path.string(), baseType, objectServer,
++                            dbusConnection, std::move(presenceSensor),
++                            redundancy, io, sensorName,
++                            std::move(sensorThresholds), *interfacePath, limits,
++                            powerState, led, pwmPath, "Fan");
++                    }
++                }
++
+ 
+                 if (!pwmPath.empty() && fs::exists(pwmPath) &&
+                     !pwmSensors.count(pwmPath))
+diff --git a/src/TachSensor.cpp b/src/TachSensor.cpp
+index ab7a022..4ed70e8 100644
+--- a/src/TachSensor.cpp
++++ b/src/TachSensor.cpp
+@@ -37,6 +37,10 @@
+ #include <utility>
+ #include <vector>
+ 
++static constexpr double sysPwmMax = 255.0;
++static constexpr double psuPwmMax = 100.0;
++static constexpr double defaultPwm = 30.0;
++static constexpr double targetIfaceMax = sysPwmMax;
+ static constexpr unsigned int pwmPollMs = 500;
+ static constexpr size_t warnAfterErrorCount = 10;
+ 
+@@ -50,19 +54,22 @@ TachSensor::TachSensor(const std::string& path, const std::string& objectType,
+                        const std::string& sensorConfiguration,
+                        const std::pair<size_t, size_t>& limits,
+                        const ReadState& powerState,
+-                       const std::optional<std::string>& ledIn) :
++                       const std::optional<std::string>& ledIn,
++                       const std::string& pwmPath,
++                       const std::string& sensorType) :
+     Sensor(boost::replace_all_copy(fanName, " ", "_"), std::move(thresholdsIn),
+            sensorConfiguration, objectType, limits.second, limits.first, conn,
+            powerState),
+     objServer(objectServer), redundancy(redundancy),
+     presence(std::move(presenceSensor)),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
+-    led(ledIn)
++    led(ledIn), pwmPath(pwmPath)
+ {
+     sensorInterface = objectServer.add_interface(
+         "/xyz/openbmc_project/sensors/fan_tach/" + name,
+         "xyz.openbmc_project.Sensor.Value");
+ 
++
+     if (thresholds::hasWarningInterface(thresholds))
+     {
+         thresholdInterfaceWarning = objectServer.add_interface(
+@@ -79,6 +86,65 @@ TachSensor::TachSensor(const std::string& path, const std::string& objectType,
+         "/xyz/openbmc_project/sensors/fan_tach/" + name,
+         association::interface);
+ 
++    if (!pwmPath.empty())
++    {
++        uint32_t pwmValue = getPwmValue(false);
++        if (sensorType == "PSU")
++        {
++            pwmMax = psuPwmMax;
++        }
++        else
++        {
++            pwmMax = sysPwmMax;
++        }
++
++        if (!pwmValue)
++        {
++            // default pwm to non 0
++            pwmValue = static_cast<uint32_t>(pwmMax * (defaultPwm / 100.0));
++            setPwmValue(pwmValue);
++        }
++        controlInterface = objectServer.add_interface(
++            "/xyz/openbmc_project/sensors/fan_tach/" + name,
++            "xyz.openbmc_project.Control.FanPwm");
++
++        controlInterface->register_property(
++            "Target", static_cast<uint64_t>(pwmValue),
++            [this](const uint64_t& req, uint64_t& resp) {
++                if (req > static_cast<uint64_t>(targetIfaceMax))
++                {
++                    throw std::runtime_error("Value out of range");
++                    return -1;
++                }
++                if (req == resp)
++                {
++                    return 1;
++                }
++                auto scaledValue = static_cast<double>(req) / targetIfaceMax;
++                auto roundValue = std::round(scaledValue * pwmMax);
++                setPwmValue(static_cast<uint32_t>(roundValue));
++                resp = req;
++
++                sensorInterface->signal_property("Value");
++
++                return 1;
++            },
++            [this](uint64_t& curVal) {
++                auto getInt = getPwmValue(false);
++                auto scaledValue = static_cast<double>(getInt) / pwmMax;
++                auto roundValue = std::round(scaledValue * targetIfaceMax);
++                auto value = static_cast<uint64_t>(roundValue);
++                if (curVal != value)
++                {
++                    curVal = value;
++                    controlInterface->signal_property("Target");
++                    sensorInterface->signal_property("Value");
++                }
++                return curVal;
++            });
++        controlInterface->initialize();
++    }
++
+     if (presence)
+     {
+         itemIface =
+@@ -112,6 +178,7 @@ TachSensor::~TachSensor()
+     objServer.remove_interface(association);
+     objServer.remove_interface(itemIface);
+     objServer.remove_interface(itemAssoc);
++    objServer.remove_interface(controlInterface);
+ }
+ 
+ void TachSensor::setupRead(void)
+@@ -201,6 +268,47 @@ void TachSensor::checkThresholds(void)
+     }
+ }
+ 
++void TachSensor::setPwmValue(uint32_t value)
++{
++    std::ofstream ref(pwmPath);
++    if (!ref.good())
++    {
++        throw std::runtime_error("Bad Write File");
++    }
++    ref << value;
++}
++
++// on success returns pwm, on failure throws except on initialization, where it
++// prints an error and returns 0
++uint32_t TachSensor::getPwmValue(bool errThrow)
++{
++    std::ifstream ref(pwmPath);
++    if (!ref.good())
++    {
++        return -1;
++    }
++    std::string line;
++    if (!std::getline(ref, line))
++    {
++        return -1;
++    }
++    try
++    {
++        uint32_t value = std::stoi(line);
++        return value;
++    }
++    catch (std::invalid_argument&)
++    {
++        std::cerr << "Error reading pwm at " << pwmPath << "\n";
++        // throw if not initial read to be caught by dbus bindings
++        if (errThrow)
++        {
++            throw std::runtime_error("Bad Read");
++        }
++    }
++    return 0;
++}
++
+ PresenceSensor::PresenceSensor(const std::string& gpioName, bool inverted,
+                                boost::asio::io_service& io,
+                                const std::string& name) :
+-- 
+2.17.1
+

@@ -1,0 +1,187 @@
+From 4af40d3c58d9ffa3bcd943b91fb52b4e45d6de38 Mon Sep 17 00:00:00 2001
+From: Chanh Nguyen <chanh@os.amperecomputing.com>
+Date: Sat, 22 May 2021 18:37:44 +0700
+Subject: [PATCH] nvme_manager: Add checking the changing before set inventory
+ property
+
+The service will read NVMe drives every second, If we set
+the inventory properties to Object Dbus continuously without check
+inventory changing, that may make the Object Dbus is time-out response.
+
+This patch will add the serial number, smartwarning, statusflag checking
+before set the inventory properties.
+
+Signed-off-by: Chanh Nguyen <chanh@os.amperecomputing.com>
+---
+ nvme_manager.cpp | 111 +++++++++++++++++++++++++++--------------------
+ nvme_manager.hpp |   1 +
+ 2 files changed, 66 insertions(+), 46 deletions(-)
+
+diff --git a/nvme_manager.cpp b/nvme_manager.cpp
+index 02bc819..19828e1 100644
+--- a/nvme_manager.cpp
++++ b/nvme_manager.cpp
+@@ -58,51 +58,70 @@ using namespace std;
+ using namespace phosphor::logging;
+ 
+ void Nvme::setNvmeInventoryProperties(
++    NVMeConfig& config,
+     bool present, const phosphor::nvme::Nvme::NVMeData& nvmeData,
+     const std::string& inventoryPath)
+ {
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 ITEM_IFACE, "Present", present);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 ASSET_IFACE, "Manufacturer", nvmeData.vendor);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 ASSET_IFACE, "SerialNumber",
+-                                 nvmeData.serialNumber);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 ASSET_IFACE, "Model", nvmeData.modelNumber);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "SmartWarnings",
+-                                 nvmeData.smartWarnings);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "StatusFlags",
+-                                 nvmeData.statusFlags);
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "DriveLifeUsed",
+-                                 nvmeData.driveLifeUsed);
+-
+-    auto smartWarning = (!nvmeData.smartWarnings.empty())
+-                            ? std::stoi(nvmeData.smartWarnings, 0, 16)
+-                            : NOWARNING;
+-
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "CapacityFault",
+-                                 !(smartWarning & CapacityFaultMask));
+-
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "TemperatureFault",
+-                                 !(smartWarning & temperatureFaultMask));
+-
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "DegradesFault",
+-                                 !(smartWarning & DegradesFaultMask));
+-
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "MediaFault",
+-                                 !(smartWarning & MediaFaultMask));
+-
+-    util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
+-                                 NVME_STATUS_IFACE, "BackupDeviceFault",
+-                                 !(smartWarning & BackupDeviceFaultMask));
++    static std::unordered_map<int, std::string> pre_Serial;
++    static std::unordered_map<int, std::string> pre_SmartWarning;
++    static std::unordered_map<int, std::string> pre_StatusFlags;
++
++    if (pre_Serial[config.busID].compare(nvmeData.serialNumber) != 0)
++    {
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     ITEM_IFACE, "Present", present);
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     ASSET_IFACE, "Manufacturer", nvmeData.vendor);
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     ASSET_IFACE, "SerialNumber",
++                                     nvmeData.serialNumber);
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     ASSET_IFACE, "Model", nvmeData.modelNumber);
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "DriveLifeUsed",
++                                     nvmeData.driveLifeUsed);
++        pre_Serial[config.busID] = nvmeData.serialNumber;
++    }
++
++
++    if (pre_StatusFlags[config.busID].compare(nvmeData.statusFlags) != 0)
++    {
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "StatusFlags",
++                                     nvmeData.statusFlags);
++        pre_StatusFlags[config.busID] = nvmeData.statusFlags;
++    }
++
++    if (pre_SmartWarning[config.busID].compare(nvmeData.smartWarnings) != 0)
++    {
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "SmartWarnings",
++                                     nvmeData.smartWarnings);
++        auto smartWarning = (!nvmeData.smartWarnings.empty())
++                                ? std::stoi(nvmeData.smartWarnings, 0, 16)
++                                : NOWARNING;
++
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "CapacityFault",
++                                     !(smartWarning & CapacityFaultMask));
++
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "TemperatureFault",
++                                     !(smartWarning & temperatureFaultMask));
++
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "DegradesFault",
++                                     !(smartWarning & DegradesFaultMask));
++
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "MediaFault",
++                                     !(smartWarning & MediaFaultMask));
++
++        util::SDBusPlus::setProperty(bus, INVENTORY_BUSNAME, inventoryPath,
++                                     NVME_STATUS_IFACE, "BackupDeviceFault",
++                                     !(smartWarning & BackupDeviceFaultMask));
++        pre_SmartWarning[config.busID] = nvmeData.smartWarnings;
++    }
+ }
+ 
+ void Nvme::setFaultLED(const std::string& locateLedGroupPath,
+@@ -540,7 +559,7 @@ void Nvme::readNvmeData(NVMeConfig& config)
+             std::make_shared<phosphor::nvme::NvmeSSD>(bus, objPath.c_str());
+         nvmes.emplace(config.index, nvmeSSD);
+ 
+-        setNvmeInventoryProperties(true, nvmeData, inventoryPath);
++        setNvmeInventoryProperties(config, success, nvmeData, inventoryPath);
+         nvmeSSD->setSensorValueToDbus(nvmeData.sensorValue);
+         if (nvmeData.wcTemp != 0)
+         {
+@@ -556,7 +575,7 @@ void Nvme::readNvmeData(NVMeConfig& config)
+     }
+     else
+     {
+-        setNvmeInventoryProperties(true, nvmeData, inventoryPath);
++        setNvmeInventoryProperties(config, success, nvmeData, inventoryPath);
+         iter->second->setSensorValueToDbus(nvmeData.sensorValue);
+         iter->second->checkSensorThreshold();
+         setLEDsStatus(config, success, nvmeData);
+@@ -596,7 +615,7 @@ void Nvme::read()
+                              config.locateLedControllerPath, false);
+ 
+                 nvmeData = NVMeData();
+-                setNvmeInventoryProperties(false, nvmeData, inventoryPath);
++                setNvmeInventoryProperties(config, false, nvmeData, inventoryPath);
+                 nvmes.erase(config.index);
+                 continue;
+             }
+@@ -619,7 +638,7 @@ void Nvme::read()
+                                  config.locateLedControllerPath, false);
+ 
+                     nvmeData = NVMeData();
+-                    setNvmeInventoryProperties(true, nvmeData, inventoryPath);
++                    setNvmeInventoryProperties(config, true, nvmeData, inventoryPath);
+ 
+                     if (isErrorPower[config.index] != true)
+                     {
+diff --git a/nvme_manager.hpp b/nvme_manager.hpp
+index 97ef204..b4b51f1 100644
+--- a/nvme_manager.hpp
++++ b/nvme_manager.hpp
+@@ -119,6 +119,7 @@ class Nvme
+ 
+     /** @brief Set inventory properties of nvme */
+     void setNvmeInventoryProperties(
++        NVMeConfig& config,
+         bool present, const phosphor::nvme::Nvme::NVMeData& nvmeData,
+         const std::string& inventoryPath);
+ 
+-- 
+2.17.1
+

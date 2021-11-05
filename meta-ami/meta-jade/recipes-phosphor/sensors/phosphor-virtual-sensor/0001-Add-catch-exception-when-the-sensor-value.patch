@@ -1,0 +1,59 @@
+From 39f5d30b1d251aa378ceb9f6b431be73b253742b Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Tue, 30 Mar 2021 23:39:06 +0700
+Subject: [PATCH] Add catch exception when the sensor value
+
+When the sensor driver of the source sensors is binding, the sensor value
+interface can be unavailable in short time. Getting that interface without
+try catch can cause exception "sd_bus_call: \
+org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable".
+This commit catchs the exception when getting sensor value to cover that case.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+---
+ dbusSensor.hpp | 21 +++++++++++++++++++--
+ 1 file changed, 19 insertions(+), 2 deletions(-)
+
+diff --git a/dbusSensor.hpp b/dbusSensor.hpp
+index faba2c6..4a105c9 100644
+--- a/dbusSensor.hpp
++++ b/dbusSensor.hpp
+@@ -31,6 +31,8 @@ class DbusSensor
+     /** @brief Get sensor value property from D-bus interface */
+     double getSensorValue()
+     {
++        double ret = -1;
++
+         if (servName.empty())
+         {
+             servName = getService(bus, path, sensorIntf);
+@@ -39,9 +41,24 @@ class DbusSensor
+                 return std::numeric_limits<double>::quiet_NaN();
+             }
+         }
++        /*
++         * When the sensor driver is binding, getting its' value can be
++         * cause exception:
++         * "sd_bus_call: org.freedesktop.DBus.Error.ServiceUnknown: \
++         * The name is not activatable"
++         * Add try catch to cover this exception case.
++         */
++        try
++        {
++            ret = getDbusProperty<double>(bus, servName, path, sensorIntf,
++                                    "Value");
++        }
++        catch(const std::exception& e)
++        {
++            ret = std::numeric_limits<double>::quiet_NaN();
++        }
+ 
+-        return getDbusProperty<double>(bus, servName, path, sensorIntf,
+-                                       "Value");
++        return ret;
+     }
+ 
+   private:
+-- 
+2.17.1
+

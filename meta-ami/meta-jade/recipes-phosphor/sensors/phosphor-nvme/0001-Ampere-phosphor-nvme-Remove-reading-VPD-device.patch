@@ -1,0 +1,61 @@
+From 879d7dba9689f6031cafb9fba3421fa765037d8b Mon Sep 17 00:00:00 2001
+From: Thang Tran <thuutran@amperecomputing.com>
+Date: Mon, 10 May 2021 14:58:34 +0700
+Subject: [PATCH] phosphor-nvme:Remove reading VPD device
+
+Currently, the PM983 2.5" 960GB SSD (PCIe Gen3) can not been VPD region
+via smbus command.
+This WORKAROUND will remove reading model information of VPD devices.
+
+Signed-off-by: Thang Tran <thuutran@amperecomputing.com>
+---
+ nvme_manager.cpp | 33 ---------------------------------
+ 1 file changed, 33 deletions(-)
+
+diff --git a/nvme_manager.cpp b/nvme_manager.cpp
+index e73d849..442ce40 100644
+--- a/nvme_manager.cpp
++++ b/nvme_manager.cpp
+@@ -301,39 +301,6 @@ bool getNVMeInfobyBusID(int busID, phosphor::nvme::Nvme::NVMeData& nvmeData)
+                 static_cast<char>(rsp_data_command_8[offset]);
+     }
+ 
+-    if (nvmeData.vendor == "Samsung")
+-    {
+-        unsigned char rsp_data_vpd[I2C_DATA_MAX] = {0};
+-        const int rx_len = (MODELNUMBER_END_INDEX - MODELNUMBER_START_INDEX);
+-        tx_data = MODELNUMBER_START_INDEX;
+-
+-        auto res_int =
+-            smbus.SendSmbusRWCmdRAW(busID, NVME_SSD_VPD_SLAVE_ADDRESS, &tx_data,
+-                                    sizeof(tx_data), rsp_data_vpd, rx_len);
+-
+-        if (res_int < 0)
+-        {
+-            if (isErrorSmbus[busID] != true)
+-            {
+-                log<level::ERR>("Send command read VPD fail!");
+-                isErrorSmbus[busID] = true;
+-            }
+-
+-            smbus.smbusClose(busID);
+-            nvmeData.present = false;
+-            return nvmeData.present;
+-        }
+-
+-        for (int i = 0; i < rx_len; i++)
+-        {
+-            if (rsp_data_vpd[i] != ' ')
+-                nvmeData.modelNumber += static_cast<char>(rsp_data_vpd[i]);
+-        }
+-
+-        if (nvmeData.modelNumber.substr(0, nvmeData.vendor.size()) == "SAMSUNG")
+-            nvmeData.modelNumber.erase(0, nvmeData.vendor.size());
+-    }
+-
+     smbus.smbusClose(busID);
+ 
+     isErrorSmbus[busID] = false;
+-- 
+2.30.0
+

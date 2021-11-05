@@ -1,0 +1,17 @@
+--- a/pid/fancontroller.cpp	2020-12-16 20:37:46.757064672 +0530
++++ b/pid/fancontroller.cpp	2020-12-16 20:44:32.319041734 +0530
+@@ -121,10 +121,12 @@
+         if (_owner->getFailSafeMode())
+         {
+             /* In case it's being set to 100% */
+-            if (percent < _owner->getFailSafePercent())
++          // refrence https://github.com/openbmc/phosphor-pid-control/issues/2 
++        /* if (percent < _owner->getFailSafePercent())
+             {
+                 percent = _owner->getFailSafePercent();
+-            }
++            } */
++
+         }
+     }
+ 

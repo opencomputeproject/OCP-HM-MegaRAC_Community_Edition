@@ -1,0 +1,146 @@
+From 235aa83d9c8aeae0335c8004169b2c63135fad65 Mon Sep 17 00:00:00 2001
+From: "Thang Q. Nguyen" <thang@os.amperecomputing.com>
+Date: Wed, 6 Jan 2021 04:17:40 +0000
+Subject: [PATCH] writefrudata: validate multi-record data
+
+It is fail to parse FRU data with multi-record area available as its
+header data is different from other areas.
+Support validate multi-record data so that can parse FRU data with
+multi-record enabled.
+
+Tested:
+1. Check if the FRU with multi-record can be parsed.
+2. Check IPMI fru print command.
+  FRU Device Description : Builtin FRU Device (ID 0)
+   Chassis Type          : Rack Mount Chassis
+   Chassis Serial        : A1A1-A000-0000000000123
+   Board Mfg Date        : Tue Feb  4 00:00:00 2020 UTC
+   Board Mfg             : AmpereComputing(R)
+   Board Product         : MT.JADE
+   Board Serial          : 9510002CJ0LA
+   Board Part Number     : B81.03010.0001
+   Product Manufacturer  : AmpereComputing(R)
+   Product Name          : MT.JADE
+   Product Part Number   : AC82830AC10C
+   Product Version       : PR010
+   Product Serial        : AMPX3A1-A000-0000000000123
+
+Signed-off-by: Thang Q. Nguyen <thang@os.amperecomputing.com>
+Change-Id: I163c5c7bff2f7315e9c6b610f5074c37bc167ccf
+---
+ writefrudata.cpp | 68 +++++++++++++++++++++++++++++++++++++++++++++---
+ writefrudata.hpp |  1 +
+ 2 files changed, 65 insertions(+), 4 deletions(-)
+
+diff --git a/writefrudata.cpp b/writefrudata.cpp
+index 7507230..eca66d6 100644
+--- a/writefrudata.cpp
++++ b/writefrudata.cpp
+@@ -361,6 +361,48 @@ ipmi_fru_area_type getFruAreaType(uint8_t areaOffset)
+     return type;
+ }
+ 
++/**
++ * Validates the data for multirecord fields and CRC if selected
++ *
++ * @param[in] data - the data to verify
++ * @param[in] len - the length of the region to verify
++ * @param[in] validateCrc - whether to validate the CRC
++ * @return non-zero on failure
++ */
++int verifyFruMultiRecData(const uint8_t* data, const size_t len,
++                          bool validateCrc)
++{
++    uint8_t checksum = 0;
++    int rc = -1;
++
++    if (!validateCrc)
++    {
++        // There's nothing else to do for this area.
++        return EXIT_SUCCESS;
++    }
++
++    // As per the IPMI platform spec, byte[3] is the record checksum.
++    checksum = calculateCRC(data, len);
++    if (checksum != data[3])
++    {
++#ifdef __IPMI_DEBUG__
++        log<level::ERR>(
++            "Checksum mismatch",
++            entry("Calculated=0x%X", static_cast<uint32_t>(checksum)),
++            entry("Embedded=0x%X", static_cast<uint32_t>(data[3])));
++#endif
++        return rc;
++    }
++#ifdef __IPMI_DEBUG__
++    else
++    {
++        log<level::DEBUG>("Checksum matches");
++    }
++#endif
++
++    return EXIT_SUCCESS;
++}
++
+ /**
+  * Validates the data for mandatory fields and CRC if selected.
+  *
+@@ -466,13 +508,22 @@ int ipmiPopulateFruAreas(uint8_t* fruData, const size_t dataLen,
+         }
+         else if (areaOffset)
+         {
+-            // Read 2 bytes to know the actual size of area.
+-            uint8_t areaHeader[2] = {0};
++            // Read 3 bytes to know the actual size of area.
++            uint8_t areaHeader[3] = {0};
+             std::memcpy(areaHeader, &((uint8_t*)fruData)[areaOffset],
+                         sizeof(areaHeader));
+ 
+             // Size of this area will be the 2nd byte in the FRU area header.
+-            size_t areaLen = areaHeader[1] * IPMI_EIGHT_BYTES;
++            size_t areaLen;
++            if (fruEntry == IPMI_FRU_MULTI_OFFSET)
++            {
++                areaLen = areaHeader[2] + IPMI_FRU_MULTIREC_HDR_BYTES;
++            }
++            else
++            {
++                areaLen = areaHeader[1] * IPMI_EIGHT_BYTES;
++            }
++
+             uint8_t areaData[areaLen] = {0};
+ 
+             log<level::DEBUG>("FRU Data", entry("SIZE=%d", dataLen),
+@@ -495,7 +546,16 @@ int ipmiPopulateFruAreas(uint8_t* fruData, const size_t dataLen,
+             // contents beyond the first byte are not defined in the spec and
+             // it may not end with a CRC byte.
+             bool validateCrc = fruEntry != IPMI_FRU_INTERNAL_OFFSET;
+-            rc = verifyFruData(areaData, areaLen, validateCrc);
++
++            if (fruEntry == IPMI_FRU_MULTI_OFFSET)
++            {
++                rc = verifyFruMultiRecData(areaData, areaLen, validateCrc);
++            }
++            else
++            {
++                rc = verifyFruData(areaData, areaLen, validateCrc);
++            }
++
+             if (rc < 0)
+             {
+                 log<level::ERR>("Err validating FRU area",
+diff --git a/writefrudata.hpp b/writefrudata.hpp
+index cc5cef6..0628cdf 100644
+--- a/writefrudata.hpp
++++ b/writefrudata.hpp
+@@ -40,6 +40,7 @@ struct common_header
+ #define IPMI_FRU_MULTI_OFFSET offsetof(struct common_header, multi_offset)
+ #define IPMI_FRU_HDR_CRC_OFFSET offsetof(struct common_header, crc)
+ #define IPMI_EIGHT_BYTES 8
++#define IPMI_FRU_MULTIREC_HDR_BYTES 5
+ 
+ /**
+  * Validate a FRU.
+-- 
+2.25.1
+

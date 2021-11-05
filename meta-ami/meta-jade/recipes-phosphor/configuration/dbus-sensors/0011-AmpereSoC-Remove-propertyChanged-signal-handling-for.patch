@@ -1,0 +1,149 @@
+From 64609359faf303179465a12abbce6fab0666f9a2 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Tue, 25 May 2021 12:59:27 +0700
+Subject: [PATCH] AmpereSoC: Remove propertyChanged signal handling for chassis
+ power state
+
+Because dbus-sensors is supported nan values for Value property of the sensors
+in the dbus. The host sensors will be nan when the host is off. No need to
+remove the host sensor dbus interfaces when the host state is changed.
+With this implementation, the host sensors list only updates at the first
+power on of the host after bmc boots up.
+
+Tested:
+	1. Boot up the bmc with the host is on.
+	2. Verify the existing of the host sensors in dbus interface.
+	3. Boot up the bmc with the host is off.
+	4. Power on the host.
+	5. Verify the existing of the host sensors in dbus interface.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+
+%% original patch: 0011-AmpereSoC-Only-update-sensor-list-when-the-host-is-o.patch
+---
+ src/AmpereSoCMain.cpp | 87 +++++--------------------------------------
+ 1 file changed, 10 insertions(+), 77 deletions(-)
+
+diff --git a/src/AmpereSoCMain.cpp b/src/AmpereSoCMain.cpp
+index c5aae67..3a9306f 100644
+--- a/src/AmpereSoCMain.cpp
++++ b/src/AmpereSoCMain.cpp
+@@ -59,30 +59,6 @@ std::vector<std::string> socInventNames;
+ static std::vector<SoCProperty> socProperties;
+ static std::regex i2cDevRegex(R"((\d+)-([a-fA-F0-9]+))");
+ 
+-bool removeAllSensors(void)
+-{
+-    std::vector<std::string> addedSensors;
+-    if (sensors.size() == 0)
+-    {
+-        return false;
+-    }
+-
+-    for (auto& sensor : sensors)
+-    {
+-        addedSensors.push_back(sensor.first);
+-    }
+-
+-    for(std::string name : addedSensors)
+-    {
+-        if (sensors.find(name) == sensors.end())
+-        {
+-            continue;
+-        }
+-        sensors.erase(name);
+-    }
+-    return true;
+-}
+-
+ bool getDeviceInfo(std::string devPath, size_t* bus, size_t* addr)
+ {
+     std::smatch match;
+@@ -763,10 +739,10 @@ static void createSensorsCallback(
+ {
+     std::vector<fs::path> busPaths;
+ 
+-    /* First sensor scan or scan when the host/power state is changed */
+-    if (!sensorsChanged)
++    /* The sensors are created */
++    if (sensors.size() != 0 )
+     {
+-        removeAllSensors();
++        return;
+     }
+ 
+     if (inventoryIfaces.size() == 0)
+@@ -982,41 +958,6 @@ int main()
+             });
+         };
+ 
+-    std::function<void(sdbusplus::message::message&)> chassisStateHandler =
+-        [&](sdbusplus::message::message& message) {
+-            std::string objectName;
+-            boost::container::flat_map<std::string, std::variant<std::string>>
+-                values;
+-            if (message.is_method_error())
+-            {
+-                std::cerr << "callback method error\n";
+-                return;
+-            }
+-            message.read(objectName, values);
+-            auto findState = values.find(chassis::property);
+-            if (findState == values.end())
+-            {
+-                return;
+-            }
+-            if constexpr (debug)
+-            {
+-                std::cerr << chassis::property << " change to " <<
+-                            std::get<std::string>(findState->second) << "\n";
+-            }
+-            filterTimer.expires_from_now(boost::posix_time::seconds(5));
+-            filterTimer.async_wait([&](const boost::system::error_code& ec) {
+-                if (ec == boost::asio::error::operation_aborted)
+-                {
+-                    return;
+-                }
+-                if (ec)
+-                {
+-                    std::cerr << "timer error\n";
+-                }
+-                createSensors(io, objectServer, systemBus, nullptr);
+-            });
+-        };
+-
+     for (const char* type : sensorTypes)
+     {
+         auto match = std::make_unique<sdbusplus::bus::match::match>(
+@@ -1025,21 +966,13 @@ int main()
+                 std::string(inventoryPath) + "',arg0namespace='" + type + "'",
+             eventHandler);
+         matches.emplace_back(std::move(match));
+-        match = std::make_unique<sdbusplus::bus::match::match>(
+-            static_cast<sdbusplus::bus::bus&>(*systemBus),
+-            "type='signal',interface='" + std::string(properties::interface) +
+-            "',path='" + std::string(chassis::path) + "',arg0='" +
+-            std::string(chassis::interface) + "'",
+-            chassisStateHandler);
+-        matches.emplace_back(std::move(match));
+-        match = std::make_unique<sdbusplus::bus::match::match>(
+-            static_cast<sdbusplus::bus::bus&>(*systemBus),
+-            "type='signal',interface='" + std::string(properties::interface) +
+-            "',path='" + std::string(power::path) + "',arg0='" +
+-            std::string(power::interface) + "'",
+-            hostStateHandler);
+-        matches.emplace_back(std::move(match));
+     }
+-
++    auto match = std::make_unique<sdbusplus::bus::match::match>(
++        static_cast<sdbusplus::bus::bus&>(*systemBus),
++        "type='signal',interface='" + std::string(properties::interface) +
++        "',path='" + std::string(power::path) + "',arg0='" +
++        std::string(power::interface) + "'",
++        hostStateHandler);
++    matches.emplace_back(std::move(match));
+     io.run();
+ }
+-- 
+2.17.1
+

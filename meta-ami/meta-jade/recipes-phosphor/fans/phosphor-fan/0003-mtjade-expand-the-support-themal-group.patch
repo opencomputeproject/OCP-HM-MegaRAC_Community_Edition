@@ -1,0 +1,43 @@
+From a7e1cd1b382c3ba21c60624a15ddd9984991aa76 Mon Sep 17 00:00:00 2001
+From: Tung Nguyen <tung.nguyen@amperecomputing.com>
+Date: Tue, 9 Mar 2021 14:52:04 +0700
+Subject: [PATCH] mtjade: expand the support themal group
+
+Expand the thermal groups to support up to 10 groups
+
+Signed-off-by: Tung Nguyen <tung.nguyen@amperecomputing.com>
+---
+ control/actions.hpp | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/control/actions.hpp b/control/actions.hpp
+index ff41172..0e73064 100644
+--- a/control/actions.hpp
++++ b/control/actions.hpp
+@@ -16,7 +16,7 @@ namespace control
+ {
+ namespace action
+ {
+-const size_t MAX_GROUP = 4;
++const size_t MAX_GROUP = 10;
+ 
+ /* store all groups max speed */
+ static uint64_t max_speeds[MAX_GROUP] = { 0 };
+@@ -26,7 +26,13 @@ static std::map<int, int64_t> temp_map = {
+     {0, 0},
+     {1, 0},
+     {2, 0},
+-    {3, 0}
++    {3, 0},
++    {4, 0},
++    {5, 0},
++    {6, 0},
++    {7, 0},
++    {8, 0},
++    {9, 0},
+ };
+ 
+ /**
+-- 
+2.17.1
+

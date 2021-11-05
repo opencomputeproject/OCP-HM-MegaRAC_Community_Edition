@@ -1,0 +1,52 @@
+From d77c46de4816ff863a8dfa5647c3bd717eb9bf12 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Mon, 19 Jul 2021 14:50:10 +0700
+Subject: [PATCH] amperesoc: Fix the host sensors are nan after the host
+ reboots
+
+The values of host sensors are nan when the host state is changed.
+This commit fixes that issue.
+
+Tested:
+	1. Reboot/reset/cycle the host.
+	2. The host sensors should be available.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+---
+ src/AmpereSoC.cpp | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/src/AmpereSoC.cpp b/src/AmpereSoC.cpp
+index 8e5258c..f0aa49b 100644
+--- a/src/AmpereSoC.cpp
++++ b/src/AmpereSoC.cpp
+@@ -187,18 +187,21 @@ void SoCSensor::handleResponse(const boost::system::error_code& err)
+             std::cerr << "Could not parse " << response << "\n";
+         }
+     }
+-    std::weak_ptr<SoCSensor> weakRef = weak_from_this();
+-    int fd = open(path.c_str(), O_RDONLY);
+-    if (fd < 0)
++
++    if (err == boost::system::errc::no_such_device ||
++             err == boost::system::errc::no_such_device_or_address)
+     {
+         updateValue(std::numeric_limits<double>::quiet_NaN());
+     }
+-    else if (err != boost::system::errc::no_such_device &&
+-             err != boost::system::errc::no_such_device_or_address)
++
++    std::weak_ptr<SoCSensor> weakRef = weak_from_this();
++    int fd = open(path.c_str(), O_RDONLY);
++    if (fd > 0)
+     {
+         inputDev.close();
+         inputDev.assign(fd);
+     }
++
+     waitTimer.expires_from_now(boost::posix_time::milliseconds(sensorPollMs));
+     waitTimer.async_wait([weakRef](const boost::system::error_code& ec) {
+         std::shared_ptr<SoCSensor> self = weakRef.lock();
+-- 
+2.17.1
+

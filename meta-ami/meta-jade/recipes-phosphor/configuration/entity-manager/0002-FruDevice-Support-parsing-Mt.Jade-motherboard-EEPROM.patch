@@ -1,0 +1,41 @@
+From ba5adff94f62af2ffb28e05ec93229206dbb4023 Mon Sep 17 00:00:00 2001
+From: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+Date: Wed, 12 May 2021 22:39:33 +0700
+Subject: [PATCH] FruDevice: Support parsing Mt.Jade motherboard EEPROM
+
+FruDevice is failed to parse Mt.Jade EEPROM with error
+"Fru area offsets are not in required order as per Section 17 of Fru
+specification". This cause entity-manager can't detect Mt.Jade platform to
+load the sensor configuration.
+Because the Ampere Fru format is used by the customer so this error should
+be bypassed as a workaround solution. This makes sure Mt.Jade platform can be
+detected and sensor model is loaded successfully.
+This commit supports that workaround solution.
+
+Tested:
+	1. Call "busctl tree xyz.openbmc_project.FruDevice".
+	2. Mt_Jade_Motherboard should be listed.
+
+Signed-off-by: Thu Ba Nguyen <tbnguyen@amperecomputing.com>
+
+%% original patch: 0002-Temporaty-remove-condition-check-rule-of-fru.patch
+---
+ src/FruUtils.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/FruUtils.cpp b/src/FruUtils.cpp
+index beeb148..51e8dcb 100644
+--- a/src/FruUtils.cpp
++++ b/src/FruUtils.cpp
+@@ -642,7 +642,7 @@ std::vector<uint8_t> readFRUContents(int flag, int file, uint16_t address,
+         {
+             std::cerr << "Fru area offsets are not in required order as per "
+                          "Section 17 of Fru specification\n";
+-            return {};
++            //return {};
+         }
+         prevOffset = areaOffset;
+ 
+-- 
+2.17.1
+

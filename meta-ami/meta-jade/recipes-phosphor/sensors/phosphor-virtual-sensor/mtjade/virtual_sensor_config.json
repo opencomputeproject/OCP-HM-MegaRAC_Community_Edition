@@ -1,0 +1,621 @@
+[
+    {
+        "Desc":
+        {
+            "Name": "total_power",
+            "SensorType": "power"
+        },
+        "Threshold" :
+        {
+        },
+        "Params":
+        {
+            "DbusParam":
+            [
+                {
+                    "ParamName": "PSU0_POUTPUT",
+                    "Desc":
+                    {
+                        "Name": "PSU0_POUTPUT",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "PSU1_POUTPUT",
+                    "Desc":
+                    {
+                        "Name": "PSU1_POUTPUT",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "PSU0_POUTPUT + PSU1_POUTPUT"
+    },
+    {
+        "Desc": {
+            "Name": "S1_CPU_Pwr",
+            "SensorType": "power"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 500
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S1_Core_VRD_Pwr",
+                    "Desc": {
+                        "Name": "S1_Core_VRD_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_SOC_VRD_Pwr",
+                    "Desc": {
+                        "Name": "S1_SOC_VRD_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "S1_Core_VRD_Pwr + S1_SOC_VRD_Pwr"
+    },
+    {
+        "Desc": {
+            "Name": "S0_CPU_Pwr",
+            "SensorType": "power"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 500
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S0_Core_VRD_Pwr",
+                    "Desc": {
+                        "Name": "S0_Core_VRD_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_SOC_VRD_Pwr",
+                    "Desc": {
+                        "Name": "S0_SOC_VRD_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "S0_Core_VRD_Pwr + S0_SOC_VRD_Pwr"
+    },
+    {
+        "Desc": {
+            "Name": "S0_MEM_Pwr",
+            "SensorType": "power"
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S0_DIMM_VR1_Pwr",
+                    "Desc": {
+                        "Name": "S0_DIMM_VR1_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_VR2_Pwr",
+                    "Desc": {
+                        "Name": "S0_DIMM_VR2_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "S0_DIMM_VR1_Pwr + S0_DIMM_VR2_Pwr"
+    },
+    {
+        "Desc": {
+            "Name": "S1_MEM_Pwr",
+            "SensorType": "power"
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S1_DIMM_VR1_Pwr",
+                    "Desc": {
+                        "Name": "S1_DIMM_VR1_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_VR2_Pwr",
+                    "Desc": {
+                        "Name": "S1_DIMM_VR2_Pwr",
+                        "SensorType": "power"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "S1_DIMM_VR1_Pwr + S1_DIMM_VR2_Pwr"
+    },
+    {
+        "Desc": {
+            "Name": "S0_DIMMG0_Temp",
+            "SensorType": "temperature"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 85
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S0_DIMM_CH0_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH0_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH1_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH1_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH2_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH2_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH3_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH3_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S0_DIMM_CH0_Temp,S0_DIMM_CH1_Temp,S0_DIMM_CH2_Temp,S0_DIMM_CH3_Temp)"
+    },
+    {
+        "Desc": {
+            "Name": "S1_DIMMG0_Temp",
+            "SensorType": "temperature"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 85
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S1_DIMM_CH0_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH0_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH1_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH1_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH2_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH2_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH3_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH3_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S1_DIMM_CH0_Temp,S1_DIMM_CH1_Temp,S1_DIMM_CH2_Temp,S1_DIMM_CH3_Temp)"
+    },
+    {
+        "Desc": {
+            "Name": "S0_DIMMG1_Temp",
+            "SensorType": "temperature"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 85
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S0_DIMM_CH4_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH4_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH5_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH5_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH6_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH6_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_CH7_Temp",
+                    "Desc": {
+                        "Name": "S0_DIMM_CH7_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S0_DIMM_CH4_Temp,S0_DIMM_CH5_Temp,S0_DIMM_CH6_Temp,S0_DIMM_CH7_Temp)"
+    },
+    {
+        "Desc": {
+            "Name": "S1_DIMMG1_Temp",
+            "SensorType": "temperature"
+        },
+        "Threshold" :
+        {
+            "CriticalHigh": 85
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S1_DIMM_CH4_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH4_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH5_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH5_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH6_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH6_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_CH7_Temp",
+                    "Desc": {
+                        "Name": "S1_DIMM_CH7_Temp",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S1_DIMM_CH4_Temp,S1_DIMM_CH5_Temp,S1_DIMM_CH6_Temp,S1_DIMM_CH7_Temp)"
+    },
+    {
+        "Desc": {
+            "Name": "S1_DIMM_DDR_Volt",
+            "SensorType": "voltage"
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S1_DIMM_VR1_Volt",
+                    "Desc": {
+                        "Name": "S1_DIMM_VR1_Volt",
+                        "SensorType": "voltage"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S1_DIMM_VR2_Volt",
+                    "Desc": {
+                        "Name": "S1_DIMM_VR2_Volt",
+                        "SensorType": "voltage"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S1_DIMM_VR1_Volt,S1_DIMM_VR2_Volt)"
+    },
+    {
+        "Desc": {
+            "Name": "S0_DIMM_DDR_Volt",
+            "SensorType": "voltage"
+        },
+        "Params": {
+            "DbusParam": [
+                {
+                    "ParamName": "S0_DIMM_VR1_Volt",
+                    "Desc": {
+                        "Name": "S0_DIMM_VR1_Volt",
+                        "SensorType": "voltage"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "S0_DIMM_VR2_Volt",
+                    "Desc": {
+                        "Name": "S0_DIMM_VR2_Volt",
+                        "SensorType": "voltage"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(S0_DIMM_VR1_Volt,S0_DIMM_VR2_Volt)"
+    },
+    {
+        "Desc":{
+            "Name":"nvme_max",
+            "SensorType":"temperature"
+        },
+        "Threshold":{
+            "CriticalHigh": 80,
+            "CriticalLow": 0,
+            "WarningHigh": 70,
+            "WarningLow": 5
+        },
+        "Params":{
+            "DbusParam": [
+                {
+                    "ParamName": "nvme0",
+                    "Desc": {
+                        "Name": "nvme0",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme1",
+                    "Desc": {
+                        "Name": "nvme1",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme2",
+                    "Desc": {
+                        "Name": "nvme2",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme3",
+                    "Desc": {
+                        "Name": "nvme3",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme4",
+                    "Desc": {
+                        "Name": "nvme4",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme5",
+                    "Desc": {
+                        "Name": "nvme5",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme6",
+                    "Desc": {
+                        "Name": "nvme6",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme7",
+                    "Desc": {
+                        "Name": "nvme7",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                                {
+                    "ParamName": "nvme8",
+                    "Desc": {
+                        "Name": "nvme8",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme9",
+                    "Desc": {
+                        "Name": "nvme9",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme10",
+                    "Desc": {
+                        "Name": "nvme10",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme11",
+                    "Desc": {
+                        "Name": "nvme11",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme12",
+                    "Desc": {
+                        "Name": "nvme12",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme13",
+                    "Desc": {
+                        "Name": "nvme13",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme14",
+                    "Desc": {
+                        "Name": "nvme14",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme15",
+                    "Desc": {
+                        "Name": "nvme15",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme16",
+                    "Desc": {
+                        "Name": "nvme16",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme17",
+                    "Desc": {
+                        "Name": "nvme17",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme18",
+                    "Desc": {
+                        "Name": "nvme18",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme19",
+                    "Desc": {
+                        "Name": "nvme19",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme20",
+                    "Desc": {
+                        "Name": "nvme20",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme21",
+                    "Desc": {
+                        "Name": "nvme21",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme22",
+                    "Desc": {
+                        "Name": "nvme22",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme23",
+                    "Desc": {
+                        "Name": "nvme23",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme24",
+                    "Desc": {
+                        "Name": "nvme24",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                },
+                {
+                    "ParamName": "nvme25",
+                    "Desc": {
+                        "Name": "nvme25",
+                        "SensorType": "temperature"
+                    },
+                    "DefaultValue": 0
+                }
+            ]
+        },
+        "Expression": "max(nvme0,nvme1,nvme2,nvme3,nvme4,nvme5,nvme6,nvme7,nvme8,nvme9,nvme10,nvme11,nvme12,nvme13,nvme14,nvme15,nvme16,nvme17,nvme18,nvme19,nvme20,nvme21,nvme22,nvme23,nvme24,nvme25)"
+    }
+]
+
