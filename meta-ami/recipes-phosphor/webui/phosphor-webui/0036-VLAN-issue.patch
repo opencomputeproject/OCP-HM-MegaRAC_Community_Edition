@@ -1,0 +1,429 @@
+diff -Naur a/app/common/services/apiInterceptor.js b/app/common/services/apiInterceptor.js
+--- a/app/common/services/apiInterceptor.js	2021-07-01 00:10:07.362768158 +0530
++++ b/app/common/services/apiInterceptor.js	2021-07-01 00:11:35.654552548 +0530
+@@ -11,8 +11,8 @@
+   'use strict';
+ 
+   angular.module('app.common.services').service('apiInterceptor', [
+-    '$q', '$rootScope', 'dataService', '$location',
+-    function($q, $rootScope, dataService, $location) {
++    '$q', '$rootScope', 'dataService', '$location', '$interval',
++    function($q, $rootScope, dataService, $location, $interval) {
+       return {
+         'request': function(config) {
+           dataService.loading = true;
+@@ -48,6 +48,14 @@
+           if (dataService.ignoreHttpError === false) {
+             // If unauthorized, log out
+             if (rejection.status == 401) {
++              if(dataService.HdTimer != null){
++                $interval.cancel(dataService.HdTimer);
++                dataService.HdTimer = null;
++              }
++              if(dataService.CdTimer != null){
++                $interval.cancel(dataService.CdTimer);
++                dataService.CdTimer = null;
++              }
+               if (dataService.path != '/login') {
+                 $rootScope.$emit('timedout-user', {});
+               }
+@@ -55,6 +63,14 @@
+               // TODO: when permission role mapping ready, remove
+               // this global redirect and handle forbidden
+               // requests in context of user action
++              if(dataService.HdTimer != null){
++                $interval.cancel(dataService.HdTimer);
++                dataService.HdTimer = null;
++              }
++              if(dataService.CdTimer != null){
++                $interval.cancel(dataService.CdTimer);
++                dataService.CdTimer = null;
++              }
+               if (dataService.path != '/login') {
+                 // $location.url('/unauthorized');
+                 sessionStorage.clear();
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-07-01 00:10:07.362768158 +0530
++++ b/app/common/services/api-utils.js	2021-07-01 00:45:09.448213881 +0530
+@@ -382,6 +382,8 @@
+                               DHCPEnabled: false,
+                               vlan_DHCP: false,
+                               IPv6DHCPEnabled:false,
++                              none_flag_ipv4: false,
++                              none_flag_ipv6: false,
+                               defaultgateway:'',
+                               ipv4: {ids: [], values: []},
+                               ipv6: {ids: [], values: []}
+@@ -409,9 +411,13 @@
+                               data.interfaces[interfaceId].DHCPEnabled = true;
+                               data.interfaces[interfaceId].IPv6DHCPEnabled = true;
+                             }
++                            if(dhcp_check == 'none'){
++                              data.interfaces[interfaceId].none_flag_ipv4 = true;
++                              data.interfaces[interfaceId].none_flag_ipv6 = true;
++                            }
+                             if(interfaceId.indexOf("_") > -1){
+                               data.interfaces[interfaceId].Id = content.data[key].Id;
+-                              data.interfaces[interfaceId].VlanPriority = content.data[key].VlanPriority;
++                              data.interfaces[interfaceId].Priority = content.data[key].Priority;
+                               data.interfaces[interfaceId].vlan_DHCP = true;
+                             }
+                           }
+@@ -665,7 +671,7 @@
+           return $http({
+               method: 'PUT',
+               url: DataService.getHost() +
+-                  '/xyz/openbmc_project/network/'+interface_to_update+'/attr/VlanPriority',
++                  '/xyz/openbmc_project/network/'+interface_to_update+'/attr/Priority',
+               data: data
+           }).then(function(response){
+               return response.data;
+@@ -681,16 +687,6 @@
+                 return response.data;
+             })
+         },
+-        modifyVLANPriority: function(data, interface_to_modify){
+-          return $http({
+-              method: 'PUT',
+-              url: DataService.getHost() +
+-                  '/xyz/openbmc_project/network/'+interface_to_modify+'/attr/VlanPriority',
+-              data: data
+-          }).then(function(response){
+-              return response.data;
+-          })
+-        },
+         deleteVLAN: function(interface_to_delete) {
+             return $http({
+                 method: 'DELETE',
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-07-01 00:10:07.362768158 +0530
++++ b/app/common/services/dataService.js	2021-07-01 00:11:47.938523652 +0530
+@@ -35,6 +35,8 @@
+       this.ignoreHttpError = false;
+       this.systemName = '';
+       this.powerTime = 'N/A';
++      this.HdTimer = null;
++      this.CdTimer = null;
+       this.userErrors = {
+         "The request failed due to an internal service error.  The service is still operational.": "which is currently logged-in from other browser"
+       }
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-07-01 00:10:07.366768149 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-07-01 00:12:14.574461839 +0530
+@@ -55,14 +55,14 @@
+       <div class="net-config__fieldset-content">
+         <div class="row column">
+           <label class="control-radio" for="dhcp-address">Obtain an IP address automatically using DHCP
+-            <input type="radio" name="ip-address" id="dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin()" ng-model="interface.DHCPEnabled"
++            <input type="radio" name="ip-address" id="dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin() || interface.none_flag_ipv4" ng-model="interface.DHCPEnabled"
+               ng-value="true">
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+         <div class="row column">
+           <label class="control-radio" for="static-ip-address">Assign a static IP address
+-            <input type="radio" name="ip-address" id="static-ip-address" ng-disabled="dataService.isNotAdmin()" ng-model="interface.DHCPEnabled"
++            <input type="radio" name="ip-address" id="static-ip-address" ng-disabled="dataService.isNotAdmin() || interface.none_flag_ipv4" ng-model="interface.DHCPEnabled"
+               ng-value="false" />
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+@@ -72,20 +72,20 @@
+             <div class="column small-12 large-3">
+               <label for="ipv4-address-{{$index+1}}">IPV4 address</label>
+               <input id="ipv4-address-{{$index+1}}" name="netipv4{{$index+1}}" ng-change="ipv4.updateAddress = true" type="text"
+-              ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()" ng-model="ipv4.Address" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/" set-focus-on-new-input ng-required="!interface.DHCPEnabled"/>
++              ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv4" ng-model="ipv4.Address" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/" set-focus-on-new-input ng-required="!interface.DHCPEnabled"/>
+               <span class="modal__error" ng-show="network_form.netipv4{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <div class="column small-12 large-3">
+               <label for="ipv4-gateway-{{$index+1}}">Gateway</label>
+               <input id="ipv4-gateway-{{$index+1}}" name="netipv4gateway{{$index+1}}" ng-change="ipv4.updateGateway = true" type="text"
+-              ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()" value="" ng-model="ipv4.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++              ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv4" value="" ng-model="ipv4.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+               <span class="modal__error" ng-show="network_form.netipv4gateway{{$index+1}}.$error.pattern">Invalid IPv4 format.</span>
+             </div>
+             <!-- This netmask prefix length max only works with IPV4 -->
+             <div class="column small-12 large-6">
+               <label for="ipv4-prefix-{{$index+1}}">Netmask Prefix Length</label>
+               <input id="ipv4-prefix-{{$index+1}}" class="column small-6" ng-change="ipv4.updatePrefix = true"
+-              type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin()"
++              type="number" min="1" max="32" step="1" ng-disabled="interface.DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv4"
+                 ng-model="ipv4.PrefixLength" ng-required="!interface.DHCPEnabled"/>
+                 <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv4Address($index)"
+                 ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length == 1 || dataService.isNotAdmin()">Remove</button>
+@@ -94,7 +94,7 @@
+           <div class="row column">
+             <div class="column small-12">
+               <!-- <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled">Add IPV4 address</button> -->
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length >= 2 || dataService.isNotAdmin()">Add IPV4 address</button>
++              <button type="button" class="btn  btn-primary" ng-click="addIpv4Field()" ng-disabled="interface.DHCPEnabled || interface.ipv4.values.length >= 2 || dataService.isNotAdmin() || interface.none_flag_ipv4">Add IPV4 address</button>
+             </div>
+           </div>
+         </div>
+@@ -108,14 +108,14 @@
+       <div class="net-config__fieldset-content">
+         <div class="row column">
+           <label class="control-radio" for="ipv6-dhcp-address">Obtain an IPv6 address automatically using DHCP
+-            <input type="radio" name="ipv6-address" id="ipv6-dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin()" ng-model="interface.IPv6DHCPEnabled"
++            <input type="radio" name="ipv6-address" id="ipv6-dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin() || interface.none_flag_ipv6" ng-model="interface.IPv6DHCPEnabled"
+               ng-value="true">
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+         </div>
+         <div class="row column">
+           <label class="control-radio" for="static-ipv6-address">Assign a static IPv6 address
+-            <input type="radio" name="ipv6-address" id="static-ipv6-address" ng-disabled="dataService.isNotAdmin()" ng-model="interface.IPv6DHCPEnabled"
++            <input type="radio" name="ipv6-address" id="static-ipv6-address" ng-disabled="dataService.isNotAdmin() || interface.none_flag_ipv6" ng-model="interface.IPv6DHCPEnabled"
+               ng-value="false" />
+             <span class="control__indicator control__indicator-on"></span>
+           </label>
+@@ -125,28 +125,28 @@
+             <div class="column small-12 large-3">
+               <label for="ipv6-address-{{$index+1}}">IPV6 address</label>
+               <input id="ipv6-address-{{$index+1}}" name="netipv6{{$index+1}}" ng-change="ipv6.updateAddress = true" type="text"
+-              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()" ng-model="ipv6.Address" ng-pattern="validateIPv6Address" set-focus-on-new-input ng-required="!interface.IPv6DHCPEnabled"/>
++              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv6" ng-model="ipv6.Address" ng-pattern="validateIPv6Address" set-focus-on-new-input ng-required="!interface.IPv6DHCPEnabled"/>
+               <span class="modal__error" ng-show="network_form.netipv6{{$index+1}}.$error.pattern">Invalid IPv6 format.</span>
+             </div>
+             <div class="column small-12 large-3">
+               <label for="ipv6-gateway-{{$index+1}}">Gateway</label>
+               <input id="ipv6-gateway-{{$index+1}}" name="netipv6gateway{{$index+1}}" ng-change="ipv6.updateGateway = true" type="text"
+-              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()" value="" ng-model="ipv6.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv6" value="" ng-model="ipv6.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+               <span class="modal__error" ng-show="network_form.netipv6gateway{{$index+1}}.$error.pattern">Invalid Gateway Address format.</span>
+             </div>
+             <!-- This netmask prefix length max only works with IPV6 -->
+             <div class="column small-12 large-6">
+               <label for="ipv6-prefix-{{$index+1}}">Netmask Prefix Length</label>
+               <input id="ipv6-prefix-{{$index+1}}" class="column small-6" ng-change="ipv6.updatePrefix = true"
+-              type="number" min="1" max="128" step="1" ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()"
++              type="number" min="1" max="128" step="1" ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin() || interface.none_flag_ipv6"
+                 ng-model="ipv6.PrefixLength" ng-required="!interface.IPv6DHCPEnabled"/>
+                 <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv6Address($index)"
+-                ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length == 1 || dataService.isNotAdmin()">Remove</button>
++                ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length == 1 || dataService.isNotAdmin() || interface.none_flag_ipv6">Remove</button>
+             </div>
+           </fieldset>
+           <div class="row column">
+             <div class="column small-12">
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv6Field()" ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length >= 15 || dataService.isNotAdmin()">Add IPV6 address</button>
++              <button type="button" class="btn  btn-primary" ng-click="addIpv6Field()" ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length >= 15 || dataService.isNotAdmin() || interface.none_flag_ipv6">Add IPV6 address</button>
+             </div>
+           </div>
+         </div>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-07-01 00:10:07.366768149 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-07-01 00:45:25.704202579 +0530
+@@ -378,10 +378,10 @@
+               var obj = {};
+               obj.data = tmp;
+               promises.push(
+-                ModifyVLAN_ID(JSON.stringify(obj), $scope.VLANInterfaces)
++                ModifyVLAN_ID(JSON.stringify(obj))
+               );
+             }
+-            if($scope.oldVLANInterface.Id == $scope.vlan.id && $scope.oldVLANInterface.VlanPriority != $scope.vlan.vlan_priority){
++            if($scope.oldVLANInterface.Id == $scope.vlan.id && $scope.oldVLANInterface.Priority != $scope.vlan.vlan_priority){
+               Priorityobj.data = $scope.vlan.vlan_priority;
+               promises.push(
+                 ModifyVLAN_Priority(Priorityobj, $scope.VLANInterfaces)
+@@ -739,7 +739,7 @@
+                 vlan_priority_data.data = parseInt($scope.vlan.vlan_priority);
+                 $timeout(function(){
+                   call_setVLANPriority(vlan_priority_data, tmp_intf_val);
+-                },2000);
++                },500);
+               }
+             },
+             function(error) {
+@@ -759,24 +759,29 @@
+         );
+       }
+ 
+-      function ModifyVLAN_ID(data, interface_to_modify){
+-        return APIUtils.deleteVLAN(interface_to_modify).then(
+-          function(response){
+-            $timeout(function(){
+-              setVLAN(data);
+-              // return APIUtils.setVLAN(data).then(function(response){
+-              //   console.log("success");
+-              // });
+-            }, 5000);
+-          },
+-          function() {
+-            console.log("failure");
++      function ModifyVLAN_ID(data){
++        return APIUtils.setVLAN(data).then(function(){},
++          function(error){
++            console.log('Error in modifying VLAN');
+           }
+         )
++        // return APIUtils.deleteVLAN(interface_to_modify).then(
++        //   function(response){
++        //     $timeout(function(){
++        //       setVLAN(data);
++        //       // return APIUtils.setVLAN(data).then(function(response){
++        //       //   console.log("success");
++        //       // });
++        //     }, 5000);
++        //   },
++        //   function() {
++        //     console.log("failure");
++        //   }
++        // )
+       }
+ 
+       function ModifyVLAN_Priority(data, interface_to_modify){
+-        return APIUtils.modifyVLANPriority(data, interface_to_modify).then(
++        return APIUtils.setVLANPriority(data, interface_to_modify).then(
+             function(){},
+             function error(error){
+                 return $q.reject();
+@@ -800,7 +805,7 @@
+           $scope.interface.DHCPEnabled = $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled;
+           $scope.interface.IPv6DHCPEnabled = $scope.network.interfaces[$scope.selectedInterface].IPv6DHCPEnabled;
+           $scope.vlan.id = $scope.network.interfaces[$scope.selectedInterface].Id;
+-          $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.selectedInterface].VlanPriority;
++          $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.selectedInterface].Priority;
+           $scope.delete_VLAN_flag = true;
+           $scope.oldVLANInterface = JSON.parse(JSON.stringify($scope.network.interfaces[$scope.selectedInterface]));
+         }else{
+@@ -811,7 +816,7 @@
+               if(tmp == $scope.selectedInterface){
+                 $scope.VLANInterfaces = $scope.network.interface_ids[i];
+                 $scope.vlan.id = $scope.network.interfaces[$scope.network.interface_ids[i]].Id;
+-                $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.network.interface_ids[i]].VlanPriority;
++                $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.network.interface_ids[i]].Priority;
+                 $scope.delete_VLAN_flag = true;
+ 
+                 $scope.oldVLANInterface = JSON.parse(JSON.stringify($scope.network.interfaces[$scope.network.interface_ids[i]]));
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2021-07-01 00:10:07.358768169 +0530
++++ b/app/index.js	2021-07-01 00:18:46.177656147 +0530
+@@ -192,8 +192,8 @@
+         }
+       ])
+       .run([
+-        '$rootScope', '$location', 'dataService', 'userModel', '$cookies', '$window',
+-        function($rootScope, $location, dataService, userModel, $cookies, $window) {
++        '$rootScope', '$location', 'dataService', 'userModel', '$cookies', '$window', '$interval',
++        function($rootScope, $location, dataService, userModel, $cookies, $window, $interval) {
+           $rootScope.dataService = dataService;
+           dataService.path = $location.path();
+           $rootScope.$on('$routeChangeStart', function(event, next, current) {
+@@ -238,6 +238,14 @@
+           });
+ 
+           $rootScope.$on('timedout-user', function() {
++            if(dataService.HdTimer != null){
++              $interval.cancel(dataService.HdTimer);
++              dataService.HdTimer = null;
++            }
++            if(dataService.CdTimer != null){
++              $interval.cancel(dataService.CdTimer);
++              dataService.CdTimer = null;
++            }
+             console.log('timedout-user event triggered');
+             sessionStorage.removeItem('LOGIN_ID');
+             $cookies.remove('IsAuthenticated');
+@@ -253,6 +261,14 @@
+                 // in firefox browser
+                 //dataService.getLoggedOutVM();
+             }
++            if(dataService.HdTimer != null){
++              $interval.cancel(dataService.HdTimer);
++              dataService.HdTimer = null;
++            }
++            if(dataService.CdTimer != null){
++              $interval.cancel(dataService.CdTimer);
++              dataService.CdTimer = null;
++            }
+             sessionStorage.clear();
+             $cookies.remove('IsAuthenticated');
+             $cookies.remove('XSRF-TOKEN');
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-07-01 00:10:07.366768149 +0530
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-07-01 00:23:26.149156815 +0530
+@@ -39,8 +39,8 @@
+       $scope.HD_devices.push(vmDeviceHD);
+ 
+       //Initiate the Timer objects for Eject status
+-      $scope.CdTimer = null;
+-      $scope.HdTimer = null;
++      dataService.CdTimer = null;
++      dataService.HdTimer = null;
+ 
+       $scope.CdStatus = false;
+       $scope.HdStatus = false;
+@@ -57,8 +57,8 @@
+ 
+       $scope.checkHdEject = function (Index, Id, SessionId) {
+ 	var device_name = "nbd" + ((SessionId * 2) + Id);
+-        $scope.HdTimer = null;
+-        $scope.HdTimer = $interval(function () {
++        dataService.HdTimer = null;
++        dataService.HdTimer = $interval(function () {
+           APIUtils.getEjectStatus(device_name).then(
+             function(Status) {
+               if(Status == true) {
+@@ -66,8 +66,8 @@
+ 	         $scope.SetEjectStatus ( device_name);
+ 		 console.log("Hd image ejected from host");
+ 	         //Cancel the Timer.
+-                 $interval.cancel($scope.HdTimer);
+-      	         $scope.HdTimer = null;
++                 $interval.cancel(dataService.HdTimer);
++      	         dataService.HdTimer = null;
+                  return;
+               }
+             });
+@@ -76,8 +76,8 @@
+ 
+       $scope.checkCdEject = function (Index, Id, SessionId) {
+ 	var device_name = "nbd" + ((SessionId * 2) + Id);
+-	$scope.CdTimer = null;
+-        $scope.CdTimer = $interval(function () {
++	dataService.CdTimer = null;
++  dataService.CdTimer = $interval(function () {
+           APIUtils.getEjectStatus(device_name).then(
+             function(Status) {
+               if(Status == true) {
+@@ -85,8 +85,8 @@
+ 	  	 $scope.SetEjectStatus ( device_name);
+ 		 console.log("Cd image ejected from host");
+ 	         //Cancel the Timer.
+-                 $interval.cancel($scope.CdTimer);
+-      	         $scope.CdTimer = null;
++                 $interval.cancel(dataService.CdTimer);
++      	         dataService.CdTimer = null;
+ 	  	 return;
+               }
+             }); 
+@@ -165,6 +165,7 @@
+         }
+       };
+       $scope.start_hd_redirection = function(index, sessionID){
++        sessionStorage.setItem("VM_Index",index);
+         dataService.session_id = sessionID;
+         $scope.HD_devices[index].isActive = true;
+         var file = $scope.HD_devices[index].file;
+@@ -216,15 +217,15 @@
+       	if($scope.CdStatus == true)
+ 	{
+ 	   $scope.CdStatus = false; 
+-	   $interval.cancel($scope.CdTimer);
+-           $scope.CdTimer = null;
++	   $interval.cancel(dataService.CdTimer);
++     dataService.CdTimer = null;
+ 	}
+ 
+       	if($scope.HdStatus == true)
+ 	{
+ 	   $scope.HdStatus = false; 
+-	   $interval.cancel($scope.HdTimer);
+-           $scope.HdTimer = null;
++	   $interval.cancel(dataService.HdTimer);
++     dataService.HdTimer = null;
+ 	}
+       };
+ 

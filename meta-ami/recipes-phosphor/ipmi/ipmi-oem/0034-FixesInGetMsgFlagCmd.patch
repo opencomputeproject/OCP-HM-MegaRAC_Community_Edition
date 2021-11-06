@@ -1,0 +1,39 @@
+diff -Nuar a/src/bridgingcommands.cpp b/src/bridgingcommands.cpp
+--- a/src/bridgingcommands.cpp	2021-06-16 00:23:03.990260568 +0530
++++ b/src/bridgingcommands.cpp	2021-06-16 01:14:12.177475264 +0530
+@@ -34,7 +34,7 @@
+     "xyz.openbmc_project.State.Watchdog";
+ static constexpr const char* wdtObjPath = "/xyz/openbmc_project/watchdog/host0";
+ static constexpr const char* wdtInterruptFlagProp =
+-    "PreTimeoutInterruptOccurFlag";
++    "PreTimeoutInterrupt";
+ 
+ static constexpr const char* ipmbBus = "xyz.openbmc_project.Ipmi.Channel.Ipmb";
+ static constexpr const char* ipmbObj = "/xyz/openbmc_project/Ipmi/Channel/Ipmb";
+@@ -562,6 +562,7 @@
+ 
+     std::bitset<8> getMsgFlagsRes;
+ 
++#if 0 
+     // set event message buffer bit
+     if (!eventMessageBufferFlag)
+     {
+@@ -571,6 +572,9 @@
+     {
+         getMsgFlagsRes.reset(getMsgFlagEventMessageBit);
+     }
++#endif
++    // Currently the Event Message buffer is not supported, so setting event message buffer bit as 0
++    getMsgFlagsRes.reset(getMsgFlagEventMessageBit);
+ 
+     // set message fields
+     if (bridging.getResponseQueueSize() > 0)
+@@ -587,7 +591,7 @@
+         std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+         ipmi::Value variant = ipmi::getDbusProperty(
+             *dbus, wdtService, wdtObjPath, wdtInterface, wdtInterruptFlagProp);
+-        if (std::get<bool>(variant))
++        if (std::get<uint8_t>(variant))
+         {
+             getMsgFlagsRes.set(getMsgFlagWatchdogPreTimeOutBit);
+         }

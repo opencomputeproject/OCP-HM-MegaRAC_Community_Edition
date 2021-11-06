@@ -5,6 +5,7 @@ After=avahi-daemon.service
 
 [Service]
 Type=oneshot
+ExecStart=/bin/systemctl restart systemd-networkd.service
 ExecStart=/bin/systemctl restart avahi-daemon.service
 
 [Install]

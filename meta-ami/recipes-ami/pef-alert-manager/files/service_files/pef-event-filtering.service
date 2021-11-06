@@ -1,0 +1,13 @@
+[Unit]
+Description= pef-event-filtering service
+Requires=pef-configuration.service
+After=pef-configuration.service
+
+[Service]
+ExecStart=/usr/bin/pef-event-filtering
+Restart=always
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+

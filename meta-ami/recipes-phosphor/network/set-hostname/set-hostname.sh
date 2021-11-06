@@ -2,7 +2,7 @@
 
 sync_hostname() {
 
-    MAC=$(fw_printenv | grep eth1addr | cut -d'=' -f2)
+    MAC=$(cat /sys/class/net/eth0/address)
     hostnamectl set-hostname AMI${MAC}
 }
 

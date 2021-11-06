@@ -1,0 +1,285 @@
+--- a/transporthandler.cpp	2021-06-22 11:19:16.163418172 -0400
++++ b/transporthandler.cpp	2021-06-30 10:17:05.738915649 -0400
+@@ -107,10 +107,6 @@
+ constexpr auto INTF_VLAN = "xyz.openbmc_project.Network.VLAN";
+ constexpr auto INTF_VLAN_CREATE = "xyz.openbmc_project.Network.VLAN.Create";
+ constexpr auto INTF_ARPCONTROL = "xyz.openbmc_project.Network.ARPControl";
+-constexpr auto USER_PRIORITY = 0x01;
+-constexpr auto ENABLE_VLAN = 0x01;
+-constexpr auto VLAN_FILTER_SELECTOR = 0x01;
+-constexpr auto VLAN_MODE = 0x03;
+ 
+ /** @brief Generic paramters for different address families */
+ template <int family>
+@@ -1266,8 +1262,8 @@
+     {
+         logWithChannel<level::ERR>(params, "networkd returned an invalid vlan",
+                                    entry("VLAN=%" PRIu32, vlan));
+-        elog<InternalFailure>();
+     }
++
+     return vlan;
+ }
+ 
+@@ -1280,7 +1276,8 @@
+     }
+ 
+     auto vlan = std::get<uint32_t>(getDbusProperty(
+-        bus, params.service, params.logicalPath, INTF_VLAN, "VlanPriority"));
++        bus, params.service, params.logicalPath, INTF_VLAN, "Priority"));
++
+     return vlan;
+ }
+ 
+@@ -1289,50 +1286,28 @@
+          // VLAN devices will always have a separate logical object
+     if (params.ifPath == params.logicalPath)
+     {
+-        return -1;
++        return 0;
+     }
+ 
+-    setDbusProperty(bus, params.service, params.logicalPath, INTF_VLAN, "VlanPriority",vlan_priority);
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_VLAN, "Priority",vlan_priority);
+ 
+-    return 0;
++    return 1;
+ }
+ 
+-
+-
+-/** @brief Deletes all of the possible configuration parameters for a channel
++/** @brief delete a VLAN on the specified interface
+  *
+  *  @param[in] bus    - The bus object used for lookups
+  *  @param[in] params - The parameters for the channel
++ *  @param[in] vlan   - The id of the new vlan
+  */
+-void deconfigureChannel(sdbusplus::bus::bus& bus, ChannelParams& params)
++void deleteVLAN(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlan)
+ {
+-    // Delete all objects associated with the interface
+-    auto objreq = bus.new_method_call(MAPPER_BUS_NAME, MAPPER_OBJ, MAPPER_INTF,
+-                                      "GetSubTree");
+-    objreq.append(PATH_ROOT, 0, std::vector<std::string>{DELETE_INTERFACE});
+-    auto objreply = bus.call(objreq);
+-    ObjectTree objs;
+-    objreply.read(objs);
+-    for (const auto& [path, impls] : objs)
++    auto vlanid = getVLANProperty(bus, params);
++
++    if (vlanid == vlan && vlanid != 0)
+     {
+-        if (path.find(params.ifname) == path.npos)
+-        {
+-            continue;
+-        }
+-        for (const auto& [service, intfs] : impls)
+-        {
+-            deleteObjectIfExists(bus, service, path);
+-        }
+-        // Update params to reflect the deletion of vlan
+-        if (path == params.logicalPath)
+-        {
+-            params.logicalPath = params.ifPath;
+-        }
++        deleteObjectIfExists(bus, params.service, params.logicalPath);
+     }
+-
+-    // Clear out any settings on the lower physical interface
+-    setDHCPv6Property(bus, params, EthernetInterface::DHCPConf::none, false);
+-    setIPv6AcceptRA(bus, params, false);
+ }
+ 
+ /** @brief Creates a new VLAN on the specified interface
+@@ -1343,159 +1318,15 @@
+  */
+ void createVLAN(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlan)
+ {
+-    if (vlan == 0)
+-    {
++    auto vlanid = getVLANProperty(bus, params);
++
++    if (vlanid == vlan)
+         return;
+-    }
+ 
+     auto req = bus.new_method_call(params.service.c_str(), PATH_ROOT,
+                                    INTF_VLAN_CREATE, "VLAN");
+     req.append(params.ifname, static_cast<uint32_t>(vlan));
+-    auto reply = bus.call(req);
+-    sdbusplus::message::object_path newPath;
+-    reply.read(newPath);
+-    params.logicalPath = std::move(newPath);
+-}
+-
+-uint8_t NCSI_NCSIClearInitStateCommand(sdbusplus::bus::bus& bus, ChannelParams& params)
+-{
+-    uint8_t CompletionCode = -1;
+-
+-    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
+-                                   INTF_NCSI, "NCSIClearInitState");
+-
+-    auto reply = bus.call(req);
+-    reply.read(CompletionCode);
+-    return CompletionCode;
+-}
+-
+-uint8_t NCSI_SetVLANFilterCommand(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlanID)
+-{
+-    uint8_t CompletionCode = -1;
+-
+-    if (vlanID == 0)
+-    {
+-        return CompletionCode;
+-    }
+-
+-    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
+-                                   INTF_NCSI, "SetVlanFilter");
+-
+-
+-    req.append(vlanID, (uint8_t)USER_PRIORITY, (uint8_t)ENABLE_VLAN, (uint8_t)VLAN_FILTER_SELECTOR);
+-
+-    auto reply = bus.call(req);
+-    reply.read(CompletionCode);
+-    return CompletionCode;
+-}
+-
+-
+-uint8_t NCSI_EnableVLANCommand(sdbusplus::bus::bus& bus, ChannelParams& params)
+-{
+-    uint8_t CompletionCode = -1;
+-    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
+-                                   INTF_NCSI, "EnableVLAN");
+-    req.append((uint8_t)VLAN_MODE);
+-    auto reply = bus.call(req);
+-    reply.read(CompletionCode);
+-
+-    return CompletionCode;
+-}
+-
+-
+-
+-
+-/** @brief Performs the necessary reconfiguration to change the VLAN
+- *
+- *  @param[in] bus    - The bus object used for lookups
+- *  @param[in] params - The parameters for the channel
+- *  @param[in] vlan   - The new vlan id to use
+- */
+-void reconfigureVLAN(sdbusplus::bus::bus& bus, ChannelParams& params,
+-                     uint16_t vlan)
+-{
+-    // Unfortunatetly we don't have built-in functions to migrate our interface
+-    // customizations to new VLAN interfaces, or have some kind of decoupling.
+-    // We therefore must retain all of our old information, setup the new VLAN
+-    // configuration, then restore the old info.
+-
+-    // Save info from the old logical interface
+-    ObjectLookupCache ips(bus, params, INTF_IP);
+-    auto ifaddr4 = findIfAddr<AF_INET>(bus, params, 0, originsV4, ips);
+-    std::vector<IfAddr<AF_INET6>> ifaddrs6;
+-    for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
+-    {
+-        auto ifaddr6 =
+-            findIfAddr<AF_INET6>(bus, params, i, originsV6Static, ips);
+-        if (!ifaddr6)
+-        {
+-            break;
+-        }
+-        ifaddrs6.push_back(std::move(*ifaddr6));
+-    }
+-    EthernetInterface::DHCPConf dhcp = getDHCPProperty(bus, params);
+-    auto gateway = getGatewayProperty<AF_INET>(bus, params);
+-    auto gateway6 = getGatewayProperty<AF_INET6>(bus, params);
+-    //auto iPv6AcceptRA = getIPv6AcceptRA(bus, params);
+-    //EthernetInterface::LinkLocalConf linklocal =  getLinkLocalAutoConf(bus, params);
+-    ObjectLookupCache neighbors(bus, params, INTF_NEIGHBOR);
+-    auto neighbor4 = findGatewayNeighbor<AF_INET>(bus, params, neighbors);
+-    auto neighbor6 = findGatewayNeighbor<AF_INET6>(bus, params, neighbors);
+-
+-    std::string NCSIConfigPath = "/sys/class/net/" +  params.ifname +  "/device/of_node/use-ncsi";
+-
+-    /* Check if the given Interface has NCSI Configuration */
+-    if(!access(NCSIConfigPath.c_str(), F_OK))
+-    {
+-        /* Send the ClearChannelInitState Command */
+-        NCSI_NCSIClearInitStateCommand(bus, params);
+-
+-        /* Set the VLAN Filter for the given VLAN ID*/
+-        NCSI_SetVLANFilterCommand(bus, params, vlan);
+-
+-        /* Enable the VLAN */
+-        NCSI_EnableVLANCommand(bus, params);
+-    }
+-
+-    activeIfAddr4(bus, params, 0, false);
+-    deconfigureChannel(bus, params);
+-    createVLAN(bus, params, vlan);
+-
+-    // Re-establish the saved settings
+-    //setLinkLocalAutoConf(bus, params, linklocal);
+-    //setIPv6AcceptRA(bus, params, iPv6AcceptRA);
+-    setDHCPv6Property(bus, params, dhcp, false);
+-
+-    if(gateway)
+-        setGatewayProperty<AF_INET>(bus, params, *gateway);
+-
+-    if(gateway6)
+-        setGatewayProperty<AF_INET6>(bus, params, *gateway6);
+-
+-    if (ifaddr4)
+-    {
+-	//Check if previous Interface IP4 is Static and create new Interface with Static IPv4
+-        if (ifaddr4->origin == IP::AddressOrigin::Static)
+-        {
+-            createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix, ifaddr4->id);
+-        }
+-    }
+-    for (const auto& ifaddr6 : ifaddrs6)
+-    {
+-	//Check if previous Interface IPv6 is Static and create new Interface with Static IPv6
+-        if(ifaddr6.origin == IP::AddressOrigin::Static)
+-        {
+-            createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix, ifaddr6.id);
+-        }
+-    }
+-    if (neighbor4)
+-    {
+-        createNeighbor<AF_INET>(bus, params, neighbor4->ip, neighbor4->mac);
+-    }
+-    if (neighbor6)
+-    {
+-        createNeighbor<AF_INET6>(bus, params, neighbor6->ip, neighbor6->mac);
+-    }
++    bus.call(req);
+ }
+ 
+ /** @brief Turns a prefix into a netmask
+@@ -2065,14 +1896,15 @@
+             if (!vlanEnable)
+             {
+                 lastDisabledVlan[channel] = vlan;
+-                vlan = 0;
++                channelCall<deleteVLAN>(channel, vlan);
++                return responseSuccess();
+             }
+             else if (vlan == 0 || vlan == VLAN_VALUE_MASK)
+             {
+                 return responseInvalidFieldRequest();
+             }
+ 
+-            channelCall<reconfigureVLAN>(channel, vlan);
++            channelCall<createVLAN>(channel, vlan);
+             return responseSuccess();
+         }
+         case LanParam::VLANPriority:
+@@ -2094,7 +1926,7 @@
+ 	         return responseInvalidFieldRequest();
+              }
+ 
+-             if(channelCall<setVLANPriority>(channel,(uint32_t)vlanPriority) != 0)
++             if(channelCall<setVLANPriority>(channel,(uint32_t)vlanPriority) == 0)
+              {
+                   return responseCommandNotAvailable();
+              }

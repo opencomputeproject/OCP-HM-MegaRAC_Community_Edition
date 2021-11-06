@@ -1,0 +1,90 @@
+--- a/include/storagecommands.hpp	2021-05-10 07:09:52.939510991 -0400
++++ b/include/storagecommands.hpp	2021-05-10 07:07:44.789949338 -0400
+@@ -22,6 +22,7 @@
+ #include <cstdint>
+ 
+ static constexpr uint8_t ipmiSdrVersion = 0x51;
++extern std::mutex mtx;
+ 
+ namespace intel_oem::ipmi::sel
+ {
+--- a/src/storagecommands.cpp	2021-05-10 07:09:53.395530850 -0400
++++ b/src/storagecommands.cpp	2021-05-10 07:24:57.063404866 -0400
+@@ -48,6 +48,8 @@
+ 
+ static constexpr bool DEBUG = false;
+ 
++std::mutex mtx;
++
+ namespace intel_oem::ipmi::sel
+ {
+ static const std::filesystem::path selLogDir = "/var/sellog";
+@@ -1045,7 +1047,7 @@
+ 			//Calculate Total SEL Entries
+ 			totalSELEntries = (filecount-1) * RECORDS_PER_FILE;
+ 			totalSELEntries = totalSELEntries + SelInfo.SELEntries;
+-			
++		
+ 			//Calcuate First and Last SEL ID
+ 			if (filecount > 1 )
+ 			{
+@@ -1078,9 +1080,10 @@
+ 					FirstSelId = ((fileindex - 1 ) * RECORDS_PER_FILE) + 1;
+ 					tempcount = i-1;
+ 					LastSelId = (selindex[tempcount] * RECORDS_PER_FILE) + SelInfo.SELEntries;
+-					
++				
+ 					if (LastSelId == 0 )
+ 						LastSelId = maxRecordId;
++
+ 				}
+ 				else
+ 				{
+@@ -1170,11 +1173,12 @@
+ 						}
+ 						FirstSelId = ((fileindex - 1 ) * RECORDS_PER_FILE) + 1;
+ 						tempcount = i-1;
++
+ 						LastSelId = (selindex[tempcount] * RECORDS_PER_FILE) + SelInfo.SELEntries;
+-					
++				
+ 						if (LastSelId == 0 )
+ 							LastSelId = maxRecordId;
+-						
++
+ 					}
+ 					else
+ 					{
+@@ -1690,6 +1694,7 @@
+         recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+         sensorNum, eventType, eventData1, eventData2, eventData3);*/
+ 
++    mtx.lock();
+     // Send this request to the Redfish hooks to log it as a Redfish message
+     // instead.  There is no need to add it to the SEL, so just return success.
+ 	if (recordType == intel_oem::ipmi::sel::systemEvent )
+@@ -1737,7 +1742,23 @@
+ 	else
+ 		return ipmi::responseInvalidFieldRequest();
+ 
+-    uint16_t responseID = 0xFFFF;
++     uint16_t responseID = 1;
++     int LastSelId = 0;
++     std::ifstream LastSelIdFile;
++
++     LastSelIdFile.open("/var/sellog/LastSELID", std::ios::in);
++     if( !LastSelIdFile ) {
++          std::cerr << "Error:Last SEL ID file could not be opened" << endl;
++     }
++
++
++     LastSelIdFile >> responseID;
++
++     responseID++;
++
++     LastSelIdFile.close();
++
++    mtx.unlock();
+     return ipmi::responseSuccess(responseID);
+ }
+ 

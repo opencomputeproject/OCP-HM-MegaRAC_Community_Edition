@@ -1,0 +1,14 @@
+--- a/src/storagecommands.cpp	2021-05-05 12:15:00.777759977 +0530
++++ b/src/storagecommands.cpp	2021-05-05 12:16:38.182387616 +0530
+@@ -446,6 +446,11 @@
+ 
+     size_t writeLen = dataToWrite.size();
+ 
++    if ( writeLen == 0x00 )
++    {
++        return ipmi::responseReqDataLenInvalid();
++    }
++
+     ipmi::Cc status = getFru(ctx, fruDeviceId);
+     if (status != ipmi::ccSuccess)
+     {

@@ -46,6 +46,3 @@ FILES_${PN}-presence += "${bindir}/phosphor-gpio-presence"
 SRC_URI += "git://github.com/openbmc/phosphor-gpio-monitor"
 SRCREV = "3ce88a7b5a1c17ca53b63859a5dad840a995f42e"
 S = "${WORKDIR}/git"
-
-require conf/machine/include/unpack.inc
-

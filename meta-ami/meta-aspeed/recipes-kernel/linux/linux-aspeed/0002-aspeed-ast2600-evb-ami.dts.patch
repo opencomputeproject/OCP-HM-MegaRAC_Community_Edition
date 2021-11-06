@@ -1,0 +1,526 @@
+From 61af21213879e9674a13128efcafd9e93fe09f9c Mon Sep 17 00:00:00 2001
+From: eddyhan <eddyhan@ami.com.tw>
+Date: Fri, 29 Jan 2021 14:45:22 +0800
+Subject: [PATCH] aspeed-ast2600-evb-ami.dts
+
+
+diff --git a/arch/arm/boot/dts/aspeed-ast2600-evb-ami.dts b/arch/arm/boot/dts/aspeed-ast2600-evb-ami.dts
+new file mode 100755
+index 0000000..f0786f6
+--- /dev/null
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb-ami.dts
+@@ -0,0 +1,511 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++// Copyright 2019 IBM Corp.
++
++/dts-v1/;
++
++#include "aspeed-g6-ami.dtsi"
++#include <dt-bindings/gpio/aspeed-gpio.h>
++#include <dt-bindings/i2c/i2c.h>
++
++/ {
++	model = "AST2600 EVB";
++	compatible = "aspeed,ast2600";
++
++	aliases {
++		serial0 = &uart1;
++		serial1 = &uart2;
++		serial2 = &uart3;
++		serial3 = &uart4;
++		serial4 = &uart5;
++	};
++
++	chosen {
++		bootargs = "console=ttyS4,115200n8";
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x80000000 0x40000000>;
++	};
++	
++     reserved-memory {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		ranges;
++
++		gfx_memory: framebuffer {
++			size = <0x01000000>;
++			alignment = <0x01000000>;
++			compatible = "shared-dma-pool";
++			reusable;
++		};
++     
++		video_engine_memory: jpegbuffer {
++                        size = <0x02000000>;    /* 32M */
++                        alignment = <0x01000000>;
++                        compatible = "shared-dma-pool";
++                        reusable;
++                };
++     };
++
++     reserved-memory {
++                #address-cells = <1>;
++                #size-cells = <1>;
++                ranges;
++                video_memory: video {
++                        size = <0x04000000>;
++                        alignment = <0x01000000>;
++                        compatible = "shared-dma-pool";
++                        no-map;
++                };
++     };
++
++
++    iio-hwmon {
++        compatible = "iio-hwmon";
++        io-channels = <&adc0 0>, <&adc0 1>, <&adc0 2>, <&adc0 3>,
++                        <&adc0 4>, <&adc0 5>, <&adc0 6>, <&adc0 7>,
++                        <&adc1 8>, <&adc1 9>, <&adc1 10>, <&adc1 11>,
++                        <&adc1 12>, <&adc1 13>, <&adc1 14>, <&adc1 15>;
++    };
++
++};
++
++&syscon {
++        uart-clock-high-speed;
++        status = "okay";
++};
++
++&kcs1 {
++        kcs_addr = <0xCA0>;
++        status = "okay";
++};
++
++&kcs2 {
++        kcs_addr = <0xCA8>;
++        status = "okay";
++};
++
++&kcs3 {
++        kcs_addr = <0xCA2>;
++        status = "okay";
++};
++
++&peci0 {
++    status = "okay";
++};
++
++&lpc {
++    status = "okay";
++};
++
++&jtag0 {
++        status = "okay";
++};
++
++&jtag1 {
++        status = "okay";
++};
++
++&mctp0 {
++    tx-payload-bytes= <64>;
++    rx-payload-bytes= <64>;
++    status = "okay";
++};
++&lpc_sio {
++        status = "okay";
++};
++
++&lpc_snoop {
++        snoop-ports = <0x80>;
++        status = "okay";
++};
++
++&mdio0 {
++        status = "okay";
++
++        ethphy0: ethernet-phy@0 {
++                compatible = "ethernet-phy-ieee802.3-c22";
++                reg = <0>;
++        };
++};
++
++&mdio1 {
++	status = "okay";
++
++	ethphy1: ethernet-phy@0 {
++		compatible = "ethernet-phy-ieee802.3-c22";
++		reg = <0>;
++	};
++};
++
++&mdio2 {
++	status = "okay";
++
++	ethphy2: ethernet-phy@0 {
++		compatible = "ethernet-phy-ieee802.3-c22";
++		reg = <0>;
++	};
++};
++
++&mdio3 {
++	status = "okay";
++
++	ethphy3: ethernet-phy@0 {
++		compatible = "ethernet-phy-ieee802.3-c22";
++		reg = <0>;
++	};
++};
++
++&mac0 {
++        status = "okay";
++
++        phy-mode = "rgmii";
++        phy-handle = <&ethphy0>;
++
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_rgmii1_default>;
++};
++
++&mac1 {
++	status = "okay";
++
++	phy-mode = "rgmii";
++	phy-handle = <&ethphy1>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_rgmii2_default>;
++};
++
++&mac2 {
++	status = "okay";
++
++	phy-mode = "rgmii";
++	phy-handle = <&ethphy2>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_rgmii3_default>;
++};
++
++&mac3 {
++	status = "okay";
++
++	phy-mode = "rgmii";
++	phy-handle = <&ethphy3>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_rgmii4_default>;
++};
++
++&adc0 {
++	ref_voltage = <2500>;
++	status = "okay";
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_adc0_default &pinctrl_adc1_default
++		&pinctrl_adc2_default &pinctrl_adc3_default
++		&pinctrl_adc4_default &pinctrl_adc5_default
++		&pinctrl_adc6_default &pinctrl_adc7_default>;
++};
++
++&adc1 {
++	ref_voltage = <2500>;
++	status = "okay";
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_adc8_default &pinctrl_adc9_default
++		&pinctrl_adc10_default &pinctrl_adc11_default
++		&pinctrl_adc12_default &pinctrl_adc13_default
++		&pinctrl_adc14_default &pinctrl_adc15_default>;
++};
++
++&uart_routing {
++        status = "okay";
++};
++
++
++&gfx {
++        status = "okay";
++        memory-region = <&gfx_memory>;
++};
++
++&emmc_controller {
++	status = "okay";
++	timing-phase = <0x700FF>;
++};
++
++&emmc {
++    status = "okay";
++    non-removable;
++    max-frequency = <100000000>;
++    sdhci-drive-type = /bits/ 8 <3>;
++#if 1
++    bus-width = <4>;
++#else
++    bus-width = <8>;
++    pinctrl-0 = <&pinctrl_emmc_default
++            &pinctrl_emmcg8_default>;
++#endif
++
++};
++
++&sdc {
++	status = "okay";
++	timing-phase = <0xc6ffff>;
++};
++
++&sdhci0 {
++    status = "okay";
++    bus-width = <4>;
++    max-frequency = <100000000>;
++    sdhci-drive-type = /bits/ 8 <3>;
++    /* SDR104/DDR50/SDR50 bits in CAPA2 is not supported */
++    sdhci-caps-mask = <0x7 0x580000>;
++    sdhci,wp-inverted;
++};
++
++&rtc {
++	status = "okay";
++};
++
++&fmc {
++	status = "okay";
++	flash@0 {
++		status = "okay";
++		m25p,fast-read;
++		label = "bmc";
++		spi-max-frequency = <50000000>;
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			u-boot@0 {
++				reg = <0x0 0xe0000>;
++				label = "u-boot";
++			};
++
++			u-boot-env@e0000 {
++				reg = <0xe0000 0x20000>;
++				label = "u-boot-env";
++			};
++
++			kernel@100000 {
++				reg = <0x100000 0x500000>;
++				label = "kernel";
++			};
++
++			rofs@600000 {
++				reg = <0x600000 0x1800000>;
++				label = "rofs";
++			};
++
++			rwfs@1E00000 {
++				reg = <0x1E00000 0x200000>;
++				label = "rwfs";
++			};
++		};
++	};
++};
++
++&spi1 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_spi1_default>;
++
++	flash@0 {
++		status = "okay";
++		m25p,fast-read;
++		label = "pnor";
++		spi-max-frequency = <50000000>;
++	};
++};
++
++&uart3 {
++	status = "okay";
++};
++
++&uart4 {
++	status = "okay";
++};
++
++&uart5 {
++	status = "okay";
++};
++
++&i2c0 {
++	status = "okay";
++};
++
++&i2c1 {
++	status = "okay";
++};
++
++&i2c2 {
++	status = "okay";
++};
++
++&i2c3 {
++	status = "okay";
++};
++
++&i2c4 {
++	status = "okay";
++};
++
++&i2c5 {
++	status = "okay";
++};
++
++&i2c6 {
++	status = "okay";
++};
++
++&i2c7 {
++	status = "okay";
++};
++
++&i2c8 {
++	status = "okay";
++};
++
++&i2c9 {
++	status = "okay";
++};
++
++&i2c12 {
++	status = "okay";
++};
++
++&i2c13 {
++	status = "okay";
++};
++
++&i2c14 {
++	status = "okay";
++};
++
++&i2c15 {
++	status = "okay";
++};
++
++&fsim0 {
++	status = "okay";
++};
++
++&gpio0 {
++        status = "okay";
++        /* Enable GPIOP0 and GPIOP2 pass-through by default */
++        /* pinctrl-names = "pass-through";
++        pinctrl-0 = <&pinctrl_thru0_default
++                        &pinctrl_thru1_default>; */
++        gpio-line-names =
++        /*A0-A7*/       "","","","","","","","",
++        /*B0-B7*/       "","","","","","","","",
++        /*C0-C7*/       "","","","","","","","",
++        /*D0-D7*/       "","","","","","","","",
++        /*E0-E7*/       "","","","","","","","",
++        /*F0-F7*/       "","","","","","","","",
++        /*G0-G7*/       "","","","","","","","",
++        /*H0-H7*/       "","","","","","","","",
++        /*I0-I7*/       "","","","","","","","",
++        /*J0-J7*/       "","","","","","","","",
++        /*K0-K7*/       "","","","","","","","",
++        /*L0-L7*/       "","","","","","","","",
++        /*M0-M7*/       "","","","","","","","",
++        /*N0-N7*/       "","","","","","","","",
++        /*O0-O7*/       "","","","","","","","",
++        /*P0-P7*/       "RESET_BUTTON","RESET_OUT","POWER_BUTTON","POWER_OUT","","","","",
++        /*Q0-Q7*/       "","","","","","","","PS_PWROK",
++        /*R0-R7*/       "","","","","","","","",
++        /*S0-S7*/       "","","","","","","","",
++        /*T0-T7*/       "","","","","","","","",
++        /*U0-U7*/       "","","","","","","","",
++        /*V0-V7*/       "","","","","","","","",
++        /*W0-W7*/       "","","","","","","","",
++        /*X0-X7*/       "","","POST_COMPLETE","","","","","",
++        /*Y0-Y7*/       "","","","","","","","",
++        /*Z0-Z7*/       "","","","","","","","";
++};
++
++&sgpiom0 {
++        status = "okay";
++};
++
++&pwm_tacho {
++        status = "okay";
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_pwm0_default &pinctrl_tach0_default
++                        &pinctrl_pwm1_default &pinctrl_tach1_default
++                        &pinctrl_pwm2_default &pinctrl_tach2_default
++                        &pinctrl_pwm3_default &pinctrl_tach3_default
++                        &pinctrl_pwm4_default &pinctrl_tach4_default
++                        &pinctrl_pwm5_default &pinctrl_tach5_default
++                        &pinctrl_pwm6_default &pinctrl_tach6_default
++                        >;
++/*
++                        &pinctrl_pwm7_default &pinctrl_tach7_default>;
++*/
++
++        fan@0 {
++                reg = <0x00>;
++                period = /bits/ 8 <>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x00>;
++        };
++
++        fan@1 {
++                reg = <0x01>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x01>;
++        };
++
++        fan@2 {
++                reg = <0x02>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x02>;
++        };
++
++        fan@3 {
++                reg = <0x03>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x03>;
++        };
++
++        fan@4 {
++                reg = <0x04>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x04>;
++        };
++
++        fan@5 {
++                reg = <0x05>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x05>;
++        };
++
++        fan@6 {
++                reg = <0x06>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x06>;
++        };
++
++/*
++        fan@7 {
++                reg = <0x07>;
++                cooling-levels = /bits/ 8 <125 151 177 203 229 255>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x07>;
++        };
++*/
++   
++};
++
++&vhub {
++        status = "okay";
++};
++
++&video {
++        status = "okay";
++        memory-region = <&video_engine_memory>;
++};
++
+-- 
+2.7.4
+

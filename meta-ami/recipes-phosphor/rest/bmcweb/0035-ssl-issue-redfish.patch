@@ -1,0 +1,393 @@
+diff -Naur a/include/hostname_monitor.hpp b/include/hostname_monitor.hpp
+--- a/include/hostname_monitor.hpp	1970-01-01 05:30:00.000000000 +0530
++++ b/include/hostname_monitor.hpp	2021-05-14 16:33:58.863682500 +0530
+@@ -0,0 +1,141 @@
++#pragma once
++#ifdef BMCWEB_ENABLE_SSL
++#include <boost/container/flat_map.hpp>
++#include <dbus_singleton.hpp>
++#include <sdbusplus/bus/match.hpp>
++#include <sdbusplus/message/types.hpp>
++#include <ssl_key_handler.hpp>
++
++namespace crow
++{
++namespace hostname_monitor
++{
++static std::unique_ptr<sdbusplus::bus::match::match> hostnameSignalMonitor;
++
++inline void installCertificate(const std::filesystem::path& certPath)
++{
++    crow::connections::systemBus->async_method_call(
++        [certPath](boost::system::error_code ec) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Replace Certificate Fail..";
++                return;
++            }
++
++            BMCWEB_LOG_INFO << "Replace HTTPs Certificate Success, "
++                               "remove temporary certificate file..";
++            remove(certPath.c_str());
++        },
++        "xyz.openbmc_project.Certs.Manager.Server.Https",
++        "/xyz/openbmc_project/certs/server/https/1",
++        "xyz.openbmc_project.Certs.Replace", "Replace", certPath.string());
++}
++
++inline int onPropertyUpdate(sd_bus_message* m, void* /* userdata */,
++                            sd_bus_error* retError)
++{
++    if (retError == nullptr || sd_bus_error_is_set(retError))
++    {
++        BMCWEB_LOG_ERROR << "Got sdbus error on match";
++        return 0;
++    }
++
++    sdbusplus::message::message message(m);
++    std::string iface;
++    boost::container::flat_map<std::string, std::variant<std::string>>
++        changedProperties;
++
++    message.read(iface, changedProperties);
++    auto it = changedProperties.find("HostName");
++    if (it == changedProperties.end())
++    {
++        return 0;
++    }
++
++    std::string* hostname = std::get_if<std::string>(&it->second);
++    if (hostname == nullptr)
++    {
++        BMCWEB_LOG_ERROR << "Unable to read hostname";
++        return 0;
++    }
++
++    BMCWEB_LOG_DEBUG << "Read hostname from signal: " << *hostname;
++    const std::string certFile = "/etc/ssl/certs/https/server.pem";
++
++    X509* cert = ensuressl::loadCert(certFile);
++    if (cert == nullptr)
++    {
++        BMCWEB_LOG_ERROR << "Failed to read cert";
++        return 0;
++    }
++
++    const int maxKeySize = 256;
++    std::array<char, maxKeySize> cnBuffer{};
++
++    int cnLength =
++        X509_NAME_get_text_by_NID(X509_get_subject_name(cert), NID_commonName,
++                                  cnBuffer.data(), cnBuffer.size());
++    if (cnLength == -1)
++    {
++        BMCWEB_LOG_ERROR << "Failed to read NID_commonName";
++        X509_free(cert);
++        return 0;
++    }
++    std::string_view cnValue(std::begin(cnBuffer),
++                             static_cast<size_t>(cnLength));
++
++    EVP_PKEY* pPubKey = X509_get_pubkey(cert);
++    if (pPubKey == nullptr)
++    {
++        BMCWEB_LOG_ERROR << "Failed to get public key";
++        X509_free(cert);
++        return 0;
++    }
++    int isSelfSigned = X509_verify(cert, pPubKey);
++    EVP_PKEY_free(pPubKey);
++
++    BMCWEB_LOG_DEBUG << "Current HTTPs Certificate Subject CN: " << cnValue
++                     << ", New HostName: " << *hostname
++                     << ", isSelfSigned: " << isSelfSigned;
++
++    ASN1_IA5STRING* asn1 = static_cast<ASN1_IA5STRING*>(
++        X509_get_ext_d2i(cert, NID_netscape_comment, nullptr, nullptr));
++    if (asn1)
++    {
++        std::string_view comment(reinterpret_cast<const char*>(asn1->data),
++                                 static_cast<size_t>(asn1->length));
++        BMCWEB_LOG_DEBUG << "x509Comment: " << comment;
++
++        if (ensuressl::x509Comment == comment && isSelfSigned == 1 &&
++            cnValue != *hostname)
++        {
++            BMCWEB_LOG_INFO << "Ready to generate new HTTPs "
++                            << "certificate with subject cn: " << *hostname;
++
++            ensuressl::generateSslCertificate("/tmp/hostname_cert.tmp",
++                                              *hostname);
++            installCertificate("/tmp/hostname_cert.tmp");
++        }
++        ASN1_STRING_free(asn1);
++    }
++    X509_free(cert);
++    return 0;
++}
++
++inline void registerHostnameSignal()
++{
++    BMCWEB_LOG_INFO << "Register HostName PropertiesChanged Signal";
++    std::string propertiesMatchString =
++        ("type='signal',"
++         "interface='org.freedesktop.DBus.Properties',"
++         "path='/xyz/openbmc_project/network/config',"
++         "arg0='xyz.openbmc_project.Network.SystemConfiguration',"
++         "member='PropertiesChanged'");
++
++    hostnameSignalMonitor = std::make_unique<sdbusplus::bus::match::match>(
++        *crow::connections::systemBus, propertiesMatchString, onPropertyUpdate,
++        nullptr);
++}
++} // namespace hostname_monitor
++} // namespace crow
++#endif
+diff -Naur a/include/ssl_key_handler.hpp b/include/ssl_key_handler.hpp
+--- a/include/ssl_key_handler.hpp	2021-05-14 16:34:37.079567622 +0530
++++ b/include/ssl_key_handler.hpp	2021-05-14 16:33:58.859682511 +0530
+@@ -18,8 +18,10 @@
+ namespace ensuressl
+ {
+ constexpr char const* trustStorePath = "/etc/ssl/certs/authority";
++constexpr char const* x509Comment = "Generated from OpenBMC service";
+ static void initOpenssl();
+-static EVP_PKEY* createEcKey();
++//static EVP_PKEY* createEcKey();
++static EVP_PKEY* createRsaKey();
+ 
+ // Trust chain related errors.`
+ inline bool isTrustChainError(int errnum)
+@@ -170,14 +172,66 @@
+     return certValid;
+ }
+ 
+-inline void generateSslCertificate(const std::string& filepath)
++inline X509* loadCert(const std::string& filePath)
++{
++    BIO* certFileBio = BIO_new_file(filePath.c_str(), "rb");
++    if (!certFileBio)
++    {
++        BMCWEB_LOG_ERROR << "Error occured during BIO_new_file call, "
++                         << "FILE= " << filePath;
++        return nullptr;
++    }
++
++    X509* cert = X509_new();
++    if (!cert)
++    {
++        BMCWEB_LOG_ERROR << "Error occured during X509_new call, "
++                         << ERR_get_error();
++        BIO_free(certFileBio);
++        return nullptr;
++    }
++
++    if (!PEM_read_bio_X509(certFileBio, &cert, nullptr, nullptr))
++    {
++        BMCWEB_LOG_ERROR << "Error occured during PEM_read_bio_X509 call, "
++                         << "FILE= " << filePath;
++
++        BIO_free(certFileBio);
++        X509_free(cert);
++        return nullptr;
++    }
++    BIO_free(certFileBio);
++    return cert;
++}
++
++inline int addExt(X509* cert, int nid, const char* value)
++{
++    X509_EXTENSION* ex = nullptr;
++    X509V3_CTX ctx{};
++    X509V3_set_ctx(&ctx, cert, cert, nullptr, nullptr, 0);
++    ex = X509V3_EXT_conf_nid(nullptr, &ctx, nid, const_cast<char*>(value));
++    if (!ex)
++    {
++        BMCWEB_LOG_ERROR << "Error: In X509V3_EXT_conf_nidn: " << value;
++        return -1;
++    }
++    X509_add_ext(cert, ex, -1);
++    X509_EXTENSION_free(ex);
++    return 0;
++}
++
++inline void generateSslCertificate(const std::string& filepath,
++                                   const std::string& cn)
+ {
+     FILE* pFile = nullptr;
+     std::cout << "Generating new keys\n";
+     initOpenssl();
+ 
+     std::cerr << "Generating EC key\n";
+-    EVP_PKEY* pPrivKey = createEcKey();
++    //EVP_PKEY* pPrivKey = createEcKey();
++    EVP_PKEY* pPrivKey = createRsaKey();
++	
++
+     if (pPrivKey != nullptr)
+     {
+         std::cerr << "Generating x509 Certificate\n";
+@@ -189,8 +243,10 @@
+             // get a random number from the RNG for the certificate serial
+             // number If this is not random, regenerating certs throws broswer
+             // errors
+-            std::random_device rd;
+-            int serial = static_cast<int>(rd());
++            bmcweb::OpenSSLGenerator gen;
++            std::uniform_int_distribution<int> dis(
++                1, std::numeric_limits<int>::max());
++            int serial = dis(gen);
+ 
+             ASN1_INTEGER_set(X509_get_serialNumber(x509), serial);
+ 
+@@ -215,12 +271,21 @@
+                 reinterpret_cast<const unsigned char*>("OpenBMC"), -1, -1, 0);
+             X509_NAME_add_entry_by_txt(
+                 name, "CN", MBSTRING_ASC,
+-                reinterpret_cast<const unsigned char*>("testhost"), -1, -1, 0);
++                reinterpret_cast<const unsigned char*>(cn.c_str()), -1, -1, 0);
+             // set the CSR options
+             X509_set_issuer_name(x509, name);
+ 
++            X509_set_version(x509, 2);
++            addExt(x509, NID_basic_constraints, ("critical,CA:TRUE"));
++            addExt(x509, NID_subject_alt_name, ("DNS:" + cn).c_str());
++            addExt(x509, NID_subject_key_identifier, ("hash"));
++            addExt(x509, NID_authority_key_identifier, ("keyid"));
++            addExt(x509, NID_key_usage, ("digitalSignature, keyEncipherment"));
++            addExt(x509, NID_ext_key_usage, ("serverAuth"));
++            addExt(x509, NID_netscape_comment, (x509Comment));
++
+             // Sign the certificate with our private key
+-            X509_sign(x509, pPrivKey, EVP_sha256());
++            X509_sign(x509, pPrivKey, EVP_sha384());
+ 
+             pFile = fopen(filepath.c_str(), "wt");
+ 
+@@ -244,7 +309,56 @@
+     // cleanup_openssl();
+ }
+ 
+-EVP_PKEY* createEcKey()
++
++EVP_PKEY *createRsaKey()
++{
++
++    RSA *pRSA = RSA_new();
++
++    BIGNUM *bne = BN_new();
++    if (bne == NULL)
++    {
++       return NULL;
++    }
++    if (BN_set_word(bne, RSA_F4) != 1)
++    {
++       return NULL;
++    }
++
++    RSA_generate_key_ex(pRSA, 2048, bne, NULL);
++
++    EVP_PKEY *pKey = EVP_PKEY_new();
++    if ((pRSA != nullptr) && (pKey != nullptr) &&
++        EVP_PKEY_assign_RSA(pKey, pRSA))
++    {
++        /* pKey owns pRSA from now */
++        if (RSA_check_key(pRSA) <= 0)
++        {
++            fprintf(stderr, "RSA_check_key failed.\n");
++            //handleOpensslError();
++            EVP_PKEY_free(pKey);
++            pKey = NULL;
++        }
++    }
++    else
++    {
++        //handleOpensslError();
++        if (pRSA != nullptr)
++        {
++            RSA_free(pRSA);
++            pRSA = NULL;
++        }
++        if (pKey != nullptr)
++        {
++            EVP_PKEY_free(pKey);
++            pKey = NULL;
++        }
++    }
++    return pKey;
++}
++
++
++/*EVP_PKEY* createEcKey()
+ {
+     EVP_PKEY* pKey = nullptr;
+     int eccgrp = 0;
+@@ -260,7 +374,6 @@
+         {
+             if (EVP_PKEY_assign_EC_KEY(pKey, myecc))
+             {
+-                /* pKey owns myecc from now */
+                 if (EC_KEY_check_key(myecc) <= 0)
+                 {
+                     fprintf(stderr, "EC_check_key failed.\n");
+@@ -269,7 +382,9 @@
+         }
+     }
+     return pKey;
+-}
++}*/
++
++
+ 
+ void initOpenssl()
+ {
+@@ -289,12 +404,12 @@
+     if (!pemFileValid)
+     {
+         std::cerr << "Error in verifying signature, regenerating\n";
+-        generateSslCertificate(filepath);
++        generateSslCertificate(filepath, "testhost");
+     }
+ }
+ 
+ inline std::shared_ptr<boost::asio::ssl::context>
+-    getSslContext(const std::string& ssl_pem_file)
++    getSslContext(const std::string& sslPemFile)
+ {
+     std::shared_ptr<boost::asio::ssl::context> mSslContext =
+         std::make_shared<boost::asio::ssl::context>(
+@@ -315,9 +430,9 @@
+     BMCWEB_LOG_DEBUG << "Using default TrustStore location: " << trustStorePath;
+     mSslContext->add_verify_path(trustStorePath);
+ 
+-    mSslContext->use_certificate_file(ssl_pem_file,
++    mSslContext->use_certificate_file(sslPemFile,
+                                       boost::asio::ssl::context::pem);
+-    mSslContext->use_private_key_file(ssl_pem_file,
++    mSslContext->use_private_key_file(sslPemFile,
+                                       boost::asio::ssl::context::pem);
+ 
+     // Set up EC curves to auto (boost asio doesn't have a method for this)
+diff -Naur a/src/webserver_main.cpp b/src/webserver_main.cpp
+--- a/src/webserver_main.cpp	2021-05-14 16:34:37.239567141 +0530
++++ b/src/webserver_main.cpp	2021-05-14 16:33:58.987682125 +0530
+@@ -19,6 +19,7 @@
+ #include <ssl_key_handler.hpp>
+ #include <vm_websocket.hpp>
+ #include <webassets.hpp>
++#include <hostname_monitor.hpp>
+ 
+ #include <memory>
+ #include <string>
+@@ -124,6 +125,11 @@
+     }
+ #endif
+ 
++#ifdef BMCWEB_ENABLE_SSL
++    BMCWEB_LOG_INFO << "Start Hostname Monitor Service...";
++    crow::hostname_monitor::registerHostnameSignal();
++#endif
++
+     app.run();
+     io->run();
+ 

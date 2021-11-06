@@ -1,0 +1,294 @@
+commit a5a0944ccb8d925d6d83897b1e2397e85564ea1e
+Author: Ravi Teja <raviteja28031990@gmail.com>
+Date:   Fri Jul 17 00:57:33 2020 -0500
+
+    Network: Implement ipv6/ipv4 default gateways on EthernetInterface
+    
+    Currently ipv6/ipv4 default gateway properties on SystemConfiguration
+    interface which will be deprecated soon.
+    This commit is to add Default gateway properties implementation on
+    EthernetInterface.
+    
+    Test by:
+    Set ipv4/v6 default gateway properties on ethernet interface.
+    
+    Signed-off-by: Ravi Teja <raviteja28031990@gmail.com>
+    Change-Id: I30da81d7ccf9d568a60bfdd179331b4c0d86b149
+
+diff --git a/ethernet_interface.cpp b/ethernet_interface.cpp
+index 522be57..d06d887 100644
+--- a/ethernet_interface.cpp
++++ b/ethernet_interface.cpp
+@@ -5,6 +5,7 @@
+ #include "config_parser.hpp"
+ #include "neighbor.hpp"
+ #include "network_manager.hpp"
++#include "routing_table.hpp"
+ #include "vlan_interface.hpp"
+ 
+ #include <arpa/inet.h>
+@@ -84,6 +85,32 @@ EthernetInterface::EthernetInterface(sdbusplus::bus::bus& bus,
+     interfaceName(intfName);
+     EthernetInterfaceIntf::dHCPEnabled(dhcpEnabled);
+     EthernetInterfaceIntf::iPv6AcceptRA(getIPv6AcceptRAFromConf());
++    route::Table routingTable;
++    auto gatewayList = routingTable.getDefaultGateway();
++    auto gateway6List = routingTable.getDefaultGateway6();
++    std::string defaultGateway;
++    std::string defaultGateway6;
++
++    for (auto& gateway : gatewayList)
++    {
++        if (gateway.first == intfName)
++        {
++            defaultGateway = gateway.second;
++            break;
++        }
++    }
++
++    for (auto& gateway6 : gateway6List)
++    {
++        if (gateway6.first == intfName)
++        {
++            defaultGateway6 = gateway6.second;
++            break;
++        }
++    }
++
++    EthernetInterfaceIntf::defaultGateway(defaultGateway);
++    EthernetInterfaceIntf::defaultGateway6(defaultGateway6);
+     // Don't get the mac address from the system as the mac address
+     // would be same as parent interface.
+     if (intfName.find(".") == std::string::npos)
+@@ -939,18 +966,29 @@ void EthernetInterface::writeConfigurationFile()
+         }
+     }
+ 
++    stream << "[Route]\n";
++    auto gateway = EthernetInterfaceIntf::defaultGateway();
++    if (!gateway.empty())
++    {
++        stream << "Gateway=" << gateway << "\n";
++    }
++
++    auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
++    if (!gateway6.empty())
++    {
++        stream << "Gateway=" << gateway6 << "\n";
++    }
++
+     if (manager.getSystemConf())
+     {
+         const auto& gateway = manager.getSystemConf()->defaultGateway();
+         if (!gateway.empty())
+         {
+-            stream << "[Route]\n";
+             stream << "Gateway=" << gateway << "\n";
+         }
+         const auto& gateway6 = manager.getSystemConf()->defaultGateway6();
+         if (!gateway6.empty())
+         {
+-            stream << "[Route]\n";
+             stream << "Gateway=" << gateway6 << "\n";
+         }
+     }
+@@ -1068,5 +1106,44 @@ void EthernetInterface::deleteAll()
+     manager.writeToConfigurationFile();
+ }
+ 
++std::string EthernetInterface::defaultGateway(std::string gateway)
++{
++    auto gw = EthernetInterfaceIntf::defaultGateway();
++    if (gw == gateway)
++    {
++        return gw;
++    }
++
++    if (!isValidIP(AF_INET, gateway))
++    {
++        log<level::ERR>("Not a valid v4 Gateway",
++                        entry("GATEWAY=%s", gateway.c_str()));
++        elog<InvalidArgument>(Argument::ARGUMENT_NAME("GATEWAY"),
++                              Argument::ARGUMENT_VALUE(gateway.c_str()));
++    }
++    gw = EthernetInterfaceIntf::defaultGateway(gateway);
++    manager.writeToConfigurationFile();
++    return gw;
++}
++
++std::string EthernetInterface::defaultGateway6(std::string gateway)
++{
++    auto gw = EthernetInterfaceIntf::defaultGateway6();
++    if (gw == gateway)
++    {
++        return gw;
++    }
++
++    if (!isValidIP(AF_INET6, gateway))
++    {
++        log<level::ERR>("Not a valid v6 Gateway",
++                        entry("GATEWAY=%s", gateway.c_str()));
++        elog<InvalidArgument>(Argument::ARGUMENT_NAME("GATEWAY"),
++                              Argument::ARGUMENT_VALUE(gateway.c_str()));
++    }
++    gw = EthernetInterfaceIntf::defaultGateway6(gateway);
++    manager.writeToConfigurationFile();
++    return gw;
++}
+ } // namespace network
+ } // namespace phosphor
+diff --git a/ethernet_interface.hpp b/ethernet_interface.hpp
+index abaf43e..e2418a2 100644
+--- a/ethernet_interface.hpp
++++ b/ethernet_interface.hpp
+@@ -223,12 +223,24 @@ class EthernetInterface : public Ifaces
+      */
+     void deleteAll();
+ 
++    /** @brief set the default v4 gateway of the interface.
++     *  @param[in] gateway - default v4 gateway of the interface.
++     */
++    std::string defaultGateway(std::string gateway) override;
++
++    /** @brief set the default v6 gateway of the interface.
++     *  @param[in] gateway - default v6 gateway of the interface.
++     */
++    std::string defaultGateway6(std::string gateway) override;
++
+     using EthernetInterfaceIntf::dHCPEnabled;
+     using EthernetInterfaceIntf::interfaceName;
+     using EthernetInterfaceIntf::linkUp;
+     using EthernetInterfaceIntf::nICEnabled;
+     using MacAddressIntf::mACAddress;
+ 
++    using EthernetInterfaceIntf::defaultGateway;
++    using EthernetInterfaceIntf::defaultGateway6;
+     /** @brief Absolute path of the resolv conf file */
+     static constexpr auto resolvConfFile = "/etc/resolv.conf";
+ 
+diff --git a/routing_table.cpp b/routing_table.cpp
+index ffbeecb..68a9ee3 100644
+--- a/routing_table.cpp
++++ b/routing_table.cpp
+@@ -151,16 +151,16 @@ void Table::parseRoutes(const nlmsghdr* nlHdr)
+     }
+     if (!dstAddr && gateWayAddr)
+     {
++        std::string ifNameStr(ifName);
+         if (rtMsg->rtm_family == AF_INET)
+         {
+-            defaultGateway = gatewayStr;
++            defaultGateway[ifNameStr] = gatewayStr;
+         }
+         else if (rtMsg->rtm_family == AF_INET6)
+         {
+-            defaultGateway6 = gatewayStr;
++            defaultGateway6[ifNameStr] = gatewayStr;
+         }
+     }
+-
+     Entry route(dstStr, gatewayStr, ifName);
+     // if there is already existing route for this network
+     // then ignore the next one as it would not be used by the
+diff --git a/routing_table.hpp b/routing_table.hpp
+index 6923592..8b634c6 100644
+--- a/routing_table.hpp
++++ b/routing_table.hpp
+@@ -8,6 +8,7 @@
+ #include <list>
+ #include <map>
+ #include <string>
++#include <vector>
+ 
+ namespace phosphor
+ {
+@@ -62,9 +63,9 @@ class Table
+     /**
+      * @brief gets the default v4 gateway.
+      *
+-     * @returns the default v4 gateway.
++     * @returns the default v4 gateway list.
+      */
+-    std::string getDefaultGateway() const
++    std::map<std::string, std::string> getDefaultGateway() const
+     {
+         return defaultGateway;
+     };
+@@ -72,9 +73,9 @@ class Table
+     /**
+      * @brief gets the default v6 gateway.
+      *
+-     * @returns the default v6 gateway.
++     * @returns the default v6 gateway list.
+      */
+-    std::string getDefaultGateway6() const
++    std::map<std::string, std::string> getDefaultGateway6() const
+     {
+         return defaultGateway6;
+     };
+@@ -94,9 +95,9 @@ class Table
+      */
+     void parseRoutes(const struct nlmsghdr* nlHdr);
+ 
+-    std::string defaultGateway;  // default gateway
+-    std::string defaultGateway6; // default gateway
+-    Map routeList;               // List of routes
++    std::map<std::string, std::string> defaultGateway;  // default gateway list
++    std::map<std::string, std::string> defaultGateway6; // default gateway list
++    Map routeList;                                      // List of routes
+ };
+ 
+ } // namespace route
+diff --git a/system_configuration.cpp b/system_configuration.cpp
+index 268ea27..4fbf601 100644
+--- a/system_configuration.cpp
++++ b/system_configuration.cpp
+@@ -39,8 +39,22 @@ SystemConfiguration::SystemConfiguration(sdbusplus::bus::bus& bus,
+     route::Table routingTable;
+ 
+     SystemConfigIntf::hostName(name);
+-    SystemConfigIntf::defaultGateway(routingTable.getDefaultGateway());
+-    SystemConfigIntf::defaultGateway6(routingTable.getDefaultGateway6());
++    auto gatewayList = routingTable.getDefaultGateway();
++    auto gateway6List = routingTable.getDefaultGateway6();
++    // Assign first entry of gateway list
++    std::string gateway;
++    std::string gateway6;
++    if (!gatewayList.empty())
++    {
++        gateway = gatewayList.begin()->second;
++    }
++    if (!gateway6List.empty())
++    {
++        gateway6 = gateway6List.begin()->second;
++    }
++
++    SystemConfigIntf::defaultGateway(gateway);
++    SystemConfigIntf::defaultGateway6(gateway6);
+ 
+     this->emit_object_added();
+ }
+diff --git a/test/test_ethernet_interface.cpp b/test/test_ethernet_interface.cpp
+index ab2279f..67a26dc 100644
+--- a/test/test_ethernet_interface.cpp
++++ b/test/test_ethernet_interface.cpp
+@@ -204,5 +204,19 @@ TEST_F(TestEthernetInterface, addNTPServers)
+     EXPECT_EQ(servers, values);
+ }
+ 
++TEST_F(TestEthernetInterface, addGateway)
++{
++    std::string gateway = "10.3.3.3";
++    interface.defaultGateway(gateway);
++    EXPECT_EQ(interface.defaultGateway(), gateway);
++}
++
++TEST_F(TestEthernetInterface, addGateway6)
++{
++    std::string gateway6 = "ffff:ffff:ffff:fe80::1";
++    interface.defaultGateway6(gateway6);
++    EXPECT_EQ(interface.defaultGateway6(), gateway6);
++}
++
+ } // namespace network
+ } // namespace phosphor

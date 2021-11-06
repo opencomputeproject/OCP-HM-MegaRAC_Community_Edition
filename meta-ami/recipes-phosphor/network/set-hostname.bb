@@ -11,8 +11,10 @@ RDEPENDS_${PN} = "${VIRTUAL-RUNTIME_base-utils}"
 SYSTEMD_SERVICE_${PN} = "set-hostname.service"
 SYSTEMD_SERVICE_${PN} += "register-dns.service"
 SYSTEMD_SERVICE_${PN} += "register-dns.path"
+SYSTEMD_SERVICE_${PN} += "ntp-restart.service"
+SYSTEMD_SERVICE_${PN} += "ntp-restart.path"
 
-SRC_URI = "file://${PN}.sh file://${PN}.service file://register-dns.service file://register-dns.path"
+SRC_URI = "file://${PN}.sh file://${PN}.service file://register-dns.service file://register-dns.path file://ntp-restart.service file://ntp-restart.path"
 
 S = "${WORKDIR}"
 do_install() {
@@ -22,6 +24,8 @@ do_install() {
     install -m 644 ${PN}.service ${D}${systemd_system_unitdir}/
     install -m 644 register-dns.service ${D}${systemd_system_unitdir}/
     install -m 644 register-dns.path ${D}${systemd_system_unitdir}/
+    install -m 644 ntp-restart.service ${D}${systemd_system_unitdir}/
+    install -m 644 ntp-restart.path ${D}${systemd_system_unitdir}/
 
 }
 

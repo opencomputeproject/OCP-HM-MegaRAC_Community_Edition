@@ -1,0 +1,12 @@
+diff -Naur a/http/websocket.hpp b/http/websocket.hpp
+--- a/http/websocket.hpp	2021-03-08 17:07:35.823018358 +0530
++++ b/http/websocket.hpp	2021-03-08 17:03:34.492677686 +0530
+@@ -78,6 +78,8 @@
+         closeHandler(std::move(close_handler)),
+         errorHandler(std::move(error_handler)), session(reqIn.session)
+     {
++       ws.set_option(boost::beast::websocket::stream_base::
++                        timeout::suggested(boost::beast::role_type::server));	  
+         BMCWEB_LOG_DEBUG << "Creating new connection " << this;
+     }
+ 

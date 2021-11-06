@@ -15,5 +15,3 @@ SYSTEMD_SERVICE_${PN} += "start-ipkvm.service"
 S = "${WORKDIR}/git"
 
 inherit meson systemd
-
-#require conf/machine/include/unpack.inc

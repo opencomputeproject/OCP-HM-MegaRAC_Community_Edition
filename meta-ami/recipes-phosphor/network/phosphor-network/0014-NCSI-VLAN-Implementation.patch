@@ -1,0 +1,455 @@
+--- a/ethernet_interface.hpp	2021-05-31 13:14:12.107603968 -0400
++++ b/ethernet_interface.hpp	2021-05-31 13:13:20.613314146 -0400
+@@ -12,6 +12,7 @@
+ #include <string>
+ #include <xyz/openbmc_project/Collection/DeleteAll/server.hpp>
+ #include <xyz/openbmc_project/Network/EthernetInterface/server.hpp>
++#include <xyz/openbmc_project/Network/NCSIInterface/server.hpp>
+ #include <xyz/openbmc_project/Network/MACAddress/server.hpp>
+ #include <xyz/openbmc_project/Network/ARPControl/server.hpp>
+ 
+@@ -23,6 +24,7 @@
+ using Ifaces = sdbusplus::server::object::object<
+     sdbusplus::xyz::openbmc_project::Network::server::ARPControl,
+     sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface,
++    sdbusplus::xyz::openbmc_project::Network::server::NCSIInterface,
+     sdbusplus::xyz::openbmc_project::Network::server::MACAddress,
+     sdbusplus::xyz::openbmc_project::Network::IP::server::Create,
+     sdbusplus::xyz::openbmc_project::Network::Neighbor::server::CreateStatic,
+@@ -98,6 +100,37 @@
+      */
+     virtual void loadNameServers();
+ 
++    /** @brief Implementation for NCSIClearInitState
++    *  The Clear Initial State command provides the mechanism for the Management Controller to acknowledge that it considers a channel to be in the Initial State.
++    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++    */
++
++    uint8_t nCSIClearInitState() override;
++
++    /** @brief The Set VLAN Filter function is used to program one or more VLAN IDs that are used for VLAN filtering.
++     *
++     *  @param[in] vlanID - The VLAN ID value used in VLAN Filter
++     *  @param[in] userPriority - The User Priority level
++     *  @param[in] enable - The Enable field is used to Enable/Disable a give VLAN Filter.
++     *  @param[in] filterSelector - Used to select a given VLAN filter.
++     *
++     *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++     */
++
++    uint8_t setVlanFilter(
++            uint16_t vlanID,
++            uint8_t userPriority,
++            uint8_t enable,
++            uint8_t filterSelector)  override;
++
++   /** @brief The Enable VLAN function is used to enable the channel to accept VLAN-tagged packets from the network for NC-SI Pass-through operation.
++    *  @param[in] mode - The Mode field describes the modes for VLAN eg:- VLAN only or VLAN + non-VLAN.
++    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++    */
++    uint8_t enableVLAN(
++            uint8_t mode) override;
++
++
+     /** @brief Function to create ipaddress dbus object.
+      *  @param[in] addressType - Type of ip address.
+      *  @param[in] ipaddress- IP address.
+@@ -362,6 +395,21 @@
+ 
+     friend class TestEthernetInterface;
+ 
++     /** @brief Send NCSI Command to a given Interface.
++     * @param[in] ifindex - Ethernet Interface index number
++     *            cmd - NCSI driver Command
++     *            package - NCSI Package number
++     *            channel - NCSI Cnahhel number
++     *            flags - NCSI Flags
++     *            type - NCSI Command number
++     *            payload - NCSI Message Payload
++     *            payload_len - NCSI Payload length.
++     * */
++
++    int SendNCSICommand(int ifindex, int cmd, unsigned int package,
++             unsigned int channel, int flags,
++             int type, uint8_t *payload, short payload_len);
++
+   private:
+     /** @brief Determines if DHCP is active for the IP::Protocol supplied.
+      *  @param[in] protocol - Either IPv4 or IPv6
+@@ -415,7 +463,18 @@
+      *  @return status of the shell command execution
+      */
+     bool sysctlConfig(const std::string& cmd);
+-	    
++	   
++
++    struct ncsi_pkt_hdr {
++        unsigned char mc_id;        /* Management controller ID */
++        unsigned char revision;     /* NCSI version - 0x01      */
++        unsigned char reserved;     /* Reserved                 */
++        unsigned char id;           /* Packet sequence number   */
++        unsigned char type;         /* Packet type              */
++        unsigned char channel;      /* Network controller ID    */
++        unsigned short        length;       /* Payload length           */
++        int        reserved1[2]; /* Reserved                 */
++    }; 
+ };
+ 
+ } // namespace network
+--- a/ethernet_interface.cpp	2021-05-31 13:14:12.107603968 -0400
++++ b/ethernet_interface.cpp	2021-05-31 13:13:10.756877767 -0400
+@@ -7,6 +7,11 @@
+ #include "routing_table.hpp"
+ #include "vlan_interface.hpp"
+ 
++#include <linux/ncsi.h>
++#include <netlink/genl/ctrl.h>
++#include <netlink/genl/genl.h>
++#include <netlink/netlink.h>
++
+ #include <arpa/inet.h>
+ #include <linux/ethtool.h>
+ #include <linux/rtnetlink.h>
+@@ -52,6 +57,19 @@
+ std::string arpResponseDisable = "echo 8 >";		
+ std::string arpResponseEnable = "echo 0 >";		
+ 
++using nlMsgPtr = std::unique_ptr<nl_msg, decltype(&::nlmsg_free)>;
++using nlSocketPtr = std::unique_ptr<nl_sock, decltype(&::nl_socket_free)>;
++constexpr unsigned int DEFAULT_VALUE = -1;
++constexpr auto NONE = 0;
++
++constexpr auto NCSI_PACKAGE = 0x00;
++constexpr auto NCSI_CHANNEL = 0x00;
++
++constexpr auto NCSI_CMD_CLEAN_INIT_STATE = 0x00;
++constexpr auto NCSI_CMD_SET_VLAN_FILTER = 0x0B;
++constexpr auto NCSI_CMD_ENABLE_VLAN = 0x0C;
++
++
+ struct EthernetIntfSocket
+ {
+     EthernetIntfSocket(int domain, int type, int protocol)
+@@ -145,6 +163,194 @@
+     }
+ }
+ 
++int EthernetInterface::SendNCSICommand(int ifindex, int cmd, unsigned int package = DEFAULT_VALUE,
++             unsigned int channel = DEFAULT_VALUE, int flags = NONE,
++             int type = NONE, uint8_t *payload = nullptr, short payload_len = NONE)
++{
++    struct ncsi_pkt_hdr *hdr;
++    uint8_t *pData, *pCtrlPktPayload;
++
++    // allocate a  contiguous buffer space to hold ncsi message
++    //  (header + Control Packet payload)
++    pData = (uint8_t *) calloc(1, sizeof(struct ncsi_pkt_hdr) + payload_len);
++    if (!pData) {
++         std::cerr << "Failed to allocate buffer for ctrl pkt\n";
++         return -1;
++    }
++
++    // prepare buffer to be copied to netlink msg
++    hdr = (struct ncsi_pkt_hdr *)pData;
++    pCtrlPktPayload = pData + sizeof(struct ncsi_pkt_hdr);
++
++    if(payload != nullptr)
++        memcpy(pCtrlPktPayload, payload, payload_len);
++
++    /* Create a Netlink socket */
++    nlSocketPtr socket(nl_socket_alloc(), &::nl_socket_free);
++    auto ret = genl_connect(socket.get());
++    if (ret < 0)
++    {
++        std::cerr << "Failed to open the socket , RC : " << ret << std::endl;
++        return ret;
++    }
++
++    /* Get the DriverID from the kernel using the generic Netlink family name */
++    auto driverID = genl_ctrl_resolve(socket.get(), "NCSI");
++    if (driverID < 0)
++    {
++        std::cerr << "Failed to resolve, RC : " << ret << std::endl;
++        return driverID;
++    }
++    nlMsgPtr msg(nlmsg_alloc(), &::nlmsg_free);
++
++    /* Create Netlink message header */
++    auto msgHdr = genlmsg_put(msg.get(), 0, 0, driverID, 0, flags, cmd, 0);
++    if (!msgHdr)
++    {
++        std::cerr << "Unable to add the netlink headers , COMMAND : " << cmd
++                  << std::endl;
++        return -1;
++    }
++
++    if (package != DEFAULT_VALUE)
++    {
++       /* Add NCSI Package to the Netlink message */
++        ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_PACKAGE_ID,
++                          package);
++        if (ret < 0)
++        {
++            std::cerr << "Failed to set the attribute , RC : " << ret
++                      << "PACKAGE " << std::hex << package << std::endl;
++            return ret;
++        }
++    }
++
++    if (channel != DEFAULT_VALUE)
++    {
++       /* Add NCSI Channel to the Netlink message */
++        ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_CHANNEL_ID,
++                          channel);
++        if (ret < 0)
++        {
++            std::cerr << "Failed to set the attribute , RC : " << ret
++                      << "CHANNEL : " << std::hex << channel << std::endl;
++            return ret;
++        }
++    }
++
++    /* Add Interface Index number to the Netlink message */
++    ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_IFINDEX, ifindex);
++    if (ret < 0)
++    {
++        std::cerr << "Failed to set the attribute , RC : " << ret
++                  << "INTERFACE : " << std::hex << ifindex << std::endl;
++        return ret;
++    }
++
++
++    if(payload != nullptr)
++    {
++        hdr->type = type;   // NC-SI command number
++        hdr->length = htons(payload_len);  // NC-SI command payload length
++        ret = nla_put(msg.get(), NCSI_ATTR_DATA,
++                                sizeof(struct ncsi_pkt_hdr)+payload_len,
++                                (void *)pData);
++        if (ret)
++            std::cerr << "Failed to add netlink header" << '\n';
++    }
++
++    /* Send the Netlink message */
++    ret = nl_send_auto(socket.get(), msg.get());
++    if (ret < 0)
++    {
++        std::cerr << "Failed to send the message , RC : " << ret << std::endl;
++        return ret;
++    }
++
++    /* Recieve the Netlink message */
++    ret = nl_recvmsgs_default(socket.get());
++    if (ret < 0)
++    {
++         std::cerr << "Failed to receive the message , RC : " << ret
++                  << std::endl;
++    }
++
++    return ret;
++}
++
++
++uint8_t EthernetInterface::nCSIClearInitState()
++{
++    int CommandNumber = NCSI_CMD_CLEAN_INIT_STATE;
++    int channel= NCSI_CHANNEL;
++    int package = NCSI_PACKAGE;
++
++    uint8_t payload = 0;
++    short payload_len = 0;
++
++    unsigned ifindex = if_nametoindex(interfaceName().c_str());
++    if (ifindex == 0)
++    {
++        throw std::system_error(errno, std::generic_category(),
++                                "if_nametoindex");
++    }
++
++    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, &payload, payload_len);
++    return 0;
++}
++
++uint8_t EthernetInterface::setVlanFilter(uint16_t vlanID,
++                                         uint8_t userPriority,
++                                         uint8_t enable,
++                                         uint8_t filterSelector)
++{
++    int CommandNumber = NCSI_CMD_SET_VLAN_FILTER;
++    int channel= NCSI_CHANNEL;
++    int package = NCSI_PACKAGE;
++
++    uint8_t payload[8] = {0};
++
++    payload[2] = userPriority;
++    payload[3] = vlanID;
++    payload[6] = filterSelector;
++    payload[7] = enable;
++
++    short payload_len = sizeof(payload);
++
++    unsigned ifindex = if_nametoindex(interfaceName().c_str());
++    if (ifindex == 0)
++    {
++        throw std::system_error(errno, std::generic_category(),
++                                "if_nametoindex");
++    }
++
++    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, payload, payload_len);
++    return 0;
++}
++
++uint8_t EthernetInterface::enableVLAN(uint8_t mode)
++{
++    int CommandNumber = NCSI_CMD_ENABLE_VLAN;
++    int channel= NCSI_CHANNEL;
++    int package = NCSI_PACKAGE;
++
++    uint8_t payload[4] = {0};
++
++    payload[3] = mode;
++
++    short payload_len = sizeof(payload);
++
++    unsigned ifindex = if_nametoindex(interfaceName().c_str());
++    if (ifindex == 0)
++    {
++        throw std::system_error(errno, std::generic_category(),
++                                "if_nametoindex");
++    }
++
++    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, payload, payload_len);
++    return 0;
++}
++
+ static IP::Protocol convertFamily(int family)
+ {
+     switch (family)
+@@ -327,7 +533,7 @@
+                             bus, objectPath.c_str(), *this, protType, ipaddress,
+                             origin, prefixLength, gateway));
+ 
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return objectPath;
+ }
+ 
+@@ -355,7 +561,7 @@
+                             std::make_shared<phosphor::network::Neighbor>(
+                                 bus, objectPath.c_str(), *this, iPAddress,
+                                 mACAddress, Neighbor::State::Permanent));
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return objectPath;
+ }
+ 
+@@ -464,7 +670,7 @@
+         return;
+     }
+     this->addrs.erase(it);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+ }
+ 
+ void EthernetInterface::deleteStaticNeighborObject(const std::string& iPAddress)
+@@ -477,7 +683,7 @@
+         return;
+     }
+     staticNeighbors.erase(it);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+ }
+ 
+ void EthernetInterface::deleteVLANFromSystem(const std::string& interface)
+@@ -557,7 +763,7 @@
+     // delete the interface
+     vlanInterfaces.erase(it);
+ 
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+ }
+ 
+ std::string EthernetInterface::generateObjectPath(
+@@ -592,7 +798,7 @@
+         return value;
+     }
+     EthernetInterfaceIntf::iPv6AcceptRA(value);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return value;
+ }
+ 
+@@ -604,7 +810,7 @@
+     }
+ 
+     EthernetInterfaceIntf::dHCPEnabled(value);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return value;
+ }
+ 
+@@ -863,7 +1069,7 @@
+ 
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+ 
+     snprintf(cmd,sizeof(cmd),"%s%s","systemctl enable ",vlanPriorityService.c_str());
+     system(cmd);
+@@ -1123,7 +1329,7 @@
+         //      through https://github.com/systemd/systemd/issues/6696
+         execute("/sbin/ip", "ip", "link", "set", "dev", interface.c_str(),
+                 "down");
+-        manager.writeToConfigurationFile(interfaceName());
++        manager.writeToConfigurationFile();
+     }
+ 
+ #ifdef HAVE_UBOOT_ENV
+@@ -1151,7 +1357,7 @@
+ 
+     // clear all the ip on the interface
+     addrs.clear();
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+ }
+ 
+ std::string EthernetInterface::defaultGateway(std::string gateway)
+@@ -1170,7 +1376,7 @@
+                               Argument::ARGUMENT_VALUE(gateway.c_str()));
+     }
+     gw = EthernetInterfaceIntf::defaultGateway(gateway);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return gw;
+ }
+ 
+@@ -1190,7 +1396,7 @@
+                               Argument::ARGUMENT_VALUE(gateway.c_str()));
+     }
+     gw = EthernetInterfaceIntf::defaultGateway6(gateway);
+-    manager.writeToConfigurationFile(interfaceName());
++    manager.writeToConfigurationFile();
+     return gw;
+ }
+ 
+--- a/Makefile.am	2021-05-31 13:22:10.489454614 -0400
++++ b/Makefile.am	2021-05-31 13:21:29.939573101 -0400
+@@ -95,7 +95,8 @@
+ 		$(SDEVENTPLUS_LIBS) \
+ 		$(STDPLUS_LIBS) \
+ 		$(PHOSPHOR_DBUS_INTERFACES_LIBS) \
+-		$(PHOSPHOR_LOGGING_LIBS)
++		$(PHOSPHOR_LOGGING_LIBS) \
++		$(LIBNL_LIBS)
+ 
+ phosphor_network_manager_CXXFLAGS = \
+ 		$(SYSTEMD_CFLAGS) \
+@@ -104,6 +105,7 @@
+ 		$(STDPLUS_CFLAGS) \
+ 		$(PHOSPHOR_DBUS_INTERFACES_CFLAGS) \
+ 		$(PHOSPHOR_LOGGING_CFLAGS) \
++		$(LIBNL_CFLAGS) \
+ 		-flto
+ 
+ phosphor_garpcontrol_LDFLAGS = \

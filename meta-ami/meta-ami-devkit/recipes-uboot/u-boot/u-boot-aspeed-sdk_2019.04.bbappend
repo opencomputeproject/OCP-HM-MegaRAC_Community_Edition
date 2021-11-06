@@ -1,2 +1,0 @@
-FILESEXTRAPATHS_append := "${THISDIR}/:"
-

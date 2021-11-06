@@ -11,10 +11,10 @@ SRC_URI = "git://github.com/openbmc/peci-pcie"
 DEPENDS = "boost sdbusplus libpeci"
 
 PV = "0.1+git${SRCPV}"
-SRCREV = "5d049735e26b346394ce505a4b3c6ccabdc661ae"
+SRCREV = "bce86a63643e1d7cdf6d42e143738013ee47a8da"
 
 S = "${WORKDIR}/git"
 
 SYSTEMD_SERVICE_${PN} += "xyz.openbmc_project.PCIe.service"
 
-require conf/machine/include/unpack.inc
+EXTRA_OECMAKE = "-DYOCTO=1"

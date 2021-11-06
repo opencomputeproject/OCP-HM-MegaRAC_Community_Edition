@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/Apache-2.0;md5
 S = "${WORKDIR}"
 SRC_URI += "file://10-devicemodechange.rules"
 
-RDEPENDS_${PN} += "udev mac-settings"
+RDEPENDS_${PN} += "udev"
 
 do_install() {
     install -d ${D}/${base_libdir}/udev/rules.d

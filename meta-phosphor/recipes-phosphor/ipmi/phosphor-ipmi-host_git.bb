@@ -44,7 +44,7 @@ VIRTUAL-RUNTIME_ipmi-config ?= "phosphor-ipmi-config"
 RDEPENDS_${PN}-dev += "phosphor-logging"
 RDEPENDS_${PN}-dev += "phosphor-mapper-dev"
 RDEPENDS_${PN} += "clear-once"
-#RDEPENDS_${PN} += "phosphor-network"
+RDEPENDS_${PN} += "phosphor-network"
 RDEPENDS_${PN} += "phosphor-time-manager"
 RDEPENDS_${PN} += "${VIRTUAL-RUNTIME_ipmi-config}"
 RDEPENDS_${PN} += "virtual/obmc-watchdog"
@@ -58,7 +58,7 @@ USERADD_PACKAGES = "${PN}"
 # add ipmi group
 GROUPADD_PARAM_${PN} = "ipmi"
 
-SYSTEMD_SERVICE_${PN} += "xyz.openbmc_project.Ipmi.Internal.SoftPowerOff.service phosphor-ipmi-host.service phosphor-ipmi-warm-reset.target"
+SYSTEMD_SERVICE_${PN} += "xyz.openbmc_project.Ipmi.Internal.SoftPowerOff.service phosphor-ipmi-host.service"
 
 RRECOMMENDS_${PN} += "phosphor-settings-manager"
 
@@ -79,7 +79,7 @@ EXTRA_OECONF_append = " \
         WHITELIST_CONF="${WHITELIST_CONF}" \
         "
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 SRC_URI += "file://merge_yamls.py "
 

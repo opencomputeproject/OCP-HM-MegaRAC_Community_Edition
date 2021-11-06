@@ -1,0 +1,13 @@
+--- a/user_channel/channelcommands.cpp	2020-12-03 15:36:51.853615172 -0500
++++ b/user_channel/channelcommands.cpp	2021-01-11 14:41:14.871478575 -0500
+@@ -386,9 +387,7 @@
+     {
+         log<level::ERR>(
+             "Get channel payload version - Payload type unavailable");
+-
+-        constexpr uint8_t payloadTypeNotSupported = 0x80;
+-        return response(payloadTypeNotSupported);
++        return responseInvalidFieldRequest();	
+     }
+ 
+     // BCD encoded version representation - 1.0

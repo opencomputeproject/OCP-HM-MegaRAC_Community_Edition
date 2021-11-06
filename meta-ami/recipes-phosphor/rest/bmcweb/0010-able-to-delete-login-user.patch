@@ -6,10 +6,10 @@
  
 +	
 +	std::vector<const std::string*> sessionIds = 
-+            crow::persistent_data::SessionStore::getInstance().getUniqueIds(false, crow::persistent_data::PersistenceType::TIMEOUT);
++            persistent_data::SessionStore::getInstance().getUniqueIds(false, persistent_data::PersistenceType::TIMEOUT);
 +        for(auto n : sessionIds)
 +        {
-+            auto session = crow::persistent_data::SessionStore::getInstance().getSessionByUid(*n);
++            auto session = persistent_data::SessionStore::getInstance().getSessionByUid(*n);
 +            if(session->username == params[0])
 +            {
 +                messages::internalError(asyncResp->res);

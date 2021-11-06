@@ -1,0 +1,11 @@
+--- a/include/discrete_event_monitor.hpp	2021-06-03 13:45:43.661755973 +0530
++++ b/include/discrete_event_monitor.hpp	2021-06-03 13:46:21.917500368 +0530
+@@ -70,7 +70,7 @@
+         }
+         // Set the IPMI threshold event type based on the event details from the
+         // message
+-        if (event.compare("ActiveAlarmState") == 0) 
++        if (event.compare("ActiveAlarmState") == 0 && (*pval) ) 
+         {
+ 	  // Get the sensor reading to put in the event data
+                 sdbusplus::message::message getEvent =

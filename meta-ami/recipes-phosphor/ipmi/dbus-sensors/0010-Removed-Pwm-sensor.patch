@@ -1,0 +1,18 @@
+--- a/src/PwmSensor.cpp	2021-04-01 00:11:46.355362678 +0530
++++ b/src/PwmSensor.cpp	2021-04-01 00:13:22.314622878 +0530
+@@ -159,7 +159,14 @@
+ 
+             return curVal;
+         });
+-    sensorInterface->initialize();
++   // sensorInterface->initialize();
++       controlInterface->register_property(
++                "Enable", false, [this]( bool propIn, bool& old) {
++                 old = propIn;
++                sensorInterface->initialize();
++                    return 1;
++                });
++
+     controlInterface->initialize();
+ 
+     association = objectServer.add_interface(

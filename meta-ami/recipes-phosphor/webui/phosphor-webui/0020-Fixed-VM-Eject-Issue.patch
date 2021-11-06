@@ -1,0 +1,242 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-04-28 12:43:53.648943776 +0530
++++ b/app/common/services/api-utils.js	2021-04-28 13:09:06.729604428 +0530
+@@ -2016,12 +2016,13 @@
+                   });
+           return deferred.promise;
+         },
+-        getEjectStatus: function() {
++        getEjectStatus: function(device_name) {
+           var deferred = $q.defer();
+           $http({
+             method: 'GET',
+             url: DataService.getHost() +
+-                '/xyz/openbmc_project/VirtualMedia/Nbd/nbd0',
++                '/xyz/openbmc_project/VirtualMedia/Nbd/'
++		+ device_name,
+             withCredentials: true
+           })
+               .then(
+@@ -2036,11 +2037,12 @@
+                   });
+           return deferred.promise;
+         },
+-        setEjectStatus: function(instance) {
++        setEjectStatus: function(device_name, instance) {
+           return $http({
+             method: 'PUT',
+             url: DataService.getHost() +
+-                '/xyz/openbmc_project/VirtualMedia/Nbd/nbd0/attr/Eject',
++                '/xyz/openbmc_project/VirtualMedia/Nbd/'
++		+ device_name + '/attr/Eject',
+             withCredentials: true,
+             data: JSON.stringify({'data': instance})
+           })
+diff -Naur a/app/server-control/controllers/virtual-media-controller.html b/app/server-control/controllers/virtual-media-controller.html
+--- a/app/server-control/controllers/virtual-media-controller.html	2021-04-28 12:43:53.652943827 +0530
++++ b/app/server-control/controllers/virtual-media-controller.html	2021-04-28 13:09:17.137596800 +0530
+@@ -32,7 +32,7 @@
+         </div>
+       </div>
+       <div class="vm__upload-start">
+-        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM('cd', $index) : startVM($index)"/>
++        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVMCD('cd', $index) : startVM($index)"/>
+       </div>
+     </div>
+   </div>
+@@ -66,7 +66,7 @@
+         </div>
+       </div>
+       <div class="vm__upload-start">
+-        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="hd_device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!hd_device.file}" class="btn btn-primary" ng-click="hd_device.isActive? stopVM('hd',$index) : startVMHD($index)"/>
++        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="hd_device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!hd_device.file}" class="btn btn-primary" ng-click="hd_device.isActive? stopVMHD('hd',$index) : startVMHD($index)"/>
+       </div>
+     </div>
+   </div>
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-04-28 12:43:53.652943827 +0530
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-04-28 13:10:24.425543925 +0530
+@@ -11,10 +11,10 @@
+ 
+   angular.module('app.serverControl').controller('virtualMediaController', [
+     '$scope', '$cookies', 'APIUtils', 'toastService', 'dataService',
+-    'nbdServerService', '$log', '$q',
++    'nbdServerService', '$log', '$q', '$interval', '$route',
+     function(
+         $scope, $cookies, APIUtils, toastService, dataService,
+-        nbdServerService, $log, $q) {
++        nbdServerService, $log, $q, $interval, $route) {
+       $scope.devices = [];
+       $scope.HD_devices = [];
+ 
+@@ -38,6 +38,68 @@
+       $scope.devices.push(vmDevice);
+       $scope.HD_devices.push(vmDeviceHD);
+ 
++      //Initiate the Timer objects for Eject status
++      $scope.CdTimer = null;
++      $scope.HdTimer = null;
++
++      $scope.CdStatus = false;
++      $scope.HdStatus = false;
++
++      $scope.SetEjectStatus = function (file_name, device_name) {
++        setTimeout(() => { 
++        APIUtils.setEjectStatus(device_name, false).then(
++          function(data) {
++            toastService.warn('Image ' + file_name +
++                               ' has been Ejected from Host Machine.');
++	    $route.reload();
++          });
++	}, 1000);
++      }
++
++      $scope.checkHdEject = function (Index, Id, SessionId) {
++	var device_name = "nbd" + ((SessionId * 2) + Id);
++        $scope.HdTimer = null;
++        $scope.HdTimer = $interval(function () {
++          APIUtils.getEjectStatus(device_name).then(
++            function(Status) {
++              if(Status == true) {
++        	 var file_name = document.getElementById('hd-file-upload').value;
++        	 file_name = file_name.substring(file_name.lastIndexOf("\\")
++        	                                 + 1, file_name.length);
++                 $scope.stopVM('hd', Index);
++	         $scope.SetEjectStatus (file_name, device_name);
++		 console.log("Hd image ejected from host");
++	         //Cancel the Timer.
++                 $interval.cancel($scope.HdTimer);
++      	         $scope.HdTimer = null;
++                 return;
++              }
++            });
++        }, 1000);
++      }
++
++      $scope.checkCdEject = function (Index, Id, SessionId) {
++	var device_name = "nbd" + ((SessionId * 2) + Id);
++	$scope.CdTimer = null;
++        $scope.CdTimer = $interval(function () {
++          APIUtils.getEjectStatus(device_name).then(
++            function(Status) {
++              if(Status == true) {
++        	 var file_name = document.getElementById('file-upload').value;
++        	 file_name = file_name.substring(file_name.lastIndexOf("\\")
++        	                                 + 1, file_name.length);
++	         $scope.stopVM('cd',Index);
++	  	 $scope.SetEjectStatus (file_name, device_name);
++		 console.log("Cd image ejected from host");
++	         //Cancel the Timer.
++                 $interval.cancel($scope.CdTimer);
++      	         $scope.CdTimer = null;
++	  	 return;
++              }
++            }); 
++        }, 1000);      
++      }
++
+       $scope.startVM = function(index) {
+ 	      if(sessionStorage.getItem('ROLE') != "Administrator"){
+ 	        if ($scope.devices[index].isActive == true){
+@@ -106,6 +168,7 @@
+           $scope.devices[index].nbdServer = server;
+           nbdServerService.addConnection(id, server, file);
+           server.start();
++	  $scope.checkCdEject(index, id, dataService.session_id);
+         }
+       };
+       $scope.start_hd_redirection = function(index, sessionID){
+@@ -129,9 +192,20 @@
+           $scope.HD_devices[index].nbdServer = server;
+           nbdServerService.addConnection(id, server, file);
+           server.start();
++	  $scope.checkHdEject(index, id, dataService.session_id);
+         }
+       };
+ 
++      $scope.stopVMCD = function(type,index) {
++	$scope.CdStatus = true;
++      	$scope.stopVM (type, index);
++      }
++
++      $scope.stopVMHD = function(type,index) {
++	$scope.HdStatus = true;
++      	$scope.stopVM (type, index);
++      }
++
+       $scope.stopVM = function(type,index) {
+         if(!($scope.devices[index].isActive && $scope.HD_devices[index].isActive)){
+           dataService.session_id = null;
+@@ -145,6 +219,20 @@
+         }
+         server.stop();
+ 	$scope.resetFile(type,index);
++
++      	if($scope.CdStatus == true)
++	{
++	   $scope.CdStatus = false; 
++	   $interval.cancel($scope.CdTimer);
++           $scope.CdTimer = null;
++	}
++
++      	if($scope.HdStatus == true)
++	{
++	   $scope.HdStatus = false; 
++	   $interval.cancel($scope.HdTimer);
++           $scope.HdTimer = null;
++	}
+       };
+ 
+       $scope.resetFile = function(type,index) {
+@@ -157,24 +245,6 @@
+         }
+       };
+ 
+-      $scope.isEjected = function(index) {
+-         APIUtils.getEjectStatus().then(
+-           function(Status) {
+-             if(Status == true) {
+-                var file_name = document.getElementById('file-upload').value;
+-                file_name = file_name.substring(file_name.lastIndexOf("\\")
+-                                                + 1, file_name.length);
+-                $scope.devices[index].isActive = false;
+-                $scope.resetFile(index);
+-                APIUtils.setEjectStatus(false).then(
+-                  function(data) {
+-                    toastService.error('Image' +
+-                                       ' has been Ejected from Host Machine.');
+-                  });
+-             }
+-           });
+-      };
+-
+ /*
+       function findExistingConnection(vmDevice) {
+         // Checks with existing connections kept in nbdServerService for an open
+@@ -249,8 +319,9 @@
+   };
+ 
+   this.stop = function() {
++    this.state = NBD_STATE_UNKNOWN;
++    sessionStorage.setItem("VM_State",this.state);	  
+     this.ws.close();
+-//  this.state = NBD_STATE_UNKNOWN;
+   };
+ 
+   this._on_ws_error = function(ev) {
+@@ -258,15 +329,6 @@
+   };
+ 
+   this._on_ws_close = function(ev) {
+-    /* Check if the user has directly ejected the
+-     * image from the Host Machine.*/
+-    this.state = NBD_STATE_UNKNOWN;
+-    sessionStorage.setItem("VM_State",this.state);
+-    var scope = angular.element(document.getElementById('VmWrap')).scope();
+-    scope.$apply(function(){
+-      scope.isEjected(0);
+-    });
+-//  this.state = NBD_STATE_UNKNOWN;
+     console.log(
+         'vm/0/' + id + ' closed with code: ' + ev.code +
+         ' reason: ' + ev.reason);

@@ -1,0 +1,78 @@
+<loader loading="loading"></loader>
+<div id="configuration-alertpolicy" class="page">
+  <h1 class="page-title">Alert Policy</h1>
+  <section class="section">
+    <p class="section-content">
+      Configure the Alert Policy Settings.
+    </p>
+  </section>
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Alert Policy Table</h2>
+    </div>
+
+    <form name ="alert_policy_form" class="alert-policy__form" role="form" action="">
+        <fieldset class="alert-policy__fieldset pad20 row column" ng-repeat="data in alert_policy_table | orderBy:'entry'"> 
+
+            <div class="row column"> <h2 class="subhead"> Alert Policy - {{data.tmp_num}} </h2> </div>
+            <div class="column small-12 large-4">
+              <label class="control-check ldap__control-check">
+                <input type="checkbox" ng-disabled="dataService.isNotAdmin()" ng-click="data.enable_filter = data.enable_filter == 1 ? 0 : 1" ng-checked="data.enable_filter == 1" ng-model="data.enable_filter" aria-labelledby="smtp-auth-label"/>
+                <span class="control__indicator"></span>
+                <span id="smtp-auth-label" class="control__label">
+                  <strong>Enable this alert</strong>
+                </span>
+              </label>
+            </div>
+
+            <div class="column small-12 large-8">
+              <button type="button" class="btn alertsavebtn btn-primary" ng-click="saveAlertPolicydata(data.enable_filter, data.alert_policy_number, data.alert_policy_action, data.entry); savechannelData(data.channel_number, data.channel_destination, data.entry); saveAlertStringData(data.alert_string_key, data.alert_string, data.entry)" ng-disabled="dataService.isNotAdmin()">Save</button>
+            </div>
+
+            <div class="column small-12 large-4">
+              <label class="control-check ldap__control-check">
+                <input type="checkbox" ng-disabled="dataService.isNotAdmin()" ng-click="data.alert_string = data.alert_string == 1 ? 0 : 1" ng-checked="data.alert_string == 1" ng-model="data.alert_string" aria-labelledby="smtp-auth-label"/>
+                <span class="control__indicator"></span>
+                <span id="smtp-auth-label" class="control__label">
+                  <strong>Event Specific Alert String</strong>
+                </span>
+              </label>
+            </div>
+
+            <div class="column small-12 large-4">
+                <label for="alert-policy_num">Alert Policy Number</label>
+                <select name="alert-policy_num" ng-model="data.alert_policy_number" ng-options="number for number in array15" ng-disabled="dataService.isNotAdmin()">
+                </select>
+            </div>
+
+            <div class="column small-12 large-4">
+              <label for="alert-policy_num">Alert Policy Action</label>
+              <select name="channel_number" ng-model="data.alert_policy_action" ng-options="num_ac for num_ac in alert_policy_action_arr" ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            <div class="column small-12 large-4">
+              <label for="alert-alert_string">Alert String Key</label>
+              <select name="alert-policy_num" ng-model="data.alert_string_key" ng-options="num_skey for num_skey in array40"  ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            <div class="column small-12 large-4">
+              <label for="alert-channel_dest">Channel Destination</label>
+              <select name="alert-policy_num" ng-model="data.channel_destination" ng-options="chan_des for chan_des in array15" ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            <div class="column small-12 large-4">
+              <label for="alert-channel_dest">Channel Number</label>
+              <select name="channel_number" ng-model="data.channel_number" ng-options="chan_num for chan_num in [1,8]" ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            
+
+        </fieldset>
+    </form>
+
+  </section>
+</div>

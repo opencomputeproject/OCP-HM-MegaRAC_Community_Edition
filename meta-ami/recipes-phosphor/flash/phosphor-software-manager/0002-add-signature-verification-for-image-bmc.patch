@@ -1,0 +1,94 @@
+diff -Naur a/image_verify.cpp b/image_verify.cpp
+--- a/image_verify.cpp	2021-02-11 15:55:43.929464537 +0530
++++ b/image_verify.cpp	2021-02-11 16:04:15.511936761 +0530
+@@ -8,6 +8,7 @@
+ #include <fcntl.h>
+ #include <openssl/err.h>
+ #include <sys/stat.h>
++#include <unistd.h>
+ 
+ #include <phosphor-logging/elog-errors.hpp>
+ #include <phosphor-logging/elog.hpp>
+@@ -99,37 +100,15 @@
+ 
+         // image specific publickey file name.
+         fs::path publicKeyFile(imageDirPath / PUBLICKEY_FILE_NAME);
+-
+-        // Validate the BMC image files.
+-        for (const auto& bmcImage : bmcImages)
+-        {
+-            // Build Image File name
+-            fs::path file(imageDirPath);
+-            file /= bmcImage;
+-
+-            // Build Signature File name
+-            fs::path sigFile(file);
+-            sigFile.replace_extension(SIGNATURE_FILE_EXT);
+-
+-            // Verify the signature.
+-            auto valid = verifyFile(file, sigFile, publicKeyFile, hashType);
+-            if (valid == false)
+-            {
+-                log<level::ERR>("Image file Signature Validation failed",
+-                                entry("IMAGE=%s", bmcImage.c_str()));
+-                return false;
+-            }
+-        }
+-        // Validate the optional image files.
+-        auto optionalImages = getOptionalImages();
+-        for (const auto& optionalImage : optionalImages)
++	
++	// Validate the BMC image files.
++	fs::path bmcFullImageFile (imageDirPath);
++	bmcFullImageFile /= bmcFullImages;
++	if (access(bmcFullImageFile.c_str(),F_OK) == 0)
+         {
+-            // Build Image File name
+-            fs::path file(imageDirPath);
+-            file /= optionalImage;
+-
+-            if (fs::exists(file))
+-            {
++                // Build Image File name
++                fs::path file(imageDirPath);
++                file /= bmcFullImages;
+                 // Build Signature File name
+                 fs::path sigFile(file);
+                 sigFile.replace_extension(SIGNATURE_FILE_EXT);
+@@ -138,13 +117,31 @@
+                 auto valid = verifyFile(file, sigFile, publicKeyFile, hashType);
+                 if (valid == false)
+                 {
+-                    log<level::ERR>("Image file Signature Validation failed",
+-                                    entry("IMAGE=%s", optionalImage.c_str()));
+-                    return false;
++    	        	log<level::ERR>("Image file Signature Validation failed",
++                                        entry("IMAGE=%s", bmcFullImages.c_str()));
++                        return false;
+                 }
+-            }
+         }
+-
++	else
++	{
++		for (const auto& bmcImage : bmcImages)
++		{
++		    // Build Image File name
++		    fs::path file(imageDirPath);
++		    file /= bmcImage;
++		    // Build Signature File name
++		    fs::path sigFile(file);
++		    sigFile.replace_extension(SIGNATURE_FILE_EXT);
++		    // Verify the signature.
++		    auto valid = verifyFile(file, sigFile, publicKeyFile, hashType);
++		    if (valid == false)
++		    {
++		        log<level::ERR>("Image file Signature Validation failed",
++		                        entry("IMAGE=%s", bmcImage.c_str()));
++		        return false;
++		    }
++		}
++	}
+         log<level::DEBUG>("Successfully completed Signature vaildation.");
+ 
+         return true;

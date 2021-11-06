@@ -1,0 +1,21 @@
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-03-17 13:58:27.809801725 -0400
++++ b/src/storagecommands.cpp	2021-03-17 14:18:49.521016570 -0400
+@@ -1413,7 +1413,7 @@
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdClearSel, ipmi::Privilege::Operator,
+                           ipmiStorageClearSEL);
+-
++/*
+     // <Get SEL Time>
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdGetSelTime, ipmi::Privilege::User,
+@@ -1423,6 +1423,8 @@
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdSetSelTime,
+                           ipmi::Privilege::Operator, ipmiStorageSetSELTime);
++*/
++
+ }
+ } // namespace storage
+ } // namespace ipmi

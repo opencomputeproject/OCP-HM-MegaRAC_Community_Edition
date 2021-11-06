@@ -22,6 +22,3 @@ FILES_${PN}_append = " ${libdir}/net-ipmid/lib*${SOLIBS}"
 FILES_${PN}-dev_append = " ${libdir}/ipmid-providers/lib*${SOLIBSDEV} ${libdir}/ipmid-providers/*.la"
 
 HOSTIPMI_PROVIDER_LIBRARY += "libethstatscmd.so"
-
-require conf/machine/include/unpack.inc
-

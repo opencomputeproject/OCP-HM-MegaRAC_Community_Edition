@@ -1,0 +1,1346 @@
+diff -Naru a/configure.ac b/configure.ac
+--- a/configure.ac	2021-04-30 23:49:16.387056801 -0400
++++ b/configure.ac	2021-05-03 02:02:05.314779863 -0400
+@@ -152,6 +152,7 @@
+ 
+ # Create configured output.
+ AC_CONFIG_FILES([Makefile test/Makefile])
++AC_CONFIG_FILES([xyz.openbmc_project.GARPControl.service])
+ AC_CONFIG_FILES([xyz.openbmc_project.Network.service])
+ AC_CONFIG_FILES([xyz.openbmc_project.Network.conf])
+ AC_OUTPUT
+diff -Naru a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-04-30 12:42:37.911522398 -0400
++++ b/ethernet_interface.cpp	2021-05-05 04:25:47.050411988 -0400
+@@ -2,7 +2,6 @@
+ 
+ #include "ethernet_interface.hpp"
+ 
+-#include "config_parser.hpp"
+ #include "neighbor.hpp"
+ #include "network_manager.hpp"
+ #include "routing_table.hpp"
+@@ -34,17 +33,24 @@
+ namespace network
+ {
+ 
++using namespace std::string_literals;
+ using namespace phosphor::logging;
+ using namespace sdbusplus::xyz::openbmc_project::Common::Error;
+ using NotAllowed = sdbusplus::xyz::openbmc_project::Common::Error::NotAllowed;
+ using NotAllowedArgument = xyz::openbmc_project::Common::NotAllowed;
+ using Argument = xyz::openbmc_project::Common::InvalidArgument;
++
+ constexpr auto RESOLVED_SERVICE = "org.freedesktop.resolve1";
+ constexpr auto RESOLVED_INTERFACE = "org.freedesktop.resolve1.Link";
+ constexpr auto PROPERTY_INTERFACE = "org.freedesktop.DBus.Properties";
+ constexpr auto RESOLVED_SERVICE_PATH = "/org/freedesktop/resolve1/link/";
+ constexpr auto METHOD_GET = "Get";
+ constexpr auto VENDOR_CLASS_IDENTIFIER = "DCMI36465:1.5";
++constexpr auto garpControlService = "xyz.openbmc_project.GARPControl.service";
++constexpr auto sysctlConfigPrefix ="/proc/sys/net/ipv4/conf/";
++constexpr auto sysctlConfigSurffix = "/arp_ignore";		
++std::string arpResponseDisable = "echo 8 >";		
++std::string arpResponseEnable = "echo 0 >";		
+ 
+ struct EthernetIntfSocket
+ {
+@@ -129,6 +135,8 @@
+     EthernetInterfaceIntf::autoNeg(std::get<2>(ifInfo));
+     EthernetInterfaceIntf::speed(std::get<0>(ifInfo));
+ #endif
++    
++    this->loadARPControl();
+ 
+     // Emit deferred signal.
+     if (emitSignal)
+@@ -1185,5 +1193,200 @@
+     manager.writeToConfigurationFile(interfaceName());
+     return gw;
+ }
++
++/** @brief load the ARP Control Configurations.
++ */
++void EthernetInterface::loadARPControl()
++{
++    fs::path confPath = manager.getARPConfDir();
++    std::string fileName = phosphor::network::arpPrefix + 
++                           interfaceName() + phosphor::network::arpSurffix;
++    confPath /= fileName;
++    config::Parser parser(confPath.string());
++    auto arpEnable = this->getARPResponse(parser);
++
++    ARPControlIface::aRPResponse(arpEnable);
++    ARPControlIface::gratuitousARP(this->getGratuitousARP(parser));
++    ARPControlIface::gratuitousARPInterval(this->getGratuitousARPInterval(parser));
++
++    auto cmd = ((!arpEnable)?arpResponseDisable:arpResponseEnable) + sysctlConfigPrefix + 
++		    interfaceName() + sysctlConfigSurffix;
++
++    this->sysctlConfig(cmd); 
++}
++
++/** @brief set the Enable/Disable of ARP Response.
++ *  @param[in] value - Enable/Disable.
++ *  @return the status of ARP Response
++ */
++bool EthernetInterface::aRPResponse(bool value)
++{
++    auto val = ARPControlIface::aRPResponse();
++    if (val == value)
++    {
++        return val;
++    }
++
++    val = ARPControlIface::aRPResponse(value);
++    writeConfiguration();
++    auto cmd = ((!val)?arpResponseDisable:arpResponseEnable) + sysctlConfigPrefix + 
++		    interfaceName() + sysctlConfigSurffix;
++
++    this->sysctlConfig(cmd); 
++
++    return val;
++}
++
++/** @brief set the Enable/Disable of GratuitousARP.
++ *  @param[in] value - Enable/Disable.
++ *  @return the status of GratuitousARP Broadcasting
++ */
++bool EthernetInterface::gratuitousARP(bool value)
++{
++    auto val = ARPControlIface::gratuitousARP();
++    if (val == value)
++    {
++        return val;
++    }
++
++    val = ARPControlIface::gratuitousARP(value);
++    writeConfiguration();
++    manager.restartSystemdUnit(phosphor::network::garpControlService);
++
++    return val;
++}
++
++/** @brief set the gratuitousARP interval.
++ *  @param[in] interval - interval in milliseconds.
++ */
++uint64_t EthernetInterface::gratuitousARPInterval(uint64_t interval)
++{
++    auto garpInterval = ARPControlIface::gratuitousARPInterval();
++    if (garpInterval == interval)
++    {
++        return garpInterval;
++    }
++
++    garpInterval = ARPControlIface::gratuitousARPInterval(interval);
++    writeConfiguration();
++    manager.restartSystemdUnit(phosphor::network::garpControlService);
++
++    return garpInterval;        
++}
++
++/** @brief write the ARPControl configuration into the conf file.
++ */	
++void EthernetInterface::writeConfiguration()
++{
++    /* write all the ARPControl configuration in the garp conf file */
++    fs::path confPath = manager.getARPConfDir();
++    std::string fileName = phosphor::network::arpPrefix + 
++                           interfaceName() + phosphor::network::arpSurffix;
++    confPath /= fileName;
++    std::fstream stream;
++
++    stream.open(confPath.c_str(), std::fstream::out);
++    if (!stream.is_open())
++    {
++        log<level::ERR>("Unable to open the file", entry("FILE=%s", confPath.c_str()));
++                elog<InternalFailure>();
++    }
++
++    /* Write the ARPControl properties*/
++    stream << "[ARP_Response]\n";
++    stream << "Enabled=" <<((ARPControlIface::aRPResponse())?"true":"false")<< "\n";
++
++    stream << "[GARP]\n";
++    stream << "Enabled=" <<((ARPControlIface::gratuitousARP())?"true":"false")<< "\n";
++    stream << "Interval=" <<ARPControlIface::gratuitousARPInterval()<< "\n";
++
++    stream.close();
++
++}
++
++/** @brief retrive the ARP Response status from ARP Control conf file.
++ *  @param[in] parser - config parser object.
++ *  @return status of ARP Response
++ */	
++bool EthernetInterface::getARPResponse(config::Parser& parser)
++{
++    config::ValueList values;
++    auto rc = config::ReturnCode::SUCCESS;
++
++    std::tie(rc, values) = parser.getValues("ARP_Response", "Enabled");
++    if (rc == config::ReturnCode::SUCCESS && !values.empty())
++    {
++        transform(values[0].begin(),values[0].end(), values[0].begin(), ::tolower);
++        return (values[0] == "true");
++    }
++
++    return false;
++}
++
++/** @brief retrive the getGratuitousARP status from ARP Control conf file.
++ *  @param[in] parser - config parser object.
++ *  @return status of getGratuitousARP
++ */	
++bool EthernetInterface::getGratuitousARP(config::Parser& parser)
++{
++    config::ValueList values;
++    auto rc = config::ReturnCode::SUCCESS;
++
++    std::tie(rc, values) = parser.getValues("GARP", "Enabled");
++    if (rc == config::ReturnCode::SUCCESS && !values.empty())
++    {
++        transform(values[0].begin(),values[0].end(), values[0].begin(), ::tolower);
++        return (values[0] == "true");
++    }
++
++    return false;
++}
++
++/** @brief retrive the ARPControl interval from garp conf file.
++ *  @param[in] parser - config parser object.
++ *  @return GratuitousARP interval
++ */	
++uint64_t EthernetInterface::getGratuitousARPInterval(config::Parser& parser)
++{
++    config::ValueList values;
++    auto rc = config::ReturnCode::SUCCESS;
++    auto interval = 0;
++
++    std::tie(rc, values) = parser.getValues("GARP", "Interval");
++    if (rc == config::ReturnCode::SUCCESS && !values.empty())
++    {
++	std::stringstream garpInterval(values[0]);
++        garpInterval>>interval;
++        return interval;
++    }
++
++    return interval;
++}
++
++/** @brief set the ARP Response status in sysctl config for the ethernet interface.
++ *  @param[in] cmd - shell command.
++ *  @return status of the shell command execution
++ */
++bool EthernetInterface::sysctlConfig(const std::string& cmd)
++{
++    auto pPipe = ::popen(cmd.c_str(), "r");
++    if (pPipe == nullptr)
++    {
++        std::cout<<"popen failed in setResponse()"<<std::endl;
++        return false;
++    }
++
++    std::array<char, 256> buffer;
++    std::string outConfig = "";
++    while (not std::feof(pPipe))
++    {
++        auto bytes = std::fread(buffer.data(), 1, buffer.size(), pPipe);
++        outConfig.append(buffer.data(), bytes);
++    }
++    ::pclose(pPipe);
++
++    return ((outConfig.empty())?1:0);
++}
++
+ } // namespace network
+ } // namespace phosphor
+diff -Naru a/ethernet_interface.hpp b/ethernet_interface.hpp
+--- a/ethernet_interface.hpp	2021-04-30 12:42:37.911522398 -0400
++++ b/ethernet_interface.hpp	2021-05-05 04:24:39.032021413 -0400
+@@ -2,6 +2,7 @@
+ 
+ #include "types.hpp"
+ #include "util.hpp"
++#include "config_parser.hpp"
+ #include "xyz/openbmc_project/Network/IP/Create/server.hpp"
+ #include "xyz/openbmc_project/Network/Neighbor/CreateStatic/server.hpp"
+ 
+@@ -12,6 +13,7 @@
+ #include <xyz/openbmc_project/Collection/DeleteAll/server.hpp>
+ #include <xyz/openbmc_project/Network/EthernetInterface/server.hpp>
+ #include <xyz/openbmc_project/Network/MACAddress/server.hpp>
++#include <xyz/openbmc_project/Network/ARPControl/server.hpp>
+ 
+ namespace phosphor
+ {
+@@ -19,6 +21,7 @@
+ {
+ 
+ using Ifaces = sdbusplus::server::object::object<
++    sdbusplus::xyz::openbmc_project::Network::server::ARPControl,
+     sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface,
+     sdbusplus::xyz::openbmc_project::Network::server::MACAddress,
+     sdbusplus::xyz::openbmc_project::Network::IP::server::Create,
+@@ -32,6 +35,9 @@
+ using MacAddressIntf =
+     sdbusplus::xyz::openbmc_project::Network::server::MACAddress;
+ 
++using ARPControlIface =
++    sdbusplus::xyz::openbmc_project::Network::server::ARPControl;
++
+ using ServerList = std::vector<std::string>;
+ using ObjectPath = sdbusplus::message::object_path;
+ 
+@@ -233,12 +239,33 @@
+      */
+     std::string defaultGateway6(std::string gateway) override;
+ 
++    /** @brief set the Enable/Disable of ARP Response in sysctl config.
++     *  @param[in] value - Enable/Disable 
++     *  @return the status of ARP Response in sysctl config
++     */
++    bool aRPResponse(bool value) override;
++
++    /** @brief set the Enable/Disable of GratuitousARP.
++     *  @param[in] value - Enable/Disable
++     *  @return the status of GratuitousARP Broadcasting
++     */
++    bool gratuitousARP(bool value) override;
++
++    /** @brief set the GratuitousARP interval.
++     *  @param[in] interval - interval in milliseconds.
++     */
++    uint64_t gratuitousARPInterval(uint64_t interval) override;
++
+     using EthernetInterfaceIntf::dHCPEnabled;
+     using EthernetInterfaceIntf::interfaceName;
+     using EthernetInterfaceIntf::linkUp;
+     using EthernetInterfaceIntf::nICEnabled;
+     using MacAddressIntf::mACAddress;
+ 
++    using ARPControlIface::aRPResponse;
++    using ARPControlIface::gratuitousARP;
++    using ARPControlIface::gratuitousARPInterval;
++
+     using EthernetInterfaceIntf::defaultGateway;
+     using EthernetInterfaceIntf::defaultGateway6;
+     /** @brief Absolute path of the resolv conf file */
+@@ -356,6 +383,39 @@
+      *  @returns true/false value if the address is static
+      */
+     bool originIsManuallyAssigned(IP::AddressOrigin origin);
++
++    /** @brief load the ARP Control Configurations.
++     */
++    void loadARPControl();
++
++    /** @brief write the ARP Control configuration into the conf file.
++     */
++    void writeConfiguration();
++
++    /** @brief retrive the ARP Response status from ARP Control conf file.
++     *  @param[in] parser - config parser object.
++     *  @return status of ARP Response
++     */
++    bool getARPResponse(config::Parser& parser);
++
++    /** @brief retrive the GratuitousARP status from ARP Control conf file.
++     *  @param[in] parser - config parser object.
++     *  @return status of GratuitousARP
++     */
++    bool getGratuitousARP(config::Parser& parser);
++
++    /** @brief retrive the GratuitousARP interval from ARP Control conf file.
++     *  @param[in] parser - config parser object.
++     *  @return GratuitousARP interval
++     */
++    uint64_t getGratuitousARPInterval(config::Parser& parser);
++
++    /** @brief set the ARP Response status in sysctl config for the ethernet interface.
++     *  @param[in] cmd - shell command.
++     *  @return status of the shell command execution
++     */
++    bool sysctlConfig(const std::string& cmd);
++	    
+ };
+ 
+ } // namespace network
+diff -Naru a/garp_control.cpp b/garp_control.cpp
+--- a/garp_control.cpp	1969-12-31 19:00:00.000000000 -0500
++++ b/garp_control.cpp	2021-05-03 02:14:07.008574591 -0400
+@@ -0,0 +1,365 @@
++#include "config.h"
++
++#include "garp_control.hpp" 
++#include <chrono>
++#include <thread>
++
++using namespace std;
++using std::this_thread::sleep_for;
++
++namespace network
++{
++    struct ethernetSocket
++    {
++        ethernetSocket(int domain, int type, int protocol)
++        {
++            if ((sock = socket(domain, type, protocol)) < 0)
++            {
++                cout<<"socket creation failed"<<endl;
++            }
++        }
++        ~ethernetSocket()
++        {
++            if (sock >= 0)
++            {
++                close(sock);
++            }
++        }
++
++        int sock{-1};
++    };
++
++    /** @brief retrive the all the interface
++     *  @returns list of interface.
++     */
++    InterfaceList getInterfaces()
++    {
++        InterfaceList interfaces{};
++        struct ifaddrs* ifaddr = nullptr;
++        
++        if (getifaddrs(&ifaddr) == -1)
++        {
++            std::cout<<"Error occurred during the getifaddrs call"<<std::endl;
++        }
++        
++        AddrPtr ifaddrPtr(ifaddr);
++        ifaddr = nullptr;
++        
++        for (ifaddrs* ifa = ifaddrPtr.get(); ifa != nullptr; ifa = ifa->ifa_next)
++        {
++            if (ifa->ifa_flags & IFF_LOOPBACK)
++            {
++                continue;
++            }
++            interfaces.emplace(ifa->ifa_name);
++        }
++
++        return interfaces;
++    }
++
++    /** @brief Converts the given interface name into a interface index
++     *  @param[in] mac - The interface name
++     *  @returns A valid interface index
++     */
++    unsigned ifIndex(const std::string& interfaceName)
++    {
++        unsigned idx = if_nametoindex(interfaceName.c_str());
++        if (idx == 0)
++        {
++            throw std::system_error(errno, std::generic_category(), "if_nametoindex");
++         }
++
++         return idx;
++    }
++
++    namespace ethernetMAC 
++    {
++        /** @brief Converts the given mac address into byte form
++         *  @param[in] str - The mac address in human readable form
++         *  @returns A mac address in network byte order
++         *  @throws std::runtime_error for bad mac
++         */
++        ether_addr fromString(const char* str)
++        {
++            struct ether_addr* mac = ether_aton(str);
++            if (mac == nullptr)
++            {
++                throw std::runtime_error("Invalid mac address string");
++            }
++
++            return *mac;
++        }
++
++        /** @brief Converts the given mac address bytes into a string
++         *  @param[in] mac - The mac address
++         *  @returns A valid mac address string
++         */	
++        std::string toString(const ether_addr& mac)
++        {
++            char buf[18] = {0};
++            snprintf(buf, 18, "%02x:%02x:%02x:%02x:%02x:%02x", mac.ether_addr_octet[0],
++			 mac.ether_addr_octet[1], mac.ether_addr_octet[2], mac.ether_addr_octet[3],
++			 mac.ether_addr_octet[4], mac.ether_addr_octet[5]);
++            return buf;
++        }
++
++        /** @brief get the mac address of the interface.
++         *  @return macaddress on success
++         */
++        std::string getMACaddress(const std::string& interfaceName)
++        {
++            ethernetSocket eifSocket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
++
++            if (eifSocket.sock < 0)
++                return nullptr;
++        
++            ifreq ifr{0};
++            std::strncpy(ifr.ifr_name, interfaceName.c_str(), IFNAMSIZ - 1);
++            if (ioctl(eifSocket.sock, SIOCGIFHWADDR, &ifr) != 0)
++            {
++                cout<<"ioctl failed for SIOCGIFHWADDR"<<endl;
++                return nullptr;
++            }
++
++            static_assert(sizeof(ifr.ifr_hwaddr.sa_data) >= sizeof(ether_addr));
++            std::string_view hwaddr(reinterpret_cast<char*>(ifr.ifr_hwaddr.sa_data),
++                                    sizeof(ifr.ifr_hwaddr.sa_data));
++            return toString(stdplus::raw::copyFrom<ether_addr>(hwaddr));
++        }
++
++    }/*namespace ethernetMAC */
++
++    namespace ethernetIP 
++    {
++        /* @brief converts a String representation of the ip into
++         *  ip bytes.
++         * @param[in] address - The string representation ip address
++         * @returns sockaddr representation of the ip.
++         */
++        IPv4Addrs fromString(const std::string& address)
++        {
++            struct sockaddr_in sa{0};
++            int ret = inet_pton(AF_INET, address.c_str(), &(sa.sin_addr));
++            if (ret != 1)
++            {
++                throw std::runtime_error("Invalid IP address string");
++            }
++
++            return sa.sin_addr;
++        }
++
++        /* @brief converts the ip bytes into a string representation
++         * @param[in] ip - input ip byte address to convert.
++         * @returns String representation of the ip.
++         */	
++        std::string toString(const IPv4Addrs *ip)
++        {
++            char ipaddress [INET_ADDRSTRLEN];
++            auto ret = inet_ntop(AF_INET, ip, ipaddress, INET_ADDRSTRLEN);
++            if (ret == nullptr)
++            {
++                throw std::runtime_error("Invalid IP address string");
++            }
++
++            return ipaddress;
++        }
++
++        /* @brief checks that the given ip address is link local or not.
++         * @param[in] address - IP address.
++         * @returns true if it is linklocal otherwise false.
++         */
++        bool isLinkLocalIP(const std::string& address)
++        {
++            return address.find(IPV4_PREFIX) == 0 || address.find(IPV6_PREFIX) == 0;
++        }
++
++        /** @brief Gets the map of interface and the associated
++         *         address.
++         *  @returns map of interface and the address.
++         */
++        IntfAddrMap getIPaddrs(std::string& interfaceName)
++        {
++            IntfAddrMap intfMap{};
++            struct ifaddrs* ifaddr = nullptr;
++
++            /* attempt to fill struct with ifaddrs */
++            if (getifaddrs(&ifaddr) == -1)
++            {
++                cout<<"Error occurred during the getifaddrs call"<<endl;
++                return intfMap;
++            }
++
++            AddrPtr ifaddrPtr(ifaddr);
++            ifaddr = nullptr;
++            std::string intfName{};
++
++            for (ifaddrs* ifa = ifaddrPtr.get(); ifa != nullptr; ifa = ifa->ifa_next)
++            {
++                /* walk interfaces */
++                if (ifa->ifa_addr == nullptr)
++                {
++                    continue;
++                }
++
++                /* get only INET interfaces not ipv6 */
++                if (ifa->ifa_addr->sa_family == AF_INET)
++                {
++                    /* if loopback, or not running ignore */
++                    if ((ifa->ifa_flags & IFF_LOOPBACK) ||
++                        !(ifa->ifa_flags & IFF_RUNNING))
++                    {
++                        continue;
++                    }
++                    intfName = ifa->ifa_name;
++
++		    if (intfName == interfaceName)
++		    {
++                        AddrInfo info{};
++                        info.addrType = ifa->ifa_addr->sa_family;
++                        info.ipAddress = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
++                        intfMap[intfName].push_back(info);
++		    }
++                }
++            }
++
++            return intfMap;
++        }
++    }/*namespace ethernetIP */
++
++    namespace garpControl 
++    {
++        /** @brief Constructor to put object onto bus at a dbus path.
++         *  @param[in] interfaceName - GARP Broadcasting interface name.
++         *  @param[in] interval - GARP interval .
++         */
++        GARP::GARP(const std::string& interfaceName, const int interval)
++        {
++            this->interface = interfaceName;
++            this->replyInterval = interval;
++        }
++
++        /** @brief Broadcast the GARP Packet into the ethernet interface.
++         *  @param[in] start - GARP Broadcast start .
++         */	
++        void GARP::broadcastPacket(bool start)
++        {
++            /* Main Loop*/
++            while(start)
++	    {
++                if (!getIfaceDetails())
++        	    continue;
++
++                auto ipAddrs = this->IPv4Address[interface];
++               
++                for (auto& addr : ipAddrs)
++                {
++                    if (!ethernetIP::isLinkLocalIP(ethernetIP::toString(&addr.ipAddress)))
++                    {
++                        this->ipAddr = addr.ipAddress;
++                        if (!sendPacket())
++        	        {
++        	            cout<<" Unable to Broadcaste GARP in "<<interface<<" IP: "
++				    <<ethernetIP::toString(&addr.ipAddress)<<endl;
++        	        }
++                    }
++                }     	
++                sleep_for(std::chrono::milliseconds(this->replyInterval));
++            }
++        }
++
++        /** @brief create the ethernet socket(raw socket) and write the GARP
++         *         Packet on it.
++         *  @returns true if successful or false.
++         */	
++        bool GARP::sendPacket() {
++            int frameLength, bytes; 
++            uint8_t ethernetHdr[IP_MAXPACKET];  
++            struct sockaddr_ll device;
++            ARPHeader arpHdr{0};
++
++            /*Fill out sockaddr_ll */
++            device.sll_family = AF_PACKET;
++            device.sll_ifindex = ifindex;
++            memset (device.sll_addr, 0x00, MAC_LENGTH * sizeof (uint8_t));
++            memcpy (device.sll_addr, mac.ether_addr_octet, MAC_LENGTH * sizeof (uint8_t));
++            device.sll_halen = htons (MAC_LENGTH);
++
++            GARPHeader(&arpHdr); 
++            frameLength = frameHeader(&arpHdr, ethernetHdr);
++
++            /* raw socket descriptor  */
++            ethernetSocket eifSocket(PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
++            if (eifSocket.sock < 0)
++        	return false;
++
++            /* Send ethernet frame to socket. */
++            if ((bytes = sendto (eifSocket.sock, ethernetHdr, frameLength, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
++                return false;
++            }
++
++            return true;
++        }
++
++        /** @brief reads IP address, interface index and MAC address from ethernet
++         *  @returns true if successful or false.
++         */	
++        bool GARP::getIfaceDetails()
++        {
++	    this->IPv4Address.clear();
++            this->IPv4Address = ethernetIP::getIPaddrs(this->interface);
++            std::string sourceMAC = ethernetMAC::getMACaddress(this->interface);
++
++            if(sourceMAC.empty() || IPv4Address.empty())
++                return false;
++
++            this->mac = ethernetMAC::fromString(sourceMAC); 
++            this->ifindex = ifIndex(this->interface);
++
++            return true;
++        }
++
++        /** @brief create GARP header
++         *  @param[in] arphdr - GARP Header .
++         */	
++        void GARP::GARPHeader(ARPHeader *arpHdr)
++        {
++            /* ARP header*/
++            arpHdr->hardware_type = htons (HWTYPE_ETHER); /* Hardware type (16 bits): 1 for ethernet */
++            arpHdr->protocol_type = htons (ETH_P_IP);     /* Protocol type (16 bits): 2048 for IP */
++            arpHdr->hardware_len = MAC_LENGTH;            /* Hardware address length (8 bits): 6 bytes for MAC address */
++            arpHdr->protocol_len = IPV4_LENGTH;           /* Protocol address length (8 bits): 4 bytes for IPv4 address */
++            arpHdr->opcode = htons (ARP_OP_REPLY);        /* OpCode: 2 for ARP reply */
++            memcpy (&arpHdr->sender_mac, mac.ether_addr_octet, MAC_LENGTH * sizeof (uint8_t)); /* Sender hardware address (48 bits):
++												   MAC address */
++            memset (&arpHdr->target_mac, 0x00, MAC_LENGTH * sizeof (uint8_t));     /* Target hardware address (48 bits): zero */
++            memcpy (&arpHdr->sender_ip, &this->ipAddr, IPV4_LENGTH * sizeof (uint8_t)); /* Sender IP address */
++            memcpy (&arpHdr->target_ip, &this->ipAddr, IPV4_LENGTH * sizeof (uint8_t)); /* Target IP address */
++        }
++
++        /** @brief create the frame header with GARP header
++         *  @param[in] arpHdr - GARP Header .
++         *  @param[in] ethernetHdr - ethernet Frame Header .
++         *  @returns total frame length.
++         */	
++        int GARP::frameHeader(ARPHeader *arpHdr, uint8_t *ethernetHdr)
++        {
++            int frameLength = 0;
++
++            /* Fill out ethernet frame header*/
++            frameLength = MAC_LENGTH + MAC_LENGTH + ETHER_TYPE + ARP_HDRLEN; /* ethernet header (MAC + MAC + ethernet type)
++										 + ethernet data (ARP header) */
++            memset (ethernetHdr, 0xFF, MAC_LENGTH * sizeof (uint8_t));      /* Destination MAC addresses */
++            memcpy (ethernetHdr + MAC_LENGTH, mac.ether_addr_octet, MAC_LENGTH * sizeof (uint8_t));   /* Source MAC addresses */
++
++            /* Next is ethernet type code (ETH_P_ARP for ARP) */
++            ethernetHdr[12] = ETH_P_ARP / 256;
++            ethernetHdr[13] = ETH_P_ARP % 256;
++            /* Next is ethernet frame data (ARP header). */
++            memcpy (ethernetHdr + ETH_HDRLEN, arpHdr, ARP_HDRLEN * sizeof (uint8_t));
++
++            return frameLength;
++        }
++
++    } /* namespace garpControl */
++
++} /* namespace network */
+diff -Naru a/garp_control.hpp b/garp_control.hpp
+--- a/garp_control.hpp	1969-12-31 19:00:00.000000000 -0500
++++ b/garp_control.hpp	2021-05-03 02:12:47.120390659 -0400
+@@ -0,0 +1,219 @@
++#pragma once
++
++#include <sys/types.h>        /* needed for socket(), uint8_t, uint16_t */
++#include <sys/socket.h>       /* needed for socket() */
++#include <netinet/in.h>       /* IPPROTO_RAW */
++#include <netinet/ip.h>       /* IP_MAXPACKET (which is 65535) */
++#include <sys/ioctl.h>        /* macro ioctl is defined */
++#include <bits/ioctls.h>      /* defines values for argument "request" of ioctl. */
++#include <net/if.h>           /* struct ifreq */
++#include <linux/if_ether.h>   /* ETH_P_ARP = 0x0806 */
++#include <linux/if_packet.h>  /* struct sockaddr_ll (see man 7 packet) */
++#include <netinet/ether.h>
++#include <arpa/inet.h>
++#include <ifaddrs.h>
++#include <unistd.h>
++
++#include <stdplus/raw.hpp>
++#include <cstdlib>
++#include <cstring>
++#include <iostream>
++#include <array>
++#include <list>
++#include <map>
++#include <memory>
++#include <string>
++#include <variant>
++#include <vector>
++#include <set>
++
++/* Define some constans */
++#define ETH_HDRLEN 14      /* Ethernet header length */
++#define IP4_HDRLEN 20      /* IPv4 header length */
++#define ARP_HDRLEN 28      /* ARP header length */
++#define ARP_OP_REPLY 2     /* Taken from <linux/if_arp.h> */
++/* General defines */
++#define MAC_LENGTH 6
++#define IPV4_LENGTH 4
++#define HWTYPE_ETHER 1
++#define ETHER_TYPE 2
++
++namespace network /*namespace network */
++{
++    using IntfName = std::string;
++    using IPv4Addrs = struct in_addr;
++    using EthernetHeader = struct ethhdr;
++
++    struct AddrInfo
++    {
++        uint8_t addrType;
++        IPv4Addrs ipAddress;
++    };
++    /* Byte representations for common address types in network byte order */
++    using InAddrAny = std::variant<struct in_addr, struct in6_addr>;
++    using AddrList = std::list<AddrInfo>;
++    using IntfAddrMap = std::map<IntfName, AddrList>;
++    using InterfaceList = std::set<IntfName>;
++    using Addr_t = ifaddrs*;
++
++    struct AddrDeleter
++    {
++        void operator()(Addr_t ptr) const
++        {
++	    freeifaddrs(ptr);
++        }
++    };
++
++    using AddrPtr = std::unique_ptr<ifaddrs, AddrDeleter>;
++
++    constexpr auto IPV4_PREFIX = "169.254"; /* IPv4 link-local addresses are assigned from address 
++					       block 169.254.0.0/16 (169.254.0.0 through 169.254.255.255) */
++    constexpr auto IPV6_PREFIX = "fe80::"; /* IPv6 link-local addresses are assigned from address 
++					       block fe80::/10. */
++
++    /** @brief retrive the all the interface
++     *  @returns list of interface.
++     */
++    InterfaceList getInterfaces();
++
++    /** @brief Converts the given interface name into a interface index
++     *  @param[in] mac - The interface name
++     *  @returns A valid interface index
++     */
++    unsigned ifIndex(const std::string& interfaceName);
++
++    namespace ethernetMAC /*namespace ethernetMAC */
++    {
++
++        /** @brief Converts the given mac address into byte form
++         *  @param[in] str - The mac address in human readable form
++         *  @returns A mac address in network byte order
++         *  @throws std::runtime_error for bad mac
++         */
++        ether_addr fromString(const char* str);
++        inline ether_addr fromString(const std::string& str)
++        {
++            return fromString(str.c_str());
++        }
++
++        /** @brief Converts the given mac address bytes into a string
++         *  @param[in] mac - The mac address
++         *  @returns A valid mac address string
++         */
++        std::string toString(const ether_addr& mac);
++
++        /** @brief get the mac address of the interface.
++         *  @return macaddress on success
++         */
++        std::string getMACaddress(const std::string& interfaceName);
++
++    }/*namespace ethernetMAC */
++
++    namespace ethernetIP /*namespace ethernetIP */
++    {
++
++        /* @brief converts a String representation of the ip into
++         *  ip bytes.
++         * @param[in] address - The string representation ip address
++         * @returns sockaddr representation of the ip.
++         */
++        IPv4Addrs fromString(const std::string& address);
++
++        /* @brief converts the ip bytes into a string representation
++         * @param[in] ip - input ip byte address to convert.
++         * @returns String representation of the ip.
++         */
++        std::string toString(const IPv4Addrs *ip);
++
++        /* @brief checks that the given ip address is link local or not.
++         * @param[in] address - IP address.
++         * @returns true if it is linklocal otherwise false.
++         */
++        bool isLinkLocalIP(const std::string& address);
++
++        /** @brief Gets the map of interface and the associated
++         *         address.
++         * @param[in] interfaceName - Name of Interface.
++         *  @returns map of interface and the address.
++         */
++        IntfAddrMap getInterfaceAddrs(std::string& interfaceName);
++
++    }/* namespace ethernetIP */
++
++    namespace garpControl /* namespace garpControl */
++    {
++        // Define a struct for ARP header
++        typedef struct arp_header ARPHeader;
++        struct arp_header {
++          uint16_t hardware_type;
++          uint16_t protocol_type;
++          uint8_t hardware_len;
++          uint8_t protocol_len;
++          uint16_t opcode;
++          uint8_t sender_mac[MAC_LENGTH];
++          uint8_t sender_ip[IPV4_LENGTH];
++          uint8_t target_mac[MAC_LENGTH];
++          uint8_t target_ip[IPV4_LENGTH];
++        };
++
++        /** @class GARP
++         *  @brief Network Gratuitous-ARP Reply Broadcasting.
++         *  @details A concrete implementation for the
++         *  GARP Packet Broadcasting API.
++         */
++        class GARP
++        {
++          public:
++            GARP() = default;
++            GARP(const GARP&) = delete;
++            GARP& operator=(const GARP&) = delete;
++            GARP(GARP&&) = delete;
++            GARP& operator=(GARP&&) = delete;
++            ~GARP() = default;
++
++            /** @brief Constructor to put object onto bus at a dbus path.
++             *  @param[in] interfaceName - GARP Broadcasting interface name.
++             *  @param[in] interval - GARP interval .
++             */
++            GARP(const std::string& interfaceName, const int interval);
++
++            /** @brief Broadcast the GARP Packet into the ethernet interface.
++             *  @param[in] start - GARP Broadcast start .
++             */
++            void broadcastPacket(bool start);
++
++          private:
++            /** @brief create the ethernet socket(raw socket) and write the GARP
++             *         Packet on it.
++             *  @returns true if successful or false.
++             */
++            bool sendPacket();
++
++            /** @brief reads IP address, interface index and MAC address from ethernet
++             *  @returns true if successful or false.
++             */
++            bool getIfaceDetails();
++
++            /** @brief create GARP header 
++             *  @param[in] arpHdr - GARP Header .
++             */
++            void GARPHeader(ARPHeader *arpHdr);
++
++            /** @brief create the frame header with GARP header
++             *  @param[in] arpHdr - GARP Header .
++             *  @param[in] etherhdr - ethernet Frame Header .
++             *  @returns total frame length.
++             */
++            int frameHeader(ARPHeader *arpHdr, uint8_t *ethernetHdr);
++
++            unsigned int replyInterval; /* frequency of reply send */
++            unsigned int ifindex;       /* ethernet interface index */
++            ether_addr mac;             /* ethernet MAC address */
++            IntfAddrMap IPv4Address;    /* IPv4 address list of interface */
++            IPv4Addrs ipAddr;           /* ethernet IP address */
++            std::string interface;      /* ethernet interface Name */
++        };
++
++    } /* namespace garpControl */
++
++} /* namespace network */
+diff -Naru a/garp_control_main.cpp b/garp_control_main.cpp
+--- a/garp_control_main.cpp	1969-12-31 19:00:00.000000000 -0500
++++ b/garp_control_main.cpp	2021-05-03 03:22:47.849564909 -0400
+@@ -0,0 +1,117 @@
++#include "config.h"
++#include "config_parser.hpp"
++#include "garp_control.hpp"
++#include <filesystem>
++#include <fstream>
++#include <sstream>
++#include <thread>
++
++using namespace phosphor::network;
++
++constexpr char ARPCONTROL_CONF_DIR[] = "/etc/arpcontrol";
++constexpr auto arpPrefix = "00-bmc-arpcontrol-";
++constexpr auto arpSurffix = ".conf";
++std::string arpKey = "ARP_Response";
++std::string garpKey = "GARP";
++
++namespace arpControlConfig
++{
++    using ServerList = std::vector<std::string>;
++    namespace fs = std::filesystem;
++
++    /** @brief create the ARP Control config parser object
++     *  @returns parser object if success or null 
++     */	
++    bool parser(config::Parser& parser, std::string& fileName)
++    {
++        fs::path confPath = ARPCONTROL_CONF_DIR;
++        confPath /= fileName;
++
++        if (!fs::is_regular_file(confPath.string()))
++        {
++	    return false;
++        }
++        config::Parser arpControl(confPath.string());
++        parser = arpControl;
++
++	return true;
++    }
++    
++    /** @brief read the Enabled field from ARP Control config
++     *  @param[in] parser - parser object
++     *  @param[in] key - searching key
++     *  @returns value of Enabled field
++     */	
++    bool enabled(config::Parser& parser, std::string& key)
++    {
++        ServerList values;
++        auto rc = config::ReturnCode::SUCCESS;
++
++        std::tie(rc, values) = parser.getValues(key, "Enabled");
++        if (rc == config::ReturnCode::SUCCESS && !values.empty())
++        {
++            transform(values[0].begin(),values[0].end(), values[0].begin(), ::tolower);
++            return (values[0] == "true");
++        }
++
++        return false;
++    }
++
++    /** @brief read the interval field from ARP Control config
++     *  @param[in] parser - parser object
++     *  @param[in] key - searching key
++     *  @returns value of interval field
++     */	
++    unsigned interval(config::Parser& parser, std::string& key)
++    {
++        ServerList servers;
++        auto rc = config::ReturnCode::SUCCESS;
++        auto interval = 0;
++
++        std::tie(rc, servers) = parser.getValues(key, "Interval");
++        if (rc == config::ReturnCode::SUCCESS && !servers.empty())
++        {
++            std::stringstream garpInterval(servers[0]);
++            garpInterval>>interval;
++            return interval;
++        }
++
++        return interval;
++    }
++
++}/* namespace arpControlConfig*/
++
++void GARPTask(const std::string &interface, unsigned interval, bool enable)
++{
++    network::garpControl::GARP garp(interface, interval);
++    garp.broadcastPacket(enable);
++}
++
++int main()
++{
++
++    config::Parser arpControlParser;
++    network::InterfaceList interfaceList = network::getInterfaces();
++    network::InterfaceList::iterator it;
++    std::vector<std::thread> threads;
++
++    for (it = interfaceList.begin(); it != interfaceList.end(); ++it)
++    {
++	std::string fileName = arpPrefix + *it + arpSurffix;
++
++        if (!arpControlConfig::parser(arpControlParser, fileName))
++            continue;
++
++        auto garpEnabled = arpControlConfig::enabled(arpControlParser, garpKey);
++        auto garpInterval = arpControlConfig::interval(arpControlParser, garpKey);
++
++        if(garpEnabled)
++            threads.push_back(std::thread(GARPTask, *it, garpInterval, garpEnabled));
++    }
++
++    for (auto &th : threads) {
++        th.join();
++    }
++
++    return 0;
++}
+diff -Naru a/Makefile.am b/Makefile.am
+--- a/Makefile.am	2021-04-30 23:49:04.586430925 -0400
++++ b/Makefile.am	2021-05-03 02:08:39.507422835 -0400
+@@ -6,13 +6,14 @@
+ 
+ if HAVE_SYSTEMD
+ systemdsystemunit_DATA = \
+-		xyz.openbmc_project.Network.service
++		xyz.openbmc_project.Network.service \
++		xyz.openbmc_project.GARPControl.service
+ 
+ dbuspolicy_DATA = \
+ 		xyz.openbmc_project.Network.conf
+ endif
+ 
+-bin_PROGRAMS = phosphor-network-manager ncsi-netlink
++bin_PROGRAMS = phosphor-network-manager ncsi-netlink phosphor-garpcontrol
+ 
+ noinst_HEADERS = \
+ 		ethernet_interface.hpp \
+@@ -31,7 +32,8 @@
+ 		rtnetlink_server.hpp \
+ 		dns_updater.hpp \
+ 		watch.hpp \
+-		argument.hpp
++		argument.hpp \
++		garp_control.hpp
+ 
+ ncsi_netlink_SOURCES = \
+ 		argument.cpp \
+@@ -45,6 +47,10 @@
+ ncsi_netlink_CPPFLAGS = $(LIBNL_CFLAGS)
+ ncsi_netlink_CXXFLAGS = -flto
+ 
++phosphor_garpcontrol_SOURCES = \
++		garp_control_main.cpp \
++		config_parser.cpp \
++		garp_control.cpp
+ 
+ phosphor_network_manager_SOURCES = \
+ 		ethernet_interface.cpp \
+@@ -100,6 +106,13 @@
+ 		$(PHOSPHOR_LOGGING_CFLAGS) \
+ 		-flto
+ 
++phosphor_garpcontrol_LDFLAGS = \
++		$(STDPLUS_LIBS) 
++
++phosphor_garpcontrol_CXXFLAGS = \
++		$(STDPLUS_CFLAGS) \
++		-pthread
++
+ if FEATURE_NIC_ETHTOOL
+ phosphor_network_manager_CXXFLAGS += -DNIC_SUPPORTS_ETHTOOL
+ endif
+diff -Naru a/network_config.cpp b/network_config.cpp
+--- a/network_config.cpp	2021-05-02 00:24:30.110100793 -0400
++++ b/network_config.cpp	2021-05-02 04:29:16.321193277 -0400
+@@ -28,6 +28,16 @@
+                 "[DHCP]\nClientIdentifier=mac\n";
+     filestream.close();
+ }
++void writeARPControlDefault(const std::string& filename)
++{
++    std::ofstream filestream;
++
++    filestream.open(filename);
++    filestream << "[ARP_Response]\nEnabled=true"
++                "\n[GARP]\nEnable=false\n"
++                "Interval=2000\n";
++    filestream.close();
++}
+ } // namespace bmc
+ 
+ } // namespace network
+diff -Naru a/network_config.hpp b/network_config.hpp
+--- a/network_config.hpp	2021-05-02 00:24:19.765559317 -0400
++++ b/network_config.hpp	2021-05-02 00:28:56.428037794 -0400
+@@ -9,6 +9,7 @@
+ {
+ void writeDHCPDefault(const std::string& filename,
+                       const std::string& interface);
++void writeARPControlDefault(const std::string& filename);
+ }
+ 
+ } // namespace network
+diff -Naru a/network_manager.cpp b/network_manager.cpp
+--- a/network_manager.cpp	2021-05-01 12:04:52.606008903 -0400
++++ b/network_manager.cpp	2021-05-05 04:27:34.834430429 -0400
+@@ -25,6 +25,7 @@
+ constexpr char SYSTEMD_PATH[] = "/org/freedesktop/systemd1";
+ constexpr char SYSTEMD_INTERFACE[] = "org.freedesktop.systemd1.Manager";
+ constexpr auto FirstBootFile = "/var/lib/network/firstBoot_";
++constexpr char ARPCONTROL_CONF_DIR[] = "/etc/arpcontrol";
+ 
+ namespace phosphor
+ {
+@@ -101,6 +102,62 @@
+     }
+     return isCreated;
+ }
++bool Manager::createDefaultARPControlFiles(bool force)
++{
++    auto isCreated = false;
++    try
++    {
++        // Directory would have created before with
++        // setConfDir function.
++        if (force)
++        {
++            // Factory Reset case
++            // we need to forcefully write the files
++            // so delete the existing ones.
++            if (fs::is_directory(arpConfDir))
++            {
++                for (const auto& file : fs::directory_iterator(arpConfDir))
++                {
++                    fs::remove(file.path());
++                }
++            }
++        }
++
++        auto interfaceStrList = getInterfaces();
++        for (const auto& interface : interfaceStrList)
++        {
++            // if the interface has '.' in the name, it means that this is a
++            // VLAN - don't create the network file.
++            if (interface.find(".") != std::string::npos)
++            {
++                continue;
++            }
++
++            auto fileName = phosphor::network::arpPrefix + 
++                                   interface + phosphor::network::arpSurffix;
++
++            fs::path filePath = arpConfDir;
++            filePath /= fileName;
++
++            // create the interface specific network file
++            // if not exist or we forcefully wants to write
++            // the network file.
++
++            if (force || !fs::is_regular_file(filePath.string()))
++            {
++                bmc::writeARPControlDefault(filePath.string());
++                log<level::INFO>("Created the default ARP Control file.",
++                                 entry("INTERFACE=%s", interface.c_str()));
++                isCreated = true;
++            }
++        }
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>("Unable to create the default ARP Control file");
++    }
++    return isCreated;
++}
+ 
+ bool Manager::createVlanPriorityScript()
+ {
+@@ -171,6 +228,19 @@
+             elog<InternalFailure>();
+         }
+     }
++
++    fs::path arpDir(ARPCONTROL_CONF_DIR);
++    arpConfDir = arpDir;
++
++    if (!fs::exists(arpConfDir))
++    {
++        if (!fs::create_directories(arpConfDir))
++        {
++            log<level::ERR>("Unable to create the arpcontrol conf dir",
++                            entry("DIR=%s", arpConfDir.c_str()));
++            elog<InternalFailure>();
++        }
++    }
+ }
+ 
+ void Manager::createInterfaces()
+@@ -249,6 +319,11 @@
+         return;
+         // TODO: openbmc/openbmc#1721 - Log ResetFailed error here.
+     }
++    if (!createDefaultARPControlFiles(true))
++    {
++        log<level::ERR>("Network ARP Control Factory Reset failed.");
++        return;
++    }
+     if(!createVlanPriorityFile())
+     {
+         log<level::ERR>("Failed to create Vlan Configuration files.");
+diff -Naru a/network_manager.hpp b/network_manager.hpp
+--- a/network_manager.hpp	2021-05-01 12:13:58.254789717 -0400
++++ b/network_manager.hpp	2021-05-02 00:41:58.220879931 -0400
+@@ -91,6 +91,13 @@
+         return confDir;
+     }
+ 
++    /** @brief gets the arp control conf directory.
++     */
++    fs::path getARPConfDir()
++    {
++        return arpConfDir;
++    }
++
+     /** @brief gets the system conf object.
+      *
+      */
+@@ -116,6 +123,8 @@
+      */
+     bool createDefaultNetworkFiles(bool force);
+ 
++    bool createDefaultARPControlFiles(bool force);
++
+     bool createVlanPriorityFile();
+ 
+     bool createVlanPriorityScript();
+@@ -183,6 +192,9 @@
+ 
+     /** @brief Network Configuration directory. */
+     fs::path confDir;
++
++    /** @brief ARP Control Configuration directory. */
++    fs::path arpConfDir;
+ };
+ 
+ } // namespace network
+diff -Naru a/network_manager_main.cpp b/network_manager_main.cpp
+--- a/network_manager_main.cpp	2021-05-02 00:42:20.510040549 -0400
++++ b/network_manager_main.cpp	2021-05-03 02:08:48.679903201 -0400
+@@ -323,7 +323,7 @@
+     phosphor::network::manager->writeToConfigurationFile();
+     // whenever the configuration file gets written it restart
+     // the network which creates the network objects
+-
++    phosphor::network::manager->createDefaultARPControlFiles(false);
+     // RtnetLink socket
+     phosphor::Descriptor smartSock;
+     createNetLinkSocket(smartSock);
+diff -Naru a/util.hpp b/util.hpp
+--- a/util.hpp	2021-04-30 13:25:58.673780129 -0400
++++ b/util.hpp	2021-05-02 00:33:27.138200164 -0400
+@@ -28,6 +28,8 @@
+ constexpr auto IPV6_MAX_PREFIX_LENGTH = 64;
+ constexpr auto IPV4_PREFIX = "169.254";
+ constexpr auto IPV6_PREFIX = "fe80";
++constexpr auto arpPrefix = "00-bmc-arpcontrol-";
++constexpr auto arpSurffix = ".conf";
+ 
+ namespace mac_address
+ {
+diff -Naru a/xyz.openbmc_project.GARPControl.service.in b/xyz.openbmc_project.GARPControl.service.in
+--- a/xyz.openbmc_project.GARPControl.service.in	1969-12-31 19:00:00.000000000 -0500
++++ b/xyz.openbmc_project.GARPControl.service.in	2021-05-03 02:01:35.921240701 -0400
+@@ -0,0 +1,9 @@
++[Unit]
++Description=Phosphor GARP Control
++After=systemd-networkd.service xyz.openbmc_project.Network.service 
++[Service]
++ExecStart=/usr/bin/env phosphor-garpcontrol
++SyslogIdentifier=phosphor-garpcontrol
++
++[Install]
++WantedBy=@SYSTEMD_TARGET@

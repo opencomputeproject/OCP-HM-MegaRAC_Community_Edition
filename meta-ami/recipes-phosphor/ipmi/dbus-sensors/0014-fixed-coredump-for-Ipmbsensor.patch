@@ -1,0 +1,26 @@
+--- a/src/IpmbSensor.cpp	2021-10-22 18:10:13.133313685 +0530
++++ b/src/IpmbSensor.cpp	2021-10-22 18:11:37.157165429 +0530
+@@ -406,11 +406,21 @@
+                     std::string name =
+                         loadVariant<std::string>(entry.second, "Name");
+ 
+-		    std::string sensorUnit =
++                std::string sensorUnit;
++	        uint16_t EvStat;	
++	       	try
++	          {	
++		     sensorUnit =
+                         loadVariant<std::string>(entry.second, "Unit");
+ 
+-		   uint16_t EvStat = 
++		    EvStat = 
+ 			   loadVariant<uint16_t>(entry.second, "EvStat");
++		  }
++	        catch (std::invalid_argument&)
++                  {
++                    std::cerr << "SDR Configuration Misssing for IpmbSensor \n";
++                    continue;
++                  }
+ 
+        		   struct sdr::SdrRecord sdrRecord;
+                    if( !parseSdrRecordFromConfig(pathPair.second,sdrRecord))

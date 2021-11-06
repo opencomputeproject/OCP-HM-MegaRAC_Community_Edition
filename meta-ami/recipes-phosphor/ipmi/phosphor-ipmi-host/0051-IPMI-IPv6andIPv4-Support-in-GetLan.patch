@@ -1,0 +1,58 @@
+--- a/transporthandler.cpp	2021-04-12 03:57:40.301312610 -0400
++++ b/transporthandler.cpp	2021-04-12 05:34:03.258846562 -0400
+@@ -37,6 +37,9 @@
+ #include <xyz/openbmc_project/Network/IP/server.hpp>
+ #include <xyz/openbmc_project/Network/Neighbor/server.hpp>
+ 
++#define CONFIG_IPV6     "CONFIG_IPV6=y\n"
++#define SHELL_COMMAND   "zcat /proc/config.gz | grep -w CONFIG_IPV6"
++
+ using phosphor::logging::commit;
+ using phosphor::logging::elog;
+ using phosphor::logging::entry;
+@@ -1386,6 +1389,33 @@
+     return true;
+ }
+ 
++/** @brief Performs the configuration check and return the result
++ *
++ *  @param[in] cmd        - The shell command for extract config
++ *  @param[in] configName - The  name of the config for lookups
++ *  @return 1 if config is valid else retun 0.
++ */
++auto configLookup(const std::string &cmd, const std::string &configName)
++{
++    auto pPipe = ::popen(cmd.c_str(), "r");
++    if (pPipe == nullptr)
++    {
++        log<level::ERR>("popen failed in configLookup()");
++        return 0;
++    }
++
++    std::array<char, 256> buffer;
++    std::string result = "";
++    while (not std::feof(pPipe))
++    {
++        auto bytes = std::fread(buffer.data(), 1, buffer.size(), pPipe);
++        result.append(buffer.data(), bytes);
++    }
++    ::pclose(pPipe);
++
++    return ((result.compare(configName)==0)?1:0);
++}
++
+ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                  uint8_t parameter, message::Payload& req)
+ {
+@@ -2053,9 +2083,9 @@
+         case LanParam::IPFamilySupport:
+         {
+             std::bitset<8> support;
+-            support[IPFamilySupportFlag::IPv6Only] = 0;
++            support[IPFamilySupportFlag::IPv6Only] = configLookup(SHELL_COMMAND, CONFIG_IPV6);
+             support[IPFamilySupportFlag::DualStack] = 1;
+-            support[IPFamilySupportFlag::IPv6Alerts] = 1;
++            support[IPFamilySupportFlag::IPv6Alerts] = 0;
+             ret.pack(support);
+             return responseSuccess(std::move(ret));
+         }

@@ -1,0 +1,719 @@
+diff -Naur a/app/common/directives/firmware-list.html b/app/common/directives/firmware-list.html
+--- a/app/common/directives/firmware-list.html	2021-06-19 02:56:57.383956320 +0530
++++ b/app/common/directives/firmware-list.html	2021-06-19 02:58:58.035751188 +0530
+@@ -51,8 +51,9 @@
+         </div>
+         <div class="table__cell firmware__action">
+             <span class="table__cell-label">Action:</span>
+-            <button class="firmware__action-link" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready' || firmware.activationStatus == 'Failed'" ng-click="activate(firmware.imageId, firmware.Version, firmware.imageType)">Activate</button>
+-            <button class="firmware__action-link" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready'" ng-click="delete(firmware.imageId, firmware.Version)" ng-hide="firmware.activationStatus == 'Active' || firmware.activationStatus == 'Functional'">Delete</button>
++            <button class="" ng-class="{'firmware__action-link': !dataService.isNotAdmin()}" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready' || firmware.activationStatus == 'Failed'" ng-click="activate(firmware.imageId, firmware.Version, firmware.imageType)">Activate</button>
++
++            <button class="" ng-class="{'firmware__action-link': !dataService.isNotAdmin()}" ng-disabled="dataService.isNotAdmin()" ng-show="firmware.activationStatus == 'Ready'" ng-click="delete(firmware.imageId, firmware.Version)" ng-hide="firmware.activationStatus == 'Active' || firmware.activationStatus == 'Functional'">Delete</button>
+         </div>
+       </div>
+     </div>
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-19 02:56:57.383956320 +0530
++++ b/app/common/services/api-utils.js	2021-06-19 03:01:17.295528009 +0530
+@@ -9,8 +9,8 @@
+ window.angular && (function(angular) {
+   'use strict';
+   angular.module('app.common.services').factory('APIUtils', [
+-    '$http', '$cookies', 'Constants', '$q', 'dataService', '$interval','$location',
+-    function($http, $cookies, Constants, $q, DataService, $interval, $location) {
++    '$http', '$cookies', 'Constants', '$q', 'dataService', '$timeout', '$interval','$location',
++    function($http, $cookies, Constants, $q, DataService, $timeout, $interval, $location) {
+       var poll_interval;
+       var SERVICE = {
+         API_CREDENTIALS: Constants.API_CREDENTIALS,
+@@ -528,6 +528,47 @@
+                 return response.data;
+               });
+         },
++        setVLANIPAddress_source: function(method, url, data){
++          return $http({
++            method: method,
++            url: DataService.getHost() + url,
++            withCredentials: true,
++            data: JSON.stringify(data)
++          })
++          .then(function(response) {
++            return response.data;
++          });
++        },
++        setNCSIClearInitState: function(interface_to_update){
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/NCSIClearInitState',
++            data: JSON.stringify({"data": []}),
++            withCredentials: true,
++          }).then(function(response){
++            return response.data;
++          });
++        },
++        SetVlanFilter: function(interface_to_update, vlan_id){
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/SetVlanFilter',
++            data: JSON.stringify({"data": [vlan_id,0,1,1]}),
++            withCredentials: true,
++          }).then(function(response){
++            return response.data;
++          });
++        },
++        EnableVLAN_API: function(interface_to_update){
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/EnableVLAN',
++            data: JSON.stringify({"data": [3]}),
++            withCredentials: true,
++          }).then(function(response){
++            return response.data;
++          });
++        },
+         setDHCPEnabled: function(interfaceName, dhcpEnabled) {
+           return $http({
+                    method: 'PUT',
+@@ -1012,25 +1053,27 @@
+         },
+         hostPowerOn: function() {
+           var deferred = $q.defer();
+-          $http({
+-            method: 'PUT',
+-            url: DataService.getHost() +
+-                '/xyz/openbmc_project/state/host0/attr/RequestedHostTransition',
+-            withCredentials: true,
+-            data: JSON.stringify(
++          $timeout(function(){
++            $http({
++              method: 'PUT',
++              url: DataService.getHost() +
++              '/xyz/openbmc_project/state/host0/attr/RequestedHostTransition',
++              withCredentials: true,
++              data: JSON.stringify(
+                 {'data': 'xyz.openbmc_project.State.Host.Transition.On'})
+-          })
++              })
+               .then(
+-                  function(response) {
+-                    var json = JSON.stringify(response.data);
+-                    var content = JSON.parse(json);
+-                    deferred.resolve(content.status);
+-                  },
+-                  function(error) {
+-                    console.log(error);
+-                    deferred.reject(error);
+-                  });
+-          return deferred.promise;
++                function(response) {
++                  var json = JSON.stringify(response.data);
++                  var content = JSON.parse(json);
++                  deferred.resolve(content.status);
++                },
++                function(error) {
++                  console.log(error);
++                  deferred.reject(error);
++                });
++                return deferred.promise;
++          }, 25000);
+         },
+         hostPowerOff: function() {
+           var deferred = $q.defer();
+@@ -1530,12 +1573,11 @@
+           // for the system interface.
+           return $http({
+                    method: 'GET',
+-                   url: DataService.getHost() +
+-                       '/xyz/openbmc_project/inventory/system',
++		   url: DataService.getHost() + '/redfish/v1/Systems/system',
+                    withCredentials: true
+                  })
+               .then(function(response) {
+-                return response.data;
++                return response;
+               });
+         },
+         getBMCTime: function() {
+@@ -2252,30 +2294,12 @@
+         getSensorNumbers: function(callback){
+           $http({
+             method: 'POST',
+-            url: DataService.getHost() + '/xyz/openbmc_project/object_mapper/action/GetSubTree',
+-            data: JSON.stringify({"data": ["/xyz/openbmc_project/sensors", 2, ["xyz.openbmc_project.Sensor.Value", "xyz.openbmc_project.Sensor.Threshold.Warning", "xyz.openbmc_project.Sensor.Threshold.Critical"]]})
++            url: DataService.getHost() + '/xyz/openbmc_project/pef/alerting/SensorNumber/action/GetSensorName',
++            data: JSON.stringify({"data": []})
+           }).then(function(response){
+             var data = response.data;
+             var sensor_data = data.data;
+-            var sensors_with_numbers = [];
+-            var idx = 0;
+-            for(var i in sensor_data){
+-              var temp = {};
+-              var s_name = i.split('/').pop()
+-
+-              s_name = s_name.split('_').map(function(item) {
+-                return item.toLowerCase().charAt(0).toUpperCase() + item.slice(1);
+-              })
+-              .reduce(function(prev, el) {
+-                return prev + ' ' + el;
+-              });
+-
+-              temp['sensor_name'] = s_name;
+-              temp['sensor_ID'] = idx;
+-              sensors_with_numbers.push(temp);
+-              idx++;
+-            }
+-            callback(sensors_with_numbers);
++            callback(sensor_data);
+           });
+         },
+ 
+@@ -2285,6 +2309,13 @@
+             url: DataService.getHost() + '/xyz/openbmc_project/PefAlertManager/EventFilterTable/Entry'+Entry+'/attr/'+attr,
+             data: JSON.stringify({'data': attr_data})
+           });
++        },
++        SaveEventFilterSensor: function(data){
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() + '/xyz/openbmc_project/pef/alerting/SensorNumber/action/SetSensorNumber',
++            data: JSON.stringify({'data': data})
++          });
+         }
+       };
+       return SERVICE;
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-06-19 02:56:57.383956320 +0530
++++ b/app/common/services/dataService.js	2021-06-19 03:01:23.707518027 +0530
+@@ -26,6 +26,7 @@
+       this.bodyStyle = {};
+       this.navStyle = {};
+       this.path = '';
++      this.f_model = '';
+ 
+       this.hostname = '';
+       this.mac_address = '';
+diff -Naur a/app/configuration/controllers/date-time-controller.html b/app/configuration/controllers/date-time-controller.html
+--- a/app/configuration/controllers/date-time-controller.html	2021-06-19 02:56:57.383956320 +0530
++++ b/app/configuration/controllers/date-time-controller.html	2021-06-19 03:02:02.331458372 +0530
+@@ -36,8 +36,7 @@
+           <li class="date-time__metadata-block">
+             <p class="content-label">BMC <span ng-if="time.owner != 'Split'">and Host</span> Time</p>
+             <div class="inline">
+-              <input type="date" ng-model="bmc.date" name="manual_date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="{{min_max.min_date}}" max="{{min_max.max_date}}"/>
+-              <input type="time" ng-model="bmc.date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()"/>
++              <input type="datetime-local" ng-model="bmc.date" name="manual_date" ng-readonly="time.mode == 'NTP' || dataService.isNotAdmin()" min="{{min_max.min_date}}" max="{{min_max.max_date}}"/>
+               <p class="courier-bold">{{bmc.timezone}}</p>
+             </div>
+             <br/>
+diff -Naur a/app/configuration/controllers/date-time-controller.js b/app/configuration/controllers/date-time-controller.js
+--- a/app/configuration/controllers/date-time-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/configuration/controllers/date-time-controller.js	2021-06-19 03:02:19.095432728 +0530
+@@ -21,8 +21,8 @@
+       // https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/xyz/openbmc_project/Time/Owner.interface.yaml#L13
+       $scope.timeOwners = ['BMC', 'Host', 'Both', 'Split'];
+       $scope.min_max = {
+-        "min_date" : "2018-01-01",
+-        "max_date" : "2038-01-01"
++        "min_date" : "2018-01-01T00:00:00",
++        "max_date" : "2037-12-31T23:59:59"
+       };
+       $scope.loading = true;
+       var timePath = '/xyz/openbmc_project/time/';
+@@ -209,7 +209,7 @@
+       };
+ 
+       $scope.validateNTPField = (function(){
+-        var spl_chr_check = /[`!@#$%^&*()_+=\[\]{};':"\\|,<>\/?~]/;
++        var spl_chr_check = /[`!@#$%^&*()_+=\[\]{};':"\\|,<>\/?~ ]/;
+         var ntp_reg_check1 = /^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|([a-zA-Z0-9][a-zA-Z0-9-_]{1,61}[a-zA-Z0-9]))(.*\.)?.*\.([a-zA-Z]{2,6}|[a-zA-Z0-9-]{2,30}\.[a-zA-Z]{2,3})$/;
+         var ntp_reg_check2 = /((^\s*((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))\s*$)|(^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$))/;
+         return {
+diff -Naur a/app/configuration/controllers/event-filter-controller.js b/app/configuration/controllers/event-filter-controller.js
+--- a/app/configuration/controllers/event-filter-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/configuration/controllers/event-filter-controller.js	2021-06-19 03:03:40.515310132 +0530
+@@ -52,20 +52,23 @@
+           });
+ 
+           var get_Sensor_data = APIUtils.getAllSensorStatus(function(data, originalData) {
+-                $scope.sensor_type_arr = ['All Sensors'];
+-                $scope.sensor_name_arr = ["All Sensors"];
++                $scope.sensor_type_arr = ['all_sensors'];
++                $scope.sensor_name_arr = ['all_sensors'];
+                 $scope.all_sensor_name_arr = [];
+                 $scope.sensor_data_arr = [];
+                 for(var i in data){
+                     var s_obj = {};
+                     var sensor_type_name = data[i].path.split('/')[4];
++                    var sensor_org_name = data[i].path.split('/').pop();
+                     s_obj['sensor_type_name'] = sensor_type_name;
+                     s_obj['sensor_type'] = data[i].SensorType;
+-                    s_obj['sensor_name'] = data[i].title;
++                    s_obj['sensor_name'] = sensor_org_name;
++                    // s_obj['sensor_name'] = data[i].title;
+                     if($scope.sensor_type_arr.indexOf(sensor_type_name) == -1){
+                         $scope.sensor_type_arr.push(sensor_type_name);
+                     }
+-                    $scope.sensor_name_arr.push(data[i].title);
++                    // $scope.sensor_name_arr.push(data[i].title);
++                    $scope.sensor_name_arr.push(sensor_org_name);
+                     $scope.sensor_data_arr.push(s_obj);
+                 }
+                 $scope.all_sensor_name_arr = JSON.parse(JSON.stringify($scope.sensor_name_arr));
+@@ -73,12 +76,12 @@
+           });
+ 
+           $scope.change_sensor_type = function(sen_type, index){
+-            console.log('sen_type',sen_type);
++
+               var selected_sensor_type = '';
+               // Empty the sensor array
+               $scope.event_filter_table[index].custom_sensor_name_array = [];
+ 
+-              if(sen_type == 'All Sensors'){
++              if(sen_type == 'all_sensors'){
+                 $scope.event_filter_table[index].custom_sensor_name_array = $scope.all_sensor_name_arr;
+                 $scope.event_filter_table[index].SensorType = 255;
+                 return;
+@@ -91,34 +94,32 @@
+                     $scope.event_filter_table[index].custom_sensor_name_array.push($scope.sensor_data_arr[i].sensor_name);
+                   }
+               }
+-              console.log($scope.event_filter_table[index].custom_sensor_name_array);
+-              console.log($scope.event_filter_table[index]);
++
+               $scope.event_filter_table[index].SensorType = selected_sensor_type;
+           }
+ 
+           $scope.add_selected_sensor = function(sensor_name, index){
+-            console.log('sensor_name', sensor_name, index);
+-            if(sensor_name == 'All Sensors'){
+-              $scope.event_filter_table[index].SensorNum = 255;
+-              return;
+-            }
+-            for(var i in $scope.sensor_name_with_ID){
+-              if($scope.sensor_name_with_ID[i].sensor_name == sensor_name){
+-                console.log($scope.sensor_name_with_ID[i]);
+-                $scope.event_filter_table[index].SensorNum = $scope.sensor_name_with_ID[i].sensor_ID;
+-              }
+-            }
++            console.log('sensor_name', index);
++            // if(sensor_name == 'All Sensors'){
++            //   $scope.event_filter_table[index].SensorNum = 255;
++            //   return;
++            // }
++            // for(var i in $scope.sensor_name_with_ID){
++            //   if($scope.sensor_name_with_ID[i].sensor_name == sensor_name){
++            //     console.log($scope.sensor_name_with_ID[i]);
++            //     $scope.event_filter_table[index].SensorNum = $scope.sensor_name_with_ID[i].sensor_ID;
++            //   }
++            // }
+           }
+ 
+ 
+           $scope.saveEventFilterData = function(data){
+             $scope.loading = true;
+             var promises = [];
+-            console.log('data', data);
++
+             var entry_num = data.custom_entry;
+             for(var i in data){
+               if(i.indexOf('custom_') == -1 && i.indexOf('$$') == -1){
+-                // console.log(entry_num, i, data[i]);
+ 
+                 if(i == 'EventSeverity'){
+                   var att = $scope.severity_send[data.custom_EventSeverity];
+@@ -136,6 +137,25 @@
+                   promises.push(CallsaveEventFilterDataAPI(entry_num, i, att));
+                   continue;
+                 }
++                if(i == 'SensorNum'){
++                  var sensor_data_to_update = [];
++                  sensor_data_to_update.push(entry_num);
++
++                  if(data.custom_sensor_name == 'all_sensors'){
++                    sensor_data_to_update.push('all_sensors');
++                    sensor_data_to_update.push('all_sensors');  
++                  }else{
++                    for(var i in $scope.sensor_data_arr){
++                      if($scope.sensor_data_arr[i].sensor_name == data.custom_sensor_name){
++                        sensor_data_to_update.push($scope.sensor_data_arr[i].sensor_type_name);
++                        sensor_data_to_update.push($scope.sensor_data_arr[i].sensor_name);
++                        break;
++                      }
++                    }
++                  }
++                  promises.push(CallSaveSensorDetailsAPI(sensor_data_to_update));
++                  continue;
++                }
+                 promises.push(CallsaveEventFilterDataAPI(entry_num, i, data[i]));
+               }
+             }
+@@ -150,11 +170,17 @@
+                 toastService.error('Event Filter Settings could not be saved');
+               });
+             }
+-            // console.log('save data', data);
++          }
++
++          function CallSaveSensorDetailsAPI(data){
++            return APIUtils.SaveEventFilterSensor(data).then(function(){},
++              function(error){
++                console.log(JSON.stringify(error));
++                return $q.reject();
++            });
+           }
+ 
+           function CallsaveEventFilterDataAPI(Entry, attr, attr_data){
+-            console.log("calling", Entry, attr, attr_data);
+             return APIUtils.SaveEventFilterData(Entry, attr, attr_data).then(function(){},
+             function(error){
+               console.log(JSON.stringify(error));
+@@ -163,18 +189,12 @@
+           }
+ 
+           function get_sensor_name(SensorNum){
+-            if(SensorNum == 255){ return 'All Sensors'; }
+-
+-            for(var i in $scope.sensor_name_with_ID){
+-              if($scope.sensor_name_with_ID[i].sensor_ID == SensorNum){
+-                return $scope.sensor_name_with_ID[i].sensor_name;
+-              }
+-            }
++            if(SensorNum == 'all_sensors'){ return 'all_sensors'; }
++            return $scope.sensor_name_with_ID[SensorNum];
+           }
+ 
+           function get_sensor_type_name(SensorType){
+-            // console.log('sensor_name_with_ID', $scope.sensor_data_arr);
+-            if(SensorType == 255){ return 'All Sensors'; }
++            if(SensorType == 255){ return 'all_sensors'; }
+ 
+             for(var i in $scope.sensor_data_arr){
+               if($scope.sensor_data_arr[i].sensor_type == SensorType){
+@@ -194,10 +214,8 @@
+           }
+ 
+           function getFilterConfigdata(data){
+-            console.log('getFilterConfigdata', data);
+             var tmp = (data >> 7);
+             tmp = tmp & 0x01;
+-            console.log('tmp', tmp);
+             return tmp;
+           }
+ 
+@@ -213,8 +231,7 @@
+                 var response_data = response.data;
+                 var event_filter_data = response_data.data;
+                 $scope.event_filter_table = [];
+-                // console.log('$scope.sensor_type_arr', $scope.sensor_type_arr);
+-                // console.log('$scope.sensor_name_arr', $scope.sensor_name_arr);
++
+                 var i = 0;
+                 for(var key in event_filter_data){
+                     if(key.match(/EventFilterTable\/Entry\d+(_\d+)?$/ig)){
+@@ -222,7 +239,8 @@
+                         var entry_num = entry.split('Entry').pop();
+                         event_filter_data[key]['custom_entry'] = parseInt(entry_num);
+                         event_filter_data[key]['custom_index_for_update'] = i;
+-                        event_filter_data[key]['custom_sensor_name'] = get_sensor_name(event_filter_data[key].SensorNum);
++                        // event_filter_data[key]['custom_sensor_name'] = get_sensor_name(event_filter_data[key].SensorNum);
++                        event_filter_data[key]['custom_sensor_name'] = get_sensor_name(entry_num-1);
+                         event_filter_data[key]['custom_sensor_type_name'] = get_sensor_type_name(event_filter_data[key].SensorType);
+                         event_filter_data[key]['custom_sensor_type_array'] = $scope.sensor_type_arr;
+                         event_filter_data[key]['custom_sensor_name_array'] = $scope.sensor_name_arr;
+@@ -236,7 +254,6 @@
+                     }
+                   i++;
+                 }
+-                console.log('get event filter', $scope.event_filter_table);
+               },
+               function(error){
+                 $scope.loading = false;
+@@ -247,4 +264,4 @@
+       }
+     ]);
+   })(angular);
+-  
+\ No newline at end of file
++  
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-06-19 03:04:20.319251283 +0530
+@@ -186,18 +186,18 @@
+       <div class="net-config__fieldset-content column small-12 large-12">
+         <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN Interface</label>
+-              <input id="net-config__host" type="text" ng-disabled="true" ng-model="VLANInterfaces" />
++              <input id="net-config__host" ng-disabled="dataService.isNotAdmin()" type="text" ng-disabled="true" ng-model="VLANInterfaces" />
+           </div>
+           <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN ID</label>
+-              <input id="net-config__host" type="number" min="0" max="4094" ng-model="vlan.id" />
++              <input id="net-config__host" ng-disabled="dataService.isNotAdmin()" type="number" min="0" max="4094" ng-model="vlan.id" />
+           </div>
+           <div class="column small-12 large-3">
+               <label for="net-config__domain">VLAN Priority</label>
+-              <input id="net-config__domain" type="number" min="0" max="7" ng-model="vlan.vlan_priority" />
++              <input id="net-config__domain" ng-disabled="dataService.isNotAdmin()" type="number" min="0" max="7" ng-model="vlan.vlan_priority" />
+           </div>
+           <div class="column small-12 large-3 pd_top35" ng-show="delete_VLAN_flag">
+-            <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="deleteVLAN(VLANInterfaces)">Remove</button>
++            <button type="button" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  network-config_remove-button" ng-click="deleteVLAN(VLANInterfaces)">Remove</button>
+           </div>
+       </div>
+     </fieldset>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-06-19 03:04:53.831202233 +0530
+@@ -714,21 +714,65 @@
+         }
+       };
+ 
++      function updateVLAN_IP_Address_source(intfc){
++
++        var check_intf = intfc.split('_')[0];
++
++        if($scope.network.interfaces[check_intf].DHCPEnabled){
++          var data = {};
++          var url = '/xyz/openbmc_project/network/' + intfc + '/attr/DHCPEnabled';
++          data.data = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
++          var method = 'PUT';
++        }
++
++        if(!$scope.network.interfaces[check_intf].DHCPEnabled){
++          var data = {};
++          data.data = [];
++          var method = 'POST';
++          var ip_address = $scope.network.interfaces[check_intf].ipv4.values[0].Address;
++          var PrefixLength = $scope.network.interfaces[check_intf].ipv4.values[0].PrefixLength;
++          var Gateway = $scope.network.interfaces[check_intf].ipv4.values[0].Gateway;
++          data.data.push('xyz.openbmc_project.Network.IP.Protocol.IPv4');
++          data.data.push(ip_address);
++          data.data.push(PrefixLength);
++          data.data.push(Gateway);
++          var url = '/xyz/openbmc_project/network/' + intfc + '/action/IP';
++        }
++        APIUtils.setVLANIPAddress_source(method, url, data);
++      }
++
++      function get_Dynamic_ipaddress(intfc){
++        var id = intfc.split('_').pop();
++        id = parseInt(id);
++        APIUtils.setNCSIClearInitState(intfc).then(function(){
++          APIUtils.SetVlanFilter(intfc, id).then(function(){
++            APIUtils.EnableVLAN_API(intfc);
++          });
++        });
++      }
++
+       function setVLAN(data) {
+         return APIUtils.setVLAN(data).then(
+             function(response) {
+               if($scope.vlan.vlan_priority >= 0){
+                 var tmp_intf_val = response.data.split("/").pop();
++
+                 var vlan_priority_data = {};
+                 vlan_priority_data.data = parseInt($scope.vlan.vlan_priority);
+                 $timeout(function(){
+                   call_setVLANPriority(vlan_priority_data, tmp_intf_val);
+-                },25000);
++                  updateVLAN_IP_Address_source(tmp_intf_val);
++
++                  if(dataService.f_model == 'Vulcancity'){
++                    get_Dynamic_ipaddress(tmp_intf_val);
++                  }
++
++                },28000);
+               }
+             },
+             function(error) {
+-                console.log(error);
+-                return $q.reject();
++              console.log(error);
++              return $q.reject();
+             }
+         );
+       }
+diff -Naur a/app/overview/controllers/system-overview-controller.html b/app/overview/controllers/system-overview-controller.html
+--- a/app/overview/controllers/system-overview-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/overview/controllers/system-overview-controller.html	2021-06-19 03:05:07.463182403 +0530
+@@ -212,7 +212,7 @@
+       <form name="edit_hostname_text">
+         <label for="editServerName">Hostname</label>
+         <p class="label__helper-text">
+-          Hostname must be less than 57 characters and must not contain spaces and any special characters.
++          Hostname must be less than 57 characters and must not contain spaces and any special characters except hyphen.
+         </p>
+         <input id="editServerName" class="modal__edit-server-name" type="text" ng-model="newHostname" ng-trim="false"
+         name="hostname" ng-pattern="validateHostnameinOverview" required autofocus />
+diff -Naur a/app/overview/controllers/system-overview-controller.js b/app/overview/controllers/system-overview-controller.js
+--- a/app/overview/controllers/system-overview-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/overview/controllers/system-overview-controller.js	2021-06-19 03:05:17.203168277 +0530
+@@ -74,6 +74,7 @@
+         var getServerInfoPromise = APIUtils.getServerInfo().then(
+             function(data) {
+               $scope.server_info = data.data;
++              dataService.f_model = $scope.server_info.Model;
+             },
+             function(error) {
+               console.log(JSON.stringify(error));
+diff -Naur a/app/server-control/controllers/power-operations-controller.js b/app/server-control/controllers/power-operations-controller.js
+--- a/app/server-control/controllers/power-operations-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-control/controllers/power-operations-controller.js	2021-06-19 03:06:01.859103943 +0530
+@@ -111,6 +111,7 @@
+                   Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
+             })
+             .then(() => {
++              toastService.info('Performing Power Operation.. Please wait few seconds.');
+               return APIUtils.hostPowerOn();
+             })
+             .then(() => {
+diff -Naur a/app/server-control/controllers/virtual-media-controller.html b/app/server-control/controllers/virtual-media-controller.html
+--- a/app/server-control/controllers/virtual-media-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-control/controllers/virtual-media-controller.html	2021-06-19 03:06:20.111077842 +0530
+@@ -14,7 +14,7 @@
+           <!-- Button -->
+           <label class="vm__upload-choose-label">
+             <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive || dataService.isNotAdmin()" accept=".nrg,.iso,.ISO,.NRG"/>
+-            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:device.isActive}">Choose file</span>
++            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:(device.isActive || dataService.isNotAdmin())}">Choose file</span>
+           </label>
+           <div class="vm__upload-name">
+             <span ng-if="!device.file">No file selected</span>
+@@ -48,7 +48,7 @@
+           <!-- Button -->
+           <label class="vm__upload-choose-label">
+             <input id="hd-file-upload" type="file" file="hd_device.file" class="hide" ng-disabled="hd_device.isActive || dataService.isNotAdmin()" accept=".img,.ima,.IMG,.IMA"/>
+-            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:hd_device.isActive}">Choose file</span>
++            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:(hd_device.isActive || dataService.isNotAdmin())}">Choose file</span>
+           </label>
+           <div class="vm__upload-name">
+             <span ng-if="!hd_device.file">No file selected</span>
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.html b/app/server-health/controllers/inventory-overview-controller.html
+--- a/app/server-health/controllers/inventory-overview-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/controllers/inventory-overview-controller.html	2021-06-19 03:06:28.571065779 +0530
+@@ -6,7 +6,7 @@
+   <div class="row column">
+     <div class="page-header">
+       <h2 class="inline">All hardware in the system</h2>
+-      <a class="btn  btn-tertiary float-right" ng-if="hardwares.length && dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
++      <a class="btn  btn-tertiary float-right disable_style" ng-if="hardwares.length && dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
+       <a ng-href="data:text/json;charset=utf-8,{{originalData}}" class="btn  btn-tertiary float-right"  download="export_inventory.json" ng-if="hardwares.length && dataService.isNotAdmin() == false"><icon file="icon-export.svg"></icon>Export</a>
+     </div>
+   </div>
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.js b/app/server-health/controllers/inventory-overview-controller.js
+--- a/app/server-health/controllers/inventory-overview-controller.js	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/controllers/inventory-overview-controller.js	2021-06-19 03:06:48.871036922 +0530
+@@ -25,11 +25,33 @@
+         // $scope.loading = false;
+         get_sensor_details();
+       });
++      function camelcaseToLabel(obj, title) {
++              var transformed = [], label = '', value = '';
++              for (var key in obj) {
++                label = key.replace(/([A-Z0-9]+)/g, ' $1').replace(/^\s+/, '');
++                if (obj[key] !== '' && key != "path" && key != "original_data" && key != "Associations") {
++                  value = obj[key];
++                  if (value == 1 || value == 0) {
++                    value = (value == 1) ? 'Yes' : 'No';
++                  }
++                  if(label == "Name"){
++                    value = title;
++                  }
++                  if(label == "Unit" && value != null){
++                    value = value.split(".").pop();
++                  }
++                  transformed.push({key: label, value: value});
++        	}
++              }	
++
++      	      return transformed;
++      }
+       function get_sensor_details(){
+         APIUtils.getAllSensorStatus(function(sdata, originalData) {
+           $scope.sensor_data = sdata;
+ 
+           for (var each_sensor in $scope.sensor_data){
++            var inventory_match = 0;
+             for(var each_inventory_itm in $scope.hardwares){
+ 
+               var sensor_name = $scope.sensor_data[each_sensor].path.split("/").pop();
+@@ -45,8 +67,24 @@
+                     $scope.hardwares[each_inventory_itm].items[each_item].value = $scope.sensor_data[each_sensor].Value;
+                   }
+                 }
+-              }
++		inventory_match = 1;
++		break;
++	      }
+             }
++	    if(inventory_match == 0){
++ 	   	$scope.hardwares.push(Object.assign(
++            	{
++                	path: $scope.sensor_data[each_sensor].path,
++                	title: sensor_name,
++                	depth: "NA",
++                	parent: "NA",
++                	selected: false,
++                	expanded: false,
++                	search_text: sensor_name.toLowerCase(),
++                	sub_components: []
++
++             	 },{items: camelcaseToLabel($scope.sensor_data[each_sensor], $scope.sensor_data[each_sensor].path.split("/").pop())}));
++	     }
+           }
+           $scope.loading = false;
+         });
+diff -Naur a/app/server-health/controllers/log-controller.html b/app/server-health/controllers/log-controller.html
+--- a/app/server-health/controllers/log-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/controllers/log-controller.html	2021-06-19 03:06:57.275025014 +0530
+@@ -13,7 +13,8 @@
+       <h2 class="inline">All events from the BMC</h2>
+       <div class="event-log__timezone inline float-right">
+         <button class="dropdown__button" ng-disabled="dataService.isNotAdmin()" ng-click="timezone = timezone == true ? false : true;" toggle-flag="timezone">
+-          <span>{{tmz === 'UTC' ? 'UTC Timezone' : 'User Timezone'}}</span>
++          <span class="disable_style" ng-if="dataService.isNotAdmin()">{{tmz === 'UTC' ? 'UTC Timezone' : 'User Timezone'}}</span>
++          <span ng-if="!dataService.isNotAdmin()">{{tmz === 'UTC' ? 'UTC Timezone' : 'User Timezone'}}</span>
+         </button>
+         <ul class="dropdown__list inline" ng-show="timezone">
+           <li>
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.html b/app/server-health/controllers/sensors-overview-controller.html
+--- a/app/server-health/controllers/sensors-overview-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/controllers/sensors-overview-controller.html	2021-06-19 03:07:04.979014113 +0530
+@@ -3,7 +3,7 @@
+   <h1>Sensors</h1>
+   <div class="page-header">
+     <h2 class="inline">All sensors present in the system</h2>
+-    <a class="btn btn-tertiary float-right" ng-if="dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
++    <a class="btn btn-tertiary float-right disable_style" ng-if="dataService.isNotAdmin() == true"><icon file="icon-export.svg"></icon>Export</a>
+     <a ng-href="data:text/json;charset=utf-8,{{export_data}}" ng-if="dataService.isNotAdmin() == false" class="btn btn-tertiary float-right" download="{{export_name}}"><icon file="icon-export.svg"></icon>Export</a>
+   </div>
+ 
+diff -Naur a/app/server-health/controllers/syslog-controller.html b/app/server-health/controllers/syslog-controller.html
+--- a/app/server-health/controllers/syslog-controller.html	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/controllers/syslog-controller.html	2021-06-19 03:07:12.003004195 +0530
+@@ -13,7 +13,7 @@
+               </li>
+             </ul>
+           </div>
+-          <a class="inline btn-export float-right disabled" ng-if="sysLogs.length && dataService.isNotAdmin() == true">Export </a>
++          <a class="inline btn-export float-right disabled disable_style" ng-if="sysLogs.length && dataService.isNotAdmin() == true">Export </a>
+           <a ng-href="data:text/json;charset=utf-8,{{download_syslog}}" class="inline btn-export float-right"  download="systemLogs.json" ng-if="sysLogs.length && dataService.isNotAdmin() == false">Export </a>
+           <button class="inline clear-input float-right btn-secondary" ng-disabled="dataService.isNotAdmin()" ng-click="confirm = !confirm" ng-show="sysLogs.length">&#10005; Clear {{selectedRecordType}} Logs</button>
+           <div class="inline__confirm sys-log__confirm" ng-show="confirm">
+diff -Naur a/app/server-health/styles/log.scss b/app/server-health/styles/log.scss
+--- a/app/server-health/styles/log.scss	2021-06-19 02:56:57.387956314 +0530
++++ b/app/server-health/styles/log.scss	2021-06-19 03:07:27.322982601 +0530
+@@ -372,4 +372,10 @@
+     display: block;
+   }
+ }
++
++.disable_style{
++  color:gray;
++  pointer-events:none;
++  opacity:0.5;
++}
+ //end event-log__events

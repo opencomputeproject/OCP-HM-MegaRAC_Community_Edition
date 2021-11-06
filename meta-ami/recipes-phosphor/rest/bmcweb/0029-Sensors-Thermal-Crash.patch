@@ -1,0 +1,14 @@
+diff -Naur a/redfish-core/lib/sensors.hpp b/redfish-core/lib/sensors.hpp
+--- a/redfish-core/lib/sensors.hpp	2021-04-27 16:50:16.171913850 +0000
++++ b/redfish-core/lib/sensors.hpp	2021-04-27 16:43:20.712659638 +0000
+@@ -1351,7 +1351,9 @@
+                 {
+                     *value += std::to_string(count);
+                     count++;
+-                    SensorsAsyncResp->updateUri(sensorJson["Name"], *value);
++                    //SensorsAsyncResp->updateUri(sensorJson["Name"], *value);
++		    if(! (sensorJson["Name"].empty()))
++	                    SensorsAsyncResp->updateUri(sensorJson["Name"], *value);
+                 }
+             }
+         }

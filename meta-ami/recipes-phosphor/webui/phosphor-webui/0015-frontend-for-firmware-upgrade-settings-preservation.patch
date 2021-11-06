@@ -1,0 +1,211 @@
+From 790f93093378a91d0ba6fa515d224655c5c10927 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Tue, 16 Mar 2021 11:26:50 -0400
+Subject: [PATCH] frontend for firmware upgrade settings preservation
+
+---
+ .../firmware-settings-preserve.html           | 28 +++++++++++++++++
+ .../directives/firmware-settings-preserve.js  | 31 +++++++++++++++++++
+ app/common/services/api-utils.js              | 23 +++++++++++++-
+ .../controllers/firmware-controller.html      |  1 +
+ .../controllers/firmware-controller.js        | 20 ++++++++++++
+ app/configuration/styles/firmware.scss        | 15 +++++++++
+ app/index.js                                  |  1 +
+ 7 files changed, 118 insertions(+), 1 deletion(-)
+ create mode 100644 app/common/directives/firmware-settings-preserve.html
+ create mode 100644 app/common/directives/firmware-settings-preserve.js
+
+diff --git a/app/common/directives/firmware-settings-preserve.html b/app/common/directives/firmware-settings-preserve.html
+new file mode 100644
+index 0000000..2739d23
+--- /dev/null
++++ b/app/common/directives/firmware-settings-preserve.html
+@@ -0,0 +1,28 @@
++<div class="row column firmware__preserve">
++  <div class="column small-12 page-header">
++    <h2 class="inline bold">{{title}}</h2>
++  </div>
++  <form id="firmware-settings-preservation" name="firmwareSettingsPreservation" class="firmware-settings-preservation" novalidate>
++    <div class="align-self-center">
++      <div>
++        <label class="control-check"> <span class="inline firmware-checkbox">All</span>
++          <input type="checkbox"
++                 name="preserveAll"
++                 ng-model="preserveAll"/>
++          <span class="control__indicator"> </span>
++        </label>
++      </div>
++      <div ng-repeat="setting in preserve">
++        <label class="control-check"> <span class="inline firmware-checkbox">{{setting.name}}</span>
++          <input type="checkbox"
++               ng-disabled="preserveAll"
++               ng-model="setting.value"/>
++          <span class="control__indicator"> </span>
++        </label>
++      </div>
++      <button type="submit" class="btn btn-primary" ng-click="savePreservationSettings();firmwareSettingsPreservation.$setPristine()" ng-disabled="dataService.server_unreachable || firmwareSettingsPreservation.$pristine">
++        Save
++      </button>
++    </div>
++  </form>
++</div>
+diff --git a/app/common/directives/firmware-settings-preserve.js b/app/common/directives/firmware-settings-preserve.js
+new file mode 100644
+index 0000000..c927c11
+--- /dev/null
++++ b/app/common/directives/firmware-settings-preserve.js
+@@ -0,0 +1,31 @@
++window.angular && (function(angular) {
++  'use strict';
++
++  angular.module('app.common.directives').directive('firmwareSettingsPreserve', [
++    'APIUtils',
++    function(APIUtils) {
++      return {
++        'restrict': 'E',
++        'template': require('./firmware-settings-preserve.html'),
++        'scope':
++            {'title': '@', 'preserve': '=', 'preserveAll': '='},
++        'controller': [
++          '$scope',
++          function($scope) {
++            $scope.savePreservationSettings = function() {
++              if ($scope.firmwareSettingsPreservation.$dirty) {
++                $scope.preserve.forEach(function(setting) {
++                  if ($scope.preserveAll === true) {
++                    APIUtils.setUpgradePreservation(setting.name, true);
++                  } else {
++                    APIUtils.setUpgradePreservation(setting.name, setting.value);
++                  }
++                });
++              }
++            };
++          }
++        ]
++      };
++    }
++  ]);
++})(window.angular);
+diff --git a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+index fe9d979..30afe59 100644
+--- a/app/common/services/api-utils.js
++++ b/app/common/services/api-utils.js
+@@ -1980,7 +1980,28 @@ window.angular && (function(angular) {
+             withCredentials: true,
+             data: JSON.stringify({'data': []})
+           });
+-        }
++        },
++        setUpgradePreservation: function(property, value) {
++          return $http({
++                   method: 'PUT',
++                   url: DataService.getHost() + '/xyz/openbmc_project/software/preserve/attr/' + property,
++                   withCredentials: true,
++                   data: JSON.stringify({'data': value})
++                 })
++              .then(function(response) {
++                return response.data;
++              });
++        },
++        getUpgradePreservation: function() {
++          return $http({
++              method: 'GET',
++              url: DataService.getHost() + '/xyz/openbmc_project/software/preserve/attr/',
++              withCredentials: true
++            })
++            .then(function(response) {
++		return response.data;
++            });
++        },
+       };
+       return SERVICE;
+     }
+diff --git a/app/configuration/controllers/firmware-controller.html b/app/configuration/controllers/firmware-controller.html
+index 3dc22d4..56763f9 100644
+--- a/app/configuration/controllers/firmware-controller.html
++++ b/app/configuration/controllers/firmware-controller.html
+@@ -11,6 +11,7 @@
+ </div>
+ <firmware-list title="BMC images" version="bmcActiveVersion" firmwares="firmwares" filter-by="filters.bmc"></firmware-list>
+ <firmware-list title="Server images" version="hostActiveVersion" firmwares="firmwares" filter-by="filters.host"></firmware-list>
++<firmware-settings-preserve title="Preserve settings on upgrade" preserve-all="preserveAll" preserve="preserve"></firmware-settings-preserve>
+ <div class="row column" id="upload">
+   <div class="column small-12 page-header">
+     <h2 class="inline bold">Specify image file location</h2>
+diff --git a/app/configuration/controllers/firmware-controller.js b/app/configuration/controllers/firmware-controller.js
+index 451c16c..550e196 100644
+--- a/app/configuration/controllers/firmware-controller.js
++++ b/app/configuration/controllers/firmware-controller.js
+@@ -40,6 +40,8 @@ window.angular && (function(angular) {
+       $scope.file_empty = true;
+       $scope.uploading = false;
+       $scope.activate = {reboot: true};
++      $scope.preserve = [];
++      $scope.preserveAll = true;
+ 
+       var pollActivationTimer = undefined;
+       var pollDownloadTimer = undefined;
+@@ -319,6 +321,24 @@ window.angular && (function(angular) {
+       };
+ 
+       $scope.loadFirmwares();
++
++      $scope.loadPreservationSettings = function() {
++        APIUtils.getUpgradePreservation().then(
++          function(response) {
++            Object.entries(response.data).forEach(function([key, value]) {
++              $scope.preserve.push({name: key, value: value});
++              if (value === false) {
++                $scope.preserveAll = false;
++              }
++            });
++          },
++          function(error) {
++            console.log(error);
++          }
++        );
++      };
++
++      $scope.loadPreservationSettings();
+     }
+   ]);
+ })(angular);
+diff --git a/app/configuration/styles/firmware.scss b/app/configuration/styles/firmware.scss
+index b60f51c..d50ded0 100644
+--- a/app/configuration/styles/firmware.scss
++++ b/app/configuration/styles/firmware.scss
+@@ -143,4 +143,19 @@
+   }
+ }
+ 
++.firmware__preserve {
++  margin-top: 2.5em;
++  margin-bottom: 2.5em;
++}
+ 
++.firmware__preserve .control-check {
++	padding-top: 4px;
++}
++
++.firmware-checkbox {
++	padding-left: 2em;
++	text-transform: none;
++	font-weight: 400;
++	font-size: 16px;
++	color: $primary-dark;
++}
+diff --git a/app/index.js b/app/index.js
+index 47c8443..63826a5 100644
+--- a/app/index.js
++++ b/app/index.js
+@@ -54,6 +54,7 @@ import log_search_control from './common/directives/log-search-control.js';
+ import ldap_user_roles from './common/directives/ldap-user-roles.js';
+ import toggle_flag from './common/directives/toggle-flag.js';
+ import firmware_list from './common/directives/firmware-list.js';
++import firmware_settings_preserve from './common/directives/firmware-settings-preserve.js';
+ import file from './common/directives/file.js';
+ import input from './common/directives/input.js';
+ import click_outside from './common/directives/click-outside.js';
+-- 
+2.17.1
+

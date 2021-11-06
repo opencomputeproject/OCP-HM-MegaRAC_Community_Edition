@@ -310,8 +310,9 @@ python copy_buildsystem () {
         if os.path.exists(builddir + '/conf/auto.conf'):
             with open(builddir + '/conf/auto.conf', 'r') as f:
                 oldlines += f.readlines()
-        with open(builddir + '/conf/local.conf', 'r') as f:
-            oldlines += f.readlines()
+        if os.path.exists(builddir + '/conf/local.conf'):
+            with open(builddir + '/conf/local.conf', 'r') as f:
+                oldlines += f.readlines()
         (updated, newlines) = bb.utils.edit_metadata(oldlines, varlist, handle_var)
 
         with open(baseoutpath + '/conf/local.conf', 'w') as f:
@@ -521,11 +522,17 @@ python copy_buildsystem () {
     # sdk_ext_postinst() below) thus the checksum we take here would always
     # be different.
     manifest_file_list = ['conf/*']
+    esdk_manifest_excludes = (d.getVar('ESDK_MANIFEST_EXCLUDES') or '').split()
+    esdk_manifest_excludes_list = []
+    for exclude_item in esdk_manifest_excludes:
+        esdk_manifest_excludes_list += glob.glob(os.path.join(baseoutpath, exclude_item))
     manifest_file = os.path.join(baseoutpath, 'conf', 'sdk-conf-manifest')
     with open(manifest_file, 'w') as f:
         for item in manifest_file_list:
             for fn in glob.glob(os.path.join(baseoutpath, item)):
                 if fn == manifest_file:
+                    continue
+                if fn in esdk_manifest_excludes_list:
                     continue
                 chksum = bb.utils.sha256_file(fn)
                 f.write('%s\t%s\n' % (chksum, os.path.relpath(fn, baseoutpath)))
@@ -653,7 +660,10 @@ sdk_ext_postinst() {
 
 		# Make sure when the user sets up the environment, they also get
 		# the buildtools-tarball tools in their path.
+		echo "# Save and reset OECORE_NATIVE_SYSROOT as buildtools may change it" >> $env_setup_script
+		echo "SAVED=\"\$OECORE_NATIVE_SYSROOT\"" >> $env_setup_script
 		echo ". $target_sdk_dir/buildtools/environment-setup*" >> $env_setup_script
+		echo "OECORE_NATIVE_SYSROOT=\"\$SAVED\"" >> $env_setup_script
 	fi
 
 	# Allow bitbake environment setup to be ran as part of this sdk.

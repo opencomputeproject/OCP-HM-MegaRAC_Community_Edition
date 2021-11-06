@@ -10,7 +10,7 @@ inherit autotools pkgconfig python3native
 inherit obmc-phosphor-systemd
 inherit phosphor-fan
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 # Common build dependencies
 DEPENDS += "autoconf-archive-native"

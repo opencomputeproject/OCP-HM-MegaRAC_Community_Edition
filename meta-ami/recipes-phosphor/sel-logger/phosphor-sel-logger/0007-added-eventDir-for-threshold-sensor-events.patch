@@ -1,0 +1,59 @@
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2021-01-28 20:17:03.248109359 +0530
++++ b/include/threshold_event_monitor.hpp	2021-01-28 19:39:56.681816578 +0530
+@@ -159,6 +159,7 @@
+         std::string sensorName;
+         std::string thresholdInterface;
+         std::string event;
++	uint8_t sensorType,eventType;
+         bool assert;
+         double assertValue;
+         try
+@@ -271,7 +272,7 @@
+             conn->new_method_call(msg.get_sender(), msg.get_path(),
+                                   "org.freedesktop.DBus.Properties", "GetAll");
+         getSensorValue.append("xyz.openbmc_project.Sensor.Value");
+-        boost::container::flat_map<std::string, std::variant<double, int64_t ,bool>>
++        boost::container::flat_map<std::string, std::variant<double, int64_t ,bool ,uint8_t>>
+             sensorValue;
+         try
+         {
+@@ -310,6 +311,26 @@
+             min = std::visit(ipmi::VariantToDoubleVisitor(), findMin->second);
+         }
+ 
++	auto findSenType = sensorValue.find("SensorType");
++        if (findSenType != sensorValue.end())
++        {
++            sensorType = std::get<uint8_t>(findSenType->second);
++        }
++
++        auto findEventType = sensorValue.find("EventType");
++        if (findEventType != sensorValue.end())
++        {
++	    if(assert)
++	    {
++		eventType = std::get<uint8_t>(findEventType->second);
++	    }
++	    else
++	    {
++            	eventType = std::get<uint8_t>(findEventType->second);
++	    	eventType |= (1 << 7);
++	    }
++        }
++
+         try
+         {
+             eventData[1] = ipmi::getScaledIPMIValue(assertValue, max, min);
+@@ -366,9 +387,9 @@
+             std::cerr << e.what();
+             eventData[2] = selEvtDataUnspecified;
+         }
+-       uint8_t sensorType = getSensorTypeFromPath(msg.get_path());
++      // uint8_t sensorType = getSensorTypeFromPath(msg.get_path());
+        uint8_t sensorNum = getSensorNumberFromPath(msg.get_path());
+-       uint8_t eventType = getSensorEventTypeFromPath(msg.get_path());
++      // uint8_t eventType = getSensorEventTypeFromPath(msg.get_path());
+ 
+         std::string threshold;
+         std::string direction;

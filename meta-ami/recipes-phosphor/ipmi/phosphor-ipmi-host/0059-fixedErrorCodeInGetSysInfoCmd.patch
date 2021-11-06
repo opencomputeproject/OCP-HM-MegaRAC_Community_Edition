@@ -1,0 +1,29 @@
+diff -Nuar a/apphandler.cpp b/apphandler.cpp
+--- a/apphandler.cpp	2021-05-11 21:44:00.827327416 +0530
++++ b/apphandler.cpp	2021-05-12 00:21:55.811291833 +0530
+@@ -1360,17 +1360,20 @@
+         return ipmi::responseSuccess(paramRevision, std::nullopt, std::nullopt);
+     }
+ 
++
++    if (BlockSelector != 0) // 00h if parameter does not require a block number
++    {
++        return ipmi::responseInvalidFieldRequest();
++    }
+     if (paramSelector == 0)
+     {
++	if(setSelector != 0)
++            return ipmi::responseInvalidFieldRequest();
++
+         return ipmi::responseSuccess(paramRevision, transferStatus,
+                                      std::nullopt);
+     }
+ 
+-    if (BlockSelector != 0) // 00h if parameter does not require a block number
+-    {
+-        return ipmi::responseParmNotSupported();
+-    }
+-
+     if (sysInfoParamStore == nullptr)
+     {
+         sysInfoParamStore = std::make_unique<SysInfoParamStore>();

@@ -1,14 +1,14 @@
 diff -Naur b/redfish-core/include/redfish.hpp a/redfish-core/include/redfish.hpp
---- b/redfish-core/include/redfish.hpp	2020-08-11 12:08:58.769169244 +0530
-+++ a/redfish-core/include/redfish.hpp	2020-08-11 15:26:22.193786924 +0530
-@@ -39,6 +39,7 @@
- #include "../lib/update_service.hpp"
- #ifdef BMCWEB_ENABLE_VM_NBDPROXY
+--- b/redfish-core/include/redfish.hpp  2021-01-28 20:06:38.716277227 +0530
++++ a/redfish-core/include/redfish.hpp  2021-01-28 20:17:14.942190337 +0530
+@@ -42,6 +42,7 @@
  #include "../lib/virtual_media.hpp"
  #endif // BMCWEB_ENABLE_VM_NBDPROXY
-+#include "../lib/serial_interface.hpp"
  #include "../lib/hypervisor_ethernet.hpp"
- #include "webserver_common.hpp"
++#include "../lib/serial_interface.hpp"
+
+ namespace redfish
+ {
 @@ -83,6 +84,8 @@
          nodes.emplace_back(std::make_unique<ChassisResetAction>(app));
          nodes.emplace_back(std::make_unique<ChassisResetActionInfo>(app));

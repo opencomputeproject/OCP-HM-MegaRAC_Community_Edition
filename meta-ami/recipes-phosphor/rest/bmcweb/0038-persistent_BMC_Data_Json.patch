@@ -1,0 +1,58 @@
+--- a/bmcweb.service.in	2020-12-23 11:42:35.087885248 -0500
++++ b/bmcweb.service.in	2021-01-13 16:44:54.093450428 -0500
+@@ -3,6 +3,8 @@
+ 
+ Wants=network.target
+ After=network.target
++Wants=guid.service
++After=guid.service
+ 
+ [Service]
+ ExecReload=kill -s HUP $MAINPID
+--- a/include/persistent_data.hpp	2020-12-23 11:42:35.087885248 -0500
++++ b/include/persistent_data.hpp	2021-01-13 17:28:43.673265085 -0500
+@@ -98,6 +98,15 @@
+                             systemUuid = *jSystemUuid;
+                         }
+                     }
++                    else if (item.key() == "device_uuid")
++                    {
++                        const std::string* jDeviceUuid =
++                            item.value().get_ptr<const std::string*>();
++                        if (jDeviceUuid != nullptr)
++                        {
++                            deviceUuid = *jDeviceUuid;
++                        }
++                    }
+                     else if (item.key() == "auth_config")
+                     {
+                         SessionStore::getInstance()
+@@ -145,6 +154,12 @@
+                 boost::uuids::to_string(boost::uuids::random_generator()());
+             needWrite = true;
+         }
++        if (deviceUuid.empty())
++        {
++            deviceUuid =
++                boost::uuids::to_string(boost::uuids::random_generator()());
++            needWrite = true;
++        }
+         if (fileRevision < jsonRevision)
+         {
+             needWrite = true;
+@@ -195,6 +195,7 @@
+ 
+             },
+             {"system_uuid", systemUuid},
++            {"device_uuid", deviceUuid},
+             {"revision", jsonRevision},
+             {"timeout", SessionStore::getInstance().getTimeoutInSeconds()}};
+ 
+@@ -221,6 +222,7 @@
+     }
+ 
+     std::string systemUuid{""};
++    std::string deviceUuid{""};
+ };
+ 
+ inline ConfigFile& getConfig()

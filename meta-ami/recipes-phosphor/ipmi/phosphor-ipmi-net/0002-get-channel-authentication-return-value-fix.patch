@@ -1,0 +1,28 @@
+--- a/command/channel_auth.hpp	2021-05-04 03:13:50.316410699 -0400
++++ b/command/channel_auth.hpp	2021-05-04 03:13:15.030542399 -0400
+@@ -7,6 +7,9 @@
+ namespace command
+ {
+ 
++constexpr auto RESERVED_BYTE_1 = 0x70;
++constexpr auto RESERVED_BYTE_2 = 0xF0;
++
+ /**
+  * @struct GetChannelCapabilitiesReq
+  *
+--- a/command/channel_auth.cpp	2021-05-04 03:13:50.316410699 -0400
++++ b/command/channel_auth.cpp	2021-05-04 03:13:15.030542399 -0400
+@@ -19,6 +19,13 @@
+         std::vector<uint8_t> errorPayload{IPMI_CC_REQ_DATA_LEN_INVALID};
+         return errorPayload;
+     }
++
++    if((request->channelNumber & RESERVED_BYTE_1) || (request->reqMaxPrivLevel & RESERVED_BYTE_2))
++    {
++	 std::vector<uint8_t> errorPayload{IPMI_CC_INVALID_FIELD_REQUEST};
++        return errorPayload;
++    }
++
+     constexpr unsigned int channelMask = 0x0f;
+     uint8_t chNum = ipmi::convertCurrentChannelNum(
+         request->channelNumber & channelMask, getInterfaceIndex());

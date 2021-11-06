@@ -1,0 +1,18 @@
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-07-09 17:23:20.195385656 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-07-09 17:24:44.803043790 +0530
+@@ -201,9 +201,11 @@
+             }
+           }
+         }
+-        if($scope.ipv6sToDelete.length > max_count){
+-          toastService.warn(warn_msg);
+-          return false;
++        if(!(!$scope.interface.IPv6DHCPEnabled && $scope.oldInterface.IPv6DHCPEnabled)){
++          if($scope.ipv6sToDelete.length > max_count){
++            toastService.warn(warn_msg);
++            return false;
++          }
+         }
+         return true;
+       };

@@ -1,0 +1,61 @@
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-05-31 11:53:36.578831189 +0530
++++ b/src/storagecommands.cpp	2021-05-31 15:41:32.953335379 +0530
+@@ -138,6 +138,8 @@
+ static uint8_t writeBus = 0xFF;
+ static uint8_t writeAddr = 0XFF;
+ 
++int MaxSizeEntry;
++
+ std::unique_ptr<phosphor::Timer> writeTimer = nullptr;
+ static std::vector<sdbusplus::bus::match::match> fruMatches;
+ 
+@@ -819,7 +821,8 @@
+ {
+     // Get the list of ipmi_sel log files
+     std::vector<std::string> selLogFiles;
+-	int fileindex=0;
++    int fileindex=0,entrySize=0;
++    MaxSizeEntry = 0;
+     if (!getSELLogFiles(selLogFiles,&fileindex))
+     {
+         return 0;
+@@ -837,9 +840,18 @@
+         std::string line;
+         while (std::getline(logStream, line))
+         {
++	    entrySize = line.size();
++	    if (entrySize > MaxSizeEntry)
++	    {
++	        MaxSizeEntry = entrySize;
++	    }		
+             numSELEntries++;
+         }
+     }
++    if(numSELEntries > OBMC_MAX_SEL_RECORDS)
++    {
++	    numSELEntries = OBMC_MAX_SEL_RECORDS;
++    }
+     return numSELEntries;
+ }
+ 
+@@ -994,8 +1006,17 @@
+     uint32_t eraseTimeStamp = intel_oem::ipmi::sel::erase_time::get();
+     constexpr uint8_t operationSupport =
+         intel_oem::ipmi::sel::selOperationSupport;
+-    constexpr uint16_t freeSpace =
+-        0xffff; // Spec indicates that more than 64kB is free
++    int selTotalSize = 0, selOccupiedSize = 0,availfreeSpace = 0;
++    uint16_t freeSpace = 0xFFFF;
++    
++    selTotalSize = MaxSizeEntry * OBMC_MAX_SEL_RECORDS;
++    selOccupiedSize = MaxSizeEntry * entries;
++    availfreeSpace = selTotalSize - selOccupiedSize;
++
++    if(availfreeSpace < freeSpace)
++    {
++	    freeSpace = availfreeSpace;
++    }
+ 
+     return ipmi::responseSuccess(selVersion, entries, freeSpace, addTimeStamp,
+                                  eraseTimeStamp, operationSupport);

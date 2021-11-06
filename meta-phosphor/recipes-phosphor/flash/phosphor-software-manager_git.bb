@@ -80,7 +80,7 @@ SYSTEMD_SERVICE_${PN}-updater += " \
 
 SYSTEMD_SERVICE_${PN}-updater += "${@bb.utils.contains('PACKAGECONFIG', 'flash_bios', 'obmc-flash-host-bios@.service', '', d)}"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 do_install_append() {
     install -d ${D}/usr/local

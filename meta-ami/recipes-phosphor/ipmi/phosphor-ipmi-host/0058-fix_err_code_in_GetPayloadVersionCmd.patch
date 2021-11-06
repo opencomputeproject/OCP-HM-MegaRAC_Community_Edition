@@ -1,0 +1,23 @@
+diff -Nuar a/user_channel/channelcommands.cpp b/user_channel/channelcommands.cpp
+--- a/user_channel/channelcommands.cpp	2021-05-10 14:18:30.265408906 +0530
++++ b/user_channel/channelcommands.cpp	2021-05-10 13:20:16.100350307 +0530
+@@ -391,7 +391,7 @@
+     {
+         log<level::DEBUG>(
+             "Get channel payload version - No support on channel");
+-        return response(ccActionNotSupportedForChannel);
++        return response(ccPayloadTypeNotSupportedForChannel);
+     }
+ 
+     if (!isValidPayloadType(static_cast<PayloadType>(payloadTypeNum)))
+diff -Nuar a/user_channel/channel_layer.hpp b/user_channel/channel_layer.hpp
+--- a/user_channel/channel_layer.hpp	2021-05-10 14:18:39.901541895 +0530
++++ b/user_channel/channel_layer.hpp	2021-05-10 13:20:27.892501877 +0530
+@@ -24,6 +24,7 @@
+ static constexpr uint8_t maxIpmiChannels = 16;
+ static constexpr uint8_t currentChNum = 0xE;
+ static constexpr uint8_t invalidChannel = 0xff;
++static constexpr const uint8_t ccPayloadTypeNotSupportedForChannel = 0x80;
+ static constexpr const uint8_t ccActionNotSupportedForChannel = 0x82;
+ static constexpr const uint8_t ccAccessModeNotSupportedForChannel = 0x83;
+ 

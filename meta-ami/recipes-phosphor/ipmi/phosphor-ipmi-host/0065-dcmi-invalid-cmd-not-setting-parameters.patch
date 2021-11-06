@@ -1,0 +1,28 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-05-28 12:52:15.049263114 -0400
++++ b/dcmihandler.cpp	2021-05-28 13:03:31.796555373 -0400
+@@ -1252,7 +1252,11 @@
+                     *data_len = 0;
+                     return IPMI_CC_REQ_DATA_LEN_INVALID;
+                 }
+-
++                // Systemd-networkd doesn't support Random Back off
++		if (requestData->data[0] & DCMI_RAND_BACK_OFF_MASK)
++                {
++                    return IPMI_CC_INVALID;
++                }
+ 		if((requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 6)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 5)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 4)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 3)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 2)))
+ 		{
+ 		    return IPMI_CC_INVALID_FIELD_REQUEST;
+@@ -1277,11 +1281,6 @@
+                          dcmi::setDHCPOption(DHCP_OPT60_ENABLED, false);
+                 }
+ 
+-                // Systemd-networkd doesn't support Random Back off
+-                if (requestData->data[0] & DCMI_RAND_BACK_OFF_MASK)
+-                {
+-                    return IPMI_CC_INVALID;
+-                }
+                 break;
+             // Systemd-networkd doesn't allow to configure DHCP timigs
+             case dcmi::DCMIConfigParameters::DHCPTiming1:

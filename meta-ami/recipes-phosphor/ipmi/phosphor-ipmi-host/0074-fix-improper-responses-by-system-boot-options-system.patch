@@ -1,0 +1,313 @@
+From 6b70730365d472b288227230200e65ccc3002372 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Thu, 17 Jun 2021 15:56:53 -0400
+Subject: [PATCH] fix improper responses by system boot options, system info,
+ user payload access
+
+---
+ apphandler.cpp                |  5 ++
+ systembootoption.cpp          | 92 ++++++++++++++++++++++++++++-------
+ user_channel/usercommands.cpp | 10 +++-
+ 3 files changed, 87 insertions(+), 20 deletions(-)
+
+diff --git a/apphandler.cpp b/apphandler.cpp
+index 70f7a52..9e8693a 100644
+--- a/apphandler.cpp
++++ b/apphandler.cpp
+@@ -1452,6 +1452,11 @@ ipmi::RspType<uint8_t,                // Parameter revision
+         std::copy_n(paramString.begin() + offset, count,
+                     configData.begin()); // 16 bytes chunk
+     }
++
++    if (paramSelector == 2 || paramSelector == 4)
++    {
++        configData.resize(fullChunkSize);  // full 16 bytes for param 2 + 4
++    }
+     return ipmi::responseSuccess(paramRevision, setSelector, configData);
+ }
+ 
+diff --git a/systembootoption.cpp b/systembootoption.cpp
+index 765b105..95b83fa 100644
+--- a/systembootoption.cpp
++++ b/systembootoption.cpp
+@@ -156,6 +156,9 @@ ipmi::RspType<ipmi::message::Payload>
+     {
+         try
+         {
++            if (setSelector || blockSelector)
++                return ipmi::responseInvalidFieldRequest();
++
+             parameterIsValid = bbus->getValidity("BootSetInProgressValid");
+ 
+             ipmi::Value setInProgress;
+@@ -184,6 +187,9 @@ ipmi::RspType<ipmi::message::Payload>
+     {
+         try
+         {
++            if (setSelector || blockSelector)
++                return ipmi::responseInvalidFieldRequest();
++
+             parameterIsValid = bbus->getValidity("BootServicePartitionSelectorValid");
+ 
+             ipmi::Value servicePartition;
+@@ -209,6 +215,9 @@ ipmi::RspType<ipmi::message::Payload>
+     {
+         try
+         {
++            if (setSelector || blockSelector)
++                return ipmi::responseInvalidFieldRequest();
++
+             parameterIsValid = bbus->getValidity("BootServicePartitionScanValid");
+ 
+             ipmi::Value requestScan;
+@@ -230,8 +239,8 @@ ipmi::RspType<ipmi::message::Payload>
+             }
+ 
+             response.pack(parameterSelector, parameterIsValid,
+-                    std::get<bool>(requestScan),
+-                    std::get<bool>(partitionDiscovered));
++                    std::get<bool>(partitionDiscovered),
++                    std::get<bool>(requestScan));
+             return ipmi::responseSuccess(std::move(response));
+         }
+         catch (InternalFailure& e)
+@@ -245,6 +254,9 @@ ipmi::RspType<ipmi::message::Payload>
+     {
+         try
+         {
++            if (setSelector || blockSelector)
++                return ipmi::responseInvalidFieldRequest();
++
+             parameterIsValid = bbus->getValidity("BootFlagValidClearingValid");
+ 
+             ipmi::Value noClearOnPowerup;
+@@ -309,6 +321,9 @@ ipmi::RspType<ipmi::message::Payload>
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInfoAck))
+     {
++        if (setSelector || blockSelector)
++            return ipmi::responseInvalidFieldRequest();
++
+         parameterIsValid = bbus->getValidity("BootInfoAckValid");
+ 
+         ipmi::Value biosAck;
+@@ -358,9 +373,9 @@ ipmi::RspType<ipmi::message::Payload>
+                 uint1_t{std::get<bool>(osAck)},
+                 uint1_t{std::get<bool>(smsAck)},
+                 uint1_t{std::get<bool>(oemAck)},
+-                uint1_t{0x1},
+-                uint1_t{0x1},
+-                uint1_t{0x1});
++                uint1_t{0x0},
++                uint1_t{0x0},
++                uint1_t{0x0});
+         return ipmi::responseSuccess(std::move(response));
+     }
+     else if (parameterSelector ==
+@@ -368,6 +383,9 @@ ipmi::RspType<ipmi::message::Payload>
+     {
+         try
+         {
++            if (setSelector || blockSelector)
++                return ipmi::responseInvalidFieldRequest();
++
+             parameterIsValid = bbus->getValidity("BootFlagsParamValid");
+ 
+             IpmiValue typeRaw;
+@@ -550,7 +568,7 @@ ipmi::RspType<ipmi::message::Payload>
+             response.pack(parameterSelector, parameterIsValid,
+                           uint5_t{}, // reserved
+                           uint1_t{typeRaw},
+-                          uint1_t{oneTime},
++                          uint1_t{!oneTime},
+                           uint1_t{flagsValid},
+                           uint1_t{std::get<bool>(resetLockout)},
+                           uint1_t{std::get<bool>(screenBlank)},
+@@ -579,6 +597,9 @@ ipmi::RspType<ipmi::message::Payload>
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorInfo))
+     {
++        if (setSelector || blockSelector)
++            return ipmi::responseInvalidFieldRequest();
++
+         parameterIsValid = bbus->getValidity("BootInitiatorInfoValid");
+ 
+         ipmi::Value channel;
+@@ -617,27 +638,22 @@ ipmi::RspType<ipmi::message::Payload>
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorMailbox))
+     {
++        if (blockSelector)
++            return ipmi::responseInvalidFieldRequest();
++
+         parameterIsValid = bbus->getValidity("BootInitiatorMailboxValid");
+ 
+-        ipmi::Value block;
+         ipmi::Value lower;
+         ipmi::Value upper;
+ 
+-        rc = bbus->getBootProperty("BootMailbox", "BlockSelector", block);
+-        if (rc != ipmi::ccSuccess) {
+-            log<level::ERR>("Error in getting mailbox block selector");
+-            report<InternalFailure>();
+-            return ipmi::responseUnspecifiedError();
+-        }
+-
+-        rc = bbus->getBootProperty("BootMailbox", std::string("Mailbox" + std::to_string(std::get<uint8_t>(block)) + "L"), lower);
++        rc = bbus->getBootProperty("BootMailbox", std::string("Mailbox" + std::to_string(setSelector) + "L"), lower);
+         if (rc != ipmi::ccSuccess) {
+             log<level::ERR>("Error in getting mailbox block lower");
+             report<InternalFailure>();
+             return ipmi::responseUnspecifiedError();
+         }
+ 
+-        rc = bbus->getBootProperty("BootMailbox", std::string("Mailbox" + std::to_string(std::get<uint8_t>(block)) + "U"), upper);
++        rc = bbus->getBootProperty("BootMailbox", std::string("Mailbox" + std::to_string(setSelector) + "U"), upper);
+         if (rc != ipmi::ccSuccess) {
+             log<level::ERR>("Error in getting mailbox block upper");
+             report<InternalFailure>();
+@@ -645,7 +661,7 @@ ipmi::RspType<ipmi::message::Payload>
+         }
+ 
+         response.pack(parameterSelector, parameterIsValid,
+-                std::get<uint8_t>(block),
++                setSelector,
+                 std::get<uint64_t>(lower),
+                 std::get<uint64_t>(upper));
+         return ipmi::responseSuccess(std::move(response));
+@@ -673,6 +689,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     if (parameterSelector ==
+         static_cast<uint7_t>(BootOptionParameter::bootSetInProgress))
+     {
++        if (bbus->getValidity("BootSetInProgressValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootSetInProgressValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -730,6 +751,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+         static_cast<uint7_t>(BootOptionParameter::bootServicePartitionSelect))
+     {
++        if (bbus->getValidity("BootServicePartitionSelectorValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootServicePartitionSelectorValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -766,6 +792,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+         static_cast<uint7_t>(BootOptionParameter::bootServicePartitionScan))
+     {
++        if (bbus->getValidity("BootServicePartitionScanValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootServicePartitionScanValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -820,6 +851,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+         static_cast<uint7_t>(BootOptionParameter::bootBMCValidBitClearing))
+     {
++        if (bbus->getValidity("BootFlagValidClearingValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootFlagValidClearingValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -905,6 +941,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInfoAck))
+     {
++        if (bbus->getValidity("BootInfoAckValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootInfoAckValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -986,6 +1027,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+         static_cast<uint7_t>(BootOptionParameter::bootFlags))
+     {
++        if (bbus->getValidity("BootFlagsParamValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootFlagsParamValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -1228,6 +1274,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorInfo))
+     {
++        if (bbus->getValidity("BootInitiatorInfoValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootInitiatorInfoValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -1274,6 +1325,11 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+     else if (parameterSelector ==
+              static_cast<uint7_t>(BootOptionParameter::bootInitiatorMailbox))
+     {
++        if (bbus->getValidity("BootInitiatorMailboxValid") && parameterIsValid)
++        {
++            return ipmi::responseInvalidFieldRequest();
++        }
++
+         bbus->setValidity("BootInitiatorMailboxValid", parameterIsValid);
+ 
+         if (data.fullyUnpacked())
+@@ -1322,7 +1378,7 @@ ipmi::RspType<> ipmiChassisSetSysBootOptions(ipmi::Context::ptr ctx,
+         uint64_t inLower = std::get<uint64_t>(lower);
+         uint64_t inUpper = std::get<uint64_t>(upper);
+         int i = 0;
+-        while (data.unpack(inByte) == 0 && !data.fullyUnpacked() && i < 16)
++        while (!data.fullyUnpacked() && data.unpack(inByte) == 0 && i < 16)
+         {
+             if (i < 8) {
+                 inLower &= ~(((uint64_t)0xFF) << ((i % 8) * 8)); // clear
+diff --git a/user_channel/usercommands.cpp b/user_channel/usercommands.cpp
+index 1eb84d3..0a436e5 100644
+--- a/user_channel/usercommands.cpp
++++ b/user_channel/usercommands.cpp
+@@ -563,8 +563,6 @@ ipmi::RspType<> ipmiSetUserPayloadAccess(
+     // Validate the reserved args. Only SOL payload is supported as on date.
+     if (reserved || stdPayload0ipmiReserved || stdPayload2 || stdPayload3 ||
+         stdPayload4 || stdPayload5 || stdPayload6 || stdPayload7 ||
+-        oemPayload0 || oemPayload1 || oemPayload2 || oemPayload3 ||
+-        oemPayload4 || oemPayload5 || oemPayload6 || oemPayload7 ||
+         stdPayloadEnables2Reserved || oemPayloadEnables2Reserved ||
+         !isValidChannel(chNum))
+     {
+@@ -586,6 +584,14 @@ ipmi::RspType<> ipmiSetUserPayloadAccess(
+ 
+     PayloadAccess payloadAccess = {0};
+     payloadAccess.stdPayloadEnables1[1] = stdPayload1SOL;
++    payloadAccess.oemPayloadEnables1[0] = oemPayload0;
++    payloadAccess.oemPayloadEnables1[1] = oemPayload1;
++    payloadAccess.oemPayloadEnables1[2] = oemPayload2;
++    payloadAccess.oemPayloadEnables1[3] = oemPayload3;
++    payloadAccess.oemPayloadEnables1[4] = oemPayload4;
++    payloadAccess.oemPayloadEnables1[5] = oemPayload5;
++    payloadAccess.oemPayloadEnables1[6] = oemPayload6;
++    payloadAccess.oemPayloadEnables1[7] = oemPayload7;
+ 
+     return ipmi::response(ipmiUserSetUserPayloadAccess(
+         chNum, static_cast<uint8_t>(operation), static_cast<uint8_t>(userId),
+-- 
+2.17.1
+

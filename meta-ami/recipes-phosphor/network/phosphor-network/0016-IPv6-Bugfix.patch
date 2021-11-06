@@ -1,0 +1,492 @@
+diff -Naur a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-05-25 01:27:22.118322734 -0400
++++ b/ethernet_interface.cpp	2021-06-01 05:52:48.625412535 -0400
+@@ -74,6 +74,20 @@
+     {EthernetInterface::DHCPConf::v6, "ipv6"},
+     {EthernetInterface::DHCPConf::none, "false"}};
+ 
++std::map<EthernetInterface::LinkLocalConf, std::string> mapLinkLocalConfToSystemd = {
++    {EthernetInterface::LinkLocalConf::fallback, "fallback"},
++    {EthernetInterface::LinkLocalConf::both, "yes"},
++    {EthernetInterface::LinkLocalConf::v4, "ipv4"},
++    {EthernetInterface::LinkLocalConf::v6, "ipv6"},
++    {EthernetInterface::LinkLocalConf::none, "no"}};
++
++std::map<std::string, EthernetInterface::LinkLocalConf> mapSystemdToLinkLocalConf = {
++    {"fallback", EthernetInterface::LinkLocalConf::fallback},
++    {"yes", EthernetInterface::LinkLocalConf::both},
++    {"ipv4", EthernetInterface::LinkLocalConf::v4},
++    {"ipv6", EthernetInterface::LinkLocalConf::v6},
++    {"no", EthernetInterface::LinkLocalConf::none}};
++
+ EthernetInterface::EthernetInterface(sdbusplus::bus::bus& bus,
+                                      const std::string& objPath,
+                                      DHCPConf dhcpEnabled, Manager& parent,
+@@ -122,6 +136,7 @@
+ 
+     EthernetInterfaceIntf::linkUp(linkUp());
+     EthernetInterfaceIntf::nICEnabled(nICEnabled());
++    EthernetInterfaceIntf::linkLocalAutoConf(getLinkLocalAutoConfFromConf());
+ 
+ #if NIC_SUPPORTS_ETHTOOL
+     InterfaceInfo ifInfo = EthernetInterface::getInterfaceInfo();
+@@ -198,15 +213,51 @@
+ 
+ bool EthernetInterface::originIsManuallyAssigned(IP::AddressOrigin origin)
+ {
+-    return (
+-#ifdef LINK_LOCAL_AUTOCONFIGURATION
+-        (origin == IP::AddressOrigin::Static)
+-#else
+-        (origin == IP::AddressOrigin::Static ||
+-         origin == IP::AddressOrigin::LinkLocal)
+-#endif
++    return (origin == IP::AddressOrigin::Static);
++}
++
++ServerList EthernetInterface::getAddressFromConf()
++{
++    fs::path confPath = manager.getConfDir();
++
++    std::string fileName = systemd::config::networkFilePrefix +
++                           interfaceName() + systemd::config::networkFileSuffix;
++    confPath /= fileName;
++
++    ServerList servers;
++    config::Parser parser(confPath.string());
++    auto rc = config::ReturnCode::SUCCESS;
++
++    std::tie(rc, servers) = parser.getValues("Address", "#Address");
++    if (rc != config::ReturnCode::SUCCESS)
++    {
++        log<level::DEBUG>("Unable to get the value for Address[Address]",
++                          entry("rc=%d", rc));
++    }
++
++    return servers;
++}
++
++ServerList EthernetInterface::getGatewayFromConf()
++{
++    fs::path confPath = manager.getConfDir();
++
++    std::string fileName = systemd::config::networkFilePrefix +
++                           interfaceName() + systemd::config::networkFileSuffix;
++    confPath /= fileName;
++
++    ServerList servers;
++    config::Parser parser(confPath.string());
++    auto rc = config::ReturnCode::SUCCESS;
++
++    std::tie(rc, servers) = parser.getValues("Route", "#Gateway");
++    if (rc != config::ReturnCode::SUCCESS)
++    {
++        log<level::DEBUG>("Unable to get the value for Route[Gateway]",
++                          entry("rc=%d", rc));
++    }
+ 
+-    );
++    return servers;
+ }
+ 
+ void EthernetInterface::createIPAddressObjects()
+@@ -214,6 +265,8 @@
+     
+     addrs.clear();
+ 
++    ServerList address = getAddressFromConf();
++    ServerList gateway = getGatewayFromConf();
+     auto addrs = getInterfaceAddrs()[interfaceName()];
+ 
+     for (auto& addr : addrs)
+@@ -240,6 +293,43 @@
+                                 addressType, addr.ipaddress, origin,
+                                 addr.prefix, gateway));
+     }
++
++    for (auto& addr : address)
++    {
++        IP::Protocol addressType = convertFamily(AF_INET);
++        IP::AddressOrigin origin = IP::AddressOrigin::Static;
++	std::size_t found = addr.find(':');
++        if (found != std::string::npos)
++        {
++            addressType = convertFamily(AF_INET6);
++        }
++	std::vector<std::string> out;
++	splitString(addr, '/', out);
++	auto ipaddress = out[0];
++	auto prefix = 0;
++	std::stringstream ipprefix(out[1]);
++        ipprefix>>prefix;
++
++        // Obsolete parameter
++        std::string gateway = "";
++
++        std::string ipAddressObjectPath = generateObjectPath(
++            addressType, ipaddress, prefix, gateway);
++        this->addrs.emplace(ipaddress,
++                            std::make_shared<phosphor::network::IPAddress>(
++                                bus, ipAddressObjectPath.c_str(), *this,
++                                addressType, ipaddress, origin,
++                                prefix, gateway, false));
++    }
++    
++    for (auto& gatewayAddr : gateway)
++    {
++	std::size_t found = gatewayAddr.find(':');
++        if (found != std::string::npos)
++           EthernetInterfaceIntf::defaultGateway6(gatewayAddr);
++	else
++           EthernetInterfaceIntf::defaultGateway(gatewayAddr);
++    }
+ }
+ 
+ void EthernetInterface::createStaticNeighborObjects()
+@@ -447,6 +537,11 @@
+     return hexId.str();
+ }
+ 
++void EthernetInterface::writeIPaddress()
++{
++    manager.writeToConfigurationFile();
++}
++
+ void EthernetInterface::deleteObject(const std::string& ipaddress)
+ {
+     auto it = addrs.find(ipaddress);
+@@ -685,6 +780,46 @@
+     return value;
+ }
+ 
++EthernetInterface::LinkLocalConf EthernetInterface::linkLocalAutoConf(EthernetInterface::LinkLocalConf value)
++{
++    if (value == EthernetInterfaceIntf::linkLocalAutoConf())
++    {
++        return value;
++    }
++
++    EthernetInterfaceIntf::linkLocalAutoConf(value);
++    manager.writeToConfigurationFile();
++
++    return value;
++}
++
++EthernetInterface::LinkLocalConf EthernetInterface::getLinkLocalAutoConfFromConf()
++{
++    fs::path confPath = manager.getConfDir();
++
++    std::string fileName = systemd::config::networkFilePrefix +
++                           interfaceName() + systemd::config::networkFileSuffix;
++    confPath /= fileName;
++
++    config::ValueList values;
++
++    auto linkLocalConf = EthernetInterface::LinkLocalConf::fallback;
++
++    config::Parser parser(confPath.string());
++    auto rc = config::ReturnCode::SUCCESS;
++
++    std::tie(rc, values) = parser.getValues("Network", "LinkLocalAddressing");
++    if (rc != config::ReturnCode::SUCCESS)
++    {
++        log<level::DEBUG>(
++            "Unable to get the value for Network[LinkLocalAddressing]",
++            entry("rc=%d", rc));
++        return linkLocalConf;
++    }
++
++    return mapSystemdToLinkLocalConf[values[0]];
++}
++
+ ServerList EthernetInterface::nameservers(ServerList /*value*/)
+ {
+     elog<NotAllowed>(NotAllowedArgument::REASON("ReadOnly Property"));
+@@ -974,11 +1109,8 @@
+ 
+     // write the network section
+     stream << "[Network]\n";
+-#ifdef LINK_LOCAL_AUTOCONFIGURATION
+-    stream << "LinkLocalAddressing=yes\n";
+-#else
+-    stream << "LinkLocalAddressing=no\n";
+-#endif
++    stream << "LinkLocalAddressing="s + 
++	    mapLinkLocalConfToSystemd[EthernetInterfaceIntf::linkLocalAutoConf()] + "\n";
+     stream << std::boolalpha
+            << "IPv6AcceptRA=" << EthernetInterfaceIntf::iPv6AcceptRA() << "\n";
+ 
+@@ -1004,11 +1136,18 @@
+     stream << "DHCP="s +
+                   mapDHCPToSystemd[EthernetInterfaceIntf::dHCPEnabled()] + "\n";
+ 
++    auto ipv4Count = 0, ipv6Count = 0;
++    auto ipv4Static = 0, ipv6Static = 0;
++    std::string disable = "";
++
+     // Static IP addresses
+     for (const auto& addr : addrs)
+     {
+-        if (originIsManuallyAssigned(addr.second->origin()) &&
+-            !dhcpIsEnabled(addr.second->type()))
++        if ((originIsManuallyAssigned(addr.second->origin()) &&
++            !dhcpIsEnabled(addr.second->type())) || 
++            ((EthernetInterfaceIntf::dHCPEnabled() == EthernetInterface::DHCPConf::v6)  && 
++            (addr.second->type() == IP::Protocol::IPv4) && addr.second->active() && 
++	    !isLinkLocalIP(addr.second->address())))
+         {
+             // Process all static addresses
+             std::string address = addr.second->address() + "/" +
+@@ -1016,25 +1155,48 @@
+ 
+             // build the address entries. Do not use [Network] shortcuts to
+             // insert address entries.
++	    if (!addr.second->active())
++                disable = "#";
++	    else
++                disable = "";
++
+             stream << "[Address]\n";
+-            stream << "Address=" << address << "\n";
++            stream << disable << "Address=" << address << "\n";
+ 
+-            auto gateway = EthernetInterfaceIntf::defaultGateway();
+-            if (!gateway.empty())
+-            {
+-                stream << "[Route]\n";
+-                stream << "Gateway=" << gateway << "\n";
+-            }
+-
+-            auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
+-            if (!gateway6.empty())
+-            {
+-                stream << "[Route]\n";
+-                stream << "Gateway=" << gateway6 << "\n";
+-            }
++            if ((addr.second->type() == IP::Protocol::IPv4) && !isLinkLocalIP(address) && disable.compare("#") == 0)
++                ipv4Count++;
++            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address) && 
++				    !dhcpIsEnabled(addr.second->type()) && disable.compare("#") == 0)
++                ipv6Count++;
++            if ((addr.second->type() == IP::Protocol::IPv4) && !isLinkLocalIP(address))
++                ipv4Static++;
++            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address) && 
++				    !dhcpIsEnabled(addr.second->type()))
++                ipv6Static++;
+         }
+     }
+ 
++    disable = "";
++    if(ipv4Count > 0)
++        disable = "#";
++
++    auto gateway = EthernetInterfaceIntf::defaultGateway();
++    if (ipv4Static > 0 && !gateway.empty())
++    {
++        stream << "[Route]\n";
++        stream << disable << "Gateway=" << gateway << "\n";
++    }
++
++    disable = "";
++    if(ipv6Count > 0)
++        disable = "#";
++
++    auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
++    if (ipv4Static > 0 && !gateway6.empty())
++    {
++        stream << "[Route]\n";
++        stream << disable << "Gateway=" << gateway6 << "\n";
++    }
+     // Write the neighbor sections
+     for (const auto& neighbor : staticNeighbors)
+     {
+diff -Naur a/ethernet_interface.hpp b/ethernet_interface.hpp
+--- a/ethernet_interface.hpp	2021-05-30 04:50:01.418556223 -0400
++++ b/ethernet_interface.hpp	2021-05-31 14:08:36.325533952 -0400
+@@ -113,6 +113,10 @@
+      */
+     void deleteObject(const std::string& ipaddress);
+ 
++    /** @brief write the IP address into the network conf file.
++     */
++    void writeIPaddress();
++
+     /* @brief delete the dbus object of the given ipaddress.
+      * @param[in] ipaddress - IP address.
+      */
+@@ -156,6 +160,9 @@
+ 
+     /** Set value of DHCPEnabled */
+     DHCPConf dHCPEnabled(DHCPConf value) override;
++    
++    /** Set value of LinkLocalAutoConf */
++    LinkLocalConf linkLocalAutoConf(LinkLocalConf value) override;
+ 
+     /** @brief Selectively disables DHCP
+      *  @param[in] protocol - The IPv4 or IPv6 protocol to return to static
+@@ -237,6 +244,7 @@
+     using EthernetInterfaceIntf::interfaceName;
+     using EthernetInterfaceIntf::linkUp;
+     using EthernetInterfaceIntf::nICEnabled;
++    using EthernetInterfaceIntf::linkLocalAutoConf;
+     using MacAddressIntf::mACAddress;
+ 
+     using EthernetInterfaceIntf::defaultGateway;
+@@ -313,8 +321,27 @@
+      *
+      */
+     virtual ServerList getNameServerFromResolvd();
++
++    /** @brief get the link local auto conf from the network conf
++     *
++     */
++    LinkLocalConf getLinkLocalAutoConfFromConf();
++
++    /** @brief get the static Name server from the network conf
++     *
++     */
+     ServerList getstaticNameServerFromConf();
+ 
++    /** @brief get the IP address from the network conf
++     *
++     */
++    ServerList getAddressFromConf();
++
++    /** @brief get the gateway address from the network conf
++     *
++     */
++    ServerList getGatewayFromConf();
++
+     /** @brief Persistent sdbusplus DBus bus connection. */
+     sdbusplus::bus::bus& bus;
+ 
+diff -Naur a/ipaddress.cpp b/ipaddress.cpp
+--- a/ipaddress.cpp	2021-05-30 08:51:21.270935208 -0400
++++ b/ipaddress.cpp	2021-05-31 04:53:59.864462791 -0400
+@@ -21,7 +21,7 @@
+ IPAddress::IPAddress(sdbusplus::bus::bus& bus, const char* objPath,
+                      EthernetInterface& parent, IP::Protocol type,
+                      const std::string& ipaddress, IP::AddressOrigin origin,
+-                     uint8_t prefixLength, const std::string& gateway) :
++                     uint8_t prefixLength, const std::string& gateway, bool enable) :
+     IPIfaces(bus, objPath, true),
+     parent(parent)
+ {
+@@ -31,6 +31,7 @@
+     IP::gateway(gateway);
+     IP::type(type);
+     IP::origin(origin);
++    IP::active(enable);
+ 
+     // Emit deferred signal.
+     emit_object_added();
+@@ -55,6 +56,17 @@
+ {
+     elog<NotAllowed>(Reason("Property update is not allowed"));
+ }
++bool IPAddress::active(bool value)
++{
++    if (value == IP::active())
++    {
++        return value;
++    }
++    IP::active(value);
++    parent.writeIPaddress();
++
++    return value;
++}
+ void IPAddress::delete_()
+ {
+     if (origin() != IP::AddressOrigin::Static)
+diff -Naur a/ipaddress.hpp b/ipaddress.hpp
+--- a/ipaddress.hpp	2021-05-30 08:52:20.525890148 -0400
++++ b/ipaddress.hpp	2021-05-31 00:25:15.027375299 -0400
+@@ -48,13 +48,14 @@
+     IPAddress(sdbusplus::bus::bus& bus, const char* objPath,
+               EthernetInterface& parent, IP::Protocol type,
+               const std::string& ipAddress, IP::AddressOrigin origin,
+-              uint8_t prefixLength, const std::string& gateway);
++              uint8_t prefixLength, const std::string& gateway, bool enable = true);
+ 
+     std::string address(std::string ipAddress) override;
+     uint8_t prefixLength(uint8_t) override;
+     std::string gateway(std::string gateway) override;
+     IP::Protocol type(IP::Protocol type) override;
+     IP::AddressOrigin origin(IP::AddressOrigin origin) override;
++    bool active(bool value) override;
+ 
+     /** @brief Delete this d-bus object.
+      */
+@@ -65,6 +66,7 @@
+     using IP::origin;
+     using IP::prefixLength;
+     using IP::type;
++    using IP::active;
+ 
+   private:
+     /** @brief Parent Object. */
+diff -Naur a/network_config.cpp b/network_config.cpp
+--- a/network_config.cpp	2021-05-26 06:44:40.638503496 -0400
++++ b/network_config.cpp	2021-05-26 06:45:07.179718369 -0400
+@@ -24,7 +24,7 @@
+ #else
+                 "LinkLocalAddressing=no\n"
+ #endif
+-                "IPv6AcceptRA=false\n"
++                "IPv6AcceptRA=true\n"
+                 "[DHCP]\nClientIdentifier=mac\n";
+     filestream.close();
+ }
+diff -Naur a/util.cpp b/util.cpp
+--- a/util.cpp	2021-05-30 22:31:00.279302590 -0400
++++ b/util.cpp	2021-06-01 08:12:53.878641149 -0400
+@@ -230,8 +230,7 @@
+ 
+     if (addressFamily == AF_INET6)
+     {
+-        if (prefixLength < IPV4_MIN_PREFIX_LENGTH ||
+-            prefixLength > IPV6_MAX_PREFIX_LENGTH)
++        if (prefixLength > IPV6_MAX_PREFIX_LENGTH)
+         {
+             return false;
+         }
+@@ -239,6 +238,18 @@
+ 
+     return true;
+ }
++void splitString(std::string const &str, const char delim,
++			std::vector<std::string> &out)
++{
++	size_t start;
++	size_t end = 0;
++
++	while ((start = str.find_first_not_of(delim, end)) != std::string::npos)
++	{
++		end = str.find(delim, start);
++		out.push_back(str.substr(start, end - start));
++	}
++}
+ 
+ IntfAddrMap getInterfaceAddrs()
+ {
+diff -Naur a/util.hpp b/util.hpp
+--- a/util.hpp	2021-05-28 03:20:51.662752419 -0400
++++ b/util.hpp	2021-06-01 06:37:28.178348245 -0400
+@@ -25,7 +25,7 @@
+ 
+ constexpr auto IPV4_MIN_PREFIX_LENGTH = 1;
+ constexpr auto IPV4_MAX_PREFIX_LENGTH = 32;
+-constexpr auto IPV6_MAX_PREFIX_LENGTH = 64;
++constexpr auto IPV6_MAX_PREFIX_LENGTH = 128;
+ constexpr auto IPV4_PREFIX = "169.254";
+ constexpr auto IPV6_PREFIX = "fe80";
+ 
+@@ -137,6 +137,8 @@
+  */
+ InterfaceList getInterfaces();
+ 
++void splitString(std::string const &str, const char delim,
++			std::vector<std::string> &out);
+ /** @brief Delete the given interface.
+  *  @param[in] intf - interface name.
+  */

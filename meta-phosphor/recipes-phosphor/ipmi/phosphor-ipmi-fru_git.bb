@@ -31,7 +31,7 @@ SRC_URI += "file://of-name-to-eeprom.sh"
 
 SYSTEMD_SERVICE_${PN} += "obmc-read-eeprom@.service"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 HOSTIPMI_PROVIDER_LIBRARY += "libstrgfnhandler.so"
 

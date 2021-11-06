@@ -1,0 +1,24 @@
+From d86d6f706e0b7b9eaa81a2abb3c29251a8fb52a8 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 17 Feb 2021 15:13:31 -0500
+Subject: [PATCH] whitelist warm reset
+
+---
+ ipmi-whitelist.conf | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ipmi-whitelist.conf b/ipmi-whitelist.conf
+index 9b6b983..4e44963 100644
+--- a/ipmi-whitelist.conf
++++ b/ipmi-whitelist.conf
+@@ -39,6 +39,7 @@
+ 0x04:0x30:0x7f7f   //<Sensor/Event>:<Set Sensor Reading and Event Status>
+ 0x06:0x01:0xffff   //<App>:<Get Device ID>
+ 0x06:0x02:0x7f7f   //<App>:<Cold Reset>
++0x06:0x03:0x7f7f   //<App>:<Warm Reset>
+ 0x06:0x04:0xff7f   //<App>:<Get Self Test>
+ 0x06:0x05:0x7f7f   //<App>:<Manufacturing Test Mode>
+ 0x06:0x06:0xffff   //<App>:<Set ACPI Power State>
+-- 
+2.17.1
+

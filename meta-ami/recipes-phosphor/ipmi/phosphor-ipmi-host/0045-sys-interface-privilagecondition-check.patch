@@ -1,0 +1,58 @@
+--- a/include/ipmid/api-types.hpp	2021-03-30 10:41:49.598857257 +0530
++++ b/include/ipmid/api-types.hpp	2021-03-30 11:06:24.000748158 +0530
+@@ -69,6 +69,7 @@
+     Operator,
+     Admin,
+     Oem,
++    sys_iface = 0xff,
+ };
+ 
+ // IPMI Net Function number as specified by IPMI V2.0 spec.
+--- a/ipmid-new.cpp	2021-03-30 11:35:20.132849253 +0530
++++ b/ipmid-new.cpp	2021-03-30 11:52:14.264172207 +0530
+@@ -49,6 +49,10 @@
+ #include <utility>
+ #include <vector>
+ 
++//Channel number assignments
++#define SYS_INTERFACE  0x0F
++#define DBUS_INTERFACE 0x08
++
+ namespace fs = std::filesystem;
+ 
+ using namespace phosphor::logging;
+@@ -247,7 +251,15 @@
+             return filterResponse;
+         }
+         HandlerTuple& chosen = cmdIter->second;
+-        if (request->ctx->priv < std::get<Privilege>(chosen))
++        //if (request->ctx->priv < std::get<Privilege>(chosen))
++       if (request->ctx->channel != DBUS_INTERFACE && request->ctx->channel != SYS_INTERFACE &&
++                                std::get<Privilege>(chosen) == Privilege::sys_iface )
++       {
++           return errorResponse(request, ccInsufficientPrivilege);
++       }
++        if ((request->ctx->priv < std::get<Privilege>(chosen)) &&
++                       (std::get<Privilege>(chosen) != Privilege::sys_iface) )
++
+         {
+             return errorResponse(request, ccInsufficientPrivilege);
+         }
+@@ -265,7 +277,16 @@
+                 return filterResponse;
+             }
+             HandlerTuple& chosen = cmdIter->second;
+-            if (request->ctx->priv < std::get<Privilege>(chosen))
++            //if (request->ctx->priv < std::get<Privilege>(chosen))
++            if (request->ctx->channel != DBUS_INTERFACE && request->ctx->channel != SYS_INTERFACE &&
++                                 std::get<Privilege>(chosen) == Privilege::sys_iface )
++           {
++                return errorResponse(request, ccInsufficientPrivilege);
++            }
++           if ((request->ctx->priv < std::get<Privilege>(chosen)) &&
++                        (std::get<Privilege>(chosen) != Privilege::sys_iface) )
++           
++
+             {
+                 return errorResponse(request, ccInsufficientPrivilege);
+             }

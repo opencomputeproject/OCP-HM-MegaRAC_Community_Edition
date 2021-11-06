@@ -31,9 +31,11 @@ DEPENDS += "nlohmann-json"
 
 DEPENDS += "virtual/${PN}-config-native"
 
+RDEPENDS_${PN}-ledmanager += "bash"
+
 S = "${WORKDIR}/git"
 
-FILES_${PN}-ledmanager += "${bindir}/phosphor-ledmanager"
+FILES_${PN}-ledmanager += "${bindir}/phosphor-ledmanager ${bindir}/led-set-all-groups-asserted.sh"
 FILES_${PN}-faultmonitor += "${bindir}/phosphor-fru-fault-monitor"
 
 DBUS_SERVICE_${PN}-ledmanager += "xyz.openbmc_project.LED.GroupManager.service"
@@ -54,5 +56,3 @@ SYSTEMD_LINK_${PN}-ledmanager += "${@compose_list(d, 'FMT', 'STATES')}"
 SYSTEMD_OVERRIDE_${PN}-ledmanager += "bmc_booted.conf:obmc-led-group-start@bmc_booted.service.d/bmc_booted.conf"
 
 EXTRA_OECONF = "YAML_PATH=${STAGING_DATADIR_NATIVE}/${PN}"
-
-require conf/machine/include/unpack.inc

@@ -9,7 +9,7 @@ require phosphor-ipmi-fru.inc
 
 PROVIDES += "virtual/phosphor-ipmi-fru-inventory"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 do_install() {
         # TODO: install this to inventory_datadir

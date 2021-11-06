@@ -1,0 +1,34 @@
+diff -Naur b/redfish-core/lib/log_services.hpp a/redfish-core/lib/log_services.hpp
+--- b/redfish-core/lib/log_services.hpp	2021-06-11 01:11:35.496928488 -0400
++++ a/redfish-core/lib/log_services.hpp	2021-06-11 01:29:23.703462346 -0400
+@@ -1228,11 +1228,13 @@
+         std::vector<std::string> redfishLogFiles;
+         if (getRedfishLogFiles(redfishLogFiles, &fileindex))
+ 	{
++		if(fileindex > 0)//Skip Remove action if no log files exists
++		{
+                        for (auto it = redfishLogFiles.begin(); it < redfishLogFiles.end();it++)
+                        {
+                               std::remove(it->c_str());
+                        }
+-
++		}
+                        messages::success(asyncResp->res);
+         }
+         std::remove("/tmp/sel_busy");
+@@ -1535,6 +1537,15 @@
+         unsigned int rec_id = 0, id_start = 0, required_index = 0, i = 0, j = 0, firstFileNumber = 0, index = 0, rot = 0;
+ 	std::vector<std::string> logEntryVector;
+ 
++	if(filecount == 0)
++	{
++		/*Possibly we dont have any log files so returning the count as 0 with header*/
++		asyncResp->res.jsonValue["Members@odata.count"] = 0;
++
++  	        asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                 redfish::Header::GetAllowHeaders("LogEntryCollection_v1.xml"));
++		return;
++	}
+                if(filecount != 1)
+                {
+                        try

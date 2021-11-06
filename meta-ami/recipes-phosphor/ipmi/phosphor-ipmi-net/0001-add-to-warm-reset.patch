@@ -1,0 +1,32 @@
+From dedb04970d8cdd964aa94f495ab3a82b9aad8c70 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 17 Feb 2021 14:02:35 -0500
+Subject: [PATCH] add to warm reset
+
+---
+ phosphor-ipmi-net@.service | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/phosphor-ipmi-net@.service b/phosphor-ipmi-net@.service
+index 77a800f..1cba7b1 100644
+--- a/phosphor-ipmi-net@.service
++++ b/phosphor-ipmi-net@.service
+@@ -2,6 +2,7 @@
+ Description=Network IPMI daemon
+ Requires=phosphor-ipmi-host.service
+ After=phosphor-ipmi-host.service
++PartOf=phosphor-ipmi-warm-reset.target
+ 
+ [Service]
+ ExecStart=/usr/bin/netipmid -c %i
+@@ -10,6 +11,7 @@ Restart=always
+ RuntimeDirectory = ipmi
+ RuntimeDirectoryPreserve = yes
+ StateDirectory = ipmi
++StartLimitIntervalSec=0
+ 
+ [Install]
+ DefaultInstance=eth0
+-- 
+2.17.1
+

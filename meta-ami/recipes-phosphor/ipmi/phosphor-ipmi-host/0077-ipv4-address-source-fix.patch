@@ -1,0 +1,19 @@
+--- a/transporthandler.cpp	2021-06-25 12:07:48.591729875 -0400
++++ b/transporthandler.cpp	2021-06-25 12:07:15.715256679 -0400
+@@ -2528,11 +2528,13 @@
+             EthernetInterface::DHCPConf dhcp =
+                 channelCall<getDHCPProperty>(channel);
+             auto ifaddr4 = channelCall<getIfAddr4>(channel);
+-            
++            auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
++	    auto linkLocal6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsLinkLocal);
++
+ 	    if ((dhcp == EthernetInterface::DHCPConf::v4) ||
+                 (dhcp == EthernetInterface::DHCPConf::both) || 
+-                (!ifaddr4 && (dhcp == EthernetInterface::DHCPConf::v6 ||
+-		dhcp == EthernetInterface::DHCPConf::none)))
++                (!ifaddr4 && (dhcp == EthernetInterface::DHCPConf::v6 || 
++		(ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static )|| (linkLocal6))))
+             {
+                 src = IPSrc::DHCP;
+             }

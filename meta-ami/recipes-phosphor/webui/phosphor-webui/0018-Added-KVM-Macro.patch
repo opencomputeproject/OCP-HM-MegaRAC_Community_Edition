@@ -1,0 +1,184 @@
+diff -Naur a/app/common/styles/components/form-elements.scss b/app/common/styles/components/form-elements.scss
+--- a/app/common/styles/components/form-elements.scss	2021-04-09 13:25:35.484643980 +0000
++++ b/app/common/styles/components/form-elements.scss	2021-04-09 13:30:01.505523028 +0000
+@@ -48,6 +48,36 @@
+ .dropdown__list {
+   min-width: 230px;
+ }
++
++.dropdown__list__upward {
++  position: absolute;
++  z-index: 100;
++  right: 0;
++  bottom: 50%;
++  background: $primary-light;
++  padding: 0;
++  width: 100%;
++  border: 1px solid $border-color-02;
++  margin-top: -5px;
++  box-shadow: 0 4px 10px -2px $base-02--02;
++  li {
++    list-style-type: none;
++  }
++  button {
++    padding: 0.2em 0.2em 0.2em 0.2em;
++    text-align: center;
++    width: 100%;
++    font-weight: 400;
++    &:hover {
++      background: $background-02;
++    }
++  }
++}
++
++.dropdown__list__upward {
++  min-width: 100px;
++}
++
+ .dropdown__list.multi-select {
+   > .active {
+     position: relative;
+@@ -259,4 +289,4 @@
+   background: $base-02--03;
+   width: 20px;
+   height: 20px;
+-}
+\ No newline at end of file
++}
+diff -Naur a/app/server-control/directives/kvm-console.html b/app/server-control/directives/kvm-console.html
+--- a/app/server-control/directives/kvm-console.html	2021-04-09 13:25:36.832669367 +0000
++++ b/app/server-control/directives/kvm-console.html	2021-04-09 13:25:55.109012794 +0000
+@@ -10,11 +10,16 @@
+     ng-show="newWindowBtn === true">
+     <icon file="icon-launch.svg" aria-hidden="true"></icon>Open in new window
+   </button>
+-  <button
+-    ng-click="sendCtrlAltDel()"
+-    class="btn btn-tertiary float-right">
+-    Send Ctrl+Alt+Del
+-  </button>
++  <div class="inline dropdown__wrapper" >
++    <button type="button" class="btn btn-tertiary" ng-click="showMacroDropdown = !showMacroDropdown">
++    Send Macro
++    </button>
++    <ul class="dropdown__list__upward inline" ng-show="showMacroDropdown">
++      <li ng-repeat="macro in macroList">
++        <button type="button" ng-click="sendMacro(macro);">{{macro}}</button>
++      </li>
++    </ul>
++  </div>
+   <button
+     ng-click="forceEnterBIOSsetup()"
+     class="btn btn-tertiary float-right">
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-04-09 13:25:36.832669367 +0000
++++ b/app/server-control/directives/kvm-console.js	2021-04-09 13:54:41.806009610 +0000
+@@ -7,6 +7,7 @@
+  */
+ 
+ import RFB from '@novnc/novnc/core/rfb.js';
++import KEY from '@novnc/novnc/core/input/keysym.js';
+ 
+ window.angular && (function(angular) {
+   'use strict';
+@@ -27,10 +28,100 @@
+                 }
+               });
+ 
++	      /** commenting the below sendCtrlAltDel function
++	        * as this feature has been added under Send Macro 
++	        * button and getting called from sendMacro function.
++		*
+               scope.sendCtrlAltDel = function() {
+                 rfb.sendCtrlAltDel();
+                 return false;
+               };
++	      */
++
++              scope.showMacroDropdown = false;
++	      scope.macroList = ['Alt+Tab',		//Switch the between windows
++		      		 'Ctrl+Alt+Del',	//Send the Ctrl+Alt+Del key sequence
++		      		 'Alt+Space',		//Opens menu option
++		      		 'Alt+Esc',    		//Switch application instantly
++		      		 'Alt+Enter',		//Opens properties for selected item
++		      		 'Ctrl+Print',		//Takes whole screen screen-shot
++		      		 'Alt+F4',		//closes window
++		      		 'Ctrl+Esc',		//Opens start menu in windows os
++		      		 'Ctrl+Tab',		//switch between open tabs
++		      		 'Super+L'];		//log out
++
++              scope.sendMacro = function(macro) {
++              	scope.showMacroDropdown = false;
++		switch (macro) {
++		  case 'Alt+Tab' : 
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", true);
++             			   rfb.sendKey(KEY.XK_Tab, "Tab", true);
++             			   rfb.sendKey(KEY.XK_Tab, "Tab", false);
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
++				   break;
++
++		  case 'Ctrl+Alt+Del' : 
++             			   rfb.sendCtrlAltDel();
++				   break;
++
++		  case 'Alt+Space' :
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", true);
++             			   rfb.sendKey(KEY.XK_space, "Space", true);
++             			   rfb.sendKey(KEY.XK_space, "Space", false);
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
++				   break;
++
++		  case 'Alt+Esc' :
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", true);
++             			   rfb.sendKey(KEY.XK_Escape, "Escape", true);
++             			   rfb.sendKey(KEY.XK_Escape, "Escape", false);
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
++				   break;
++
++		  case 'Alt+Enter' :
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", true);
++             			   rfb.sendKey(KEY.XK_Return, "Return", true);
++             			   rfb.sendKey(KEY.XK_Return, "Return", false);
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
++				   break;
++
++		  case 'Ctrl+Print' :
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", true);
++             			   rfb.sendKey(KEY.XK_Print, "Print", true);
++             			   rfb.sendKey(KEY.XK_Print, "Print", false);
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", false);
++				   break;
++
++		  case 'Alt+F4' :
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", true);
++             			   rfb.sendKey(KEY.XK_F4, "F4", true);
++             			   rfb.sendKey(KEY.XK_F4, "F4", false);
++             			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
++				   break;
++
++		  case 'Ctrl+Esc' :
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", true);
++             			   rfb.sendKey(KEY.XK_Escape, "Escape", true);
++             			   rfb.sendKey(KEY.XK_Escape, "Escape", false);
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", false);
++				   break;
++
++		  case 'Ctrl+Tab' :
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", true);
++				   rfb.sendKey(KEY.XK_Tab, "Tab", true);
++				   rfb.sendKey(KEY.XK_Tab, "Tab", false);
++             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", false);
++				   break;
++		  case 'Super+L' :
++             			   rfb.sendKey(KEY.XK_Super_L, "SuperLeft", true);
++             			   rfb.sendKey(KEY.XK_L, "L", true);
++             			   rfb.sendKey(KEY.XK_L, "L", false);
++             			   rfb.sendKey(KEY.XK_Super_L, "SuperLeft", false);
++				   break;
++		  default:
++				   console.log("No Macro Pressed");
++		}
++	      }
+ 
+               function doWarmReboot () {
+                 dataService.setUnreachableState();

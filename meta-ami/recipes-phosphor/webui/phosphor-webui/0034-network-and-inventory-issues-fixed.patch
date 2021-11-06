@@ -1,0 +1,386 @@
+diff -Naur a/app/common/directives/app-header.js b/app/common/directives/app-header.js
+--- a/app/common/directives/app-header.js	2021-06-27 23:21:59.669293969 +0530
++++ b/app/common/directives/app-header.js	2021-06-27 23:24:20.369017326 +0530
+@@ -94,12 +94,30 @@
+                     } else {
+                       dataService.setErrorState();
+                     }
++                    $scope.updateServerPowerOperationTime();
+                   },
+                   function(error) {
+                     console.log(error);
++                    $scope.updateServerPowerOperationTime();
+                   });
+             };
+ 
++            $scope.updateServerPowerOperationTime = function(){
++              APIUtils.getLastPowerTime()
++                .then(
++                    function(data) {
++                      if (data.data == 0) {
++                        dataService.powerTime = 'not available';
++                      } else {
++                        dataService.powerTime = data.data;
++                      }
++                    },
++                    function(error) {
++                      toastService.error('Unable to get last power operation time.');
++                      console.log(JSON.stringify(error));
++                    });
++            };
++
+             $scope.loadNetworkInfo = function() {
+               if (!userModel.isLoggedIn()) {
+                 return;
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-27 23:21:59.669293969 +0530
++++ b/app/common/services/api-utils.js	2021-06-27 23:25:16.864988707 +0530
+@@ -670,7 +670,7 @@
+           });
+         },
+         addIPVs: function(
+-            type, interfaceName, ipAddress, netmaskPrefixLength, gateway) {
++            type, interfaceName, ipAddress, netmaskPrefixLength, gateway, idx) {
+           return $http({
+                    method: 'POST',
+                    url: DataService.getHost() +
+@@ -680,7 +680,7 @@
+                    data: JSON.stringify({
+                      'data': [
+                       //  'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+-                       type, ipAddress, +netmaskPrefixLength, gateway
++                       type, ipAddress, +netmaskPrefixLength, gateway, idx
+                      ]
+                    })
+                  })
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-06-27 23:21:59.669293969 +0530
++++ b/app/common/services/dataService.js	2021-06-27 23:30:35.953615847 +0530
+@@ -34,6 +34,7 @@
+ 
+       this.ignoreHttpError = false;
+       this.systemName = '';
++      this.powerTime = 'N/A';
+       this.userErrors = {
+         "The request failed due to an internal service error.  The service is still operational.": "which is currently logged-in from other browser"
+       }
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-06-27 23:21:59.673293961 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-06-27 23:29:34.901540224 +0530
+@@ -76,22 +76,31 @@
+           $scope.interface.ipv4.values.splice(removeindex, 1);
+           $scope.interface.ipv4.ids.splice(removeindex, 1);
+         }
++        remove_ipv6_linkaddress();
++      };
+ 
++      function remove_ipv6_linkaddress(){
+         var removeindexipv6 = -1;
+         for (var i = 0; i < $scope.interface.ipv6.values.length; i++) {
+           if($scope.interface.ipv6.values[i].hasOwnProperty("Origin")){
+             if($scope.interface.ipv6.values[i].Origin.indexOf("LinkLocal") != -1){
+               removeindexipv6 = i;
++              remove_index(removeindexipv6);
++              break;
+             }else{
+               $scope.interface.ipv6.values[i].id = $scope.interface.ipv6.ids[i];
+             }
+           }
+         }
++      }
++
++      function remove_index(removeindexipv6){
+         if(removeindexipv6 > -1){
+           $scope.interface.ipv6.values.splice(removeindexipv6, 1);
+           $scope.interface.ipv6.ids.splice(removeindexipv6, 1);
++          remove_ipv6_linkaddress();
+         }
+-      };
++      }
+         
+       $scope.validateHostname = (function(){
+         return {
+@@ -244,12 +253,12 @@
+           }
+         }
+ 
+-        if($scope.interface.IPv6DHCPEnabled && $scope.oldDHCPstatusIPv6 != $scope.interface.IPv6DHCPEnabled && !$scope.interface.vlan_DHCP) {
++        if($scope.interface.IPv6DHCPEnabled && $scope.oldDHCPstatusIPv6 != $scope.interface.IPv6DHCPEnabled) {
+           promises.push(setIPv6DHCPEnabled());
+         }
+ 
+         // if ($scope.interface.DHCPEnabled != $scope.oldInterface.DHCPEnabled) {
+-        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled && !$scope.interface.vlan_DHCP) {
++        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
+           promises.push(setDHCPEnabled());
+         }
+ 
+@@ -569,7 +578,8 @@
+                 $scope.selectedInterface,
+                 $scope.interface.ipv4.values[index].Address,
+                 $scope.interface.ipv4.values[index].PrefixLength,
+-                $scope.interface.ipv4.values[index].Gateway)
++                $scope.interface.ipv4.values[index].Gateway,
++                parseInt(index))
+             .then(
+                 function(data) {},
+                 function(error) {
+@@ -584,7 +594,8 @@
+           $scope.selectedInterface,
+           $scope.interface.ipv6.values[index].Address,
+           $scope.interface.ipv6.values[index].PrefixLength,
+-          $scope.interface.ipv6.values[index].Gateway
++          $scope.interface.ipv6.values[index].Gateway,
++          parseInt(index)
+         ).then(
+           function(data){},
+           function(error){
+@@ -604,7 +615,8 @@
+             $scope.selectedInterface,
+             $scope.interface.ipv4.values[index].Address,
+             $scope.interface.ipv4.values[index].PrefixLength,
+-            $scope.interface.ipv4.values[index].Gateway
++            $scope.interface.ipv4.values[index].Gateway,
++            parseInt(index)
+           ).then(
+             function(data) {
+               toastService.info("Switching Network IPv4 Settings to Static..");
+@@ -643,7 +655,8 @@
+                   $scope.selectedInterface,
+                   $scope.interface.ipv4.values[index].Address,
+                   $scope.interface.ipv4.values[index].PrefixLength,
+-                  $scope.interface.ipv4.values[index].Gateway)
++                  $scope.interface.ipv4.values[index].Gateway,
++                  parseInt(index))
+                 .then(
+                   function(data) {},
+                   function(error) {
+@@ -672,7 +685,8 @@
+               $scope.selectedInterface,
+               $scope.interface.ipv6.values[index].Address,
+               $scope.interface.ipv6.values[index].PrefixLength,
+-              $scope.interface.ipv6.values[index].Gateway
++              $scope.interface.ipv6.values[index].Gateway,
++              parseInt(index)
+               ).then(function(response){
+                 
+               }, function(error){
+@@ -696,7 +710,8 @@
+                   $scope.selectedInterface,
+                   $scope.interface.ipv6.values[index].Address,
+                   $scope.interface.ipv6.values[index].PrefixLength,
+-                  $scope.interface.ipv6.values[index].Gateway)
++                  $scope.interface.ipv6.values[index].Gateway,
++                  parseInt(index))
+                 .then(
+                   function(data) {},
+                   function(error) {
+@@ -824,9 +839,9 @@
+         $scope.delete_VLAN_flag = false;
+ 
+         if($scope.selectedInterface.indexOf("_") != -1){
+-          var tmp = $scope.selectedInterface.split('_')[0];
+-          $scope.interface.DHCPEnabled = $scope.network.interfaces[tmp].DHCPEnabled;
+-          $scope.interface.IPv6DHCPEnabled = $scope.network.interfaces[tmp].IPv6DHCPEnabled;
++          // var tmp = $scope.selectedInterface.split('_')[0];
++          $scope.interface.DHCPEnabled = $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled;
++          $scope.interface.IPv6DHCPEnabled = $scope.network.interfaces[$scope.selectedInterface].IPv6DHCPEnabled;
+           $scope.vlan.id = $scope.network.interfaces[$scope.selectedInterface].Id;
+           $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.selectedInterface].VlanPriority;
+           $scope.delete_VLAN_flag = true;
+@@ -864,6 +879,7 @@
+             if (!$scope.selectedInterface ||
+                 !$scope.network.interfaces[$scope.selectedInterface]) {
+               $scope.selectedInterface = $scope.network.interface_ids[0];
++              $scope.selectedinterfaceId = $scope.network.interface_ids[0];
+             }
+             $scope.interface = $scope.network.interfaces[$scope.selectedInterface];
+             $scope.defaultGateway = $scope.interface.defaultgateway;
+diff -Naur a/app/server-control/controllers/power-operations-controller.html b/app/server-control/controllers/power-operations-controller.html
+--- a/app/server-control/controllers/power-operations-controller.html	2021-06-27 23:21:59.673293961 +0530
++++ b/app/server-control/controllers/power-operations-controller.html	2021-06-27 23:29:53.953565688 +0530
+@@ -6,7 +6,7 @@
+       <h2 class="inline">Current status</h2>
+       <div class="power__status-log inline float-right">
+         Last power operation at
+-        <span class="courier-bold">{{ powerTime | localeDate }}</span>
++        <span class="courier-bold">{{ dataService.powerTime | localeDate }}</span>
+       </div>
+     </div>
+   </div>
+diff -Naur a/app/server-control/controllers/power-operations-controller.js b/app/server-control/controllers/power-operations-controller.js
+--- a/app/server-control/controllers/power-operations-controller.js	2021-06-27 23:21:59.673293961 +0530
++++ b/app/server-control/controllers/power-operations-controller.js	2021-06-27 23:31:07.945648848 +0530
+@@ -398,9 +398,9 @@
+           .then(
+               function(data) {
+                 if (data.data == 0) {
+-                  $scope.powerTime = 'not available';
++                  dataService.powerTime = 'not available';
+                 } else {
+-                  $scope.powerTime = data.data;
++                  dataService.powerTime = data.data;
+                 }
+               },
+               function(error) {
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.html b/app/server-health/controllers/inventory-overview-controller.html
+--- a/app/server-health/controllers/inventory-overview-controller.html	2021-06-27 23:21:59.673293961 +0530
++++ b/app/server-health/controllers/inventory-overview-controller.html	2021-06-27 23:31:35.885674237 +0530
+@@ -27,7 +27,7 @@
+     <h3 class="small-12 hardware__header">
+       Hardware
+     </h3>
+-    <div class="small-12 harware__details" ng-repeat="inventory in hardwares|filter:filterBySearchTerms">
++    <div class="small-12 harware__details" ng-repeat="inventory in finalHardware_data|filter:filterBySearchTerms">
+       <div class="hardware__title row column" ng-class="{'expanded': inventory.expanded}" ng-click="inventory.expanded = ! inventory.expanded">
+         <h4>{{inventory.title}}</h4>
+         <button class="accord-trigger float-right" ng-class="{'active': inventory.expanded}" aria-expanded="{{inventory.expanded ? 'true' : 'false'}}" aria-expanded="{{inventory.expanded ? 'true' : 'false'}}" aria-label="{{inventory.expanded ? 'collapse' : 'expand'}}"></button>
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.js b/app/server-health/controllers/inventory-overview-controller.js
+--- a/app/server-health/controllers/inventory-overview-controller.js	2021-06-27 23:21:59.673293961 +0530
++++ b/app/server-health/controllers/inventory-overview-controller.js	2021-06-27 23:32:54.969730240 +0530
+@@ -14,6 +14,7 @@
+     function($scope, $window, APIUtils, dataService) {
+       $scope.dataService = dataService;
+       $scope.hardwares = [];
++      $scope.finalHardware_data = [];
+       $scope.originalData = {};
+       $scope.customSearch = '';
+       $scope.searchTerms = [];
+@@ -22,72 +23,77 @@
+       APIUtils.getHardwares(function(data, originalData) {
+         $scope.hardwares = data;
+         $scope.originalData = JSON.stringify(originalData);
+-        // $scope.loading = false;
+-        get_sensor_details();
++
++        APIUtils.getAllSensorStatus(function(data, originalData) {
++
++          $scope.sensor_data = data;
++
++          for(var each_sensor in $scope.sensor_data){
++            var tmp_s = $scope.sensor_data[each_sensor].path.split('/').pop();
++            for(var each_invent in $scope.hardwares){
++              var tmp_i = $scope.hardwares[each_invent].path.split('/').pop();
++              if(tmp_s == tmp_i){
++                $scope.sensor_data[each_sensor].inventory_available = true;
++                $scope.finalHardware_data.push($scope.hardwares[each_invent]);
++                break;
++              }
++            }
++          }
++          update_inventory_data();
++        });
+       });
+-      function camelcaseToLabel(obj, title) {
+-              var transformed = [], label = '', value = '';
+-              for (var key in obj) {
+-                label = key.replace(/([A-Z0-9]+)/g, ' $1').replace(/^\s+/, '');
+-                if (obj[key] !== '' && key != "path" && key != "original_data" && key != "Associations") {
+-                  value = obj[key];
+-                  if (value == 1 || value == 0) {
+-                    value = (value == 1) ? 'Yes' : 'No';
+-                  }
+-                  if(label == "Name"){
+-                    value = title;
+-                  }
+-                  if(label == "Unit" && value != null){
+-                    value = value.split(".").pop();
+-                  }
+-                  transformed.push({key: label, value: value});
+-        	}
+-              }	
+ 
+-      	      return transformed;
++      function update_inventory_data(){
++        for(var each_sensor in $scope.sensor_data){
++          if(!$scope.sensor_data[each_sensor].hasOwnProperty('inventory_available')){
++
++            var itms = camelcaseToLabel($scope.sensor_data[each_sensor], $scope.sensor_data[each_sensor].title);
++
++            $scope.finalHardware_data.push(Object.assign(
++              {
++                path: $scope.sensor_data[each_sensor].path,
++                title: $scope.sensor_data[each_sensor].title,
++                selected: false,
++                expanded: false,
++                search_text: $scope.sensor_data[each_sensor].title.toLowerCase(),
++                sub_components: [],
++                // original_data: {key: each_sensor, value: $scope.sensor_data[each_sensor]}
++              },
++              {items: itms}));
++          }
++        }
++        $scope.loading = false;
+       }
+-      function get_sensor_details(){
+-        APIUtils.getAllSensorStatus(function(sdata, originalData) {
+-          $scope.sensor_data = sdata;
+-
+-          for (var each_sensor in $scope.sensor_data){
+-            var inventory_match = 0;
+-            for(var each_inventory_itm in $scope.hardwares){
+-
+-              var sensor_name = $scope.sensor_data[each_sensor].path.split("/").pop();
+-              var inventory_name = $scope.hardwares[each_inventory_itm].path.split("/").pop();
+-
+-              if(sensor_name == inventory_name){
+-                var tmp_item = $scope.hardwares[each_inventory_itm].items;
+-                for(var each_item in tmp_item){
+-                  if(tmp_item[each_item].key == "Severity"){
+-                    $scope.hardwares[each_inventory_itm].items[each_item].value = $scope.sensor_data[each_sensor].status;
+-                  }
+-                  if(tmp_item[each_item].key == "Value"){
+-                    $scope.hardwares[each_inventory_itm].items[each_item].value = $scope.sensor_data[each_sensor].Value;
+-                  }
++
++      function camelcaseToLabel(obj, title) {
++        var transformed = [], label = '', value = '';
++        for (var key in obj) {
++          label = key.replace(/([A-Z0-9]+)/g, ' $1').replace(/^\s+/, '');
++          if (obj[key] !== '' && label != 'search_text' && label != 'original_data' && label != 'path' && label != 'Associations') {
++            value = obj[key];
++            // if (value == 1 || value == 0) {
++            //   value = (value == 1) ? 'Yes' : 'No';
++            // }
++            if(label == "Name"){
++              value = title;
++            }
++            if(label == "Unit" && value != null){
++              value = value.split(".").pop();
++            }
++            if(label == 'severity_flags'){
++              for(var i in value){
++                if(value[i]){
++                  value = i;
++                  break;
++                }else{
++                  value = "N/A";
+                 }
+-		inventory_match = 1;
+-		break;
+-	      }
++              }
+             }
+-	    if(inventory_match == 0){
+- 	   	$scope.hardwares.push(Object.assign(
+-            	{
+-                	path: $scope.sensor_data[each_sensor].path,
+-                	title: sensor_name,
+-                	depth: "NA",
+-                	parent: "NA",
+-                	selected: false,
+-                	expanded: false,
+-                	search_text: sensor_name.toLowerCase(),
+-                	sub_components: []
+-
+-             	 },{items: camelcaseToLabel($scope.sensor_data[each_sensor], $scope.sensor_data[each_sensor].path.split("/").pop())}));
+-	     }
++            transformed.push({key: label, value: value});
+           }
+-          $scope.loading = false;
+-        });
++        }
++        return transformed;
+       }
+       $scope.clear = function() {
+         $scope.customSearch = '';

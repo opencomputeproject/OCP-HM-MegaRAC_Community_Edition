@@ -1,0 +1,104 @@
+diff -Naur a/include/sensorcommands.hpp b/include/sensorcommands.hpp
+--- a/include/sensorcommands.hpp	2021-06-14 23:59:44.367944699 +0530
++++ b/include/sensorcommands.hpp	2021-06-14 23:47:44.620165893 +0530
+@@ -137,7 +137,10 @@
+ 	NumGrpCtlTableEntries = 0xE,
+ };
+ 
+-
++static constexpr const char* pefService = "xyz.openbmc_project.pef.alerting";
++static constexpr const char* pefObjPath = "/xyz/openbmc_project/pef/alerting";
++static constexpr const char* pefIface = "xyz.openbmc_project.pef.pefTask";
++static constexpr const char* pefTaskMethod = "doPefTask";
+ static constexpr const char *pefBus = "xyz.openbmc_project.pef.alert.manager";
+ static constexpr const char *pefObj = "/xyz/openbmc_project/PefAlertManager";
+ static constexpr const char *pefConfInfoIntf = "xyz.openbmc_project.pef.PEFConfInfo";
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2021-06-14 23:59:24.808059679 +0530
++++ b/src/sensorcommands.cpp	2021-06-15 00:17:28.769681234 +0530
+@@ -389,6 +389,38 @@
+         generatorID, evmRev, sensorType, sensorNum, eventType, eventData1,
+         eventData2.value_or(0xFF), eventData3.value_or(0xFF));
+ 
++    uint16_t recordId = 1;
++    std::ifstream LastSelIdFile;
++
++    LastSelIdFile.open("/var/sellog/LastSELID", std::ios::in);
++    if( !LastSelIdFile ) {
++            phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Error:Last SEL ID file could not be opened");
++
++    }
++    LastSelIdFile >> recordId;
++    recordId ++;
++    LastSelIdFile.close();
++
++    uint8_t eveData2 = eventData2.value_or(0xFF);
++    uint8_t eveData3 = eventData3.value_or(0xFF);
++    uint16_t genID = generatorID;
++
++    //Do PEF Action
++    std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++    dbus->async_method_call(
++            [](boost::system::error_code ec) {
++                if (ec)
++                {
++                        phosphor::logging::log<phosphor::logging::level::ERR>(
++                                        "Error: Failed to call doPefTask");
++                }
++            },
++            pefService,pefObjPath,pefIface,pefTaskMethod,
++            recordId,sensorType,sensorNum,eventType,eventData1,
++            eveData2,eveData3,genID
++        );
++
+     if (generatorID == meId && sensorNum == meSensorNum && eventData2 &&
+         eventData3)
+     {
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-06-14 23:59:14.888117975 +0530
++++ b/src/storagecommands.cpp	2021-06-15 00:17:45.809580906 +0530
+@@ -45,10 +45,8 @@
+ #include <algorithm>
+ #include <chrono>
+ 
+-using namespace std::literals::chrono_literals;
+ using namespace std;
+ 
+-constexpr std::chrono::microseconds DBUS_TIMEOUT = 5s;
+ static constexpr bool DEBUG = false;
+ 
+ std::mutex mtx;
+@@ -1778,20 +1776,21 @@
+      LastSelIdFile.close();
+ 
+      //Do PEF Action
+-     std::chrono::microseconds timeout = DBUS_TIMEOUT;
+      if (recordType == intel_oem::ipmi::sel::systemEvent )
+      {
+         std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+-        auto startPefTask = dbus->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
+-        startPefTask.append(responseID,sensorType,sensorNum,eventType,eventData1,eventData2,eventData3,generatorID);
+-        try
+-        {
+-                dbus->call(startPefTask, timeout.count());
+-        }
+-        catch (sdbusplus::exception_t&)
+-        {
+-                std::cerr << "Failed to call doPefTask\n";
+-        }
++	dbus->async_method_call(
++            [](boost::system::error_code ec) {
++                if (ec)
++                {
++                        phosphor::logging::log<phosphor::logging::level::ERR>(
++                                        "Error: Failed to call doPefTask");
++                }
++            },
++            pefService,pefObjPath,pefIface,pefTaskMethod,
++            responseID,sensorType,sensorNum,eventType,
++	    eventData1,eventData2,eventData3,generatorID
++        );
+      }
+ 
+ 

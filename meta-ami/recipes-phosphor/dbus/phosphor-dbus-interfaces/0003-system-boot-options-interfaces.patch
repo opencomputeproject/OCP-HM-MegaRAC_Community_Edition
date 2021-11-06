@@ -1,0 +1,1475 @@
+From d9bff044c37710095b32eb8486ad277c249c4427 Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 17 Feb 2021 15:20:48 -0500
+Subject: [PATCH] system boot options interfaces
+
+---
+ .../Boot/BootFlagValidClearing/meson.build    |  14 +
+ .../Control/Boot/BootInfoAck/meson.build      |  14 +
+ .../Boot/BootInitiatorInfo/meson.build        |  14 +
+ .../Control/Boot/BootMailbox/meson.build      |  14 +
+ .../Control/Boot/BootOptValid/meson.build     |  14 +
+ .../Control/Boot/BootType/meson.build         |  14 +
+ .../Control/Boot/CMOSClear/meson.build        |  14 +
+ .../Boot/ConsoleRedirection/meson.build       |  14 +
+ .../Control/Boot/DeviceInstance/meson.build   |  14 +
+ .../Boot/FirmwareVerbosity/meson.build        |  14 +
+ .../Boot/ForceProgressTraps/meson.build       |  14 +
+ .../Control/Boot/LockKeyboard/meson.build     |  14 +
+ .../Control/Boot/LockPower/meson.build        |  14 +
+ .../Control/Boot/LockSleep/meson.build        |  14 +
+ .../Control/Boot/MuxOverride/meson.build      |  14 +
+ .../Control/Boot/PasswordBypass/meson.build   |  14 +
+ .../Control/Boot/ResetLockout/meson.build     |  14 +
+ .../Control/Boot/ScreenBlank/meson.build      |  14 +
+ .../Boot/ServicePartitionScan/meson.build     |  14 +
+ .../Boot/ServicePartitionSelect/meson.build   |  14 +
+ .../Control/Boot/SetInProgress/meson.build    |  14 +
+ .../Boot/SharedModeOverride/meson.build       |  14 +
+ .../openbmc_project/Control/Boot/meson.build  | 330 ++++++++++++++++++
+ .../Boot/BootFlagValidClearing.interface.yaml |  29 ++
+ .../Control/Boot/BootInfoAck.interface.yaml   |  29 ++
+ .../Boot/BootInitiatorInfo.interface.yaml     |  19 +
+ .../Control/Boot/BootMailbox.interface.yaml   |  48 +++
+ .../Control/Boot/BootOptValid.interface.yaml  |  49 +++
+ .../Control/Boot/BootType.interface.yaml      |  20 ++
+ .../Control/Boot/CMOSClear.interface.yaml     |  11 +
+ .../Boot/ConsoleRedirection.interface.yaml    |  23 ++
+ .../Boot/DeviceInstance.interface.yaml        |   8 +
+ .../Boot/FirmwareVerbosity.interface.yaml     |  23 ++
+ .../Boot/ForceProgressTraps.interface.yaml    |   9 +
+ .../Control/Boot/LockKeyboard.interface.yaml  |  11 +
+ .../Control/Boot/LockPower.interface.yaml     |   9 +
+ .../Control/Boot/LockSleep.interface.yaml     |   9 +
+ .../Control/Boot/MuxOverride.interface.yaml   |  23 ++
+ .../Boot/PasswordBypass.interface.yaml        |   9 +
+ .../Control/Boot/ResetLockout.interface.yaml  |   9 +
+ .../Control/Boot/ScreenBlank.interface.yaml   |  11 +
+ .../Boot/ServicePartitionScan.interface.yaml  |  14 +
+ .../ServicePartitionSelect.interface.yaml     |   8 +
+ .../Control/Boot/SetInProgress.interface.yaml |  20 ++
+ .../Boot/SharedModeOverride.interface.yaml    |   9 +
+ .../Control/Boot/Source.interface.yaml        |  31 +-
+ 46 files changed, 1064 insertions(+), 5 deletions(-)
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootFlagValidClearing/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootInfoAck/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootInitiatorInfo/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootMailbox/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootOptValid/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/BootType/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/CMOSClear/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ConsoleRedirection/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/DeviceInstance/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/FirmwareVerbosity/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ForceProgressTraps/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/LockKeyboard/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/LockPower/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/LockSleep/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/MuxOverride/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/PasswordBypass/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ResetLockout/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ScreenBlank/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ServicePartitionScan/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/ServicePartitionSelect/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/SetInProgress/meson.build
+ create mode 100644 gen/xyz/openbmc_project/Control/Boot/SharedModeOverride/meson.build
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/BootType.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/LockPower.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml
+ create mode 100644 xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml
+
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootFlagValidClearing/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootFlagValidClearing/meson.build
+new file mode 100644
+index 0000000..ea8b285
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootFlagValidClearing/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootFlagValidClearing__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootFlagValidClearing',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootInfoAck/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootInfoAck/meson.build
+new file mode 100644
+index 0000000..5c058bc
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootInfoAck/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootInfoAck__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootInfoAck',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootInitiatorInfo/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootInitiatorInfo/meson.build
+new file mode 100644
+index 0000000..0d2a77e
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootInitiatorInfo/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootInitiatorInfo__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootInitiatorInfo',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootMailbox/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootMailbox/meson.build
+new file mode 100644
+index 0000000..f572e54
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootMailbox/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootMailbox__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootMailbox',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootOptValid/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootOptValid/meson.build
+new file mode 100644
+index 0000000..db2a2a0
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootOptValid/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootOptValid__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootOptValid',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/BootType/meson.build b/gen/xyz/openbmc_project/Control/Boot/BootType/meson.build
+new file mode 100644
+index 0000000..3e10c6c
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/BootType/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootType__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootType.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootType',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/CMOSClear/meson.build b/gen/xyz/openbmc_project/Control/Boot/CMOSClear/meson.build
+new file mode 100644
+index 0000000..df73405
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/CMOSClear/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/CMOSClear__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/CMOSClear',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ConsoleRedirection/meson.build b/gen/xyz/openbmc_project/Control/Boot/ConsoleRedirection/meson.build
+new file mode 100644
+index 0000000..67f0ae4
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ConsoleRedirection/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ConsoleRedirection__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ConsoleRedirection',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/DeviceInstance/meson.build b/gen/xyz/openbmc_project/Control/Boot/DeviceInstance/meson.build
+new file mode 100644
+index 0000000..58e1f7a
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/DeviceInstance/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/DeviceInstance__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/DeviceInstance',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/FirmwareVerbosity/meson.build b/gen/xyz/openbmc_project/Control/Boot/FirmwareVerbosity/meson.build
+new file mode 100644
+index 0000000..cb03309
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/FirmwareVerbosity/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/FirmwareVerbosity__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/FirmwareVerbosity',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ForceProgressTraps/meson.build b/gen/xyz/openbmc_project/Control/Boot/ForceProgressTraps/meson.build
+new file mode 100644
+index 0000000..637029f
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ForceProgressTraps/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ForceProgressTraps__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ForceProgressTraps',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/LockKeyboard/meson.build b/gen/xyz/openbmc_project/Control/Boot/LockKeyboard/meson.build
+new file mode 100644
+index 0000000..c496f9c
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/LockKeyboard/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockKeyboard__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockKeyboard',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/LockPower/meson.build b/gen/xyz/openbmc_project/Control/Boot/LockPower/meson.build
+new file mode 100644
+index 0000000..f273e20
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/LockPower/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockPower__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockPower.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockPower',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/LockSleep/meson.build b/gen/xyz/openbmc_project/Control/Boot/LockSleep/meson.build
+new file mode 100644
+index 0000000..1597c48
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/LockSleep/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockSleep__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockSleep',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/MuxOverride/meson.build b/gen/xyz/openbmc_project/Control/Boot/MuxOverride/meson.build
+new file mode 100644
+index 0000000..e0b4cc2
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/MuxOverride/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/MuxOverride__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/MuxOverride',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/PasswordBypass/meson.build b/gen/xyz/openbmc_project/Control/Boot/PasswordBypass/meson.build
+new file mode 100644
+index 0000000..d2c2bda
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/PasswordBypass/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/PasswordBypass__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/PasswordBypass',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ResetLockout/meson.build b/gen/xyz/openbmc_project/Control/Boot/ResetLockout/meson.build
+new file mode 100644
+index 0000000..8c358dd
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ResetLockout/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ResetLockout__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ResetLockout',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ScreenBlank/meson.build b/gen/xyz/openbmc_project/Control/Boot/ScreenBlank/meson.build
+new file mode 100644
+index 0000000..2d436ad
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ScreenBlank/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ScreenBlank__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ScreenBlank',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ServicePartitionScan/meson.build b/gen/xyz/openbmc_project/Control/Boot/ServicePartitionScan/meson.build
+new file mode 100644
+index 0000000..ee738f0
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ServicePartitionScan/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ServicePartitionScan__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ServicePartitionScan',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/ServicePartitionSelect/meson.build b/gen/xyz/openbmc_project/Control/Boot/ServicePartitionSelect/meson.build
+new file mode 100644
+index 0000000..f89089f
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/ServicePartitionSelect/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/ServicePartitionSelect__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ServicePartitionSelect',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/SetInProgress/meson.build b/gen/xyz/openbmc_project/Control/Boot/SetInProgress/meson.build
+new file mode 100644
+index 0000000..df9830d
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/SetInProgress/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/SetInProgress__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/SetInProgress',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/SharedModeOverride/meson.build b/gen/xyz/openbmc_project/Control/Boot/SharedModeOverride/meson.build
+new file mode 100644
+index 0000000..ecc5111
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Control/Boot/SharedModeOverride/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Control/Boot/SharedModeOverride__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/SharedModeOverride',
++    ],
++)
++
+diff --git a/gen/xyz/openbmc_project/Control/Boot/meson.build b/gen/xyz/openbmc_project/Control/Boot/meson.build
+index ba8a19f..103e6d6 100644
+--- a/gen/xyz/openbmc_project/Control/Boot/meson.build
++++ b/gen/xyz/openbmc_project/Control/Boot/meson.build
+@@ -1,4 +1,214 @@
+ # Generated file; do not modify.
++subdir('BootFlagValidClearing')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootFlagValidClearing__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml',  ],
++    output: [ 'BootFlagValidClearing.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootFlagValidClearing',
++    ],
++    build_by_default: true,
++)
++
++subdir('BootInfoAck')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootInfoAck__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml',  ],
++    output: [ 'BootInfoAck.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootInfoAck',
++    ],
++    build_by_default: true,
++)
++
++subdir('BootInitiatorInfo')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootInitiatorInfo__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml',  ],
++    output: [ 'BootInitiatorInfo.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootInitiatorInfo',
++    ],
++    build_by_default: true,
++)
++
++subdir('BootMailbox')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootMailbox__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml',  ],
++    output: [ 'BootMailbox.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootMailbox',
++    ],
++    build_by_default: true,
++)
++
++subdir('BootOptValid')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootOptValid__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml',  ],
++    output: [ 'BootOptValid.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootOptValid',
++    ],
++    build_by_default: true,
++)
++
++subdir('BootType')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/BootType__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/BootType.interface.yaml',  ],
++    output: [ 'BootType.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/BootType',
++    ],
++    build_by_default: true,
++)
++
++subdir('CMOSClear')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/CMOSClear__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml',  ],
++    output: [ 'CMOSClear.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/CMOSClear',
++    ],
++    build_by_default: true,
++)
++
++subdir('ConsoleRedirection')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ConsoleRedirection__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml',  ],
++    output: [ 'ConsoleRedirection.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ConsoleRedirection',
++    ],
++    build_by_default: true,
++)
++
++subdir('DeviceInstance')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/DeviceInstance__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml',  ],
++    output: [ 'DeviceInstance.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/DeviceInstance',
++    ],
++    build_by_default: true,
++)
++
++subdir('FirmwareVerbosity')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/FirmwareVerbosity__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml',  ],
++    output: [ 'FirmwareVerbosity.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/FirmwareVerbosity',
++    ],
++    build_by_default: true,
++)
++
++subdir('ForceProgressTraps')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ForceProgressTraps__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml',  ],
++    output: [ 'ForceProgressTraps.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ForceProgressTraps',
++    ],
++    build_by_default: true,
++)
++
++subdir('LockKeyboard')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockKeyboard__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml',  ],
++    output: [ 'LockKeyboard.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockKeyboard',
++    ],
++    build_by_default: true,
++)
++
++subdir('LockPower')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockPower__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockPower.interface.yaml',  ],
++    output: [ 'LockPower.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockPower',
++    ],
++    build_by_default: true,
++)
++
++subdir('LockSleep')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/LockSleep__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml',  ],
++    output: [ 'LockSleep.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/LockSleep',
++    ],
++    build_by_default: true,
++)
++
+ subdir('Mode')
+ generated_others += custom_target(
+     'xyz/openbmc_project/Control/Boot/Mode__markdown'.underscorify(),
+@@ -14,6 +224,36 @@ generated_others += custom_target(
+     build_by_default: true,
+ )
+ 
++subdir('MuxOverride')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/MuxOverride__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml',  ],
++    output: [ 'MuxOverride.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/MuxOverride',
++    ],
++    build_by_default: true,
++)
++
++subdir('PasswordBypass')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/PasswordBypass__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml',  ],
++    output: [ 'PasswordBypass.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/PasswordBypass',
++    ],
++    build_by_default: true,
++)
++
+ subdir('RebootAttempts')
+ generated_others += custom_target(
+     'xyz/openbmc_project/Control/Boot/RebootAttempts__markdown'.underscorify(),
+@@ -44,6 +284,96 @@ generated_others += custom_target(
+     build_by_default: true,
+ )
+ 
++subdir('ResetLockout')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ResetLockout__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml',  ],
++    output: [ 'ResetLockout.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ResetLockout',
++    ],
++    build_by_default: true,
++)
++
++subdir('ScreenBlank')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ScreenBlank__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml',  ],
++    output: [ 'ScreenBlank.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ScreenBlank',
++    ],
++    build_by_default: true,
++)
++
++subdir('ServicePartitionScan')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ServicePartitionScan__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml',  ],
++    output: [ 'ServicePartitionScan.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ServicePartitionScan',
++    ],
++    build_by_default: true,
++)
++
++subdir('ServicePartitionSelect')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/ServicePartitionSelect__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml',  ],
++    output: [ 'ServicePartitionSelect.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/ServicePartitionSelect',
++    ],
++    build_by_default: true,
++)
++
++subdir('SetInProgress')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/SetInProgress__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml',  ],
++    output: [ 'SetInProgress.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/SetInProgress',
++    ],
++    build_by_default: true,
++)
++
++subdir('SharedModeOverride')
++generated_others += custom_target(
++    'xyz/openbmc_project/Control/Boot/SharedModeOverride__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml',  ],
++    output: [ 'SharedModeOverride.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Control/Boot/SharedModeOverride',
++    ],
++    build_by_default: true,
++)
++
+ subdir('Source')
+ generated_others += custom_target(
+     'xyz/openbmc_project/Control/Boot/Source__markdown'.underscorify(),
+diff --git a/xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml b/xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml
+new file mode 100644
+index 0000000..c7f4d7d
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootFlagValidClearing.interface.yaml
+@@ -0,0 +1,29 @@
++description: >
++    Implement to support boot flag valid clearing conditions.
++
++properties:
++    - name: NoClearOnPEFReset
++      type: boolean
++      default: false
++      description: >
++          Don't clear on reset/power cycle caused by PEF.
++    - name: NoClearOnTimeout
++      type: boolean
++      default: false
++      description: >
++          Don't automatically clear 60 seconds after not receiving a chassis control command.
++    - name: NoClearOnWatchdogReset
++      type: boolean
++      default: false
++      description: >
++          Don't clear on reset/power cycle caused by watchdog timeout.
++    - name: NoClearOnPushbuttonReset
++      type: boolean
++      default: false
++      description: >
++          Don't clear on reset/power cycle caused by pushbutton (eg, ctrl-alt-del).
++    - name: NoClearOnPowerup
++      type: boolean
++      default: false
++      description: >
++          Don't clear on power up via power pushbutton or wake event.
+diff --git a/xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml b/xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml
+new file mode 100644
+index 0000000..ca69d1d
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootInfoAck.interface.yaml
+@@ -0,0 +1,29 @@
++description: >
++    Implement to support boot info acknowledgement.
++
++properties:
++    - name: OEMAck
++      type: boolean
++      default: false
++      description: >
++          OEM has handled boot settings.
++    - name: SMSAck
++      type: boolean
++      default: false
++      description: >
++          SMS has handled boot settings.
++    - name: OSAck
++      type: boolean
++      default: false
++      description: >
++          OS/service partition has handled boot settings.
++    - name: OSLoaderAck
++      type: boolean
++      default: false
++      description: >
++          OS loader has handled boot settings.
++    - name: BIOSAck
++      type: boolean
++      default: false
++      description: >
++          BIOS has handled boot settings.
+diff --git a/xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml b/xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml
+new file mode 100644
+index 0000000..03884cc
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootInitiatorInfo.interface.yaml
+@@ -0,0 +1,19 @@
++description: >
++    Implement to support boot initiator info.
++
++properties:
++    - name: Channel
++      type: byte
++      default: 0
++      description: >
++          Channel delivering the boot command.
++    - name: SessionID
++      type: uint32
++      default: 0
++      description: >
++          Session ID delivering the boot command.
++    - name: Timestamp
++      type: uint32
++      default: 0
++      description: >
++          Boot info timestamp.
+diff --git a/xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml b/xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml
+new file mode 100644
+index 0000000..d753db0
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootMailbox.interface.yaml
+@@ -0,0 +1,48 @@
++description: >
++    Implement to support boot initiator mailbox.
++
++properties:
++    - name: BlockSelector
++      type: byte
++      description:
++          Set operation block.
++    - name: Mailbox0L
++      type: uint64
++      description: >
++          Mailbox block 0 lower
++    - name: Mailbox0U
++      type: uint64
++      description: >
++          Mailbox block 0 upper
++    - name: Mailbox1L
++      type: uint64
++      description: >
++          Mailbox block 1 lower
++    - name: Mailbox1U
++      type: uint64
++      description: >
++          Mailbox block 1 upper
++    - name: Mailbox2L
++      type: uint64
++      description: >
++          Mailbox block 2 lower
++    - name: Mailbox2U
++      type: uint64
++      description: >
++          Mailbox block 2 upper
++    - name: Mailbox3L
++      type: uint64
++      description: >
++          Mailbox block 3 lower
++    - name: Mailbox3U
++      type: uint64
++      description: >
++          Mailbox block 3 upper
++    - name: Mailbox4L
++      type: uint64
++      description: >
++          Mailbox block 4 lower
++    - name: Mailbox4U
++      type: uint64
++      description: >
++          Mailbox block 4 upper
+diff --git a/xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml b/xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml
+new file mode 100644
+index 0000000..58d35ac
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootOptValid.interface.yaml
+@@ -0,0 +1,49 @@
++description: >
++    Implement to control boot flag validity.
++
++properties:
++    - name: BootSetInProgressValid
++      type: boolean
++      default: false
++      description: >
++          Boot set in progress parameter is invalid.
++    - name: BootServicePartitionSelectorValid
++      type: boolean
++      default: false
++      description: >
++          Boot service partition selector parameter is invalid.
++    - name: BootServicePartitionScanValid
++      type: boolean
++      default: false
++      description: >
++          Boot service partition scan parameter is invalid.
++    - name: BootFlagValidClearingValid
++      type: boolean
++      default: false
++      description: >
++          Boot flag invalidation settings paremeter is invalid.
++    - name: BootInfoAckValid
++      type: boolean
++      default: false
++      description: >
++          Boot info acknowledge flags paremeter is invalid.
++    - name: BootFlagsParamValid
++      type: boolean
++      default: false
++      description: >
++          Boot flag parameter is invalid.
++    - name: BootInitiatorInfoValid
++      type: boolean
++      default: false
++      description: >
++          Boot initiator info parameter is invalid.
++    - name: BootInitiatorMailboxValid
++      type: boolean
++      default: false
++      description: >
++          Boot initiator mailbox parameter is invalid.
++    - name: BootFlagsValid
++      type: boolean
++      default: false
++      description: >
++          Boot flags are valid.
+diff --git a/xyz/openbmc_project/Control/Boot/BootType.interface.yaml b/xyz/openbmc_project/Control/Boot/BootType.interface.yaml
+new file mode 100644
+index 0000000..ec6e439
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/BootType.interface.yaml
+@@ -0,0 +1,20 @@
++description: >
++    Implement to control bios boot type
++
++properties:
++    - name: Type
++      type: enum[self.Types]
++      description: >
++          BIOS boot type
++
++enumerations:
++    - name: Types
++      description: >
++          Possible boot types.
++      values:
++        - name: Legacy
++          description: >
++              Boot PC compatible mode.
++        - name: EFI
++          description: >
++              Boot with extensible firmware interface.
+diff --git a/xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml b/xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml
+new file mode 100644
+index 0000000..e1c8623
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/CMOSClear.interface.yaml
+@@ -0,0 +1,11 @@
++description: >
++    Implement to support clearing CMOS.
++
++properties:
++    - name: CMOSClear
++      type: boolean
++      default: false
++      description: >
++          Clear CMOS on next boot
++          true means the CMOS will be cleared
++          false means the CMOS will not be cleared
+diff --git a/xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml b/xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml
+new file mode 100644
+index 0000000..cf3f661
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ConsoleRedirection.interface.yaml
+@@ -0,0 +1,23 @@
++description: >
++    Implement to control console redirection
++
++properties:
++    - name: ConsoleRedirection
++      type: enum[self.Redirections]
++      description: >
++          Console redirection mode
++
++enumerations:
++    - name: Redirections
++      description: >
++          Possible console redirection configurations.
++      values:
++        - name: Default
++          description: >
++              Console redirection occurs per BIOS configuration setting.
++        - name: Suppress
++          description: >
++              Suppress console redirection if enabled.
++        - name: Enable
++          description: >
++              Request console redirection be enabled.
+diff --git a/xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml b/xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml
+new file mode 100644
+index 0000000..a2b718e
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/DeviceInstance.interface.yaml
+@@ -0,0 +1,8 @@
++description: >
++    Implement to set device instance to boot with boot device selector
++
++properties:
++    - name: DeviceInstance
++      type: byte
++      description: >
++          Device instance to boot from
+diff --git a/xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml b/xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml
+new file mode 100644
+index 0000000..9f652e9
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/FirmwareVerbosity.interface.yaml
+@@ -0,0 +1,23 @@
++description: >
++    Implement to control firmware verbosity
++
++properties:
++    - name: FirmwareVerbosity
++      type: enum[self.Levels]
++      description: >
++          Console redirection mode
++
++enumerations:
++    - name: Levels
++      description: >
++          Possible verbosity levels.
++      values:
++        - name: Default
++          description: >
++              System default verbosity level.
++        - name: Quiet
++          description: >
++              Request quiet display.
++        - name: Verbose
++          description: >
++              Request verbose display.
+diff --git a/xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml b/xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml
+new file mode 100644
+index 0000000..8fee754
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ForceProgressTraps.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to force progress event traps
++
++properties:
++    - name: ForceProgressEventTraps
++      type: boolean
++      default: false
++      description: >
++          Force progress event traps
+diff --git a/xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml b/xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml
+new file mode 100644
+index 0000000..af124c2
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/LockKeyboard.interface.yaml
+@@ -0,0 +1,11 @@
++description: >
++    Implement to support keyboard locking.
++
++properties:
++    - name: LockKeyboard
++      type: boolean
++      default: false
++      description: >
++          Lock Keyboard
++          true means the keyboard will be locked on boot
++          false means the keyboard will not be locked on boot
+diff --git a/xyz/openbmc_project/Control/Boot/LockPower.interface.yaml b/xyz/openbmc_project/Control/Boot/LockPower.interface.yaml
+new file mode 100644
+index 0000000..f0b6293
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/LockPower.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to lock out power button.
++
++properties:
++    - name: LockPower
++      type: boolean
++      default: false
++      description: >
++          Lock power button
+diff --git a/xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml b/xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml
+new file mode 100644
+index 0000000..17689e2
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/LockSleep.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to lock out sleep button.
++
++properties:
++    - name: LockSleep
++      type: boolean
++      default: false
++      description: >
++          Lock sleep button
+diff --git a/xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml b/xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml
+new file mode 100644
+index 0000000..e706806
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/MuxOverride.interface.yaml
+@@ -0,0 +1,23 @@
++description: >
++    Implement to control serial/modem mux after POST
++
++properties:
++    - name: MuxOverride
++      type: enum[self.Modes]
++      description: >
++          Mux override mode
++
++enumerations:
++    - name: Modes
++      description: >
++          Possible mux modes.
++      values:
++        - name: Default
++          description: >
++              Use recommended setting.
++        - name: BMC
++          description: >
++              Request BIOS to set mux to BMC.
++        - name: System
++          description: >
++              Request BIOS to set mux to system.
+diff --git a/xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml b/xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml
+new file mode 100644
+index 0000000..4105b2b
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/PasswordBypass.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to bypass BIOS or user boot password
++
++properties:
++    - name: PasswordBypass
++      type: boolean
++      default: false
++      description: >
++          Bypass user password
+diff --git a/xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml b/xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml
+new file mode 100644
+index 0000000..065f493
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ResetLockout.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to support reset lockout.
++
++properties:
++    - name: ResetLockout
++      type: boolean
++      default: false
++      description: >
++          Set to lock reset buttons
+diff --git a/xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml b/xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml
+new file mode 100644
+index 0000000..5c49c45
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ScreenBlank.interface.yaml
+@@ -0,0 +1,11 @@
++description: >
++    Implement to support screen blanking.
++
++properties:
++    - name: ScreenBlank
++      type: boolean
++      default: false
++      description: >
++          Blank screen on boot
++          true means the screen will be blanked
++          false means the screen will not be blanked
+diff --git a/xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml b/xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml
+new file mode 100644
+index 0000000..2b6022c
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ServicePartitionScan.interface.yaml
+@@ -0,0 +1,14 @@
++description: >
++    Implement to support requesting service partition scan.
++
++properties:
++    - name: RequestScan
++      type: boolean
++      default: false
++      description: >
++          Request BIOS to scan for specified service partition.
++    - name: PartitionDiscovered
++      type: boolean
++      default: false
++      description: >
++          BIOS discovered the partition.
+diff --git a/xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml b/xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml
+new file mode 100644
+index 0000000..1be56a5
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/ServicePartitionSelect.interface.yaml
+@@ -0,0 +1,8 @@
++description: >
++    Implement to set service partition.
++
++properties:
++    - name: ServicePartition
++      type: byte
++      description: >
++          Service partition BIOS should boot using.
+diff --git a/xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml b/xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml
+new file mode 100644
+index 0000000..296345a
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/SetInProgress.interface.yaml
+@@ -0,0 +1,20 @@
++description: >
++    Implement to notify about property sets in progress
++
++properties:
++    - name: SetInProgress
++      type: enum[self.Statuses]
++      description: >
++          Console redirection mode
++
++enumerations:
++    - name: Statuses
++      description: >
++          Possible verbosity levels.
++      values:
++        - name: SetComplete
++          description: >
++              Set is complete
++        - name: SetInProgress
++          description: >
++              Set is in progress
+diff --git a/xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml b/xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml
+new file mode 100644
+index 0000000..b214de8
+--- /dev/null
++++ b/xyz/openbmc_project/Control/Boot/SharedModeOverride.interface.yaml
+@@ -0,0 +1,9 @@
++description: >
++    Implement to place channel into shared access mode
++
++properties:
++    - name: SharedModeOverride
++      type: boolean
++      default: false
++      description: >
++          Set channel access mode for specified channel to "shared."
+diff --git a/xyz/openbmc_project/Control/Boot/Source.interface.yaml b/xyz/openbmc_project/Control/Boot/Source.interface.yaml
+index facf5d7..b6ad1b1 100644
+--- a/xyz/openbmc_project/Control/Boot/Source.interface.yaml
++++ b/xyz/openbmc_project/Control/Boot/Source.interface.yaml
+@@ -12,18 +12,39 @@ enumerations:
+       description: >
+         Possible sources of a boot image.
+       values:
++        - name: Default
++          description: >
++            Boot from an implementation defined source.
++        - name: Network
++          description: >
++            Boot from a remote source over a network.
+         - name: Disk
+           description: >
+             Boot from the local hard disk.
+-        - name: ExternalMedia 
++        - name: DiskSafe
++          description: >
++            Boot from the local hard disk, request safe mode.
++        - name: Diagnostic
++          description: >
++            Boot from the default diagnostic partition.
++        - name: ExternalMedia
+           description: >
+             Boot from CD/DVD.
+-        - name: Network
++        - name: BIOS
+           description: >
+-            Boot from a remote source over a network.
+-        - name: Default
++            Boot into BIOS setup.
++        - name: RemoteRemovableMedia
+           description: >
+-            Boot from an implementation defined source.
++            Boot from remotely connected floppy/primary removable media (USB).
++        - name: RemoteCD
++          description: >
++            Boot from remotely connected CD/DVD.
++        - name: RemoteMedia
++          description: >
++            Boot from primary remote media.
++        - name: RemoteDisk
++          description: >
++            Boot from remotely connected hard disk.
+         - name: RemovableMedia
+           description: >
+             Boot from floppy/primary removable media (USB).
+-- 
+2.17.1
+

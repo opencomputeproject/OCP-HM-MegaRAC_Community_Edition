@@ -1,0 +1,536 @@
+diff -Naur a/redfish-core/include/registries/resource_event_message_registry.hpp b/redfish-core/include/registries/resource_event_message_registry.hpp
+--- a/redfish-core/include/registries/resource_event_message_registry.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/include/registries/resource_event_message_registry.hpp	2021-04-28 17:52:12.002570953 +0530
+@@ -25,7 +25,7 @@
+ const Header header = {
+     "Copyright 2014-2020 DMTF in cooperation with the Storage Networking "
+     "Industry Association (SNIA). All rights reserved.",
+-    "#MessageRegistry.v1_4_0.MessageRegistry",
++    "#MessageRegistry.v1_3_1.MessageRegistry",
+     "ResourceEvent.1.0.3",
+     "Resource Event Message Registry",
+     "en",
+diff -Naur a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+--- a/redfish-core/lib/account_service.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/account_service.hpp	2021-04-28 17:53:13.242160060 +0530
+@@ -176,8 +176,11 @@
+     nlohmann::json ldap ;
+     if(confData.serviceEnabled == false)
+     {
++	    /* Note: Deprecated property "AccountProviderType"
++	     * from AccountService 1.5.0 version onwards.
++	     */
+                         ldap = {
+-           {"AccountProviderType", service},
++           //{"AccountProviderType", service},
+            {"ServiceEnabled", confData.serviceEnabled},
+            {"ServiceAddresses", nlohmann::json::array({""})},
+            {"Authentication",
+@@ -197,7 +200,7 @@
+     else
+     {
+                         ldap = {
+-           {"AccountProviderType", service},
++           //{"AccountProviderType", service},
+            {"ServiceEnabled", confData.serviceEnabled},
+            {"ServiceAddresses", nlohmann::json::array({confData.uri})},
+            {"Authentication",
+@@ -1249,6 +1252,10 @@
+                                 .jsonValue["AccountLockoutThreshold"] = *value;
+                         }
+                     }
++		   /* commenting below code, as the property "PasswordPolicyComplexity"
++		    * is not defined in AccountService 1.7.0 version in DMTF 2019.4 Version.
++		    */
++		   #if 0
+                    if (property.first == "PasswordPolicy")
+                     {
+                         const uint8_t* value =
+@@ -1260,6 +1267,7 @@
+                                 .jsonValue["PasswordPolicyComplexity"] = *value;
+                         }
+                     }
++	   	   #endif
+                 }
+             },
+             "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
+diff -Naur a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+--- a/redfish-core/lib/chassis.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/chassis.hpp	2021-04-28 17:53:32.482036335 +0530
+@@ -341,7 +341,11 @@
+                                       interface) != interfaces2.end())
+                         {
+                             getIndicatorLedState(asyncResp);
+-                            getLocationIndicatorActive(asyncResp);
++			    /* commenting "LocationIndicatorActive" proeprty,
++			     * as using DMTF 2019.4 schema version Chassis 1.11.0,
++			     * which does not support it.
++			     */
++                            //getLocationIndicatorActive(asyncResp);
+                             break;
+                         }
+                     }
+@@ -381,9 +385,12 @@
+                                                   chassisId + "/Thermal"}};
+ 
+ 			    // FRU Device
+-                            asyncResp->res.jsonValue["FRU"] = {
+-                                {"@odata.id", "/redfish/v1/Chassis/" +
+-                                                  chassisId + "/FRU"}};
++                            nlohmann::json& oem = asyncResp->res.jsonValue["Oem"];
++                            nlohmann::json& oemAmi = oem["Ami"];
++                            oemAmi["@odata.type"] = "#OemAMIChassis.v1_0_0.OemAMIChassis";
++                            oemAmi ["FRU"] = {
++                                 {"@odata.id", "/redfish/v1/Chassis/" +
++                                                   chassisId + "/FRU"}};
+ 
+                             // Power object
+                             asyncResp->res.jsonValue["Power"] = {
+diff -Naur a/redfish-core/lib/fru.hpp b/redfish-core/lib/fru.hpp
+--- a/redfish-core/lib/fru.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/fru.hpp	2021-04-28 17:53:43.973963588 +0530
+@@ -32,10 +32,11 @@
+ 					const std::vector<std::string>& params) override
+ 			{
+ 
+-				res.jsonValue["@odata.type"] = "#FRUCollection.FRUCollection";
+-				res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/{ChassisId}/FRU";
++				const std::string& chassisId = params[0];
++				res.jsonValue["@odata.type"] = "#AMIChassisFRUCollection.AMIChassisFRUCollection";
++				res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/" + chassisId + "/FRU";
+ 				res.jsonValue["@odata.context"] =
+-					"/redfish/v1/$metadata#FRUCollection.FRUCollection";
++					"/redfish/v1/$metadata#AMIChassisFRUCollection.AMIChassisFRUCollection";
+ 				res.jsonValue["Description"] = "Resource Collection of FRU instances";
+ 				res.jsonValue["Name"] = "FRUCollection";
+ 
+@@ -49,7 +50,6 @@
+ 					return;
+ 				}
+ 
+-				const std::string& chassisId = params[0];
+ 				std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
+ 
+ 				crow::connections::systemBus->async_method_call(
+@@ -146,16 +146,14 @@
+ 
+ 
+ 
+-				res.jsonValue["@odata.context"] =  "/redfish/v1/$metadata#FRU.FRU";
++				res.jsonValue["@odata.context"] =  "/redfish/v1/$metadata#AMIChassisFRU.AMIChassisFRU";
+ 
+ 				res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/" + chassisId + "/FRU/" + fruName;
+ 
+-				res.jsonValue["@odata.type"] = "#FRU.v1_0_0_FRU";
++				res.jsonValue["@odata.type"] = "#AMIChassisFRU.v1_0_0.AMIChassisFRU";
+ 
+ 				res.jsonValue["Name"] = fruName ;
+ 
+-
+-
+ 				std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
+ 
+ 				crow::connections::systemBus->async_method_call(
+@@ -221,9 +219,6 @@
+ 									return;
+ 								}
+ 
+-								std::vector<std::string> Fru_Objectdata;
+-
+-
+ 								for ( const auto &property : dbus_data)
+ 								{
+ 
+@@ -233,13 +228,11 @@
+ 										const std::string *version = std::get_if<std::string>(&property.second);
+ 
+ 										if (property.first == "BOARD_FRU_VERSION_ID")  {
+-											res = "Board Version  : " + *version ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardVersion"] =  *version ; 
+ 										}	
+ 
+ 										else {
+-											res = "Product Version  : " + *version ;
+-											Fru_Objectdata.emplace_back(res);
++											 aResp->res.jsonValue["ProductVersion"] = *version ;
+ 										}
+ 									}
+ 
+@@ -247,12 +240,10 @@
+ 									{
+ 										const std::string *manufacturer = std::get_if<std::string>(&property.second);
+ 										if (property.first == "BOARD_MANUFACTURER") {
+-											res = "Board Mfg  : " + *manufacturer ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardMfg"] =  *manufacturer ;
+ 										}
+ 										else {
+-											res = "Product Manufacturer  : " + *manufacturer ;
+-											Fru_Objectdata.emplace_back(res);
++											 aResp->res.jsonValue["ProductManufacturer"] = *manufacturer ;
+ 										}
+ 									}
+ 									else if ((property.first == "BOARD_PRODUCT_NAME") || (property.first == "PRODUCT_PRODUCT_NAME"))
+@@ -261,12 +252,10 @@
+ 
+ 										if (property.first == "BOARD_PRODUCT_NAME") {
+ 
+-											res = "Board Product  : " + *product_name ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardProduct"] = *product_name ;
+ 										}
+ 										else  {
+-											res = "Product Name  : " + *product_name ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["ProductName"] = *product_name ;
+ 										}
+ 									}
+ 
+@@ -274,13 +263,10 @@
+ 									{
+ 										const std::string *part_number = std::get_if<std::string>(&property.second);
+ 										if (property.first == "BOARD_PART_NUMBER") {
+-											res = "Board Part Number  : " + *part_number ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardPartNumber"] = *part_number ;
+ 										}
+ 										else {
+-											res = "Product Part Number  : " + *part_number ;
+-											Fru_Objectdata.emplace_back(res);
+-	
++											aResp->res.jsonValue["ProductPartNumber"] =  *part_number ;
+ 										}
+ 									}
+ 
+@@ -289,40 +275,30 @@
+ 									{
+ 										const std::string *serial_number = std::get_if<std::string>(&property.second);
+ 										if (property.first == "BOARD_SERIAL_NUMBER") {
+-											res = "Board Serial  : " + *serial_number ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardSerialNumber"] = *serial_number ;
+ 										}
+ 										else {
+-											res = "Product Serial  : " + *serial_number ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["ProductSerialNumber"] =  *serial_number ;
+ 										}
+ 									}
+-	
+ 									else if ((property.first == "BOARD_LANGUAGE_CODE") || (property.first == "PRODUCT_LANGUAGE_CODE"))
+ 									{
+ 										const std::string *language_code = std::get_if<std::string>(&property.second);
+ 										if (property.first == "BOARD_LANGUAGE_CODE") {
+-											res = "Board language code  : " + *language_code ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["BoardLanguageCode"] = *language_code ;
+ 										}
+ 										else {
+-											res = "Product language code  : " + *language_code ;
+-											Fru_Objectdata.emplace_back(res);
++											aResp->res.jsonValue["ProductLanguageCode"] = *language_code ;
+ 										}
+ 									}
+ 									else if ( property.first == "BOARD_MANUFACTURE_DATE" )
+ 									{
+ 										const std::string *mfg_date = std::get_if<std::string>(&property.second);
+-										res = "Board Mfg Date  : " + *mfg_date ;
+-										Fru_Objectdata.emplace_back(res);
++										aResp->res.jsonValue["BoardMfgDate"] = *mfg_date ;
+ 									}
+ 	
+ 
+ 								} // property loop end
+-
+-
+-								aResp->res.jsonValue["FRU Device Description"] = Fru_Objectdata;
+-
+ 								},
+ 									"xyz.openbmc_project.FruDevice",
+ 									fruPath,
+@@ -338,8 +314,6 @@
+ 							std::array<const char *, 1>{"xyz.openbmc_project.FruDevice"});
+ 
+ 				return;
+-
+-
+ 			}    // doGet end
+ 
+ 
+@@ -347,5 +321,3 @@
+ 
+ 
+ } // namespace redfish
+-
+-
+diff -Naur a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/log_services.hpp	2021-04-28 18:39:05.945791942 +0530
+@@ -1558,6 +1558,12 @@
+ 		for (auto it = logEntryVector.begin()+static_cast<int>(required_index); it < logEntryVector.end();
+              it++, i++)
+ 			 {
++				if ((logEntryVector[required_index+i].substr(logEntryVector[required_index+i].find("OpenBMC."),logEntryVector[required_index+i].substr(logEntryVector[required_index+i].find("OpenBMC.")).find(",")).compare("OpenBMC.0.1")) == 0)
++				{
++				     BMCWEB_LOG_DEBUG << "Entry with Empty MessageId & Message found, Ignoring! ";
++				     continue;
++				}
++
+ 				std::string idStr;
+ 				idStr = std::to_string(rec_id);
+ 				rec_id++;
+@@ -1652,6 +1658,11 @@
+ 		    }
+ 		    while (std::getline(logStream, logEntry))
+ 		    {
++                                if ((logEntry.substr(logEntry.find("OpenBMC."),logEntry.substr(logEntry.find("OpenBMC.")).find(",")).compare("OpenBMC.0.1")) == 0)
++                                {
++                                   BMCWEB_LOG_DEBUG << "Entry with Empty MessageId & Message found, Ignoring! ";
++                                   continue;
++                                }
+ 			    entryCount++;
+ 			    logEntryVector.push_back(logEntry);
+ 		    }
+diff -Naur a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+--- a/redfish-core/lib/managers.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/managers.hpp	2021-04-28 18:01:04.763661948 +0530
+@@ -1761,6 +1761,10 @@
+         managerReset["@Redfish.ActionInfo"] =
+             "/redfish/v1/Managers/bmc/ResetActionInfo";
+ 
++	/* Commenting below code, as using DMTF 2019.4 schema version,
++	 * Manager 1.7.0 version dones not supports "ResetToDefaults" action.
++	 */
++	#if 0
+         // ResetToDefaults (Factory Reset) has values like
+         // PreserveNetworkAndUsers and PreserveNetwork that aren't supported
+         // on OpenBMC
+@@ -1769,6 +1773,7 @@
+         resetToDefaults["target"] =
+             "/redfish/v1/Managers/bmc/Actions/Manager.ResetToDefaults";
+         resetToDefaults["ResetType@Redfish.AllowableValues"] = {"ResetAll"};
++	#endif
+ 
+         std::string DateTime = crow::utility::dateTimeNow();
+         res.jsonValue["DateTime"] = DateTime;
+diff -Naur a/redfish-core/lib/message_registries.hpp b/redfish-core/lib/message_registries.hpp
+--- a/redfish-core/lib/message_registries.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/message_registries.hpp	2021-04-28 18:03:10.979124291 +0530
+@@ -267,7 +267,11 @@
+             obj = {{"Description", message->second.description},
+                    {"Message", message->second.message},
+                    {"Severity", message->second.severity},
+-                   {"MessageSeverity", message->second.messageSeverity},
++		    /* Commenting "MessageSeverity" property, as using
++		     * DMTF 2019.4 schema MessageRegistry 1.3.1 version,
++                     * does not support it.
++		     */
++                   //{"MessageSeverity", message->second.messageSeverity},
+                    {"NumberOfArgs", message->second.numberOfArgs},
+                    {"Resolution", message->second.resolution}};
+             if (message->second.numberOfArgs > 0)
+diff -Naur a/redfish-core/lib/power.hpp b/redfish-core/lib/power.hpp
+--- a/redfish-core/lib/power.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/power.hpp	2021-04-28 18:03:28.963050611 +0530
+@@ -234,7 +234,7 @@
+                         // Mandatory properties odata.id and MemberId
+                         // A warning without a odata.type
+                         tempArray.push_back(
+-                            {{"@odata.type", "#Power.v1_6_0.PowerControl"},
++                            {//{"@odata.type", "#Power.v1_5_4.PowerControl"},
+                              {"@odata.id", "/redfish/v1/Chassis/" +
+                                                sensorAsyncResp->chassisId +
+                                                "/Power#/PowerControl/0"},
+diff -Naur a/redfish-core/lib/redfish_sessions.hpp b/redfish-core/lib/redfish_sessions.hpp
+--- a/redfish-core/lib/redfish_sessions.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/redfish_sessions.hpp	2021-04-28 18:03:53.034952999 +0530
+@@ -61,10 +61,14 @@
+         res.jsonValue["UserName"] = session->username;
+         res.jsonValue["@odata.id"] =
+             "/redfish/v1/SessionService/Sessions/" + session->uniqueId;
+-        res.jsonValue["@odata.type"] = "#Session.v1_3_0.Session";
++        res.jsonValue["@odata.type"] = "#Session.v1_2_1.Session";
+         res.jsonValue["Name"] = "User Session";
+         res.jsonValue["Description"] = "Manager User Session";
+-        res.jsonValue["ClientOriginIPAddress"] = session->clientIp;
++	/* Commenting "ClientOriginIPAddress" proeprtry, as using
++	 * DMTF 2019.4 schema Session 1_2_1 version does not
++	 * support this.
++	 */
++        //res.jsonValue["ClientOriginIPAddress"] = session->clientIp;
+         res.jsonValue["Password"] = nullptr;
+         res.jsonValue["SessionType"] = "Redfish";	
+ #ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
+@@ -282,7 +286,7 @@
+     {
+         res.jsonValue["@odata.context"] =
+           "/redfish/v1/$metadata#Session.Session";
+-        res.jsonValue["@odata.type"] = "#Session.v1_1_6.Session";	
++        res.jsonValue["@odata.type"] = "#SessionService.v1_1_6.SessionService";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/SessionService/";
+         res.jsonValue["@odata.context"] =
+           "/redfish/v1/$metadata#SessionService.SessionService";	
+diff -Naur a/redfish-core/lib/sensors.hpp b/redfish-core/lib/sensors.hpp
+--- a/redfish-core/lib/sensors.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/sensors.hpp	2021-04-28 19:29:28.028676028 +0530
+@@ -853,37 +853,40 @@
+     // Check for the type of the sensor and set the object path accordingly,
+     // Send the sensor object path to the ipmi-oem/getSensorNumberFromPath()
+     // And add the sensor number in decimal format.
+-    if (sensorType == "voltage")
++    if (sensorsAsyncResp->chassisSubNode != sensors::node::sensors)
+     {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("voltage/") + sensorName);
+-    }
+-    else if (sensorType == "temperature")
+-    {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("temperature/") + sensorName);
+-    }
+-    else if (sensorType == "fan")
+-    {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("fan/") + sensorName);
+-    }
+-    else if (sensorType == "fan_tach")
+-    {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("fan_tach/") + sensorName);
+-    }
+-    else if (sensorType == "fan_pwm")
+-    {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("fan_pwm/") + sensorName);
+-    }
+-    else if (sensorType == "power")
+-    {
+-        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
+-                                         std::string("power/") + sensorName);
++        if (sensorType == "voltage")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("voltage/") + sensorName);
++        }
++        else if (sensorType == "temperature")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("temperature/") + sensorName);
++        }
++        else if (sensorType == "fan")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("fan/") + sensorName);
++        }
++        else if (sensorType == "fan_tach")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("fan_tach/") + sensorName);
++        }
++        else if (sensorType == "fan_pwm")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("fan_pwm/") + sensorName);
++        }
++        else if (sensorType == "power")
++        {
++            sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                             std::string("power/") + sensorName);
++        }
+     }
+-
++    
+     sensor_json["Status"]["State"] = getState(inventoryItem);
+     sensor_json["Status"]["Health"] =
+         getHealth(sensor_json, interfacesDict, inventoryItem);
+@@ -913,7 +916,7 @@
+     else if (sensorType == "temperature")
+     {
+         unit = "/ReadingCelsius"_json_pointer;
+-        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Temperature";
++        //sensor_json["@odata.type"] = "#Thermal.v1_6_0.Temperature";
+         sensor_json["PhysicalContext"] = "Intake";	
+         // TODO(ed) Documentation says that path should be type fan_tach,
+         // implementation seems to implement fan
+@@ -922,7 +925,7 @@
+     {
+         unit = "/Reading"_json_pointer;
+         sensor_json["ReadingUnits"] = "RPM";
+-        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
++        //sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
+         sensor_json["PhysicalContext"] = "Fan";	
+         setLedState(sensor_json, inventoryItem);
+         forceToInt = true;
+@@ -931,7 +934,7 @@
+     {
+         unit = "/Reading"_json_pointer;
+         sensor_json["ReadingUnits"] = "Percent";
+-        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
++        //sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
+         sensor_json["PhysicalContext"] = "Fan";	
+         setLedState(sensor_json, inventoryItem);
+         forceToInt = true;
+@@ -939,8 +942,7 @@
+     else if (sensorType == "voltage")
+     {
+         unit = "/ReadingVolts"_json_pointer;
+-        sensor_json["@odata.type"] = "#Power.v1_0_0.Voltage";
+-        sensor_json["@odata.type"] = "#Power.v1_6_0.Voltage";
++        //sensor_json["@odata.type"] = "#Power.v1_6_0.Voltage";
+         sensor_json["PhysicalContext"] = "VoltageRegulator";	
+     }
+     else if (sensorType == "power")
+@@ -950,7 +952,7 @@
+ 
+         if (!sensorName.compare("total_power"))
+         {
+-            sensor_json["@odata.type"] = "#Power.v1_6_0.PowerControl";
++            //sensor_json["@odata.type"] = "#Power.v1_6_0.PowerControl";
+             // Put multiple "sensors" into a single PowerControl, so have
+             // generic names for MemberId and Name. Follows Redfish mockup.
+             sensor_json["MemberId"] = "0";
+@@ -2518,6 +2520,13 @@
+                 BMCWEB_LOG_DEBUG << "getManagedObjectsCb parsing object "
+                                  << objPath;
+ 
++	    	if ((objPath.find("pwm") != std::string::npos))
++	    	{
++                    BMCWEB_LOG_DEBUG << "Not pasrsing " << objPath
++                                 << ", as not comes as part of sensor list. ";
++	    	    continue;
++	    	}
++
+                 std::vector<std::string> split;
+                 // Reserve space for
+                 // /xyz/openbmc_project/sensors/<name>/<subname>
+diff -Naur a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+--- a/redfish-core/lib/systems.hpp	2021-04-28 17:51:31.338859363 +0530
++++ b/redfish-core/lib/systems.hpp	2021-04-28 18:07:31.650111943 +0530
+@@ -2181,7 +2181,11 @@
+ 	    aRsp->res.jsonValue["Links"]["Chassis@odata.count"] = 1;		
+         });
+ 
+-        getLocationIndicatorActive(asyncResp);
++	/* commenting "LocationIndicatorActive" proeprty,
++	 * as using DMTF 2019.4 schema version ComputerSystem 1.10.0,
++	 *  which does not support it.
++	 */
++        //getLocationIndicatorActive(asyncResp);
+         // TODO (Gunnar): Remove IndicatorLED after enough time has passed
+         getIndicatorLedState(asyncResp);
+         getComputerSystem(asyncResp, health);
+@@ -2191,7 +2195,12 @@
+         getPCIeDeviceList(asyncResp, "PCIeDevices");
+         getHostWatchdogTimer(asyncResp);
+         getPowerRestorePolicy(asyncResp);
+-        getAutomaticRetry(asyncResp);
++	/* commenting below code, as using DMTF 2019.4 schema version
++	 * ComputerSystem 1.10.0 which does not support 
++	 * "AutomaticRetryAttempts" & "AutomaticRetryConfig" proeprties. 
++	 */
++        //getAutomaticRetry(asyncResp);
++	
+         /**
+          * Commenting "LastResetTime" Property,
+          * as using ComputerSystem.v1_10_0.ComputerSystem

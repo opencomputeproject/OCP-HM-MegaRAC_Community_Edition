@@ -1,0 +1,19 @@
+diff -Naur a/image_manager.cpp b/image_manager.cpp
+--- a/image_manager.cpp	2021-05-10 12:55:09.554041786 +0530
++++ b/image_manager.cpp	2021-05-10 13:22:16.752942012 +0530
+@@ -131,6 +131,7 @@
+     {
+         log<level::ERR>("Failed to read machine name from osRelease",
+                         entry("FILENAME=%s", OS_RELEASE_FILE));
++	report<InternalFailure>(InternalFail::FAIL("Failed to read machine name from osRelease"));
+         return -1;
+     }
+ 
+@@ -144,6 +145,7 @@
+             log<level::ERR>("BMC upgrade: Machine name doesn't match",
+                             entry("CURR_MACHINE=%s", currMachine.c_str()),
+                             entry("NEW_MACHINE=%s", machineStr.c_str()));
++	    report<InternalFailure>(InternalFail::FAIL("Machine name doesn't match"));
+             return -1;
+         }
+     }

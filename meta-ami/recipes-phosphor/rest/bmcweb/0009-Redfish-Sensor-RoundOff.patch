@@ -1,0 +1,15 @@
+diff -Naur a/redfish-core/lib/sensors.hpp d/redfish-core/lib/sensors.hpp
+--- a/redfish-core/lib/sensors.hpp	2021-02-17 00:10:46.586972008 +0530
++++ d/redfish-core/lib/sensors.hpp	2021-02-17 00:26:53.039311949 +0530
+@@ -1031,7 +1031,10 @@
+                 }
+                 else
+                 {
+-                    sensor_json[key] = temp;
++		    double rounded = static_cast<int> (temp * 1000.0)/1000.0;
++                    sensor_json[key] = rounded;
++                    //sensor_json[key] = temp;
++
+                 }
+             }
+         }

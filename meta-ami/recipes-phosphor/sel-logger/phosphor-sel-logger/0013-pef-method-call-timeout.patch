@@ -1,0 +1,40 @@
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2021-05-17 13:41:57.738474104 +0530
++++ b/include/sel_logger.hpp	2021-05-17 13:36:57.915951380 +0530
+@@ -23,10 +23,14 @@
+ #include <vector>
+ #include <boost/algorithm/string.hpp>
+ #include <mutex>
++#include <chrono>
+ 
+ #include "sdrutils.hpp"
+ std::mutex mtx;
+ 
++using namespace std::literals::chrono_literals;
++
++constexpr std::chrono::microseconds DBUS_TIMEOUT = 5s;
+ static constexpr char const* ipmiSelObject = "xyz.openbmc_project.Logging.IPMI";
+ static constexpr char const* ipmiSelPath = "/xyz/openbmc_project/Logging/IPMI";
+ static constexpr char const* ipmiSelAddInterface =
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2021-05-17 13:41:50.182513552 +0530
++++ b/src/sel_logger.cpp	2021-05-17 13:38:38.555478284 +0530
+@@ -149,15 +149,16 @@
+ 
+     unsigned int recordId = getNewRecordId();    
+     sd_journal_send("MESSAGE=%s", message.c_str(), std::forward<T>(metadata)..., NULL);
+-    
++        
+     //Do PEF Action
++    std::chrono::microseconds timeout = DBUS_TIMEOUT;
+     boost::asio::io_service io;
+     auto conn = std::make_shared<sdbusplus::asio::connection>(io);
+     auto startPefTask = conn->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
+     startPefTask.append(static_cast<uint16_t>(recordId),senType,senNum,eveType,selData[0],selData[1],selData[2],genId);
+     try
+     {
+-         conn->call(startPefTask);
++         conn->call(startPefTask, timeout.count());
+     }
+     catch (sdbusplus::exception_t&)
+     {

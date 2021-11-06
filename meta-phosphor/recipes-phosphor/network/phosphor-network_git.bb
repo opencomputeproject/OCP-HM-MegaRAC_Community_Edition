@@ -27,11 +27,12 @@ PACKAGECONFIG ??= "uboot-env"
 UBOOT_ENV_RDEPENDS = "${@d.getVar('PREFERRED_PROVIDER_u-boot-fw-utils', True) or 'u-boot-fw-utils'}"
 PACKAGECONFIG[uboot-env] = "--with-uboot-env,--without-uboot-env,,${UBOOT_ENV_RDEPENDS}"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 SERVICE_FILE = "xyz.openbmc_project.Network.service"
 SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE_${PN} += "${SERVICE_FILE}"
+SYSTEMD_SERVICE_${PN} += "xyz.openbmc_project.GARPControl.service"
 
 EXTRA_OECONF = " \
   SYSTEMD_TARGET="multi-user.target" \

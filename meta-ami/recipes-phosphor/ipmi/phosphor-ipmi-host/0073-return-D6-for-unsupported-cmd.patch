@@ -1,0 +1,23 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-06-16 15:14:21.167142386 -0400
++++ b/dcmihandler.cpp	2021-06-16 15:17:21.053057251 -0400
+@@ -1255,7 +1255,7 @@
+                 // Systemd-networkd doesn't support Random Back off
+ 		if (requestData->data[0] & DCMI_RAND_BACK_OFF_MASK)
+                 {
+-                    return IPMI_CC_INVALID_FIELD_REQUEST;
++                    return IPMI_CC_ERR_HANDLING_COMMAND_FAILURE;
+                 }
+ 		if((requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 6)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 5)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 4)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 3)) || (requestData->data[0] & (DCMI_SET_CONF_PARAM2_RESERVED_MASK << 2)))
+ 		{
+diff -Naur a/include/ipmid/api.h b/include/ipmid/api.h
+--- a/include/ipmid/api.h	2021-06-16 15:14:21.191142903 -0400
++++ b/include/ipmid/api.h	2021-06-16 15:17:29.011305766 -0400
+@@ -134,6 +134,7 @@
+     IPMI_CC_ILLEGAL_COMMAND = 0xCD,
+     IPMI_CC_RESPONSE_ERROR = 0xCE,
+     IPMI_CC_INSUFFICIENT_PRIVILEGE = 0xD4,
++    IPMI_CC_ERR_HANDLING_COMMAND_FAILURE = 0xD6,
+     IPMI_CC_UNSPECIFIED_ERROR = 0xFF,
+ };
+ 

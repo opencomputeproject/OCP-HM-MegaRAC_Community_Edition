@@ -28,12 +28,6 @@ DEPENDS += " \
         cli11 \
         "
 
-#S = "${WORKDIR}/git"
-#SRC_URI = "git://github.com/openbmc/kcsbridge.git"
-#SRCREV = "d8594e9a62feb8b2fac789159966b4782b4aa31e"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/kcsbridge"
-SRC_URI = "file://kcsbridge"
-SRCPV = "${AUTOREV}"
-
+S = "${WORKDIR}/git"
+SRC_URI = "git://github.com/openbmc/kcsbridge.git"
+SRCREV = "4a4d1d03d99fabe089e649aa226ad4c61e71684e"

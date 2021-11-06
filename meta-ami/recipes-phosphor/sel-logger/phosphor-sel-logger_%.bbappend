@@ -1,12 +1,17 @@
+
+DEPENDS += "ipmi-oem"
+
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 SRC_URI_append += "file://0001-threshold-event-for-sensor.patch"
 SRC_URI_append += "file://0002-discrete-event-log.patch"
 SRC_URI_append += "file://0003-added-ipmi-threshold-event-type.patch"
 SRC_URI_append += "file://0004-multiple-state-discrete-sensor.patch"
-SRC_URI_append += "file://0005-avoid-duplicate-threshold-event-log.patch"
-
-do_install_append(){
-   install -d ${D}/var
-   install -d ${D}/var/event
-}
-
+SRC_URI_append += "file://0006-event-msg-for-discrete-sensor.patch"
+SRC_URI_append += "file://0007-added-eventDir-for-threshold-sensor-events.patch"
+SRC_URI_append += "file://0008-avoid-duplicate-event-while-reboot-coldreset.patch"
+SRC_URI_append += "file://0009-ipmi-to-redfish-mapping.patch"
+SRC_URI_append += "file://0010-pef-method-call.patch"
+SRC_URI_append += "file://0011-Added-messageid-for-Processor.patch"
+SRC_URI_append += "file://0012-ipmi-add-sel-response-fix.patch"
+SRC_URI_append += "file://0013-pef-method-call-timeout.patch"
+SRC_URI_append += "file://0014-fixed-discrete-event-log.patch"

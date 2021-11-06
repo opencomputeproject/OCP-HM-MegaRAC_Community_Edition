@@ -1,0 +1,432 @@
+diff -Naur a/include/ChassisIntrusionSensor.hpp b/include/ChassisIntrusionSensor.hpp
+--- a/include/ChassisIntrusionSensor.hpp	2021-02-21 00:20:16.684681470 +0530
++++ b/include/ChassisIntrusionSensor.hpp	2021-02-21 00:20:36.100831496 +0530
+@@ -25,11 +25,9 @@
+ 
+     void start(IntrusionSensorType type, int busId, int slaveAddr,
+               bool gpioInvertedi, uint8_t dtype, uint8_t eventType, uint8_t evStat,
+-              uint8_t sdrVersion,uint8_t recordType, uint8_t recordLen,uint8_t ownerId,uint8_t ownerLun,
++              uint8_t recordType,
+               uint8_t entityId,uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
+-              uint8_t sensorUnit1,uint8_t modifierUnit,uint8_t maxReading,uint8_t minReading,uint8_t sensorUnit2,
+-              uint8_t linearization,uint8_t nominalReading,uint8_t normalMax,uint8_t normalMin,
+-              uint8_t positiveHysteris,uint8_t negativeHysteresis,uint8_t idStringLen);
++              uint8_t sensorUnit2);
+ 
+   private:
+     std::shared_ptr<sdbusplus::asio::dbus_interface> mIface;
+@@ -49,11 +47,9 @@
+     // valid if it is via GPIO
+     bool mGpioInverted;
+     uint8_t mdtype, meventType, mevStat;
+-    uint8_t msdrVersion, mrecordType,mrecordLen,mownerId,mownerLun,mentityId,
++    uint8_t  mrecordType,mentityId,
+             mentityInstance,msensorInit,msensorCap,msensorType,
+-            msensorUnit1,mmodifierUnit,mmaxReading,mminReading,msensorUnit2,
+-            mlinearization,mnominalReading,mnormalMax,mnormalMin,
+-            mpositiveHysteris,mnegativeHysteresis,midStringLen;
++            msensorUnit2;
+     std::string mPinName = "CHASSIS_INTRUSION";
+     gpiod::line mGpioLine;
+     boost::asio::posix::stream_descriptor mGpioFd;
+diff -Naur a/include/SdrRecord.hpp b/include/SdrRecord.hpp
+--- a/include/SdrRecord.hpp	2021-02-21 00:20:16.684681470 +0530
++++ b/include/SdrRecord.hpp	2021-02-21 00:20:36.104831527 +0530
+@@ -6,29 +6,14 @@
+ {
+ struct SdrRecord
+ {
+-        uint8_t SdrVersion;
+         uint8_t RecordType;
+-        uint8_t RecordLen;
+-        uint8_t OwnerId;
+-        uint8_t OwnerLun;
+         uint8_t EntityId;
+         uint8_t EntityInstance;
+         uint8_t SensorInit;
+         uint8_t SensorCap;
+         uint8_t SensorType;
+         uint8_t EventType;
+-        uint8_t SensorUnit1;
+         uint8_t SensorUnit2;
+-        uint8_t ModifierUnit;
+-        uint8_t MaxReading;
+-        uint8_t MinReading;
+-        uint8_t Linearization;
+-        uint8_t NominalReading;
+-        uint8_t NormalMax;
+-        uint8_t NormalMin;
+-        uint8_t PositiveHysteris;
+-        uint8_t NegativeHysteresis;
+-        uint8_t IdStringLen;
+ 
+ };
+ }
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2021-02-21 00:20:16.684681470 +0530
++++ b/include/sensor.hpp	2021-02-21 00:20:36.104831527 +0530
+@@ -51,15 +51,12 @@
+         readState(readState), errCount(0),
+         instrumentation(enableInstrumentation
+                             ? std::make_unique<SensorInstrumentation>()
+-                            : nullptr),eventStat(EvStat),Unit(sensorUnit),SdrVersion(sdrRecord.SdrVersion),
+-       RecordType(sdrRecord.RecordType),RecordLen(sdrRecord.RecordLen),OwnerId(sdrRecord.OwnerId),
+-       OwnerLun(sdrRecord.OwnerLun),EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
++                            : nullptr),eventStat(EvStat),Unit(sensorUnit),
++       RecordType(sdrRecord.RecordType),
++       EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
+        SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),SensorType(sdrRecord.SensorType),
+-       EventType(sdrRecord.EventType),SensorUnit1(sdrRecord.SensorUnit1),ModifierUnit(sdrRecord.ModifierUnit),
+-       MaxReading(sdrRecord.MaxReading),MinReading(sdrRecord.MinReading),SensorUnit2(sdrRecord.SensorUnit2),
+-       Linearization(sdrRecord.Linearization),NominalReading(sdrRecord.NominalReading),NormalMax(sdrRecord.NormalMax),
+-       NormalMin(sdrRecord.NormalMin),PositiveHysteris(sdrRecord.PositiveHysteris),
+-       NegativeHysteresis(sdrRecord.NegativeHysteresis),IdStringLen(sdrRecord.IdStringLen)
++       EventType(sdrRecord.EventType),
++       SensorUnit2(sdrRecord.SensorUnit2)
+ 
+      {
+      }
+@@ -90,29 +87,14 @@
+     std::unique_ptr<SensorInstrumentation> instrumentation;
+     std::string Unit;
+     uint16_t eventStat;
+-    uint8_t SdrVersion;
+     uint8_t RecordType;
+-    uint8_t RecordLen;
+-    uint8_t OwnerId;
+-    uint8_t OwnerLun;
+     uint8_t EntityId;
+     uint8_t EntityInstance;
+     uint8_t SensorInit;
+     uint8_t SensorCap;
+     uint8_t SensorType;
+     uint8_t EventType;
+-    uint8_t SensorUnit1;
+     uint8_t SensorUnit2;
+-    uint8_t ModifierUnit;
+-    uint8_t MaxReading;
+-    uint8_t MinReading;
+-    uint8_t Linearization;
+-    uint8_t NominalReading;
+-    uint8_t NormalMax;
+-    uint8_t NormalMin;
+-    uint8_t PositiveHysteris;
+-    uint8_t NegativeHysteresis;
+-    uint8_t IdStringLen;
+ 
+     void updateInstrumentation(double readValue)
+     {
+@@ -233,27 +215,27 @@
+         sensorInterface->register_property("MinValue", minValue);
+     	sensorInterface->register_property("EvStat", eventStat);
+     	sensorInterface->register_property("Unit", Unit);
+-        sensorInterface->register_property("SdrVersion", SdrVersion);
++        sensorInterface->register_property("SdrVersion", 81);
+         sensorInterface->register_property("RecordType",RecordType );
+-        sensorInterface->register_property("RecordLen",RecordLen );
+-        sensorInterface->register_property("OwnerId", OwnerId );
+-        sensorInterface->register_property("OwnerLun", OwnerLun);
++        sensorInterface->register_property("RecordLen", 0);
++        sensorInterface->register_property("OwnerId",  32);
++        sensorInterface->register_property("OwnerLun", 0);
+         sensorInterface->register_property("EntityId",EntityId );
+         sensorInterface->register_property("EntityInstance",EntityInstance );
+         sensorInterface->register_property("SensorInit",SensorInit );
+         sensorInterface->register_property("SensorCap",SensorCap );
+         sensorInterface->register_property("SensorType",SensorType );
+         sensorInterface->register_property("EventType",EventType );
+-        sensorInterface->register_property("SensorUnit1", SensorUnit1 );
++        sensorInterface->register_property("SensorUnit1",  0);
+         sensorInterface->register_property("SensorUnit2", SensorUnit2 );
+-        sensorInterface->register_property("ModifierUnit", ModifierUnit );
+-        sensorInterface->register_property("Linearization", Linearization );
+-        sensorInterface->register_property("NominalReading", NominalReading );
+-        sensorInterface->register_property("NormalMax", NormalMax );
+-        sensorInterface->register_property("NormalMin", NormalMin );
+-        sensorInterface->register_property("PositiveHysteris", PositiveHysteris );
+-        sensorInterface->register_property("NegativeHysteresis",NegativeHysteresis );
+-        sensorInterface->register_property("IdStringLen", IdStringLen );
++        sensorInterface->register_property("ModifierUnit",  0);
++        sensorInterface->register_property("Linearization",  0);
++        sensorInterface->register_property("NominalReading",  151);
++        sensorInterface->register_property("NormalMax", 197);
++        sensorInterface->register_property("NormalMin",  139);
++        sensorInterface->register_property("PositiveHysteris",  0);
++        sensorInterface->register_property("NegativeHysteresis", 0);
++        sensorInterface->register_property("IdStringLen", 0);
+ 
+         sensorInterface->register_property(
+             "Value", value, [&](const double& newValue, double& oldValue) {
+diff -Naur a/src/ChassisIntrusionSensor.cpp b/src/ChassisIntrusionSensor.cpp
+--- a/src/ChassisIntrusionSensor.cpp	2021-02-21 00:21:32.133266916 +0530
++++ b/src/ChassisIntrusionSensor.cpp	2021-02-21 00:21:42.117344863 +0530
+@@ -273,11 +273,9 @@
+ 
+ void ChassisIntrusionSensor::start(IntrusionSensorType type, int busId,
+                                    int slaveAddr, bool gpioInverted, uint8_t dtype, uint8_t eventType, uint8_t evStat,
+-                                  uint8_t sdrVersion,uint8_t recordType, uint8_t recordLen,uint8_t ownerId,uint8_t ownerLun,uint8_t entityId,
++                                  uint8_t recordType, uint8_t entityId,
+                                    uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
+-                                  uint8_t sensorUnit1,uint8_t modifierUnit,uint8_t maxReading,uint8_t minReading,
+-                                  uint8_t sensorUnit2,uint8_t linearization,uint8_t nominalReading,uint8_t normalMax,
+-                                  uint8_t normalMin,uint8_t positiveHysteris,uint8_t negativeHysteresis,uint8_t idStringLen)
++                                  uint8_t sensorUnit2)
+ {
+     if (DEBUG)
+     {
+@@ -310,28 +308,13 @@
+     mdtype = dtype;
+     meventType = eventType;
+     mevStat = evStat;
+-    msdrVersion = sdrVersion;
+     mrecordType = recordType;
+-    mrecordLen = recordLen;
+-    mownerId = ownerId ;
+-    mownerLun = ownerLun;
+     mentityId = entityId;
+     mentityInstance = entityInstance;
+     msensorInit = sensorInit ;
+     msensorCap = sensorCap;
+     msensorType = sensorType;
+-    msensorUnit1 = sensorUnit1;
+-    mmodifierUnit = modifierUnit;
+-    mmaxReading = maxReading;
+-    mminReading = minReading;
+     msensorUnit2 = sensorUnit2;
+-    mlinearization = linearization;
+-    mnominalReading = nominalReading;
+-    mnormalMax =  normalMax;
+-    mnormalMin = normalMin;
+-    mpositiveHysteris = positiveHysteris;
+-    mnegativeHysteresis = negativeHysteresis;
+-    midStringLen = idStringLen;
+ 
+     if ((mType == IntrusionSensorType::pch && mBusId > 0 && mSlaveAddr > 0) ||
+         (mType == IntrusionSensorType::gpio))
+@@ -347,26 +330,26 @@
+            mIface->register_property("DType", mdtype);
+            mIface->register_property("EventType", meventType);
+            mIface->register_property("EvStat", mevStat);
+-           mIface->register_property("SdrVersion",msdrVersion );
++           mIface->register_property("SdrVersion", 81);
+            mIface->register_property("RecordType", mrecordType );
+-           mIface->register_property("RecordLen",mrecordLen );
+-           mIface->register_property("OwnerId",mownerId );
+-           mIface->register_property("OwnerLun",mownerLun );
++           mIface->register_property("RecordLen", 0);
++           mIface->register_property("OwnerId", 32);
++           mIface->register_property("OwnerLun", 0);
+            mIface->register_property("EntityId",mentityId );
+            mIface->register_property("EntityInstance",mentityInstance );
+            mIface->register_property("SensorInit",msensorInit );
+            mIface->register_property("SensorCap",msensorCap );
+            mIface->register_property("SensorType",msensorType );
+-           mIface->register_property("SensorUnit1",msensorUnit1 );
+-           mIface->register_property("ModifierUnit",mmodifierUnit );
++           mIface->register_property("SensorUnit1",0);
++           mIface->register_property("ModifierUnit", 0);
+            mIface->register_property("SensorUnit2",msensorUnit2 );
+-           mIface->register_property("Linearization",mlinearization );
+-           mIface->register_property("NominalReading",mnominalReading );
+-           mIface->register_property("NormalMax",mnormalMax );
+-           mIface->register_property("NormalMin",mnormalMin );
+-           mIface->register_property("PositiveHysteris",mpositiveHysteris );
+-           mIface->register_property("NegativeHysteresis",mnegativeHysteresis );
+-           mIface->register_property("IdStringLen",midStringLen );
++           mIface->register_property("Linearization", 0);
++           mIface->register_property("NominalReading",151);
++           mIface->register_property("NormalMax", 197);
++           mIface->register_property("NormalMin", 139);
++           mIface->register_property("PositiveHysteris",0);
++           mIface->register_property("NegativeHysteresis", 0);
++           mIface->register_property("IdStringLen", 0);
+             mIface->initialize();
+ 
+             if (mType == IntrusionSensorType::gpio)
+diff -Naur a/src/IntrusionSensorMain.cpp b/src/IntrusionSensorMain.cpp
+--- a/src/IntrusionSensorMain.cpp	2021-02-21 00:21:32.133266916 +0530
++++ b/src/IntrusionSensorMain.cpp	2021-02-21 00:21:42.121344895 +0530
+@@ -56,13 +56,10 @@
+     std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
+     IntrusionSensorType* pType, int* pBusId, int* pSlaveAddr,
+     bool* pGpioInverted, uint8_t *pDtype, uint8_t *pEventType, uint8_t *pEvState,
+-    uint8_t *psdrVersion,
+-    uint8_t *precordType,uint8_t *precordLen, uint8_t *pownerId,uint8_t *pownerLun,
++    uint8_t *precordType,
+     uint8_t *pentityId,uint8_t *pentityInstance,uint8_t *psensorInit,uint8_t *psensorCap,
+-    uint8_t *psensorType,uint8_t *psensorUnit1,uint8_t *pmodifierUnit,
+-    uint8_t *pmaxReading,uint8_t *pminReading,uint8_t *psensorUnit2,uint8_t *plinearization,
+-    uint8_t *pnominalReading,uint8_t *pnormalMax,uint8_t *pnormalMin,uint8_t *ppositiveHysteris,
+-    uint8_t *pnegativeHysteresis,uint8_t *pidStringLen)
++    uint8_t *psensorType,
++    uint8_t *psensorUnit2)
+ {
+     // find matched configuration according to sensor type
+     ManagedObjectType sensorConfigurations;
+@@ -150,28 +147,13 @@
+                 *pEvState = /*sdbusplus::message::variant_ns::get<uint8_t>(
+                     findEvState->second);*/
+                 std::visit(VariantToUnsignedIntVisitor(), findEvState->second);
+-               *psdrVersion = sdrRecord.SdrVersion;
+                *precordType = sdrRecord.RecordType;
+-               *precordLen = sdrRecord.RecordLen;
+-               *pownerId = sdrRecord.OwnerId;
+-               *pownerLun = sdrRecord.OwnerLun;
+                *pentityId = sdrRecord.EntityId;
+                *pentityInstance = sdrRecord.EntityInstance;
+                *psensorInit = sdrRecord.SensorInit;
+                *psensorCap = sdrRecord.SensorCap;
+ 	       *psensorType = sdrRecord.SensorType;
+-               *psensorUnit1 = sdrRecord.SensorUnit1;
+-               *pmodifierUnit  = sdrRecord.ModifierUnit;
+-               *pmaxReading = sdrRecord.MaxReading;
+-               *pminReading = sdrRecord.MinReading;
+                *psensorUnit2 = sdrRecord.SensorUnit2;
+-               *plinearization = sdrRecord.Linearization;
+-               *pnominalReading = sdrRecord.NominalReading;
+-               *pnormalMax = sdrRecord.NormalMax;
+-               *pnormalMin = sdrRecord.NormalMin;
+-               *ppositiveHysteris = sdrRecord.PositiveHysteris;
+-               *pnegativeHysteresis = sdrRecord.NegativeHysteresis;
+-                *pidStringLen  = sdrRecord.IdStringLen;
+ 
+             }
+             catch (const std::bad_variant_access& e)
+@@ -499,10 +481,9 @@
+     int slaveAddr = -1;
+     bool gpioInverted = false;
+     uint8_t dtype, eventType, evStat;
+-    uint8_t sdrVersion,recordType,recordLen,ownerId,ownerLun,entityId,
++    uint8_t recordType,entityId,
+             entityInstance,sensorInit,sensorCap,SensorType,
+-            sensorUnit1,sensorUnit2,modifierUnit,maxReading,minReading,linearization,
+-            nominalReading,normalMax,normalMin,positiveHysteris,negativeHysteresis,idStringLen;
++            sensorUnit2;
+     IntrusionSensorType type = IntrusionSensorType::gpio;
+ 
+     // setup connection to dbus
+@@ -522,16 +503,13 @@
+ 
+     if (getIntrusionSensorConfig(systemBus, &type, &busId, &slaveAddr,
+                                  &gpioInverted, &dtype, &eventType, &evStat,
+-                                 &sdrVersion,&recordType,&recordLen,&ownerId,&ownerLun,
++                                 &recordType,
+                                  &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
+-                                 &sensorUnit1,&modifierUnit,&maxReading,&minReading,&sensorUnit2,
+-                                 &linearization,&nominalReading,&normalMax,&normalMin,&positiveHysteris,
+-                                 &negativeHysteresis,&idStringLen))
+-    {
+-        chassisIntrusionSensor.start(type, busId, slaveAddr, gpioInverted,dtype, eventType, evStat,sdrVersion,recordType,recordLen,ownerId,ownerLun,entityId,
+-                                     entityInstance,sensorInit,sensorCap,SensorType,sensorUnit1,modifierUnit,maxReading,minReading,
+-                                     sensorUnit2,linearization,nominalReading,normalMax,normalMin,positiveHysteris,negativeHysteresis,
+-                                     idStringLen);
++                                 &sensorUnit2))
++    {
++        chassisIntrusionSensor.start(type, busId, slaveAddr, gpioInverted,dtype, eventType, evStat,recordType,entityId,
++                                     entityInstance,sensorInit,sensorCap,SensorType,
++                                     sensorUnit2);
+     }
+ 
+     // callback to handle configuration change
+@@ -546,17 +524,14 @@
+             std::cout << "rescan due to configuration change \n";
+             if (getIntrusionSensorConfig(systemBus, &type, &busId, &slaveAddr,
+                                          &gpioInverted,&dtype, &eventType, &evStat,
+-                                 &sdrVersion,&recordType,&recordLen,&ownerId,&ownerLun,
++                                 &recordType,
+                                  &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
+-                                 &sensorUnit1,&modifierUnit,&maxReading,&minReading,&sensorUnit2,
+-                                 &linearization,&nominalReading,&normalMax,&normalMin,&positiveHysteris,
+-                                 &negativeHysteresis,&idStringLen))
++                                 &sensorUnit2))
+             {
+                 chassisIntrusionSensor.start(type, busId, slaveAddr,
+-                                             gpioInverted,dtype, eventType, evStat,sdrVersion,recordType,recordLen,ownerId,ownerLun,entityId,
+-                                     entityInstance,sensorInit,sensorCap,SensorType,sensorUnit1,modifierUnit,maxReading,minReading,
+-                                     sensorUnit2,linearization,nominalReading,normalMax,normalMin,positiveHysteris,negativeHysteresis,
+-                                     idStringLen);
++                                             gpioInverted,dtype, eventType, evStat,recordType,entityId,
++                                     entityInstance,sensorInit,sensorCap,SensorType,
++                                     sensorUnit2);
+             }
+         };
+ 
+diff -Naur a/src/SdrRecord.cpp b/src/SdrRecord.cpp
+--- a/src/SdrRecord.cpp	2021-02-21 00:21:32.137266947 +0530
++++ b/src/SdrRecord.cpp	2021-02-21 00:21:42.129344957 +0530
+@@ -22,52 +22,26 @@
+             continue;
+         }
+ 
+-        auto SdrVersionFind = item.second.find("SdrVersion");
+         auto RecordTypeFind = item.second.find("RecordType");
+-        auto RecordLenFind = item.second.find("RecordLen");
+-        auto OwnerIdFind = item.second.find("OwnerId");
+-        auto OwnerLunFind = item.second.find("OwnerLun");
+         auto entityidFind = item.second.find("EntityId");
+         auto EntityInstanceFind = item.second.find("EntityInstance");
+         auto SensorInitFind = item.second.find("SensorInit");
+         auto SensorCapFind = item.second.find("SensorCap");
+         auto SensorTypeFind = item.second.find("SensorType");
+         auto EventTypeFind = item.second.find("EventType");
+-        auto SensorUnit1Find = item.second.find("SensorUnit1");
+         auto SensorUnit2Find = item.second.find("SensorUnit2");
+-        auto ModifierUnitFind = item.second.find("ModifierUnit");
+-        auto LinearizationFind = item.second.find("Linearization");
+-        auto NominalReadingFind = item.second.find("NominalReading");
+-        auto NormalMaxFind = item.second.find("NormalMax");
+-        auto NormalMinFind = item.second.find("NormalMin");
+-        auto MaxReadingFind = item.second.find("MaxReading");
+-        auto MinReadingFind = item.second.find("MinReading");
+-        auto PositiveHysterisFind = item.second.find("PositiveHysteris");
+-        auto NegativeHysteresisFind = item.second.find("NegativeHysteresis");
+-        auto IdStringLenFind = item.second.find("IdStringLen");
+ 
+-        if ( SdrVersionFind == item.second.end() || RecordTypeFind == item.second.end() ||
+-             RecordLenFind == item.second.end() || OwnerIdFind ==  item.second.end() ||
+-             OwnerLunFind == item.second.end() || entityidFind == item.second.end() ||
++        if ( RecordTypeFind == item.second.end() ||
++             entityidFind == item.second.end() ||
+              EntityInstanceFind == item.second.end() || SensorInitFind == item.second.end() ||
+              SensorCapFind ==  item.second.end() || SensorTypeFind == item.second.end() ||
+-             EventTypeFind == item.second.end() || SensorUnit2Find  == item.second.end() ||
+-             ModifierUnitFind == item.second.end() || MaxReadingFind == item.second.end() ||
+-             MinReadingFind == item.second.end() || LinearizationFind == item.second.end() ||
+-	     NominalReadingFind == item.second.end() ||SensorUnit1Find == item.second.end() ||
+-	     NormalMaxFind == item.second.end() || NormalMinFind == item.second.end() || 
+-  	     PositiveHysterisFind == item.second.end () || NegativeHysteresisFind == item.second.end () || 
+-	     IdStringLenFind == item.second.end () )
++             EventTypeFind == item.second.end() || SensorUnit2Find  == item.second.end() ) 
+ 
+         {
+             std::cerr << "Malformed SdrRecord in configuration\n";
+         }
+ 
+-        sdrRecord.SdrVersion = std::visit(VariantToUnsignedIntVisitor(),SdrVersionFind->second);
+         sdrRecord.RecordType = std::visit(VariantToUnsignedIntVisitor(),RecordTypeFind->second);
+-        sdrRecord.RecordLen = std::visit(VariantToUnsignedIntVisitor(),RecordLenFind->second);
+-        sdrRecord.OwnerId = std::visit(VariantToUnsignedIntVisitor(), OwnerIdFind->second);
+-        sdrRecord.OwnerLun = std::visit(VariantToUnsignedIntVisitor(),OwnerLunFind->second);
+         sdrRecord.EntityId = std::visit(VariantToUnsignedIntVisitor(),entityidFind->second);
+         sdrRecord.EntityInstance = std::visit(VariantToUnsignedIntVisitor(),EntityInstanceFind->second);
+         sdrRecord.SensorInit = std::visit(VariantToUnsignedIntVisitor(),SensorInitFind->second);
+@@ -75,19 +49,7 @@
+         sdrRecord.SensorCap = std::visit(VariantToUnsignedIntVisitor(),SensorCapFind->second);
+         sdrRecord.SensorType = std::visit(VariantToUnsignedIntVisitor(),SensorTypeFind->second);
+         sdrRecord.EventType = std::visit(VariantToUnsignedIntVisitor(),EventTypeFind->second);
+-        sdrRecord.SensorUnit1 = std::visit(VariantToUnsignedIntVisitor(),SensorUnit1Find->second);
+         sdrRecord.SensorUnit2 = std::visit(VariantToUnsignedIntVisitor(),SensorUnit2Find->second);
+-        sdrRecord.ModifierUnit = std::visit(VariantToUnsignedIntVisitor(),ModifierUnitFind->second);
+-        sdrRecord.NominalReading = std::visit(VariantToUnsignedIntVisitor(),NominalReadingFind->second);
+-        sdrRecord.Linearization = std::visit(VariantToUnsignedIntVisitor(),LinearizationFind->second);
+-        sdrRecord.NominalReading = std::visit(VariantToUnsignedIntVisitor(),NominalReadingFind->second);
+-        sdrRecord.NormalMax = std::visit(VariantToUnsignedIntVisitor(),NormalMaxFind->second);
+-        sdrRecord.NormalMin = std::visit(VariantToUnsignedIntVisitor(),NormalMinFind->second);
+-        sdrRecord.MaxReading = std::visit(VariantToUnsignedIntVisitor(),MaxReadingFind->second);
+-        sdrRecord.MinReading = std::visit(VariantToUnsignedIntVisitor(),MinReadingFind->second);
+-        sdrRecord.PositiveHysteris = std::visit(VariantToUnsignedIntVisitor(),PositiveHysterisFind->second);
+-        sdrRecord.NegativeHysteresis = std::visit(VariantToUnsignedIntVisitor(),NegativeHysteresisFind->second);
+-        sdrRecord.IdStringLen = std::visit(VariantToUnsignedIntVisitor(),IdStringLenFind->second);
+    }
+ 
+    return true;

@@ -1,0 +1,11 @@
+diff -Naur a/src/ADCSensor.cpp b/src/ADCSensor.cpp
+--- a/src/ADCSensor.cpp	2021-03-31 21:33:39.825803357 +0530
++++ b/src/ADCSensor.cpp	2021-03-31 21:22:42.522223497 +0530
+@@ -230,5 +230,6 @@
+         return;
+     }
+ 
+-    thresholds::checkThresholdsPowerDelay(this, thresholdTimer);
++    //thresholds::checkThresholdsPowerDelay(this, thresholdTimer);
++    thresholds::checkThresholds(this);
+ }

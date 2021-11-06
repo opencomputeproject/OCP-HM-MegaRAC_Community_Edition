@@ -1,0 +1,60 @@
+diff -Naur a/app/common/services/apiInterceptor.js b/app/common/services/apiInterceptor.js
+--- a/app/common/services/apiInterceptor.js	2021-02-04 07:17:20.510990770 +0000
++++ b/app/common/services/apiInterceptor.js	2021-02-04 07:21:05.802428057 +0000
+@@ -63,6 +63,9 @@
+               }
+             } else if (rejection.status == -1) {
+               dataService.server_unreachable = true;
++              if(sessionStorage.getItem("VM_State") == 2){
++                 sessionStorage.removeItem("VM_State");
++              }
+             }
+ 
+             dataService.loading = false;
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2021-02-04 07:17:20.510990770 +0000
++++ b/app/index.js	2021-02-04 07:20:01.901455636 +0000
+@@ -187,8 +187,8 @@
+         }
+       ])
+       .run([
+-        '$rootScope', '$location', 'dataService', 'userModel', '$cookies',
+-        function($rootScope, $location, dataService, userModel, $cookies) {
++        '$rootScope', '$location', 'dataService', 'userModel', '$cookies', '$window',
++        function($rootScope, $location, dataService, userModel, $cookies, $window) {
+           $rootScope.dataService = dataService;
+           dataService.path = $location.path();
+           $rootScope.$on('$routeChangeStart', function(event, next, current) {
+@@ -228,6 +228,32 @@
+ 
+             $location.path('/login');
+           });
++
++          $window.addEventListener('unload', function(){
++            if (sessionStorage.getItem('VM_State') != null) {
++                // Commenting below code, as not supporting
++                // in firefox browser
++                //dataService.getLoggedOutVM();
++            }
++            sessionStorage.clear();
++            $cookies.remove('IsAuthenticated');
++            $location.path('/login');
++          });
++
++          $window.addEventListener('beforeunload', function(evt){
++            // Check for the virtual media session,
++            // if running, then show the popup message.
++            if( (sessionStorage.getItem('VM_State') == 2) && (navigator.onLine) ) {
++               var message = 'Virtual Media Session is running, are you sure you want to leave?';
++               if (typeof evt == 'undefined') {
++                   evt = window.event;
++               }
++               if (evt) {
++                   evt.returnValue = message;
++               }
++               return message;
++            }
++          });
+         }
+       ]);
+ })(window.angular);

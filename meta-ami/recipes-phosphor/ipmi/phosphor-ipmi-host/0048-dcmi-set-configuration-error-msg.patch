@@ -1,0 +1,12 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-04-12 10:43:26.921431433 -0400
++++ b/dcmihandler.cpp	2021-04-12 10:48:08.086794291 -0400
+@@ -1193,7 +1193,7 @@
+         log<level::ERR>("Invalid Requested Packet size",
+                         entry("PACKET SIZE=%d", *data_len));
+         *data_len = 0;
+-        return IPMI_CC_INVALID_FIELD_REQUEST;
++        return IPMI_CC_REQ_DATA_LEN_INVALID;;
+     }
+ 
+     try

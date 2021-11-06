@@ -1,0 +1,25 @@
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2021-04-28 19:09:11.693004364 +0530
++++ b/src/sensorcommands.cpp	2021-04-28 19:08:16.668569812 +0530
+@@ -1617,6 +1617,13 @@
+         return ipmi::responseResponseError();
+     }
+ 
++    size_t fruCount = 0;
++    ipmi::Cc ret = ipmi::storage::getFruSdrCount(ctx, fruCount);
++    if (ret != ipmi::ccSuccess)
++    {
++        return ipmi::response(ret);
++    }
++
+     uint16_t numSensors = sensorTree.size();
+     if (count.value_or(0) == getSdrCount)
+     {
+@@ -1637,6 +1644,7 @@
+                 }
+             }
+         }
++	sdrCount += fruCount + ipmi::storage::type12Count;
+     }
+     else if (count.value_or(0) == getSensorCount)
+     {

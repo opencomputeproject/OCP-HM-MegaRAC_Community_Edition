@@ -1,0 +1,13 @@
+[Unit]
+Description=Intel BMC At Scale Debug
+Requires=network-online.target
+
+[Service]
+Restart=always
+RestartSec=30
+ExecStart=/usr/bin/asd -u
+Type=simple
+SyslogIdentifier=asd
+
+[Install]
+WantedBy=multi-user.target

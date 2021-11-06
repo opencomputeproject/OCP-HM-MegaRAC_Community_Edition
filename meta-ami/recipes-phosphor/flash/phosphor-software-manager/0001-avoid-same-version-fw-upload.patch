@@ -1,0 +1,121 @@
+diff -Naur a/image_manager.cpp b/image_manager.cpp
+--- a/image_manager.cpp	2021-02-11 14:31:32.386920772 +0530
++++ b/image_manager.cpp	2021-02-11 14:39:03.974426148 +0530
+@@ -34,6 +34,7 @@
+ using ManifestFail = Software::Image::ManifestFileFailure;
+ using UnTarFail = Software::Image::UnTarFailure;
+ using InternalFail = Software::Image::InternalFailure;
++using ImageFail = Software::Image::ImageFailure;
+ namespace fs = std::filesystem;
+ 
+ struct RemovablePath
+@@ -177,17 +178,7 @@
+     fs::path imageDirPath = std::string{IMG_UPLOAD_DIR};
+     imageDirPath /= id;
+ 
+-    if (fs::exists(imageDirPath))
+-    {
+-        fs::remove_all(imageDirPath);
+-    }
+-
+-    // Rename the temp dir to image dir
+-    fs::rename(tmpDirPath, imageDirPath);
+-
+-    // Clear the path, so it does not attemp to remove a non-existing path
+-    tmpDirToRemove.path.clear();
+-
++    // Create Version object
+     auto objPath = std::string{SOFTWARE_OBJPATH} + '/' + id;
+ 
+     // This service only manages the uploaded versions, and there could be
+@@ -196,11 +187,18 @@
+     auto allSoftwareObjs = getSoftwareObjects(bus);
+     auto it =
+         std::find(allSoftwareObjs.begin(), allSoftwareObjs.end(), objPath);
+-    if (versions.find(id) == versions.end() && it == allSoftwareObjs.end())
+-    {
+-        // Create Version object
++
++    const std::string uploadVersion = version.c_str();
++    const std::string currentfunctionalVersion = Version::getBMCVersion(OS_RELEASE_FILE);
++    
++    if (versions.find(id) == versions.end() && it == allSoftwareObjs.end() && uploadVersion != currentfunctionalVersion )
++    {
++    	// Rename the temp dir to image dir
++    	fs::rename(tmpDirPath, imageDirPath);
++    	// Clear the path, so it does not attemp to remove a non-existing path
++    	tmpDirToRemove.path.clear();
+         auto versionPtr = std::make_unique<Version>(
+-            bus, objPath, version, purpose, imageDirPath.string(),
++            bus, objPath, version, purpose, imageDirPath.string(), currentfunctionalVersion,
+             std::bind(&Manager::erase, this, std::placeholders::_1));
+         versionPtr->deleteObject =
+             std::make_unique<phosphor::software::manager::Delete>(bus, objPath,
+@@ -209,9 +207,16 @@
+     }
+     else
+     {
+-        log<level::INFO>("Software Object with the same version already exists",
++    	if (fs::exists(tmpDirPath))
++	{
++		//remove the tmpdir because that image is already present
++	        fs::remove_all(tmpDirPath);
++	}
++	// Clear the path, so it does not attemp to remove a non-existing path
++    	tmpDirToRemove.path.clear();
++	log<level::INFO>("Software Object with the same version already exists",
+                          entry("VERSION_ID=%s", id.c_str()));
+-        fs::remove_all(imageDirPath);
++	report<ImageFailure>(ImageFail::FAIL("Same version image already exist"),ImageFail::PATH(imageDirPath.c_str()));
+     }
+     return 0;
+ }
+diff -Naur a/item_updater.cpp b/item_updater.cpp
+--- a/item_updater.cpp	2021-02-11 14:31:32.386920772 +0530
++++ b/item_updater.cpp	2021-02-11 14:39:03.974426148 +0530
+@@ -126,14 +126,14 @@
+                 std::make_tuple(ACTIVATION_FWD_ASSOCIATION,
+                                 ACTIVATION_REV_ASSOCIATION, bmcInventoryPath));
+         }
+-
++        std::string currentfunctionalVersion = VersionClass::getBMCVersion(OS_RELEASE_FILE);
+         activations.insert(std::make_pair(
+             versionId,
+             std::make_unique<Activation>(bus, path, *this, versionId,
+                                          activationState, associations)));
+ 
+         auto versionPtr = std::make_unique<VersionClass>(
+-            bus, path, version, purpose, filePath,
++            bus, path, version, purpose, filePath, currentfunctionalVersion,
+             std::bind(&ItemUpdater::erase, this, std::placeholders::_1));
+         versionPtr->deleteObject =
+             std::make_unique<phosphor::software::manager::Delete>(bus, path,
+@@ -250,7 +250,7 @@
+ 
+             // Create Version instance for this version.
+             auto versionPtr = std::make_unique<VersionClass>(
+-                bus, path, version, purpose, "",
++                bus, path, version, purpose, "", functionalVersion,
+                 std::bind(&ItemUpdater::erase, this, std::placeholders::_1));
+             auto isVersionFunctional = versionPtr->isFunctional();
+             if (!isVersionFunctional)
+diff -Naur a/version.hpp b/version.hpp
+--- a/version.hpp	2021-02-11 14:31:32.398921075 +0530
++++ b/version.hpp	2021-02-11 14:39:03.974426148 +0530
+@@ -75,7 +75,7 @@
+      */
+     Version(sdbusplus::bus::bus& bus, const std::string& objPath,
+             const std::string& versionString, VersionPurpose versionPurpose,
+-            const std::string& filePath, eraseFunc callback) :
++            const std::string& filePath, const std::string currentfunctionalVersion, eraseFunc callback) :
+         VersionInherit(bus, (objPath).c_str(), true),
+         eraseCallback(callback), versionStr(versionString)
+     {
+@@ -83,6 +83,7 @@
+         purpose(versionPurpose);
+         version(versionString);
+         path(filePath);
++        functionalversion(currentfunctionalVersion);
+         // Emit deferred signal.
+         emit_object_added();
+     }

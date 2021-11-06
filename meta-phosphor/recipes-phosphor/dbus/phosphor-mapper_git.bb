@@ -24,16 +24,11 @@ SYSTEMD_SERVICE_${PN} += " \
         mapper-wait@.service \
         mapper-subtree-remove@.service \
         "
-#SRC_URI += "git://github.com/openbmc/phosphor-objmgr"
+SRC_URI += "git://github.com/openbmc/phosphor-objmgr"
 
-#SRCREV = "eecc196b3fdd6acca3dfe8e968740747f14ddf6b"
+SRCREV = "e82b05840ba633d1f0d2e301720a5af6989c91f7"
 
-#S = "${WORKDIR}/git"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/phosphor-objmgr"
-SRC_URI = "file://phosphor-objmgr"
-SRCPV = "${AUTOREV}"
+S = "${WORKDIR}/git"
 
 python populate_packages_prepend () {
     mapperlibdir = d.getVar("libdir", True)

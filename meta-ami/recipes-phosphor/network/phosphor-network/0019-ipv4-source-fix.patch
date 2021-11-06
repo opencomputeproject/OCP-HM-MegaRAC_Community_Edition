@@ -1,0 +1,12 @@
+--- a/ethernet_interface.cpp	2021-06-25 12:44:04.853882051 -0400
++++ b/ethernet_interface.cpp	2021-06-25 12:43:31.957529184 -0400
+@@ -562,8 +562,7 @@
+             origin = IP::AddressOrigin::LinkLocal;
+         }
+ 
+-	if (origin == IP::AddressOrigin::Static && (addressType == IP::Protocol::IPv6 || 
+-            addressType == IP::Protocol::IPv4))
++	if (origin == IP::AddressOrigin::Static && (addressType == IP::Protocol::IPv6))
+ 	{
+ 	    int id = getMissingId(this->addrs, origin);
+ 	    if (id != -1 && id != this->staticIPv6Counter - 1)

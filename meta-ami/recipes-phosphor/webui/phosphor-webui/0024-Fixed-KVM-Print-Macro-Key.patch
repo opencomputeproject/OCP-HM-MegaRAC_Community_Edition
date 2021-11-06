@@ -1,0 +1,25 @@
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-05-18 12:42:06.430360681 +0530
++++ b/app/server-control/directives/kvm-console.js	2021-05-18 12:43:04.034017585 +0530
+@@ -48,7 +48,7 @@
+ 		      		 'Alt+Space',		//Opens menu option
+ 		      		 'Alt+Esc',    		//Switch application instantly
+ 		      		 'Alt+Enter',		//Opens properties for selected item
+-		      		 'Ctrl+Print',		//Takes whole screen screen-shot
++		      		 'Print',		//Takes whole screen screen-shot
+ 		      		 'Alt+F4',		//closes window
+ 		      		 'Ctrl+Esc',		//Opens start menu in windows os
+ 		      		 'Ctrl+Tab',		//switch between open tabs
+@@ -89,11 +89,9 @@
+              			   rfb.sendKey(KEY.XK_Alt_L, "AltLeft", false);
+ 				   break;
+ 
+-		  case 'Ctrl+Print' :
+-             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", true);
++		  case 'Print' :
+              			   rfb.sendKey(KEY.XK_Print, "Print", true);
+              			   rfb.sendKey(KEY.XK_Print, "Print", false);
+-             			   rfb.sendKey(KEY.XK_Control_L, "ControlLeft", false);
+ 				   break;
+ 
+ 		  case 'Alt+F4' :

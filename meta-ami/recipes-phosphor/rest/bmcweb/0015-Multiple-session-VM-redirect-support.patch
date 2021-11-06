@@ -1,0 +1,335 @@
+diff -Naur a/http/http_connection.hpp b/http/http_connection.hpp
+--- a/http/http_connection.hpp	2021-03-18 15:56:05.490562750 +0530
++++ b/http/http_connection.hpp	2021-03-18 15:48:02.330842840 +0530
+@@ -20,6 +20,7 @@
+ #include <security_headers.hpp>
+ #include <ssl_key_handler.hpp>
+ 
++#include <fstream>
+ #include <atomic>
+ #include <chrono>
+ #include <vector>
+@@ -307,6 +308,19 @@
+         }
+     }
+ 
++
++    static void settargetrequest(std::string temp_buf)
++    {
++	std::ofstream fileWriter;
++        fileWriter.open("/etc/nbd-proxy/target", std::ios::out | std::ios::trunc);
++        if(fileWriter)
++        {
++        fileWriter << temp_buf;
++        fileWriter.close();
++        }
++    }
++
++
+     void handle()
+     {
+         cancelDeadlineTimer();
+@@ -322,6 +336,12 @@
+                 res.result(boost::beast::http::status::bad_request);
+             }
+         }
++       // Check the VirtualMedia connection /vm/*/* 
++        std::string temp_buf;
++        temp_buf = req->target();
++        if((temp_buf.compare(0, 4, "/vm/")) == 0)
++        settargetrequest(temp_buf);
++
+ 
+         BMCWEB_LOG_INFO << "Request: "
+                         << " " << this << " HTTP/" << req->version() / 10 << "."
+diff -Naur a/include/vm_websocket.hpp b/include/vm_websocket.hpp
+--- a/include/vm_websocket.hpp	2021-03-18 15:56:05.510562779 +0530
++++ b/include/vm_websocket.hpp	2021-03-18 15:48:02.366842721 +0530
+@@ -19,6 +19,11 @@
+ // https://github.com/NetworkBlockDevice/nbd/blob/master/doc/proto.md#simple-reply-message
+ static constexpr auto nbdBufferSize = 131088;
+ 
++int Media_instance_processID[4][2]={0};
++crow::websocket::Connection* websocket_session_conn[4][2]={0};
++static int user_session;
++static int endpoint;
++
+ class Handler : public std::enable_shared_from_this<Handler>
+ {
+   public:
+@@ -30,36 +35,91 @@
+ 
+     ~Handler() = default;
+ 
+-    void doClose()
++
++    void update_mediasession()
+     {
+-        // boost::process::child::terminate uses SIGKILL, need to send SIGTERM
+-        // to allow the proxy to stop nbd-client and the USB device gadget.
+-        int rc = kill(proxy.id(), SIGTERM);
+-        if (rc)
+-        {
+-            return;
+-        }
+-        proxy.wait();
++
++	    int i;
++	    for( i=0; i<=3 ; i++)
++	    {
++
++		    if( (Media_instance_processID[i][0] == 0)  && (Media_instance_processID[i][1] == 0)  )
++		    {
++			    std::ofstream fileWriter;
++			    fileWriter.open("/etc/nbd-proxy/mediasession", std::ios::out | std::ios::trunc);
++			    if(fileWriter)
++			    {
++				    fileWriter << i;
++				    fileWriter.close();
++			    }
++	    		if(i==3)
++		    		BMCWEB_LOG_ERROR << "Media session reached Max number of users ...!!! " ;
++			    break;
++		    }
++	    }
++
+     }
+ 
+-    void connect()
++    void doClose(crow::websocket::Connection* websocket_sess)
+     {
+-        std::error_code ec;
+-        proxy = boost::process::child("/usr/sbin/nbd-proxy", media,
+-                                      boost::process::std_out > pipeOut,
+-                                      boost::process::std_in < pipeIn, ec);
+-        if (ec)
+-        {
+-            BMCWEB_LOG_ERROR << "Couldn't connect to nbd-proxy: "
+-                             << ec.message();
+-            if (session != nullptr)
+-            {
+-                session->close("Error connecting to nbd-proxy");
+-            }
+-            return;
+-        }
+-        doWrite();
+-        doRead();
++	    // boost::process::child::terminate uses SIGKILL, need to send SIGTERM
++	    // to allow the proxy to stop nbd-client and the USB device gadget.
++
++	    for(int i=0; i<3 ; i++)
++	    {
++		    for(int j=0; j<2 ; j++)
++		    {
++
++			    if(websocket_session_conn[i][j] == websocket_sess)
++			    {
++
++				    int rc = kill(Media_instance_processID[i][j], SIGTERM);
++				    if (rc)
++				    {
++					    BMCWEB_LOG_ERROR << "Couldn't found Child PID to send SIGTERM signal";
++					    return;
++				    }
++
++
++				    Media_instance_processID[i][j] = 0;
++				    websocket_session_conn[i][j] = 0;
++				    update_mediasession();
++				    goto abc;
++
++			    }
++
++		    }
++
++	    }
++
++abc: ;
++
++     //proxy.wait();
++    }
++
++    void connect(int user_count, int media_instance, crow::websocket::Connection* websocket_sess)
++    {
++	    std::error_code ec;
++	    proxy = boost::process::child("/usr/sbin/nbd-proxy", media,
++			    boost::process::std_out > pipeOut,
++			    boost::process::std_in < pipeIn, ec);
++	    if (ec)
++	    {
++		    BMCWEB_LOG_ERROR << "Couldn't connect to nbd-proxy: "
++			    << ec.message();
++		    if (session != nullptr)
++		    {
++			    session->close("Error connecting to nbd-proxy");
++		    }
++		    return;
++	    }
++
++	    Media_instance_processID[user_count][media_instance]=proxy.id();
++	    websocket_session_conn[user_count][media_instance]=websocket_sess;
++	    update_mediasession();
++
++	    doWrite();
++	    doRead();
+     }
+ 
+     void doWrite()
+@@ -155,61 +215,102 @@
+ 
+ inline void requestRoutes(App& app)
+ {
+-    BMCWEB_ROUTE(app, "/vm/0/0")
+-        .privileges({"ConfigureComponents", "ConfigureManager"})
+-        .websocket()
+-        .onopen([](crow::websocket::Connection& conn,
+-                   const std::shared_ptr<bmcweb::AsyncResp>&) {
+-            BMCWEB_LOG_DEBUG << "Connection " << &conn << " opened";
+-
+-            if (session != nullptr)
+-            {
+-                conn.close("Session already connected");
+-                return;
+-            }
+-
+-            if (handler != nullptr)
+-            {
+-                conn.close("Handler already running");
+-                return;
+-            }
+-
+-            session = &conn;
+-
+-            // media is the last digit of the endpoint /vm/0/0. A future
+-            // enhancement can include supporting different endpoint values.
+-            const char* media = "0";
+-            handler = std::make_shared<Handler>(media, conn.getIoContext());
+-            handler->connect();
+-        })
+-        .onclose([](crow::websocket::Connection& conn,
+-                    const std::string& /*reason*/) {
+-            if (&conn != session)
+-            {
+-                return;
+-            }
+-
+-            session = nullptr;
+-            handler->doClose();
+-            handler->inputBuffer->clear();
+-            handler->outputBuffer->clear();
+-            handler.reset();
+-        })
+-        .onmessage([](crow::websocket::Connection& conn,
+-                      const std::string& data, bool) {
+-            if (data.length() > handler->inputBuffer->capacity())
+-            {
+-                BMCWEB_LOG_ERROR << "Buffer overrun when writing "
+-                                 << data.length() << " bytes";
+-                conn.close("Buffer overrun");
+-                return;
+-            }
+-
+-            boost::asio::buffer_copy(handler->inputBuffer->prepare(data.size()),
+-                                     boost::asio::buffer(data));
+-            handler->inputBuffer->commit(data.size());
+-            handler->doWrite();
+-        });
++	BMCWEB_ROUTE(app, "/vm/<int>/<int>")
++		.privileges({"ConfigureComponents", "ConfigureManager"})
++		.websocket()
++		.onopen([](crow::websocket::Connection& conn,
++					const std::shared_ptr<bmcweb::AsyncResp>&) {
++				BMCWEB_LOG_DEBUG << "Connection " << &conn << " opened";
++
++				std::string target_name;
++				std::ifstream fileReader;
++				fileReader.open("/etc/nbd-proxy/target") ;
++				if(fileReader)
++				{
++					std::getline(fileReader,target_name);
++
++					stringstream session_name;
++					session_name << target_name.at(4);
++					session_name >> user_session;
++
++
++					stringstream media_endpoint;
++					media_endpoint << target_name.at(6);
++					media_endpoint >> endpoint;
++
++					fileReader.close();
++					std::system("rm -f /etc/nbd-proxy/target");
++
++				}
++
++				/*
++				   if (session != nullptr)
++				   {
++				   conn.close("Session already connected");
++				   return;
++				   }
++
++				   if (handler != nullptr)
++				   {
++				   conn.close("Handler already running");
++				   return;
++				   }
++				   */
++				session = &conn;
++
++				// media is the last digit of the endpoint /vm/0/0. A future
++				// enhancement can include supporting different endpoint values.
++
++				//const char* media = "0";
++				std::string media = std::to_string((2*user_session)+endpoint);
++
++				handler = std::make_shared<Handler>(media, conn.getIoContext());
++				handler->connect(user_session,endpoint,&conn);
++		})
++	.onclose([](crow::websocket::Connection& conn,
++				const std::string& /*reason*/) {
++			/*if (&conn != session)
++			  {
++			  return;
++			  } */
++
++			session = nullptr;
++			handler->doClose(&conn);
++			int i;
++			for(i=0; i<3 ; i++)
++			{
++				for(int j=0;j<2;j++)
++				{
++
++					if(Media_instance_processID[i][j] != 0)
++					goto abc;
++				}	
++
++			}
++		abc:
++			if(i==3)
++			{
++				handler->inputBuffer->clear();
++				handler->outputBuffer->clear();
++				handler.reset();
++			}
++
++	})
++	.onmessage([](crow::websocket::Connection& conn,
++				const std::string& data, bool) {
++			if (data.length() > handler->inputBuffer->capacity())
++			{
++			BMCWEB_LOG_ERROR << "Buffer overrun when writing "
++			<< data.length() << " bytes";
++			conn.close("Buffer overrun");
++			return;
++			}
++
++			boost::asio::buffer_copy(handler->inputBuffer->prepare(data.size()),
++					boost::asio::buffer(data));
++			handler->inputBuffer->commit(data.size());
++			handler->doWrite();
++			});
+ }
+ 
+ } // namespace obmc_vm

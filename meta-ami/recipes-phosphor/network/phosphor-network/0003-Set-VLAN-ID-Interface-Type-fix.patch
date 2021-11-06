@@ -1,0 +1,120 @@
+--- a/ethernet_interface.cpp	2021-03-07 12:26:57.251136735 -0500
++++ b/ethernet_interface.cpp	2021-03-07 12:18:25.652041430 -0500
+@@ -453,6 +453,21 @@
+     fs::path deviceFile = confDir;
+     deviceFile /= interface + systemd::config::deviceFileSuffix;
+ 
++    std::string SearchString = "sys-subsystem-net-devices-"+ interface +".device";
++    std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
++    std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
++
++    for (const auto& vlanIntf : vlanInterfaces)
++    {
++        vlanIntf.second->writeSocketFile(SearchString,"%i");
++    }
++
++    system("systemctl daemon-reload");
++
++    //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
++    manager.restartSystemdUnit(phosphorNetService);
++    manager.restartSystemdUnit(phosphorNetSocket);
++
+     // delete the vlan network file
+     if (fs::is_regular_file(networkFile))
+     {
+@@ -766,8 +781,12 @@
+ {
+     std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
+     std::string path = objPath;
+-    path += "_" + std::to_string(id);
++    std::string SearchString = "sys-subsystem-net-devices-%i.device";
++    std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
++    std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
+ 
++    path += "_" + std::to_string(id);
++    
+     // Pass the parents nICEnabled property, so that the child
+     // VLAN interface can inherit.
+ 
+@@ -778,6 +797,15 @@
+     // write the device file for the vlan interface.
+     vlanIntf->writeDeviceFile();
+ 
++    // write the socket file for the vlan interface.
++    vlanIntf->writeSocketFile(SearchString,vlanInterfaceName);
++
++    system("systemctl daemon-reload");
++
++    //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
++    manager.restartSystemdUnit(phosphorNetService);
++    manager.restartSystemdUnit(phosphorNetSocket);
++
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+     manager.writeToConfigurationFile();
+--- a/vlan_interface.hpp	2021-03-07 12:26:55.975066897 -0500
++++ b/vlan_interface.hpp	2021-03-07 12:07:37.762578419 -0500
+@@ -65,6 +65,11 @@
+                and creates the vlan interface.*/
+     void writeDeviceFile();
+ 
++    /** @brief writes the socket configuration.
++               systemd reads this configuration file
++               and creates the vlan interface.*/
++    void writeSocketFile(std::string, std::string);
++
+   private:
+     /** @brief VLAN Identifier. */
+     using VlanIface::id;
+--- a/vlan_interface.cpp	2021-03-07 12:26:55.975066897 -0500
++++ b/vlan_interface.cpp	2021-03-07 12:17:44.045908259 -0500
+@@ -44,6 +44,49 @@
+     elog<InternalFailure>();
+ }
+ 
++void VlanInterface::writeSocketFile(std::string SearchString,std::string ReplaceIntfName)
++{
++    std::string data, newdata;
++    std::fstream fin;
++    std::string confPath = "/etc/systemd/system/sockets.target.wants/";
++    std::string VLANIntfName = EthernetInterface::interfaceName();
++    std::string IntfName  = VLANIntfName.substr(0, VLANIntfName.find("."));
++    std::string ReplaceString = "sys-subsystem-net-devices-" + ReplaceIntfName + ".device";
++    std::string fileName = "phosphor-ipmi-net@" + IntfName + ".socket";
++
++    confPath += fileName;
++
++    fin.open(confPath.c_str(),std::ios::in);
++    newdata="";
++    if(!fin)
++    {
++        syslog(LOG_INFO,"Unable to open file to read\n");
++        return ;
++    }
++    while(fin)
++    {
++        getline(fin,data);
++        int a =(int) data.find(SearchString.c_str(),0);
++        while (a !=(int) std::string::npos)
++        {
++             data.replace(a,strlen(SearchString.c_str()),ReplaceString.c_str());
++             a =(int) data.find(SearchString.c_str(),(a+1));
++        }
++        newdata=newdata+data+"\n";
++    }
++    fin.close();
++    fin.open(confPath.c_str(),std::ios::out);
++    if(!fin)
++    {
++        syslog(LOG_INFO,"Unable to open file to write\n");
++        return ;
++    }
++    fin<<newdata;
++    fin.close();
++    return ;
++}
++
++
+ void VlanInterface::writeDeviceFile()
+ {
+     using namespace std::string_literals;

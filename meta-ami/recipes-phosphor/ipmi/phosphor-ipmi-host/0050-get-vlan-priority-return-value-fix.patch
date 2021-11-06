@@ -1,0 +1,21 @@
+--- a/transporthandler.cpp      2021-04-27 02:59:03.553170609 -0400
++++ b/transporthandler.cpp      2021-04-27 02:56:55.372757736 -0400
+@@ -1087,7 +1087,7 @@
+     // VLAN devices will always have a separate logical object
+     if (params.ifPath == params.logicalPath)
+     {
+-        return -1;
++        return 0;
+     }
+
+     auto vlan = std::get<uint32_t>(getDbusProperty(
+@@ -2018,7 +2018,7 @@
+         case LanParam::VLANPriority:
+         {
+
+-             uint32_t vlanPriority = channelCall<getVLANPriority>(channel);
++             uint8_t vlanPriority = channelCall<getVLANPriority>(channel);
+              ret.pack(vlanPriority);
+              return responseSuccess(ret);
+         }
+

@@ -1,0 +1,115 @@
+diff -Nuar a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-07-07 03:13:23.281190575 -0400
++++ b/ethernet_interface.cpp	2021-07-08 07:32:20.167637221 -0400
+@@ -417,27 +417,36 @@
+ void EthernetInterface::disableDHCP(IP::Protocol protocol)
+ {
+     DHCPConf dhcpState = EthernetInterfaceIntf::dHCPEnabled();
++    bool ipv6AcceptRA = EthernetInterfaceIntf::iPv6AcceptRA();
++
+     if (dhcpState == EthernetInterface::DHCPConf::both)
+     {
+         if (protocol == IP::Protocol::IPv4)
+         {
+-            dHCPEnabled(EthernetInterface::DHCPConf::v6);
++            dhcpState = EthernetInterface::DHCPConf::v6;
++            ipv6AcceptRA = true;
+         }
+         else if (protocol == IP::Protocol::IPv6)
+         {
+-            dHCPEnabled(EthernetInterface::DHCPConf::v4);
++            dhcpState = EthernetInterface::DHCPConf::v4;
++            ipv6AcceptRA = false;
+         }
+     }
+     else if ((dhcpState == EthernetInterface::DHCPConf::v4) &&
+              (protocol == IP::Protocol::IPv4))
+     {
+-        dHCPEnabled(EthernetInterface::DHCPConf::none);
++        dhcpState = EthernetInterface::DHCPConf::none;
++        ipv6AcceptRA = false;
+     }
+     else if ((dhcpState == EthernetInterface::DHCPConf::v6) &&
+              (protocol == IP::Protocol::IPv6))
+     {
+-        dHCPEnabled(EthernetInterface::DHCPConf::none);
++        dhcpState = EthernetInterface::DHCPConf::none;
++        ipv6AcceptRA = false;
+     }
++
++    EthernetInterfaceIntf::iPv6AcceptRA(ipv6AcceptRA);
++    EthernetInterfaceIntf::dHCPEnabled(dhcpState);
+ }
+ 
+ bool EthernetInterface::dhcpIsEnabled(IP::Protocol family, bool ignoreProtocol)
+@@ -590,7 +599,7 @@
+ 
+ 	if (origin == IP::AddressOrigin::Static && (addressType == IP::Protocol::IPv6))
+ 	{
+-	    int id = getMissingId(this->addrs, origin);
++	    int id = getMissingId(this->addrs, origin, addressType);
+ 	    if (id != -1 && id != this->staticIPv6Counter - 1)
+                 setIPCounter(origin, addressType, id);
+ 	}
+@@ -689,7 +698,7 @@
+     for (it = addrs.begin(); it != addrs.end(); ++it)
+     {
+         if (it->second->id() == id && it->second->type() == protType && 
+-            it->second->origin() == origin) 
++            it->second->origin() != IP::AddressOrigin::LinkLocal) 
+ 	{
+             this->addrs.erase(it);
+ 	    break;
+diff -Nuar a/util.cpp b/util.cpp
+--- a/util.cpp	2021-07-07 13:50:32.467338212 -0400
++++ b/util.cpp	2021-07-08 01:10:06.020059322 -0400
+@@ -54,19 +54,20 @@
+ {
+     std::sort(addressMap.begin(), addressMap.end(), sortByMapVal);
+ }
+-int getMissingId(AddressMap& addrs, IP::AddressOrigin origin)
++int getMissingId(AddressMap& addrs, IP::AddressOrigin origin, IP::Protocol type)
+ {
+     auto currentMax = 0;
+     auto flag = false;
+ 
+     for(auto it = addrs.begin(); it != addrs.end(); ++it)
+     {
+-        if ((it ->second->id() > currentMax) && origin == it ->second->origin())
++        if ((it ->second->id() > currentMax) && origin == it ->second->origin() && 
++	   type == it ->second->type())
+         {
+             currentMax = it->second->id();
+         }
+ 
+-        if (origin == it ->second->origin())
++        if (origin == it ->second->origin() && type == it ->second->type())
+             flag = true;	
+     }
+ 
+@@ -78,10 +79,11 @@
+     {
+         for(auto it = addrs.begin(); it != addrs.end(); ++it)
+ 	{
+-            if ((it ->second->id() != i) && origin == it ->second->origin())
++            if ((it ->second->id() != i) && origin == it ->second->origin() && 
++               type == it ->second->type())
+                 return i;
+ 
+-            if (origin == it ->second->origin())
++            if (origin == it ->second->origin() && type == it ->second->type())
+ 	        i++;
+ 	}
+     }
+diff -Nuar a/util.hpp b/util.hpp
+--- a/util.hpp	2021-07-07 13:50:18.910728121 -0400
++++ b/util.hpp	2021-07-07 13:56:15.279139934 -0400
+@@ -130,7 +130,7 @@
+ 			std::vector<std::string> &out);
+ 
+ void sortAddressMap(AddressMap& addrs);
+-int getMissingId(AddressMap& addrs, IP::AddressOrigin origin);
++int getMissingId(AddressMap& addrs, IP::AddressOrigin origin, IP::Protocol type);
+ 
+ /** @brief Delete the given interface.
+  *  @param[in] intf - interface name.

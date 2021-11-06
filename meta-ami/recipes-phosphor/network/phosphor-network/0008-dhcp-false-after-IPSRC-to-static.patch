@@ -1,0 +1,12 @@
+diff -Naur a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-03-31 15:57:15.352865847 -0400
++++ b/ethernet_interface.cpp	2021-03-31 16:02:25.204866364 -0400
+@@ -995,7 +995,7 @@
+         else
+         {
+ 			 if( (EthernetInterfaceIntf::dHCPEnabled() ==
+-              EthernetInterface::DHCPConf::v6)  && 
++              EthernetInterface::DHCPConf::none)  && 
+               (addr.second->type() == IP::Protocol::IPv4)) 
+               {
+ 					// Process all static addresses

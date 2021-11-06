@@ -1,0 +1,25 @@
+diff -Naur a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+--- a/redfish-core/lib/managers.hpp	2021-06-18 22:07:38.035361223 +0530
++++ b/redfish-core/lib/managers.hpp	2021-06-18 21:59:58.992106987 +0530
+@@ -1742,7 +1742,7 @@
+             {"@odata.id", "/redfish/v1/AccountService"}};
+ 
+         // default oem data
+-/*        nlohmann::json& oem = res.jsonValue["Oem"];
++        nlohmann::json& oem = res.jsonValue["Oem"];
+         nlohmann::json& oemOpenbmc = oem["OpenBmc"];
+         oem["@odata.type"] = "#OemManager.Oem";
+         oem["@odata.id"] = "/redfish/v1/Managers/bmc#/Oem";
+@@ -1750,10 +1750,9 @@
+         oemOpenbmc["@odata.id"] = "/redfish/v1/Managers/bmc#/Oem/OpenBmc";
+         oemOpenbmc["Certificates"] = {
+             {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
+-*/
+ 
+-        res.jsonValue["Certificates"] = {
+-            {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
++
++//        res.jsonValue["Certificates"] = {{"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
+ 
+         // Manager.Reset (an action) can be many values, OpenBMC only supports
+         // BMC reboot.

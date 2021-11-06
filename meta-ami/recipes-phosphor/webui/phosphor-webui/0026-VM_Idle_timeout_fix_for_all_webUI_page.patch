@@ -1,0 +1,71 @@
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-05-21 11:33:50.786163745 +0530
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-05-21 11:37:34.110720944 +0530
+@@ -45,12 +45,11 @@
+       $scope.CdStatus = false;
+       $scope.HdStatus = false;
+ 
+-      $scope.SetEjectStatus = function (file_name, device_name) {
++      $scope.SetEjectStatus = function ( device_name) {
+         setTimeout(() => { 
+         APIUtils.setEjectStatus(device_name, false).then(
+           function(data) {
+-            toastService.warn('Image ' + file_name +
+-                               ' has been Ejected from Host Machine.');
++            toastService.warn('Image (CD/HDD) has been removed from Host Machine.');
+ 	    $route.reload();
+           });
+ 	}, 1000);
+@@ -63,11 +62,8 @@
+           APIUtils.getEjectStatus(device_name).then(
+             function(Status) {
+               if(Status == true) {
+-        	 var file_name = document.getElementById('hd-file-upload').value;
+-        	 file_name = file_name.substring(file_name.lastIndexOf("\\")
+-        	                                 + 1, file_name.length);
+                  $scope.stopVM('hd', Index);
+-	         $scope.SetEjectStatus (file_name, device_name);
++	         $scope.SetEjectStatus ( device_name);
+ 		 console.log("Hd image ejected from host");
+ 	         //Cancel the Timer.
+                  $interval.cancel($scope.HdTimer);
+@@ -85,11 +81,8 @@
+           APIUtils.getEjectStatus(device_name).then(
+             function(Status) {
+               if(Status == true) {
+-        	 var file_name = document.getElementById('file-upload').value;
+-        	 file_name = file_name.substring(file_name.lastIndexOf("\\")
+-        	                                 + 1, file_name.length);
+ 	         $scope.stopVM('cd',Index);
+-	  	 $scope.SetEjectStatus (file_name, device_name);
++	  	 $scope.SetEjectStatus ( device_name);
+ 		 console.log("Cd image ejected from host");
+ 	         //Cancel the Timer.
+                  $interval.cancel($scope.CdTimer);
+@@ -235,15 +228,17 @@
+ 	}
+       };
+ 
+-      $scope.resetFile = function(type,index) {
+-        if(type == 'cd'){
+-          document.getElementById('file-upload').value = '';
+-          $scope.devices[index].file = '';
+-        }else{
+-          document.getElementById('hd-file-upload').value = '';
+-          $scope.HD_devices[index].file = '';
+-        }
+-      };
++	    $scope.resetFile = function(type,index) {
++		    if(window.location.href.indexOf('virtual-media') != -1){
++			    if(type == 'cd'){
++				    document.getElementById('file-upload').value = '';
++				    $scope.devices[index].file = '';
++			    }else{
++				    document.getElementById('hd-file-upload').value = '';
++				    $scope.HD_devices[index].file = '';
++			    }
++		    }
++	    };
+ 
+ /*
+       function findExistingConnection(vmDevice) {

@@ -1,0 +1,83 @@
+diff -Naur a/redfish-core/lib/log_services.hpp c/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-02-17 00:10:46.586972008 +0530
++++ c/redfish-core/lib/log_services.hpp	2021-02-17 00:26:40.391240210 +0530
+@@ -1151,6 +1151,70 @@
+         timestamp.erase(dot, plus - dot);
+     }
+ 
++    //Added code for differentiating SEL events
++    std::string s2="SELEntryAdded";
++    std::string Entrytype;
++    if (messageID.find(s2) != std::string::npos)
++    {
++        Entrytype = "SEL";
++        std::cout << "found!" << '\n';
++    }
++    else
++    {
++        Entrytype = "Event";
++    }
++
++
++    //example pattern for SEL Event
++    //Generator ID:2C eventMessageRevision:04 sensorType(temp(0x01)/voltage(0x02)/current(0x03)/fan(0x04)/tpm(0x05)):02 sensorNumber:04  eventDirectionType(asserted0(x01)/deaserted(0x81)):01 data[3]:540000
++    if(Entrytype == "SEL")
++    {
++        unsigned long int warning_arr[4] = {0x00,0x01,0x06,0x07};
++        unsigned long int critical_arr[8] = {0x02,0x03,0x08,0x09,0x04,0x05,0x0A,0x0B};
++        std::string str1;
++
++        for (const std::string &messageArg : messageArgs)
++        {
++                str1 = messageArg;
++                break;
++        }
++        std::string str2 = str1.substr(11,1);
++        size_t tmp;
++        unsigned long int val = stoul(str2,&tmp,16);
++        int i;
++
++        for (i = 0; i < 4; i++)
++        {
++                if(val == warning_arr[i])
++                {
++                   severity = "Warning";
++                   break;
++                }
++        }
++
++        if( severity != "Warning")
++        {
++           for (i = 0; i < 8; i++)
++           {
++                if(val == critical_arr[i])
++                {
++                   severity = "Critical";
++                   break;
++                }
++           }
++        }
++    }
++
++
++    if ((messageID.find("NonRecoverable") != std::string::npos) ||
++        (messageID.find("SampleEvent") != std::string::npos) ||
++        (messageID.find("SensorThreshold") != std::string::npos))
++    {
++        Entrytype = "SEL";
++    }
++
++
++
+     // Fill in the log entry with the gathered data
+     logEntryJson = {
+         {"@odata.type", "#LogEntry.v1_4_0.LogEntry"},
+@@ -1162,7 +1226,7 @@
+         {"Message", std::move(msg)},
+         {"MessageId", std::move(messageID)},
+         {"MessageArgs", messageArgs},
+-        {"EntryType", "Event"},
++        {"EntryType", Entrytype},
+         {"Severity", std::move(severity)},
+         {"Created", std::move(timestamp)}};
+     return 0;

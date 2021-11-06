@@ -1,0 +1,231 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-03-11 07:13:50.242668254 -0500
++++ b/app/common/services/api-utils.js	2021-03-11 07:15:33.608684322 -0500
+@@ -38,6 +38,19 @@
+                     console.log(JSON.stringify(error));
+                   });
+         },
++        getMediaSession: function(){
++          return $http({
++            method: 'GET',
++            url: DataService.getHost() + '/xyz/openbmc_project/VirtualMedia/session/mediasession',
++            withCredentials: true
++          }).then(
++            function(response){
++              return response.data;
++            },
++            function(error){
++              return error;
++            });
++        },
+         getSystemLogs: function(recordType) {
+           var uri = '/redfish/v1/Systems/' + DataService.systemName +
+               '/LogServices/EventLog/Entries';
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-03-11 07:13:50.242668254 -0500
++++ b/app/common/services/dataService.js	2021-03-11 07:15:40.164558507 -0500
+@@ -30,6 +30,7 @@
+ 
+       this.ignoreHttpError = false;
+       this.systemName = '';
++      this.session_id = null;
+ 
+       this.configJson = require('../../../config.json');
+ 
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-03-11 07:13:50.250668099 -0500
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-03-11 07:16:21.011774634 -0500
+@@ -32,95 +32,110 @@
+       vmDeviceHD.id = 1;
+       vmDeviceHD.deviceName = 'Virtual media device';
+ 
+-
+-     // findExistingConnection(vmDevice);
++     findExistingConnection(vmDevice);
++     findExistingConnection(vmDeviceHD);
+       // getInterfaceName();
+       $scope.devices.push(vmDevice);
+       $scope.HD_devices.push(vmDeviceHD);
+ 
+       $scope.startVM = function(index) {
+-	if(sessionStorage.getItem('ROLE') != "Administrator"){
+-	  if ($scope.devices[index].isActive == true){
+-      $scope.devices[index].isActive = false;
+-    }
+-	   window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
+-	}
+-	else {
+-	       sessionStorage.setItem("VM_Index",index);
+-               $scope.devices[index].isActive = true;
+-
+-         var file = $scope.devices[index].file;
+-
+-	       var validate_file_name = document.getElementById('file-upload').value;
+-
+-       	       //console.log(' validate_file_name : ' + validate_file_name);
+-	       var reg = /(.*?)\.(nrg|iso|ISO|NRG)$/;
+-	       if(!validate_file_name.match(reg))
+-       	       {
+-                   toastService.error('File_Name "' + validate_file_name +
+-                                  '" It is not supported format, Please browse valid type of file..');
+-    	       	$scope.resetFile('cd',index);
+-	       	$scope.stopVM('cd',index);
+-       	       }	
+-
+-	       else {
+-          //getInterfaceName();
+-	       var id = $scope.devices[index].id;
+-               var host = dataService.getHost().replace('https://', '');
+-               var token = $cookies.get('XSRF-TOKEN');
+-               var server =
+-                   new NBDServer('wss://' + host + '/vm/0/' + id, token, file, id);
+-               $scope.devices[index].nbdServer = server;
+-               nbdServerService.addConnection(id, server, file);
+-               server.start();
+-		}
+-		
+-            
+-	}
++	      if(sessionStorage.getItem('ROLE') != "Administrator"){
++	        if ($scope.devices[index].isActive == true){
++            $scope.devices[index].isActive = false;
++          }
++	        window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
++	      }else {
++          if(dataService.session_id != null || dataService.session_id != undefined){
++            $scope.start_cd_redirection(index, dataService.session_id);
++          }else{
++            APIUtils.getMediaSession().then(function(response){
++              if(response.data.Media_session_id >= 0){
++                $scope.start_cd_redirection(index, response.data.Media_session_id);
++              }else{
++                toastService.error("Something went wrong!! Couldn't start the Redirection.");
++              }
++            },
++            function(error){
++              toastService.error("Something went wrong!! Couldn't start the Redirection.");
++            });
++          }
++        }
+       };
+-
+       $scope.startVMHD = function(index) {
+         if(sessionStorage.getItem('ROLE') != "Administrator"){
+           if ($scope.HD_devices[index].isActive == true){
+             $scope.HD_devices[index].isActive = false;
+           }
+-           window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
+-        }
+-        else {
+-               sessionStorage.setItem("VM_Index",index);
+-                     $scope.HD_devices[index].isActive = true;
+-      
+-               var file = $scope.HD_devices[index].file;
+-      
+-               var validate_file_name = document.getElementById('hd-file-upload').value;
+-      
+-                      //console.log(' validate_file_name : ' + validate_file_name);
+-               var reg = /(.*?)\.(img|ima|IMG|IMA)$/;
+-               if(!validate_file_name.match(reg))
+-                      {
+-                         toastService.error('File_Name "' + validate_file_name +
+-                                        '" It is not supported format, Please browse valid type of file..');
+-                     $scope.resetFile('hd',index);
+-                 $scope.stopVM('hd',index);
+-                      }	
+-      
+-               else {
+-                //getInterfaceName();
+-               var id = $scope.HD_devices[index].id;
+-                     var host = dataService.getHost().replace('https://', '');
+-                     var token = $cookies.get('XSRF-TOKEN');
+-                     var server =
+-                         new NBDServer('wss://' + host + '/vm/0/' + id, token, file, id);
+-                     $scope.HD_devices[index].nbdServer = server;
+-                     nbdServerService.addConnection(id, server, file);
+-                     server.start();
++          window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
++        }else {
++          if(dataService.session_id != null || dataService.session_id != undefined){
++            $scope.start_hd_redirection(index, dataService.session_id);
++          }else{
++            APIUtils.getMediaSession().then(function(response){
++              if(response.data.Media_session_id >= 0){
++                $scope.start_hd_redirection(index, response.data.Media_session_id);
++              }else{
++                toastService.error("Something went wrong!! Couldn't start the Redirection.");
++              }
++            },
++            function(error){
++              toastService.error("Something went wrong!! Couldn't start the Redirection.");
++            });
+           }
+-          
+-                  
+         }
+-            };
++      };
++      $scope.start_cd_redirection = function(index, sessionID){
++        dataService.session_id = sessionID;
++        sessionStorage.setItem("VM_Index",index);
++        $scope.devices[index].isActive = true;
++        var file = $scope.devices[index].file;
++        var validate_file_name = document.getElementById('file-upload').value;
++
++         //console.log(' validate_file_name : ' + validate_file_name);
++        var reg = /(.*?)\.(nrg|iso|ISO|NRG)$/;
++        if(!validate_file_name.match(reg)){
++          toastService.error('File_Name "' + validate_file_name + '" It is not supported format, Please browse valid type of file..');
++          $scope.resetFile('cd',index);
++           $scope.stopVM('cd',index);
++         }else {
++          //getInterfaceName();
++          var id = $scope.devices[index].id;
++          var host = dataService.getHost().replace('https://', '');
++          var token = $cookies.get('XSRF-TOKEN');
++          var server = new NBDServer('wss://' + host + '/vm/'+dataService.session_id+'/' + id, token, file, id);
++          $scope.devices[index].nbdServer = server;
++          nbdServerService.addConnection(id, server, file);
++          server.start();
++        }
++      };
++      $scope.start_hd_redirection = function(index, sessionID){
++        dataService.session_id = sessionID;
++        $scope.HD_devices[index].isActive = true;
++        var file = $scope.HD_devices[index].file;
++        var validate_file_name = document.getElementById('hd-file-upload').value;
++
++        //console.log(' validate_file_name : ' + validate_file_name);
++        var reg = /(.*?)\.(img|ima|IMG|IMA)$/;
++        if(!validate_file_name.match(reg)){
++          toastService.error('File_Name "' + validate_file_name +'" It is not supported format, Please browse valid type of file..');
++          $scope.resetFile('hd',index);
++          $scope.stopVM('hd',index);
++        }else {
++          //getInterfaceName();
++          var id = $scope.HD_devices[index].id;
++          var host = dataService.getHost().replace('https://', '');
++          var token = $cookies.get('XSRF-TOKEN');
++          var server = new NBDServer('wss://' + host + '/vm/'+dataService.session_id+'/' + id, token, file, id);
++          $scope.HD_devices[index].nbdServer = server;
++          nbdServerService.addConnection(id, server, file);
++          server.start();
++        }
++      };
+ 
+       $scope.stopVM = function(type,index) {
++        if(!($scope.devices[index].isActive && $scope.HD_devices[index].isActive)){
++          dataService.session_id = null;
++        }
+         if(type == 'cd'){
+           $scope.devices[index].isActive = false;
+           var server = $scope.devices[index].nbdServer;
+@@ -158,7 +173,7 @@
+                   });
+              }
+            });
+-      }
++      };
+ 
+ /*
+       function findExistingConnection(vmDevice) {

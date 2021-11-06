@@ -1,0 +1,162 @@
+diff -Naur a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+--- a/redfish-core/lib/account_service.hpp	2021-04-15 20:24:44.225310204 +0530
++++ b/redfish-core/lib/account_service.hpp	2021-04-15 20:06:09.558961539 +0530
+@@ -1169,7 +1169,6 @@
+     {
+         const persistent_data::AuthConfigMethods& authMethodsConfig =
+             persistent_data::SessionStore::getInstance().getAuthMethodsConfig();
+-
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+         res.jsonValue = {
+             {"@odata.id", "/redfish/v1/AccountService"},
+@@ -1252,9 +1251,9 @@
+                     }
+                    if (property.first == "PasswordPolicy")
+                     {
+-                        const uint16_t* value =
+-                            std::get_if<uint16_t>(&property.second);
+-                       passwordPolicy = *value;
++                        const uint8_t* value =
++                            std::get_if<uint8_t>(&property.second);
++                       //passwordPolicy = *value;
+                         if (value != nullptr)
+                         {
+                             asyncResp->res
+diff -Naur a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-04-15 20:24:44.225310204 +0530
++++ b/redfish-core/lib/log_services.hpp	2021-04-15 20:06:09.558961539 +0530
+@@ -1608,61 +1608,79 @@
+     void doGet(crow::Response& res, const crow::Request&,
+                const std::vector<std::string>& params) override
+     {
+-        std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+-        if (params.size() != 1)
+-        {
+-            messages::internalError(asyncResp->res);
+-            return;
+-        }
+-        const std::string& targetID = params[0];
+-
+-        // Go through the log files and check the unique ID for each entry to
+-        // find the target entry
+-        std::vector<std::filesystem::path> redfishLogFiles;
+-        getRedfishLogFiles(redfishLogFiles);
+-        std::string logEntry;
+-		unsigned long int record_id = std::stoul(targetID,nullptr,0);
+-		unsigned int entryCount = 0;
+-		unsigned int MaxNumberOfRecords = 1000;
+-		std::vector<std::string> logEntryVector;
+-
+-        // Oldest logs are in the last file, so start there and loop backwards
+-        for (auto it = redfishLogFiles.rbegin(); it < redfishLogFiles.rend();
+-             it++)
+-        {
+-            std::ifstream logStream(*it);
+-            if (!logStream.is_open())
+-            {
+-                continue;
+-            }
+-            while (std::getline(logStream, logEntry))
+-            {
+-				entryCount++;
+-				logEntryVector.push_back(logEntry);
+-            }
+-		}
+-		
+-		if((record_id > MaxNumberOfRecords) || (entryCount < MaxNumberOfRecords && record_id > entryCount))
+-			messages::resourceMissingAtURI(asyncResp->res, targetID);
+-		
+-		if(entryCount > MaxNumberOfRecords)
+-		{
+-			record_id = entryCount - MaxNumberOfRecords + record_id;
+-		}
+-		if (fillEventLogEntryJson(targetID, logEntryVector[record_id],asyncResp->res.jsonValue) != 0)
+-		{
+-			messages::internalError(asyncResp->res);
+-            return;
+-        }
+-		else
+-		{
+-			asyncResp->res.addHeader(boost::beast::http::field::allow,
+-        	                        redfish::Header::GetAllowHeaders("Event_v1.xml"));
+-			return;
+-				
+-		}
+-        // Requested ID was not found
+-        messages::resourceMissingAtURI(asyncResp->res, targetID);
++	    std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
++	    if (params.size() != 1)
++	    {
++		    messages::internalError(asyncResp->res);
++		    return;
++	    }
++	    const std::string& targetID = params[0];
++
++	    unsigned long int record_id;
++	    try
++	    {	
++		    record_id = std::stoul(targetID,nullptr,0);
++	    }	
++	    catch (std::invalid_argument&)
++	    {
++		    messages::resourceMissingAtURI(res, targetID);
++		    return;
++	    }
++	    catch (std::out_of_range&)
++	    {
++		    messages::resourceMissingAtURI(res, targetID);
++		    return;
++	    }
++
++	    // Go through the log files and check the unique ID for each entry to
++	    // find the target entry
++	    std::vector<std::filesystem::path> redfishLogFiles;
++	    getRedfishLogFiles(redfishLogFiles);
++	    std::string logEntry;
++	    unsigned int entryCount = 0;
++	    unsigned int MaxNumberOfRecords = 1000;
++	    std::vector<std::string> logEntryVector;
++
++	    // Oldest logs are in the last file, so start there and loop backwards
++	    for (auto it = redfishLogFiles.rbegin(); it < redfishLogFiles.rend();
++			    it++)
++	    {
++		    std::ifstream logStream(*it);
++		    if (!logStream.is_open())
++		    {
++			    continue;
++		    }
++		    while (std::getline(logStream, logEntry))
++		    {
++			    entryCount++;
++			    logEntryVector.push_back(logEntry);
++		    }
++	    }
++
++	    if((record_id > MaxNumberOfRecords) || (entryCount < MaxNumberOfRecords && record_id > entryCount))
++	    {
++		    messages::resourceMissingAtURI(asyncResp->res, targetID);
++		    return;
++	    }	
++
++	    if(entryCount > MaxNumberOfRecords)
++	    {
++		    record_id = entryCount - MaxNumberOfRecords + record_id;
++	    }
++	    if (fillEventLogEntryJson(targetID, logEntryVector[record_id],asyncResp->res.jsonValue) != 0)
++	    {
++		    messages::internalError(asyncResp->res);
++		    return;
++	    }
++	    else
++	    {
++		    asyncResp->res.addHeader(boost::beast::http::field::allow,
++				    redfish::Header::GetAllowHeaders("Event_v1.xml"));
++		    return;
++
++	    }
++	    // Requested ID was not found
++	    messages::resourceMissingAtURI(asyncResp->res, targetID);
+     }
+ };
+ 

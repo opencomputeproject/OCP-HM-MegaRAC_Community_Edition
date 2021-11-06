@@ -1,0 +1,249 @@
+--- a/transporthandler.cpp	2021-05-30 11:29:59.185127780 -0400
++++ b/transporthandler.cpp	2021-06-01 08:08:47.141529805 -0400
+@@ -154,6 +154,7 @@
+     typename AddrFamily<family>::addr address;
+     IP::AddressOrigin origin;
+     uint8_t prefix;
++    bool active;
+ };
+ 
+ /** @brief Interface Neighbor configuration parameters */
+@@ -167,6 +168,7 @@
+ 
+ static constexpr uint8_t oemCmdStart = 192;
+ static constexpr uint8_t oemCmdEnd = 255;
++constexpr auto IPV6_MAX_PREFIX_LENGTH = 128;
+ 
+ /** @brief A trivial helper used to determine if two PODs are equal
+  *
+@@ -797,6 +799,7 @@
+         ifaddr.address = *addr;
+         ifaddr.prefix = std::get<uint8_t>(properties.at("PrefixLength"));
+         ifaddr.origin = origin;
++        ifaddr.active = std::get<bool>(properties.at("Active"));
+         return std::move(ifaddr);
+     }
+ 
+@@ -1071,6 +1074,59 @@
+     }
+ }
+ 
++/** @brief set status of the IPv6 address info configured for the interface
++ *
++ *  @param[in] bus     - The bus object used for lookups
++ *  @param[in] params  - The parameters for the channel
++ *  @param[in] idx     - The address index to operate on
++ *  @param[in] enable  - The status of IPv6
++ */
++void activeIfAddr6(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                        uint8_t idx, bool enable)
++{
++    auto ifaddr = getIfAddr<AF_INET6>(bus, params, idx, originsV6Static);
++    if (ifaddr)
++    {
++        setDbusProperty(bus, params.service, ifaddr->path, INTF_IP,
++                    "Active", enable);
++    }
++}
++
++/** @brief set status of the IPv4 address info configured for the interface
++ *
++ *  @param[in] bus     - The bus object used for lookups
++ *  @param[in] params  - The parameters for the channel
++ *  @param[in] idx     - The address index to operate on
++ *  @param[in] enable  - The status of IPv4
++ */
++void activeIfAddr4(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                        uint8_t idx, bool enable)
++{
++    auto ifaddr = getIfAddr<AF_INET>(bus, params, idx, originsV4);
++    if (ifaddr)
++    {
++        setDbusProperty(bus, params.service, ifaddr->path, INTF_IP,
++                    "Active", enable);
++    }
++}
++
++/** @brief set status of the LinkLocal AutoConf info configured for the interface
++ *
++ *  @param[in] bus     - The bus object used for lookups
++ *  @param[in] params  - The parameters for the channel
++ *  @param[in] idx     - The address index to operate on
++ *  @param[in] requestedLinkLocalConf  - The status of LinkLocalAutoConf
++ */
++void setLinkLocalAutoConf(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                        const EthernetInterface::LinkLocalConf requestedLinkLocalConf)
++{
++    std::string newLinkLocalConf =
++        sdbusplus::xyz::openbmc_project::Network::server::convertForMessage(
++            requestedLinkLocalConf);
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET,
++                    "LinkLocalAutoConf", newLinkLocalConf);
++}
++
+ /** @brief Reconfigures the IPv6 address info configured for the interface
+  *
+  *  @param[in] bus     - The bus object used for lookups
+@@ -1837,20 +1893,43 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::both);
++
+                     if (ifaddr4 && (ifaddr4->origin == IP::AddressOrigin::Static &&
+                         (!ifaddr6_static && !ifaddr6)))
+                     {
++                        channelCall<activeIfAddr4>(channel, 0, true);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+                         channelCall<setIPv6AcceptRA>(channel, true);
+ 
+                     }
+                     else if (ifaddr6_static && (ifaddr6_static->origin == IP::AddressOrigin::Static && !ifaddr4))
+                     {
++                        for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
++                        {
++                             channelCall<activeIfAddr6>(channel, i, true);
++                        }
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v4);
+                         channelCall<setIPv6AcceptRA>(channel, false);
+                     }
++                    else if ((!ifaddr6_static && ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) && 
++                             (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static))
++                    {
++                        channelCall<activeIfAddr4>(channel, 0, true);
++                    }
++                    else if ((ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static) && 
++                             (ifaddr4 && (ifaddr4->origin == IP::AddressOrigin::Static ||
++                             ifaddr4->origin == IP::AddressOrigin::DHCP)))
++                    {
++                        for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
++                        {
++                             channelCall<activeIfAddr6>(channel, i, true);
++                        }
++                        channelCall<activeIfAddr4>(channel, 0, true);
++                    }
+                     else if ((ifaddr4 && (ifaddr4->origin == IP::AddressOrigin::DHCP && !ifaddr6_static)) ||
+-                             (ifaddr6 && (ifaddr6->origin == IP::AddressOrigin::DHCP && !ifaddr4)))
++                             (ifaddr6 && (ifaddr6->origin == IP::AddressOrigin::DHCP && !ifaddr4)) ||
++                             (!ifaddr4 && !ifaddr6 && !ifaddr6_static))
+                     {
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::both);
+                         channelCall<setIPv6AcceptRA>(channel, true);
+@@ -1863,11 +1942,13 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::v4);
++
+                     if (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static)
+                     {
+                         for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
+                         {
+-                             channelCall<deconfigureIfAddr6>(channel, i);
++                             channelCall<activeIfAddr6>(channel, i, false);
+                         }
+                         if(!ifaddr4)
+                         {
+@@ -1878,11 +1959,13 @@
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static) &&
+                             (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))
+                     {
++                        channelCall<activeIfAddr4>(channel, 0, true);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::none);
+                         channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
+-                            (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))
++                            (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) ||
++                            (!ifaddr4 && !ifaddr6 && !ifaddr6_static))
+                     {
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v4);
+                         channelCall<setIPv6AcceptRA>(channel, false);
+@@ -1895,9 +1978,11 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::v6);
++
+                     if (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static)
+                     {
+-                        channelCall<deconfigureIfAddr4>(channel);
++                        channelCall<activeIfAddr4>(channel, 0, false);
+                         if(!ifaddr6_static && !ifaddr6)
+                         {
+                              channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+@@ -1907,12 +1992,18 @@
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) &&
+                             (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static))
+                     {
++                        for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
++                        {
++                             channelCall<activeIfAddr6>(channel, i, true);
++                        }
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::none);
+                         channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
+-                            (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))
++                            (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) ||
++                            (!ifaddr4 && !ifaddr6 && !ifaddr6_static))
+                     {
++                        channelCall<activeIfAddr4>(channel, 0, false);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+                         channelCall<setIPv6AcceptRA>(channel, true);
+                     }
+@@ -1944,7 +2035,7 @@
+             {
+                 return responseInvalidFieldRequest();
+             }
+-            if (set >= MAX_IPV6_STATIC_ADDRESSES)
++            if (set >= MAX_IPV6_STATIC_ADDRESSES || prefix > IPV6_MAX_PREFIX_LENGTH)
+             {
+                 return responseParmOutOfRange();
+             }	 
+@@ -2156,15 +2247,21 @@
+         }
+         case LanParam::IPSrc:
+         {
+-            auto src = IPSrc::Static;
++            auto src = IPSrc::Unspecified;
+             EthernetInterface::DHCPConf dhcp =
+                 channelCall<getDHCPProperty>(channel);
++            auto ifaddr4 = channelCall<getIfAddr4>(channel);
+             if ((dhcp == EthernetInterface::DHCPConf::v4) ||
+                 (dhcp == EthernetInterface::DHCPConf::both))
+             {
+                 src = IPSrc::DHCP;
+             }
++            else if ((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
++                     (dhcp == EthernetInterface::DHCPConf::v6 || dhcp == EthernetInterface::DHCPConf::none))
++                src = IPSrc::Static;
++
+             ret.pack(static_cast<uint4_t>(src), uint4_t{});
++
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::MAC:
+@@ -2268,16 +2365,16 @@
+             auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+             auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
+-            if (((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static) &&
+-                (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
++            if (((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
++                (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
+                 (((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) &&
+-                (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
+-                ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static) &&
++                (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
++                ((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
+                 (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))))
+                 ret.pack(static_cast<uint8_t>(IPFamilyEnables::DualStack));
+-            else if (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static)
++            else if (ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static)
+                 ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv4Only));
+-            else if (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static)
++            else if (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)
+                 ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv6Only));
+             else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
+                      (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))

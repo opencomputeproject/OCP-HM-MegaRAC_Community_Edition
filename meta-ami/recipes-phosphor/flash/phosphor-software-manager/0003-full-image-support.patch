@@ -1,0 +1,183 @@
+diff -Naur a/item_updater.cpp b/item_updater.cpp
+--- a/item_updater.cpp	2021-02-11 21:53:33.007707767 +0530
++++ b/item_updater.cpp	2021-02-11 21:48:00.795574005 +0530
+@@ -13,10 +13,13 @@
+ #include <xyz/openbmc_project/Common/error.hpp>
+ #include <xyz/openbmc_project/Software/Image/error.hpp>
+ 
++#include <fcntl.h>      
++#include <unistd.h>
+ #include <filesystem>
+ #include <fstream>
+ #include <queue>
+ #include <set>
++#include <list>
+ #include <string>
+ #include <thread>
+ 
+@@ -36,6 +39,7 @@
+ using namespace phosphor::software::image;
+ namespace fs = std::filesystem;
+ using NotAllowed = sdbusplus::xyz::openbmc_project::Common::Error::NotAllowed;
++using VersionPurpose = server::Version::VersionPurpose;
+ 
+ void ItemUpdater::createActivation(sdbusplus::message::message& msg)
+ {
+@@ -402,22 +406,32 @@
+ ItemUpdater::ActivationStatus
+     ItemUpdater::validateSquashFSImage(const std::string& filePath)
+ {
+-    bool valid = true;
++    bool invalid = false;
++    fs::path file(filePath); 
++    file /= bmcFullImages;
++    if(access(file.c_str(),F_OK) == 0)
++    {
++	invalid = false;
++    }
++    else
++    {
++    	for (auto& bmcImage : bmcImages)
++    	{
++	        fs::path file(filePath);
++	        file /= bmcImage;
++	        std::ifstream efile(file.c_str());
++	        if (efile.good() != 1)
++	        {
++	            log<level::ERR>("Failed to find the BMC image.",
++	                            entry("IMAGE=%s", bmcImage.c_str()));
++	            invalid = true;
++	        }
++	    }
++    }
+ 
+-    // Record the images which are being updated
+-    // First check for the fullimage, then check for images with partitions
+-    imageUpdateList.push_back(bmcFullImages);
+-    valid = checkImage(filePath, imageUpdateList);
+-    if (!valid)
+-    {
+-        imageUpdateList.clear();
+-        imageUpdateList.assign(bmcImages.begin(), bmcImages.end());
+-        valid = checkImage(filePath, imageUpdateList);
+-        if (!valid)
+-        {
+-            log<level::ERR>("Failed to find the needed BMC images.");
+-            return ItemUpdater::ActivationStatus::invalid;
+-        }
++    if (invalid)
++    {
++        return ItemUpdater::ActivationStatus::invalid;
+     }
+ 
+     return ItemUpdater::ActivationStatus::ready;
+@@ -718,7 +732,7 @@
+     helper.mirrorAlt();
+ }
+ 
+-bool ItemUpdater::checkImage(const std::string& filePath,
++/*bool ItemUpdater::checkImage(const std::string& filePath,
+                              const std::vector<std::string>& imageList)
+ {
+     bool valid = true;
+@@ -736,7 +750,7 @@
+     }
+ 
+     return valid;
+-}
++}*/
+ 
+ } // namespace updater
+ } // namespace software
+diff -Naur a/item_updater.hpp b/item_updater.hpp
+--- a/item_updater.hpp	2021-02-11 21:53:33.007707767 +0530
++++ b/item_updater.hpp	2021-02-11 21:48:00.795574005 +0530
+@@ -163,7 +163,7 @@
+     std::map<std::string, std::unique_ptr<VersionClass>> versions;
+ 
+     /** @brief Vector of needed BMC images in the tarball*/
+-    std::vector<std::string> imageUpdateList;
++    //std::vector<std::string> imageUpdateList;
+ 
+   private:
+     /** @brief Callback function for Software.Version match.
+@@ -251,8 +251,8 @@
+      *                      true if all image files are found in BMC tarball
+      *                      false if one of image files is missing
+      */
+-    bool checkImage(const std::string& filePath,
+-                    const std::vector<std::string>& imageList);
++    /*bool checkImage(const std::string& filePath,
++                   const std::vector<std::string>& imageList);*/
+ };
+ 
+ } // namespace updater
+diff -Naur a/static/flash.cpp b/static/flash.cpp
+--- a/static/flash.cpp	2021-02-11 21:53:46.012029956 +0530
++++ b/static/flash.cpp	2021-02-11 21:48:23.364119297 +0530
+@@ -7,10 +7,12 @@
+ #include "item_updater.hpp"
+ 
+ #include <filesystem>
++#include <fstream>
+ 
+ namespace
+ {
+ constexpr auto PATH_INITRAMFS = "/run/initramfs";
++constexpr auto PATH_TMP_IMAGES = "/tmp/images/";
+ } // namespace
+ 
+ namespace phosphor
+@@ -28,12 +30,47 @@
+     // For static layout code update, just put images in /run/initramfs.
+     // It expects user to trigger a reboot and an updater script will program
+     // the image to flash during reboot.
+-    fs::path uploadDir(IMG_UPLOAD_DIR);
+-    fs::path toPath(PATH_INITRAMFS);
+-
+-    for (const auto& bmcImage : parent.imageUpdateList)
++    const std::string image = phosphor::software::image::bmcFullImages;
++    std::string tmpimages = PATH_TMP_IMAGES + versionId + "/" +image;
++    std::ifstream imagebmcfile(tmpimages.c_str());
++    if(imagebmcfile.good() != 1)
++    {
++        fs::path uploadDir(IMG_UPLOAD_DIR);
++        fs::path toPath(PATH_INITRAMFS);
++        std::ifstream activeimagebmc(toPath / image);
++        if(activeimagebmc.good() == 1)
++        {
++            remove(toPath / image);
++        }
++    	for (auto& bmcImage : phosphor::software::image::bmcImages)
++    	{
++            std::ifstream activebmcimage(toPath / bmcImage);
++            if(activebmcimage.good() == 1)
++            {
++                remove(toPath / bmcImage);
++            }
++    		fs::copy_file(uploadDir / versionId / bmcImage, toPath / bmcImage,
++                      fs::copy_options::overwrite_existing);
++      	}
++    }
++    else
+     {
+-        fs::copy_file(uploadDir / versionId / bmcImage, toPath / bmcImage,
++    	fs::path uploadDir(IMG_UPLOAD_DIR);
++    	fs::path toPath(PATH_INITRAMFS);
++        for (auto& bmcImage : phosphor::software::image::bmcImages)
++        {
++            std::ifstream activebmcimage(toPath / bmcImage);
++            if(activebmcimage.good() == 1)
++            {
++                remove(toPath / bmcImage);
++            }
++        }
++        std::ifstream activeimagebmc(toPath / image);
++        if(activeimagebmc.good() == 1)
++        {
++            remove(toPath / image);
++        }
++    	fs::copy_file(uploadDir / versionId / image, toPath / image,
+                       fs::copy_options::overwrite_existing);
+     }
+ }

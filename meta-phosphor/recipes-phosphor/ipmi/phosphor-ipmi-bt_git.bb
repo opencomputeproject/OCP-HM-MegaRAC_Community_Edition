@@ -17,12 +17,6 @@ RRECOMMENDS_${PN} += "phosphor-ipmi-host"
 DEPENDS += "autoconf-archive-native"
 DEPENDS += "systemd"
 
-#S = "${WORKDIR}/git"
-#SRC_URI += "git://github.com/openbmc/btbridge"
-#SRCREV="aa5511d28ff9acee4a404c6397d09f5187812ed8"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/btbridge"
-SRC_URI = "file://btbridge"
-SRCPV = "${AUTOREV}"
-
+S = "${WORKDIR}/git"
+SRC_URI += "git://github.com/openbmc/btbridge"
+SRCREV="aa5511d28ff9acee4a404c6397d09f5187812ed8"

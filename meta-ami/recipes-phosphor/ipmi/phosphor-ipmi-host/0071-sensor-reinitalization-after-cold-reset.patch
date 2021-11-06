@@ -1,0 +1,27 @@
+--- a/globalhandler.cpp	2021-06-12 20:19:07.076655034 +0530
++++ b/globalhandler.cpp	2021-06-12 20:26:02.868870819 +0530
+@@ -18,6 +18,10 @@
+ static constexpr auto reqTransition = "RequestedBMCTransition";
+ static constexpr auto match = "bmc0";
+ 
++
++const char* systemjson = "/var/configuration/system.json";
++const char* thresholdjson = "/var/configuration/threshold.json";
++
+ using namespace phosphor::logging;
+ using BMC = sdbusplus::xyz::openbmc_project::State::server::BMC;
+ 
+@@ -48,12 +52,11 @@
+  */
+ ipmi::RspType<> ipmiColdReset()
+ {
+-    const char* filename = "/var/configuration/system.json";
+ 
+     try
+     {
+ 	/* Delete the file so all sensor should come to its default value once bmc rebooted  */
+-	if (remove(filename) != 0)
++	if (remove(systemjson) != 0 || remove(thresholdjson) != 0)
+ 		perror("File deletion failed");
+ 
+         resetBMC();

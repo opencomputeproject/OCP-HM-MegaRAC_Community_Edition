@@ -1,0 +1,141 @@
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2021-06-13 01:31:10.463190909 +0530
++++ b/include/sensor.hpp	2021-06-13 01:18:44.401404451 +0530
+@@ -640,3 +640,17 @@
+ };
+ bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord,
+ 		const std::string* matchLabel = nullptr  );
++
++/*Map sensor Type code to its name*/
++
++const std::map<uint8_t,std::string>SENSOR_TYPE_CODE_TABLE = {{0x01,"temperature"},{0x02,"voltage"},{0x03,"current"},
++                                {0x04,"fan"},{0x05,"chassis_intrusion"},{0x06,"platform_security"},{0x07,"processor"},
++                                {0x08,"power_supply"},{0x09,"power_unit"},{0x0A,"cooling_device"},{0x0B,"units-based_sensor"},{0x0C,"memory"},
++                                {0x0D,"drive_slot"},{0x0F,"system_firmware_progress"},{0x10,"event_logging_disabled"},{0x11,"watcgdog1"},
++                                {0x12,"system_event"},{0x13,"critical_interrupt"},{0x14,"button/switch"},{0x15,"module/board"},
++                                {0x16,"microController/coprocessor"},{0x17,"add-in_card"},{0x18,"chassis"},{0x19,"chip set"},
++                                {0x1A,"other_FRU"},{0x1B,"cable/interconnect"},{0x1C,"terminator"},{0x1D,"systemboot/restart"},
++                                {0x1E,"boot_error"},{0x1F,"base_os_boot/installation_status"},{0x20,"OS_stop/shutdown"},{0x21,"slot/connector"},
++                                {0x22,"system_acpi_power_state"},{0x23,"watchdog2"},{0x24,"platformAlert"},{0x25,"entitypresence"},
++                                {0x26,"monitor_ASIC/IC"},{0x27,"LAN"},{0x28,"management_subsystem_health"},{0x29,"battery"},
++                                {0x2A,"session_audit"},{0x2B,"version_change"},{0x2C,"fru_state"}};
+diff -Naur a/src/DiscreteGpio.cpp b/src/DiscreteGpio.cpp
+--- a/src/DiscreteGpio.cpp	2021-06-13 01:30:57.443275344 +0530
++++ b/src/DiscreteGpio.cpp	2021-06-13 01:14:21.494499531 +0530
+@@ -40,19 +40,22 @@
+     LowOffset2(LowOffset2), HighOffset2(HighOffset2),
+     inputDev1(io, open(path1.c_str(), O_RDONLY)), inputDev2(io, open(path2.c_str(), O_RDONLY)), waitTimer(io), errCount(0)
+ {
++    std::string sensorTypeStr;
++    uint8_t senType = sdrRecord.SensorType;
++    sensorTypeStr = SENSOR_TYPE_CODE_TABLE.find(senType)->second;	
+     sensorInterface = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/discretegpio/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+        "xyz.openbmc_project.Sensor.Value");
+ 
+     discreteInterfaceState = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/discretegpio/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+     discreteInterfaceState->register_property("ActiveAlarmState", static_cast<uint8_t>(0x00));
+     discreteInterfaceState->register_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
+ 
+     association = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/discretegpio/" + name,
++        "/xyz/openbmc_project/sensors/"  + sensorTypeStr + "/"  + name,
+         "org.openbmc.Associations");
+     setInitialProperties(conn);
+     setupRead();
+diff -Naur a/src/EventSensor.cpp b/src/EventSensor.cpp
+--- a/src/EventSensor.cpp	2021-06-13 01:30:48.243333546 +0530
++++ b/src/EventSensor.cpp	2021-06-13 01:14:11.582123831 +0530
+@@ -36,13 +36,16 @@
+     path(path), objServer(objectServer),
+     /*inputDev(io, open(path.c_str(), O_RDONLY)),*/ waitTimer(io), errCount(0)
+ {
++	std::string sensorTypeStr;
++        uint8_t senType = sdrRecord.SensorType;
++        sensorTypeStr = SENSOR_TYPE_CODE_TABLE.find(senType)->second;
+ 
+     sensorInterface = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "xyz.openbmc_project.Sensor.Value");
+ 
+     discreteInterfaceState = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+     data = {0xFF,0xFF,0xFF};
+@@ -74,7 +77,7 @@
+ 
+ 
+     association = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "org.openbmc.Associations");
+     setInitialProperties(conn);
+ }
+diff -Naur a/src/GpioSensor.cpp b/src/GpioSensor.cpp
+--- a/src/GpioSensor.cpp	2021-06-13 01:30:39.323388793 +0530
++++ b/src/GpioSensor.cpp	2021-06-13 01:13:55.409489289 +0530
+@@ -38,19 +38,22 @@
+     path(path), objServer(objectServer),
+     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), errCount(0)
+ {
++    std::string sensorTypeStr;
++    uint8_t senType = sdrRecord.SensorType;
++    sensorTypeStr = SENSOR_TYPE_CODE_TABLE.find(senType)->second;
+     sensorInterface = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/gpiosensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/"  + name,
+         "xyz.openbmc_project.Sensor.Value");
+ 
+     discreteInterfaceState = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/gpiosensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/"  + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+     discreteInterfaceState->register_property("ActiveAlarmState", static_cast<uint8_t>(0x00));
+     discreteInterfaceState->register_property("EventData", std::vector<uint8_t>({0xFF, 0xFF, 0xFF}));
+ 
+     association = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/gpiosensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/"  + name,
+         "org.openbmc.Associations");
+     setInitialProperties(conn);
+     setupRead();
+diff -Naur a/src/WatchdogSensor.cpp b/src/WatchdogSensor.cpp
+--- a/src/WatchdogSensor.cpp	2021-06-13 19:02:36.612578571 +0530
++++ b/src/WatchdogSensor.cpp	2021-06-13 19:05:43.647540928 +0530
+@@ -35,13 +35,16 @@
+            minReading,EvStat, LowOffset, HighOffset, sensorUnit,sdrRecord),
+            objServer(objectServer)
+ {
++    std::string sensorTypeStr;
++    uint8_t senType = sdrRecord.SensorType;
++    sensorTypeStr = SENSOR_TYPE_CODE_TABLE.find(senType)->second;
+ 
+     sensorInterface = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "xyz.openbmc_project.Sensor.Value");
+ 
+     discreteInterfaceState = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "xyz.openbmc_project.Sensor.Discrete.State");
+ 
+     data = {0xFF,0xFF,0xFF};
+@@ -61,7 +64,7 @@
+                  });
+ 
+     association = objectServer.add_interface(
+-        "/xyz/openbmc_project/sensors/eventsensor/" + name,
++        "/xyz/openbmc_project/sensors/" + sensorTypeStr + "/" + name,
+         "org.openbmc.Associations");
+     setInitialProperties(conn);
+ 

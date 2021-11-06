@@ -1,0 +1,367 @@
+--- a/redfish-core/lib/log_services.hpp	2021-03-25 23:42:24.983815506 -0400
++++ b/redfish-core/lib/log_services.hpp	2021-03-25 23:53:03.089435143 -0400
+@@ -107,6 +107,53 @@
+     sdbusplus::message::object_path,
+     boost::container::flat_map<std::string, GetManagedPropertyType>>;
+ 
++vector<std::string> sensorType_vector{
++        "Temperature",
++        "Voltage",
++        "Current",
++        "Fan",
++        "Physical Chassis Security",
++		"Platform Security Violation Attempt",
++        "Processor",
++        "Power Supply / Converter",
++        "PowerUnit",
++        "CoolingDevice", 
++        "Other Units-based Sensor",
++        "Memory",
++        "Drive Slot/Bay",
++        "POST Memory Resize", 
++        "System Firmware Progress", 
++        "Event Logging Disabled",
++		"watchdog",
++        "System Event", 
++        "Critical Interrupt", 
++        "Button/Switch", 
++        "Module/Board", 
++        "Microcontroller/Coprocessor",
++        "Add-in Card",
++        "Chassis",
++        "ChipSet",
++        "Other FRU",
++        "Cable/Interconnect",
++        "Terminator",
++        "SystemBoot/Restart",
++        "Boot Error",
++        "BaseOSBoot/InstallationStatus",
++        "OS Stop/Shutdown",
++        "Slot/Connector",
++        "System ACPI PowerState",
++        "Watchdog2",
++        "Platform Alert",
++        "Entity Presence",
++        "Monitor ASIC/IC",
++        "LAN",
++        "Management Subsystem Health",
++        "Battery",
++        "Session Audit",
++        "Version Change",
++        "FRUState"
++	}; 
++	
+ inline std::string translateSeverityDbusToRedfish(const std::string& s)
+ {
+     if ((s == "xyz.openbmc_project.Logging.Entry.Level.Alert") ||
+@@ -272,7 +319,7 @@
+     return true;
+ }
+ 
+-static bool getUniqueEntryID(const std::string& logEntry, std::string& entryID,
++/*static bool getUniqueEntryID(const std::string& logEntry, std::string& entryID,
+                              const bool firstEntry = true)
+ {
+     static time_t prevTs = 0;
+@@ -309,7 +356,7 @@
+         entryID += "_" + std::to_string(index);
+     }
+     return true;
+-}
++}*/
+ 
+ static bool getTimestampFromID(crow::Response& res, const std::string& entryID,
+                                uint64_t& timestamp, uint64_t& index)
+@@ -1017,7 +1064,7 @@
+         asyncResp->res.jsonValue["DateTimeLocalOffset"] =
+                                  DateTime.substr(DateTime.rfind("+"));	
+         asyncResp->res.jsonValue["LogEntryType"] = "Event";
+-        asyncResp->res.jsonValue["MaxNumberOfRecords"] = 150;	
++        asyncResp->res.jsonValue["MaxNumberOfRecords"] = 1000;	
+         asyncResp->res.jsonValue["ServiceEnabled"] = true;
+         asyncResp->res.jsonValue["Status"]["Health"] = "OK";
+         asyncResp->res.jsonValue["Status"]["State"] = "Enabled";	
+@@ -1088,9 +1136,13 @@
+                                  const std::string& logEntry,
+                                  nlohmann::json& logEntryJson)
+ {
+-    // The redfish log format is "<Timestamp> <MessageId>,<MessageArgs>"
++    // The redfish log format is "<Timestamp> <sensorType>,<sensorNum>,<eventType>,<MessageId>,<MessageArgs>"
+     // First get the Timestamp
+     size_t space = logEntry.find_first_of(' ');
++	unsigned long sensorNumber = 0xff;
++	std::string sensorType;
++	std::string messageID_buf;
++	std::string& messageID = messageID_buf;
+     if (space == std::string::npos)
+     {
+         return 1;
+@@ -1113,7 +1165,14 @@
+     {
+         return 1;
+     }
+-    std::string& messageID = logEntryFields[0];
++	if (logEntryFields.size() == 7)
++	{
++		messageID_buf = logEntryFields[3];
++	}
++	else
++	{
++		messageID_buf = logEntryFields[0];
++	}
+ 
+     // Get the Message from the MessageRegistry
+     const message_registries::Message* message =
+@@ -1129,17 +1188,17 @@
+ 
+     // Get the MessageArgs from the log if there are any
+     boost::beast::span<std::string> messageArgs;
+-    if (logEntryFields.size() > 1)
++ 	if (logEntryFields.size() == 7)
+     {
+-        std::string& messageArgsStart = logEntryFields[1];
++		std::string& messageArgsStart = logEntryFields[4];
+         // If the first string is empty, assume there are no MessageArgs
+         std::size_t messageArgsSize = 0;
+         if (!messageArgsStart.empty())
+         {
+-            messageArgsSize = logEntryFields.size() - 1;
++			messageArgsSize = logEntryFields.size() - 4;
+         }
+ 
+-        messageArgs = {&messageArgsStart, messageArgsSize};
++        messageArgs = boost::beast::span(&messageArgsStart, messageArgsSize);
+ 
+         // Fill the MessageArgs into the Message
+         int i = 0;
+@@ -1153,6 +1212,31 @@
+             }
+         }
+     }
++	else
++	{
++        std::string& messageArgsStart = logEntryFields[1];
++        // If the first string is empty, assume there are no MessageArgs
++        std::size_t messageArgsSize = 0;
++        if (!messageArgsStart.empty())
++        {
++			messageArgsSize = logEntryFields.size() - 1;
++        }
++
++        messageArgs = boost::beast::span(&messageArgsStart, messageArgsSize);
++
++        // Fill the MessageArgs into the Message
++        int i = 0;
++        for (const std::string& messageArg : messageArgs)
++        {
++            std::string argStr = "%" + std::to_string(++i);
++            size_t argPos = msg.find(argStr);
++            if (argPos != std::string::npos)
++            {
++                msg.replace(argPos, argStr.length(), messageArg);
++            }
++        }
++		
++	}
+ 
+     // Get the Created time from the timestamp. The log timestamp is in RFC3339
+     // format which matches the Redfish format except for the fractional seconds
+@@ -1229,19 +1313,43 @@
+ 
+ 
+     // Fill in the log entry with the gathered data
+-    logEntryJson = {
+-        {"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
+-        {"@odata.id",
+-         "/redfish/v1/Systems/system/LogServices/EventLog/Entries/" +
+-             logEntryID},
+-        {"Name", "System Event Log Entry"},
+-        {"Id", logEntryID},
+-        {"Message", std::move(msg)},
+-        {"MessageId", std::move(messageID)},
+-        {"MessageArgs", messageArgs},
+-        {"EntryType", Entrytype},
+-        {"Severity", std::move(severity)},
+-        {"Created", std::move(timestamp)}};
++	if(Entrytype == "SEL" && logEntryFields.size() == 7)
++	{
++		sensorNumber = stoul(logEntryFields[1], nullptr, 16);
++		sensorType = sensorType_vector[(stoul(logEntryFields[0], nullptr, 16)) - 1];
++		logEntryJson = {
++			{"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
++			{"@odata.id",
++			"/redfish/v1/Systems/system/LogServices/EventLog/Entries/" +
++				logEntryID},
++			{"Name", "System Event Log Entry"},
++			{"Id", logEntryID},
++			{"Message", std::move(msg)},
++			{"MessageId", std::move(messageID)},
++			{"MessageArgs", std::move(messageArgs)},
++			{"EntryType", Entrytype},
++			{"Severity", std::move(severity)},
++			{"SensorNumber", std::move(sensorNumber)},
++			{"SensorType", std::move(sensorType)},
++			{"Created", std::move(timestamp)}};
++		
++	}
++	else
++	{
++		logEntryJson = {
++			{"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
++			{"@odata.id",
++			"/redfish/v1/Systems/system/LogServices/EventLog/Entries/" +
++				logEntryID},
++			{"Name", "System Event Log Entry"},
++			{"Id", logEntryID},
++			{"Message", std::move(msg)},
++			{"MessageId", std::move(messageID)},
++			{"MessageArgs", std::move(messageArgs)},
++			{"EntryType", Entrytype},
++			{"Severity", std::move(severity)},
++			{"Created", std::move(timestamp)}};
++	}
+     return 0;
+ }
+ 
+@@ -1294,6 +1402,12 @@
+         getRedfishLogFiles(redfishLogFiles);
+         uint64_t entryCount = 0;
+         std::string logEntry;
++		
++		unsigned int rec_id = 0;		
++		unsigned int MaxNumberOfRecords = 1000;
++ 		unsigned int required_index = 0;
++		unsigned int i = 0;
++		std::vector<std::string> logEntryVector;
+ 
+         // Oldest logs are in the last file, so start there and loop backwards
+         for (auto it = redfishLogFiles.rbegin(); it < redfishLogFiles.rend();
+@@ -1306,13 +1420,14 @@
+             }
+ 
+             // Reset the unique ID on the first entry
+-            bool firstEntry = true;
++            //bool firstEntry = true;
+             while (std::getline(logStream, logEntry))
+             {
+                 entryCount++;
++				logEntryVector.push_back(logEntry);
+                 // Handle paging using skip (number of entries to skip from the
+                 // start) and top (number of entries to display)
+-                if (entryCount <= skip || entryCount > skip + top)
++                /* if (entryCount <= skip || entryCount > skip + top)
+                 {
+                     continue;
+                 }
+@@ -1334,11 +1449,38 @@
+                 {
+                     messages::internalError(asyncResp->res);
+                     return;
+-                }
++                } */
+             }
+         }
+-        asyncResp->res.jsonValue["Members@odata.count"] = entryCount;
+-        if (skip + top < entryCount)
++		if(MaxNumberOfRecords >= entryCount)
++		{
++			required_index = 0;	
++		}
++		else 
++		{
++			required_index = static_cast<unsigned int>(entryCount) - MaxNumberOfRecords; 
++		}
++		for (auto it = logEntryVector.begin()+static_cast<int>(required_index); it < logEntryVector.end();
++             it++, i++)
++			 {
++				std::string idStr;
++				idStr = std::to_string(rec_id);
++				rec_id++;
++				if (rec_id <= skip || rec_id > skip + top)
++                {
++                    continue;
++                }
++				logEntryArray.push_back({});
++                nlohmann::json& bmcLogEntry = logEntryArray.back();
++                if (fillEventLogEntryJson(idStr, logEntryVector[required_index+i], bmcLogEntry) != 0)
++                {
++                    messages::internalError(asyncResp->res);
++                    return;
++                }
++				 
++			 }
++        asyncResp->res.jsonValue["Members@odata.count"] = rec_id;
++         if (skip + top < rec_id)
+         {
+             asyncResp->res.jsonValue["Members@odata.nextLink"] =
+                 "/redfish/v1/Systems/system/LogServices/EventLog/"
+@@ -1384,6 +1526,10 @@
+         std::vector<std::filesystem::path> redfishLogFiles;
+         getRedfishLogFiles(redfishLogFiles);
+         std::string logEntry;
++		unsigned long int record_id = std::stoul(targetID,nullptr,0);
++		unsigned int entryCount = 0;
++		unsigned int MaxNumberOfRecords = 1000;
++		std::vector<std::string> logEntryVector;
+ 
+         // Oldest logs are in the last file, so start there and loop backwards
+         for (auto it = redfishLogFiles.rbegin(); it < redfishLogFiles.rend();
+@@ -1394,36 +1540,32 @@
+             {
+                 continue;
+             }
+-
+-            // Reset the unique ID on the first entry
+-            bool firstEntry = true;
+             while (std::getline(logStream, logEntry))
+             {
+-                std::string idStr;
+-                if (!getUniqueEntryID(logEntry, idStr, firstEntry))
+-                {
+-                    continue;
+-                }
+-
+-                if (firstEntry)
+-                {
+-                    firstEntry = false;
+-                }
+-
+-                if (idStr == targetID)
+-                {
+-                    if (fillEventLogEntryJson(idStr, logEntry,
+-                                              asyncResp->res.jsonValue) != 0)
+-                    {
+-                        messages::internalError(asyncResp->res);
+-                        return;
+-                    }
+-		    asyncResp->res.addHeader(boost::beast::http::field::allow,
+-        	                             redfish::Header::GetAllowHeaders("Event_v1.xml"));
+-                    return;
+-                }
++				entryCount++;
++				logEntryVector.push_back(logEntry);
+             }
++		}
++		
++		if((record_id > MaxNumberOfRecords) || (entryCount < MaxNumberOfRecords && record_id > entryCount))
++			messages::resourceMissingAtURI(asyncResp->res, targetID);
++		
++		if(entryCount > MaxNumberOfRecords)
++		{
++			record_id = entryCount - MaxNumberOfRecords + record_id;
++		}
++		if (fillEventLogEntryJson(targetID, logEntryVector[record_id],asyncResp->res.jsonValue) != 0)
++		{
++			messages::internalError(asyncResp->res);
++            return;
+         }
++		else
++		{
++			asyncResp->res.addHeader(boost::beast::http::field::allow,
++        	                        redfish::Header::GetAllowHeaders("Event_v1.xml"));
++			return;
++				
++		}
+         // Requested ID was not found
+         messages::resourceMissingAtURI(asyncResp->res, targetID);
+     }

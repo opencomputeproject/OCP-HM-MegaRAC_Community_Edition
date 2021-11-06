@@ -1,0 +1,1435 @@
+diff -Naur a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-06-03 06:37:23.950765924 -0400
++++ b/ethernet_interface.cpp	2021-06-18 10:55:57.182798142 -0400
+@@ -69,7 +69,6 @@
+ constexpr auto NCSI_CMD_SET_VLAN_FILTER = 0x0B;
+ constexpr auto NCSI_CMD_ENABLE_VLAN = 0x0C;
+ 
+-
+ struct EthernetIntfSocket
+ {
+     EthernetIntfSocket(int domain, int type, int protocol)
+@@ -171,6 +170,13 @@
+     
+     this->loadARPControl();
+ 
++    this->ipv4Counter = 0;
++    this->ipv6Counter = 0;
++    this->staticIPv4Counter = 0;
++    this->staticIPv6Counter = 0;
++    this->linkLocalIPv4Counter = 0;
++    this->linkLocalIPv6Counter = 0;
++
+     // Emit deferred signal.
+     if (emitSignal)
+     {
+@@ -474,39 +480,10 @@
+     return servers;
+ }
+ 
+-void EthernetInterface::createIPAddressObjects()
++void EthernetInterface::loadDisabledIPAddressObjects()
+ {
+-    
+-    addrs.clear();
+-
+     ServerList address = getAddressFromConf();
+     ServerList gateway = getGatewayFromConf();
+-    auto addrs = getInterfaceAddrs()[interfaceName()];
+-
+-    for (auto& addr : addrs)
+-    {
+-        IP::Protocol addressType = convertFamily(addr.addrType);
+-        IP::AddressOrigin origin = IP::AddressOrigin::Static;
+-        if (dhcpIsEnabled(addressType))
+-        {
+-            origin = IP::AddressOrigin::DHCP;
+-        }
+-        if (isLinkLocalIP(addr.ipaddress))
+-        {
+-            origin = IP::AddressOrigin::LinkLocal;
+-        }
+-        // Obsolete parameter
+-        std::string gateway = "";
+-
+-        std::string ipAddressObjectPath = generateObjectPath(
+-            addressType, addr.ipaddress, addr.prefix, gateway);
+-
+-        this->addrs.emplace(addr.ipaddress,
+-                            std::make_shared<phosphor::network::IPAddress>(
+-                                bus, ipAddressObjectPath.c_str(), *this,
+-                                addressType, addr.ipaddress, origin,
+-                                addr.prefix, gateway));
+-    }
+ 
+     for (auto& addr : address)
+     {
+@@ -519,23 +496,38 @@
+         }
+ 	std::vector<std::string> out;
+ 	splitString(addr, '/', out);
++
++	if (out.size() < 3)
++	    continue;
++
+ 	auto ipaddress = out[0];
+ 	auto prefix = 0;
++	auto id = 0;
++
+ 	std::stringstream ipprefix(out[1]);
+         ipprefix>>prefix;
++	std::stringstream ipid(out[2]);
++        ipid>>id;
+ 
++        if (isLinkLocalIP(ipaddress))
++        {
++            origin = IP::AddressOrigin::LinkLocal;
++        }
+         // Obsolete parameter
+         std::string gateway = "";
+ 
+         std::string ipAddressObjectPath = generateObjectPath(
+             addressType, ipaddress, prefix, gateway);
+-        this->addrs.emplace(ipaddress,
++        setIPCounter(origin, addressType, id); 
++        this->addrs.emplace_back(std::make_pair(ipaddress,
+                             std::make_shared<phosphor::network::IPAddress>(
+                                 bus, ipAddressObjectPath.c_str(), *this,
+                                 addressType, ipaddress, origin,
+-                                prefix, gateway, false));
++                                prefix, gateway, IP::AddressStates::Disabled, false)));
+     }
+-    
++
++    sortAddressMap(this->addrs);    
++
+     for (auto& gatewayAddr : gateway)
+     {
+ 	std::size_t found = gatewayAddr.find(':');
+@@ -546,6 +538,51 @@
+     }
+ }
+ 
++void EthernetInterface::createIPAddressObjects()
++{
++    
++    addrs.clear();
++
++    loadDisabledIPAddressObjects();
++    auto addrs = getInterfaceAddrs()[interfaceName()];
++
++    for (auto& addr : addrs)
++    {
++        IP::Protocol addressType = convertFamily(addr.addrType);
++        IP::AddressOrigin origin = IP::AddressOrigin::Static;
++        if (dhcpIsEnabled(addressType))
++        {
++            origin = IP::AddressOrigin::DHCP;
++        }
++        if (isLinkLocalIP(addr.ipaddress))
++        {
++            origin = IP::AddressOrigin::LinkLocal;
++        }
++
++	if (origin == IP::AddressOrigin::Static && (addressType == IP::Protocol::IPv6 || 
++            addressType == IP::Protocol::IPv4))
++	{
++	    int id = getMissingId(this->addrs, origin);
++	    if (id != -1 && id != this->staticIPv6Counter - 1)
++                setIPCounter(origin, addressType, id);
++	}
++
++        // Obsolete parameter
++        std::string gateway = "";
++
++        std::string ipAddressObjectPath = generateObjectPath(
++            addressType, addr.ipaddress, addr.prefix, gateway);
++
++        this->addrs.emplace_back(std::make_pair(addr.ipaddress,
++                            std::make_shared<phosphor::network::IPAddress>(
++                                bus, ipAddressObjectPath.c_str(), *this,
++                                addressType, addr.ipaddress, origin,
++                                addr.prefix, gateway, addr.states, true)));
++        sortAddressMap(this->addrs);    
++    }
++
++}
++
+ void EthernetInterface::createStaticNeighborObjects()
+ {
+     staticNeighbors.clear();
+@@ -582,7 +619,7 @@
+ }
+ 
+ ObjectPath EthernetInterface::iP(IP::Protocol protType, std::string ipaddress,
+-                                 uint8_t prefixLength, std::string gateway)
++                                 uint8_t prefixLength, std::string gateway, uint8_t id)
+ {
+     
+     if (dhcpIsEnabled(protType))
+@@ -618,12 +655,28 @@
+ 
+     std::string objectPath =
+         generateObjectPath(protType, ipaddress, prefixLength, gateway);
+-    this->addrs.emplace(ipaddress,
++
++    AddressMap::iterator it;
++
++    for (it = addrs.begin(); it != addrs.end(); ++it)
++    {
++        if (it->second->id() == id && it->second->type() == protType && 
++            it->second->origin() == origin) 
++	{
++            this->addrs.erase(it);
++	    break;
++	}
++    }	
++
++    setIPCounter(origin, protType, id); 
++
++    this->addrs.emplace_back(std::make_pair(ipaddress,
+                         std::make_shared<phosphor::network::IPAddress>(
+                             bus, objectPath.c_str(), *this, protType, ipaddress,
+-                            origin, prefixLength, gateway));
+-
++                            origin, prefixLength, gateway)));
++    sortAddressMap(this->addrs);    
+     manager.writeToConfigurationFile();
++
+     return objectPath;
+ }
+ 
+@@ -652,6 +705,7 @@
+                                 bus, objectPath.c_str(), *this, iPAddress,
+                                 mACAddress, Neighbor::State::Permanent));
+     manager.writeToConfigurationFile();
++    
+     return objectPath;
+ }
+ 
+@@ -723,6 +777,7 @@
+     static_assert(sizeof(ifr.ifr_hwaddr.sa_data) >= sizeof(ether_addr));
+     std::string_view hwaddr(reinterpret_cast<char*>(ifr.ifr_hwaddr.sa_data),
+                             sizeof(ifr.ifr_hwaddr.sa_data));
++
+     return mac_address::toString(stdplus::raw::copyFrom<ether_addr>(hwaddr));
+ }
+ 
+@@ -737,6 +792,7 @@
+ 
+     // Only want 8 hex digits.
+     hexId << std::hex << ((std::hash<std::string>{}(hashString)) & 0xFFFFFFFF);
++
+     return hexId.str();
+ }
+ 
+@@ -748,6 +804,7 @@
+ 
+     // Only want 8 hex digits.
+     hexId << std::hex << ((std::hash<std::string>{}(hashString)) & 0xFFFFFFFF);
++
+     return hexId.str();
+ }
+ 
+@@ -756,14 +813,21 @@
+     manager.writeToConfigurationFile();
+ }
+ 
+-void EthernetInterface::deleteObject(const std::string& ipaddress)
++void EthernetInterface::deleteObject(const std::string& iPAddress)
+ {
+-    auto it = addrs.find(ipaddress);
+-    if (it == addrs.end())
++    AddressMap::iterator it;
++
++    for (it = this->addrs.begin(); it != this->addrs.end(); ++it)
++    {
++        if (it->first.compare(iPAddress) == 0)
++            break;
++    }	
++    if (it == this->addrs.end())
+     {
+         log<level::ERR>("DeleteObject:Unable to find the object.");
+         return;
+     }
++    
+     this->addrs.erase(it);
+     manager.writeToConfigurationFile();
+ }
+@@ -873,6 +937,7 @@
+     objectPath /= objPath;
+     objectPath /= type;
+     objectPath /= generateId(ipaddress, prefixLength, gateway);
++
+     return objectPath.string();
+ }
+ 
+@@ -883,6 +948,7 @@
+     objectPath /= objPath;
+     objectPath /= "static_neighbor";
+     objectPath /= generateNeighborId(iPAddress, mACAddress);
++
+     return objectPath.string();
+ }
+ 
+@@ -894,6 +960,7 @@
+     }
+     EthernetInterfaceIntf::iPv6AcceptRA(value);
+     manager.writeToConfigurationFile();
++    
+     return value;
+ }
+ 
+@@ -906,6 +973,7 @@
+ 
+     EthernetInterfaceIntf::dHCPEnabled(value);
+     manager.writeToConfigurationFile();
++
+     return value;
+ }
+ 
+@@ -930,6 +998,7 @@
+         log<level::ERR>("ioctl failed for SIOCGIFFLAGS:",
+                         entry("ERROR=%s", strerror(errno)));
+     }
++
+     return value;
+ }
+ 
+@@ -954,6 +1023,7 @@
+         log<level::ERR>("ioctl failed for SIOCGIFFLAGS:",
+                         entry("ERROR=%s", strerror(errno)));
+     }
++
+     return value;
+ }
+ 
+@@ -994,7 +1064,7 @@
+     return value;
+ }
+ 
+-EthernetInterface::LinkLocalConf EthernetInterface::linkLocalAutoConf(EthernetInterface::LinkLocalConf value)
++LinkLocalConfig EthernetInterface::linkLocalAutoConf(LinkLocalConfig value)
+ {
+     if (value == EthernetInterfaceIntf::linkLocalAutoConf())
+     {
+@@ -1003,11 +1073,11 @@
+ 
+     EthernetInterfaceIntf::linkLocalAutoConf(value);
+     manager.writeToConfigurationFile();
+-
++    
+     return value;
+ }
+ 
+-EthernetInterface::LinkLocalConf EthernetInterface::getLinkLocalAutoConfFromConf()
++LinkLocalConfig EthernetInterface::getLinkLocalAutoConfFromConf()
+ {
+     fs::path confPath = manager.getConfDir();
+ 
+@@ -1017,7 +1087,7 @@
+ 
+     config::ValueList values;
+ 
+-    auto linkLocalConf = EthernetInterface::LinkLocalConf::fallback;
++    auto linkLocalConf = EthernetInterface::LinkLocalConf::both;
+ 
+     config::Parser parser(confPath.string());
+     auto rc = config::ReturnCode::SUCCESS;
+@@ -1037,6 +1107,7 @@
+ ServerList EthernetInterface::nameservers(ServerList /*value*/)
+ {
+     elog<NotAllowed>(NotAllowedArgument::REASON("ReadOnly Property"));
++
+     return EthernetInterfaceIntf::nameservers();
+ }
+ 
+@@ -1066,6 +1137,7 @@
+     {
+         log<level::ERR>("Exception processing DNS entries");
+     }
++
+     return EthernetInterfaceIntf::staticNameServers();
+ }
+ 
+@@ -1092,6 +1164,7 @@
+         log<level::DEBUG>("Unable to get the value for network[DNS]",
+                           entry("RC=%d", rc));
+     }
++
+     return servers;
+ }
+ 
+@@ -1144,6 +1217,7 @@
+         address.pop_back();
+         servers.push_back(address);
+     }
++
+     return servers;
+ }
+ 
+@@ -1201,7 +1275,6 @@
+     snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetSocket.c_str());
+     system(cmd);
+ 
+-
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+     manager.writeToConfigurationFile();
+@@ -1223,9 +1296,11 @@
+     std::string fileName = systemd::config::networkFilePrefix +
+                            interfaceName() + systemd::config::networkFileSuffix;
+     confPath /= fileName;
++
+     config::ValueList values;
+     config::Parser parser(confPath.string());
+     auto rc = config::ReturnCode::SUCCESS;
++
+     std::tie(rc, values) = parser.getValues("Network", "IPv6AcceptRA");
+     if (rc != config::ReturnCode::SUCCESS)
+     {
+@@ -1233,6 +1308,7 @@
+                           entry("rc=%d", rc));
+         return false;
+     }
++
+     return (values[0] == "true");
+ }
+ 
+@@ -1266,6 +1342,7 @@
+     // timesynchd reads the NTP server configuration from the
+     // network file.
+     manager.restartSystemdUnit(networkdService);
++
+     return ntpServers;
+ }
+ // Need to merge the below function with the code which writes the
+@@ -1359,9 +1436,11 @@
+     {
+         if ((originIsManuallyAssigned(addr.second->origin()) &&
+             !dhcpIsEnabled(addr.second->type())) || 
+-            ((EthernetInterfaceIntf::dHCPEnabled() == EthernetInterface::DHCPConf::v6)  && 
++            ((EthernetInterfaceIntf::dHCPEnabled() == EthernetInterface::DHCPConf::v6 || 
++	      EthernetInterfaceIntf::dHCPEnabled() == EthernetInterface::DHCPConf::none)  && 
+             (addr.second->type() == IP::Protocol::IPv4) && addr.second->active() && 
+-	    !isLinkLocalIP(addr.second->address())))
++	    !isLinkLocalIP(addr.second->address())) || (isLinkLocalIP(addr.second->address()) && 
++	    addr.second->type() == IP::Protocol::IPv6))
+         {
+             // Process all static addresses
+             std::string address = addr.second->address() + "/" +
+@@ -1369,23 +1448,26 @@
+ 
+             // build the address entries. Do not use [Network] shortcuts to
+             // insert address entries.
++	    std::string id = "";
++
+ 	    if (!addr.second->active())
++	    {
+                 disable = "#";
++		id = "/" + std::to_string(addr.second->id());
++	    }
+ 	    else
+                 disable = "";
+ 
+             stream << "[Address]\n";
+-            stream << disable << "Address=" << address << "\n";
++            stream << disable << "Address=" << address << id << "\n";
+ 
+             if ((addr.second->type() == IP::Protocol::IPv4) && !isLinkLocalIP(address) && disable.compare("#") == 0)
+                 ipv4Count++;
+-            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address) && 
+-				    !dhcpIsEnabled(addr.second->type()) && disable.compare("#") == 0)
++            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address) && disable.compare("#") == 0)
+                 ipv6Count++;
+             if ((addr.second->type() == IP::Protocol::IPv4) && !isLinkLocalIP(address))
+                 ipv4Static++;
+-            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address) && 
+-				    !dhcpIsEnabled(addr.second->type()))
++            if ((addr.second->type() == IP::Protocol::IPv6) && !isLinkLocalIP(address)) 
+                 ipv6Static++;
+         }
+     }
+@@ -1406,7 +1488,7 @@
+         disable = "#";
+ 
+     auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
+-    if (ipv4Static > 0 && !gateway6.empty())
++    if (ipv6Static > 0 && !gateway6.empty())
+     {
+         stream << "[Route]\n";
+         stream << disable << "Gateway=" << gateway6 << "\n";
+@@ -1492,6 +1574,7 @@
+         execute("/sbin/ip", "ip", "link", "set", "dev", interface.c_str(),
+                 "down");
+         manager.writeToConfigurationFile();
++    
+     }
+ 
+ #ifdef HAVE_UBOOT_ENV
+@@ -1520,6 +1603,7 @@
+     // clear all the ip on the interface
+     addrs.clear();
+     manager.writeToConfigurationFile();
++    
+ }
+ 
+ std::string EthernetInterface::defaultGateway(std::string gateway)
+@@ -1539,6 +1623,7 @@
+     }
+     gw = EthernetInterfaceIntf::defaultGateway(gateway);
+     manager.writeToConfigurationFile();
++    
+     return gw;
+ }
+ 
+@@ -1559,6 +1644,7 @@
+     }
+     gw = EthernetInterfaceIntf::defaultGateway6(gateway);
+     manager.writeToConfigurationFile();
++    
+     return gw;
+ }
+ 
+@@ -1756,5 +1842,98 @@
+     return ((outConfig.empty())?1:0);
+ }
+ 
++/** @brief return the current IP counters and increment it by one.
++ *  @param[in] origin - IP address type.
++ *  @param[in] type - IP protocol type.
++ */	
++uint64_t EthernetInterface::getIPCounter(IP::AddressOrigin origin, IP::Protocol type)
++{
++    uint64_t ret = 0;
++
++    if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv6)
++    {
++        ret = this->staticIPv6Counter;
++        this->staticIPv6Counter++;
++    }
++    else if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv4)
++    {
++        ret = this->staticIPv4Counter;
++        this->staticIPv4Counter++;
++    }
++    else if (origin == IP::AddressOrigin::LinkLocal && type == IP::Protocol::IPv4)
++    {
++        ret = this->linkLocalIPv4Counter;
++        this->linkLocalIPv4Counter++;
++    }
++    else if (origin == IP::AddressOrigin::LinkLocal && type == IP::Protocol::IPv6)
++    {
++        ret = this->linkLocalIPv6Counter;
++        this->linkLocalIPv6Counter++;
++    }
++    else if (type == IP::Protocol::IPv4) 
++    {
++        ret = this->ipv4Counter;
++        this->ipv4Counter++;
++    }
++    else if (type == IP::Protocol::IPv6) 
++    {
++        ret = this->ipv6Counter;
++        this->ipv6Counter++;
++    }
++
++    return ret;
++}
++
++/** @brief set the IP counters.
++ *  @param[in] origin - IP address type.
++ *  @param[in] type - IP protocol type.
++ *  @param[in] id - IP address index.
++ */	
++void EthernetInterface::setIPCounter(IP::AddressOrigin origin, IP::Protocol type, uint8_t id)
++{
++
++    if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv6)
++    {
++        this->staticIPv6Counter = id;
++    }
++    else if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv4)
++    {
++        this->staticIPv4Counter = id;
++    }
++}
++
++/** @brief Decrement IP counters by one.
++ *  @param[in] origin - IP address type.
++ *  @param[in] type - IP protocol type.
++ */	
++void EthernetInterface::decrementIPCounter(IP::AddressOrigin origin, IP::Protocol type)
++{
++
++    if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv6)
++    {
++        this->staticIPv6Counter--;
++    }
++    else if (origin == IP::AddressOrigin::Static && type == IP::Protocol::IPv4)
++    {
++        this->staticIPv4Counter--;
++    }
++    else if (origin == IP::AddressOrigin::LinkLocal && type == IP::Protocol::IPv4)
++    {
++        this->linkLocalIPv4Counter--;
++    }
++    else if (origin == IP::AddressOrigin::LinkLocal && type == IP::Protocol::IPv6)
++    {
++        this->linkLocalIPv6Counter--;
++    }
++    else if (type == IP::Protocol::IPv4) 
++    {
++        this->ipv4Counter--;
++    }
++    else if (type == IP::Protocol::IPv6) 
++    {
++        this->ipv6Counter--;
++    }
++}
++
+ } // namespace network
+ } // namespace phosphor
+diff -Naur a/ethernet_interface.hpp b/ethernet_interface.hpp
+--- a/ethernet_interface.hpp	2021-06-13 07:37:17.729583163 -0400
++++ b/ethernet_interface.hpp	2021-06-18 03:32:48.829182730 -0400
+@@ -64,11 +64,12 @@
+ using InterfaceName = std::string;
+ using InterfaceInfo =
+     std::tuple<LinkSpeed, DuplexMode, Autoneg, LinkUp, NICEnabled>;
+-using AddressMap = std::map<std::string, std::shared_ptr<IPAddress>>;
++using AddressMap = std::vector<std::pair<std::string, std::shared_ptr<IPAddress>>>;
+ using NeighborMap = std::map<std::string, std::shared_ptr<Neighbor>>;
+ using VlanInterfaceMap =
+     std::map<InterfaceName, std::unique_ptr<VlanInterface>>;
+-
++using LinkLocalConfig = sdbusplus::xyz::openbmc_project::Network::server::
++    EthernetInterface::LinkLocalConf;
+ /** @class EthernetInterface
+  *  @brief OpenBMC Ethernet Interface implementation.
+  *  @details A concrete implementation for the
+@@ -139,7 +140,7 @@
+      */
+ 
+     ObjectPath iP(IP::Protocol addressType, std::string ipaddress,
+-                  uint8_t prefixLength, std::string gateway) override;
++                  uint8_t prefixLength, std::string gateway, uint8_t id) override;
+ 
+     /** @brief Function to create static neighbor dbus object.
+      *  @param[in] ipAddress - IP address.
+@@ -201,7 +202,7 @@
+     DHCPConf dHCPEnabled(DHCPConf value) override;
+     
+     /** Set value of LinkLocalAutoConf */
+-    LinkLocalConf linkLocalAutoConf(LinkLocalConf value) override;
++    LinkLocalConfig linkLocalAutoConf(LinkLocalConfig value) override;
+ 
+     /** @brief Selectively disables DHCP
+      *  @param[in] protocol - The IPv4 or IPv6 protocol to return to static
+@@ -296,6 +297,25 @@
+      */
+     uint64_t gratuitousARPInterval(uint64_t interval) override;
+ 
++    /** @brief return the current IP counters and increment it by one.
++     *  @param[in] origin - IP address type.
++     *  @param[in] type - IP protocol type.
++     */	
++    uint64_t getIPCounter(IP::AddressOrigin origin, IP::Protocol type);
++
++    /** @brief Decrement IP counters by one.
++     *  @param[in] origin - IP address type.
++     *  @param[in] type - IP protocol type.
++     */	
++    void decrementIPCounter(IP::AddressOrigin origin, IP::Protocol type);
++
++    /** @brief set the IP counters.
++     *  @param[in] origin - IP address type.
++     *  @param[in] type - IP protocol type.
++     *  @param[in] id - IP address index.
++     */	
++    void setIPCounter(IP::AddressOrigin origin, IP::Protocol type, uint8_t id);
++
+     using EthernetInterfaceIntf::dHCPEnabled;
+     using EthernetInterfaceIntf::interfaceName;
+     using EthernetInterfaceIntf::linkUp;
+@@ -491,6 +511,9 @@
+      */
+     bool sysctlConfig(const std::string& cmd);
+ 	   
++    /** @brief loads the disabled IPs from config
++     */
++    void loadDisabledIPAddressObjects();
+ 
+     struct ncsi_pkt_hdr {
+         unsigned char mc_id;        /* Management controller ID */
+@@ -501,7 +524,14 @@
+         unsigned char channel;      /* Network controller ID    */
+         unsigned short        length;       /* Payload length           */
+         int        reserved1[2]; /* Reserved                 */
+-    }; 
++    };
++
++    uint8_t ipv4Counter;
++    uint8_t ipv6Counter;
++    uint8_t staticIPv4Counter;
++    uint8_t staticIPv6Counter;
++    uint8_t linkLocalIPv4Counter;
++    uint8_t linkLocalIPv6Counter;
+ };
+ 
+ } // namespace network
+diff -Naur a/ipaddress.cpp b/ipaddress.cpp
+--- a/ipaddress.cpp	2021-06-03 06:36:39.796862565 -0400
++++ b/ipaddress.cpp	2021-06-18 10:13:39.853185101 -0400
+@@ -21,7 +21,8 @@
+ IPAddress::IPAddress(sdbusplus::bus::bus& bus, const char* objPath,
+                      EthernetInterface& parent, IP::Protocol type,
+                      const std::string& ipaddress, IP::AddressOrigin origin,
+-                     uint8_t prefixLength, const std::string& gateway, bool enable) :
++                     uint8_t prefixLength, const std::string& gateway, 
++		     IP::AddressStates state, bool enable) :
+     IPIfaces(bus, objPath, true),
+     parent(parent)
+ {
+@@ -32,10 +33,19 @@
+     IP::type(type);
+     IP::origin(origin);
+     IP::active(enable);
++    IP::states(state);
++    IP::id(parent.getIPCounter(origin, type));
+ 
+     // Emit deferred signal.
+     emit_object_added();
+ }
++IPAddress::~IPAddress()
++{
++    IP::AddressOrigin origin = IP::origin();
++    IP::Protocol type = IP::type();
++    parent.decrementIPCounter(origin, type);
++	
++}
+ std::string IPAddress::address(std::string /*ipAddress*/)
+ {
+     elog<NotAllowed>(Reason("Property update is not allowed"));
+@@ -56,6 +66,14 @@
+ {
+     elog<NotAllowed>(Reason("Property update is not allowed"));
+ }
++IP::AddressStates IPAddress::states(IP::AddressStates /*states*/)
++{
++    elog<NotAllowed>(Reason("Property update is not allowed"));
++}
++uint8_t IPAddress::id(uint8_t /*value*/)
++{
++    elog<NotAllowed>(Reason("Property update is not allowed"));
++}
+ bool IPAddress::active(bool value)
+ {
+     if (value == IP::active())
+@@ -63,6 +81,12 @@
+         return value;
+     }
+     IP::active(value);
++
++    if (value)
++        IP::states(IP::AddressStates::Active);
++    else
++        IP::states(IP::AddressStates::Disabled);
++
+     parent.writeIPaddress();
+ 
+     return value;
+diff -Naur a/ipaddress.hpp b/ipaddress.hpp
+--- a/ipaddress.hpp	2021-06-03 06:36:48.193222706 -0400
++++ b/ipaddress.hpp	2021-06-13 07:34:29.181020828 -0400
+@@ -33,7 +33,7 @@
+     IPAddress& operator=(const IPAddress&) = delete;
+     IPAddress(IPAddress&&) = delete;
+     IPAddress& operator=(IPAddress&&) = delete;
+-    virtual ~IPAddress() = default;
++    virtual ~IPAddress();
+ 
+     /** @brief Constructor to put object onto bus at a dbus path.
+      *  @param[in] bus - Bus to attach to.
+@@ -48,7 +48,8 @@
+     IPAddress(sdbusplus::bus::bus& bus, const char* objPath,
+               EthernetInterface& parent, IP::Protocol type,
+               const std::string& ipAddress, IP::AddressOrigin origin,
+-              uint8_t prefixLength, const std::string& gateway, bool enable = true);
++              uint8_t prefixLength, const std::string& gateway, 
++              IP::AddressStates state = IP::AddressStates::Active, bool enable = true);
+ 
+     std::string address(std::string ipAddress) override;
+     uint8_t prefixLength(uint8_t) override;
+@@ -56,6 +57,8 @@
+     IP::Protocol type(IP::Protocol type) override;
+     IP::AddressOrigin origin(IP::AddressOrigin origin) override;
+     bool active(bool value) override;
++    IP::AddressStates states(IP::AddressStates state) override;
++    uint8_t id(uint8_t) override;
+ 
+     /** @brief Delete this d-bus object.
+      */
+@@ -67,11 +70,12 @@
+     using IP::prefixLength;
+     using IP::type;
+     using IP::active;
++    using IP::states;
++    using IP::id;
+ 
+   private:
+     /** @brief Parent Object. */
+     EthernetInterface& parent;
+ };
+-
+ } // namespace network
+ } // namespace phosphor
+diff -Naur a/network_manager.cpp b/network_manager.cpp
+--- a/network_manager.cpp	2021-06-15 23:37:20.535726300 -0400
++++ b/network_manager.cpp	2021-06-18 07:26:37.037708645 -0400
+@@ -335,16 +335,6 @@
+ // Need to merge the below function with the code which writes the
+ // config file during factory reset.
+ // TODO openbmc/openbmc#1751
+-void Manager::writeToConfigurationFile(IntfName interfaceName)
+-{
+-    // write all the static ip address in the systemd-network conf file
+-    interfaces[interfaceName]->writeConfigurationFile();
+-    restartTimers();
+-}
+-
+-// Need to merge the below function with the code which writes the
+-// config file during factory reset.
+-// TODO openbmc/openbmc#1751
+ void Manager::writeToConfigurationFile()
+ {
+     // write all the static ip address in the systemd-network conf file
+@@ -353,6 +343,7 @@
+         intf.second->writeConfigurationFile();
+     }
+     restartTimers();
++    system("networkctl reload");
+ }
+ 
+ #if SYNC_MAC_FROM_INVENTORY
+diff -Naur a/routing_table.cpp b/routing_table.cpp
+--- a/routing_table.cpp	2021-06-16 05:26:43.346385822 -0400
++++ b/routing_table.cpp	2021-06-18 06:40:17.660137627 -0400
+@@ -58,13 +58,14 @@
+             log<level::ERR>("Socket recv failed:",
+                             entry("ERROR=%s", strerror(error)));
+             elog<InternalFailure>();
++
++	    return msgLen;
+         }
+ 
+         nlHdr = reinterpret_cast<nlmsghdr*>(bufPtr);
+ 
+         // Check if the header is valid
+-
+-        if ((NLMSG_OK(nlHdr, readLen) == 0) ||
++        if ((NLMSG_OK(nlHdr, readLen) == 0) || 
+             (nlHdr->nlmsg_type == NLMSG_ERROR))
+         {
+ 
+@@ -73,6 +74,8 @@
+                             entry("NLMSGTYPE=%d", nlHdr->nlmsg_type),
+                             entry("ERROR=%s", strerror(error)));
+             elog<InternalFailure>();
++              	    
++	    return msgLen;
+         }
+ 
+         // Check if the its the last message
+@@ -93,6 +96,7 @@
+             break;
+         }
+     } while ((nlHdr->nlmsg_seq != seqNum) || (nlHdr->nlmsg_pid != pID));
++
+     return msgLen;
+ }
+ 
+@@ -182,7 +186,6 @@
+     int len{0};
+ 
+     uint8_t msgSeq{0};
+-
+     // Create Socket
+     if ((sock = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE)) < 0)
+     {
+@@ -206,7 +209,7 @@
+ 
+     nlMsg->nlmsg_seq = msgSeq;
+     nlMsg->nlmsg_pid = getpid();
+-
++    
+     // Send the request
+     if (send(smartSock(), nlMsg, nlMsg->nlmsg_len, 0) < 0)
+     {
+@@ -224,6 +227,7 @@
+     {
+         parseRoutes(nlMsg);
+     }
++
+     return routeList;
+ }
+ 
+diff -Naur a/test/test_util.cpp b/test/test_util.cpp
+--- a/test/test_util.cpp	2021-06-14 23:19:12.023669505 -0400
++++ b/test/test_util.cpp	2021-06-14 23:20:47.500337115 -0400
+@@ -124,50 +124,6 @@
+     EXPECT_EQ(false, isValidPrefix(AF_INET, prefixLength));
+ }
+ 
+-TEST_F(TestUtil, ConvertV4MasktoPrefix)
+-{
+-    std::string mask = "255.255.255.0";
+-    uint8_t prefix = toCidr(AF_INET, mask);
+-    EXPECT_EQ(prefix, 24);
+-
+-    mask = "255.255.0.0";
+-    prefix = toCidr(AF_INET, mask);
+-    EXPECT_EQ(prefix, 16);
+-
+-    mask = "255.0.0.0";
+-    prefix = toCidr(AF_INET, mask);
+-    EXPECT_EQ(prefix, 8);
+-
+-    mask = "255.224.0.0";
+-    prefix = toCidr(AF_INET, mask);
+-    EXPECT_EQ(prefix, 11);
+-
+-    // Invalid Mask
+-    mask = "255.0.255.0";
+-    prefix = toCidr(AF_INET, mask);
+-    EXPECT_EQ(prefix, 0);
+-}
+-
+-TEST_F(TestUtil, convertV6MasktoPrefix)
+-{
+-    std::string mask = "ffff:ffff::";
+-    uint8_t prefix = toCidr(AF_INET6, mask);
+-    EXPECT_EQ(prefix, 32);
+-
+-    mask = "ffff:ffff:ffff::";
+-    prefix = toCidr(AF_INET6, mask);
+-    EXPECT_EQ(prefix, 48);
+-
+-    mask = "ffff:ffff:fc00::";
+-    prefix = toCidr(AF_INET6, mask);
+-    EXPECT_EQ(prefix, 38);
+-
+-    // Invalid Mask
+-    mask = "ffff:0fff::";
+-    prefix = toCidr(AF_INET6, mask);
+-    EXPECT_EQ(prefix, 0);
+-}
+-
+ TEST_F(TestUtil, isLinkLocaladdress)
+ {
+     std::string ipaddress = "fe80:fec0::";
+@@ -189,18 +145,6 @@
+     EXPECT_FALSE(isLinkLocalIP(ipaddress));
+ }
+ 
+-TEST_F(TestUtil, convertPrefixToMask)
+-{
+-    std::string mask = toMask(AF_INET, 24);
+-    EXPECT_EQ(mask, "255.255.255.0");
+-
+-    mask = toMask(AF_INET, 8);
+-    EXPECT_EQ(mask, "255.0.0.0");
+-
+-    mask = toMask(AF_INET, 27);
+-    EXPECT_EQ(mask, "255.255.255.224");
+-}
+-
+ TEST_F(TestUtil, InterfaceToUbootEthAddr)
+ {
+     EXPECT_EQ(std::nullopt, interfaceToUbootEthAddr("et"));
+diff -Naur a/types.hpp b/types.hpp
+--- a/types.hpp	2021-06-03 06:36:18.791965504 -0400
++++ b/types.hpp	2021-06-15 05:43:03.683610228 -0400
+@@ -50,9 +50,11 @@
+ 
+ struct AddrInfo
+ {
++    uint8_t id;
+     uint8_t addrType;
+     std::string ipaddress;
+     uint16_t prefix;
++    IP::AddressStates states;
+ };
+ 
+ using Addr_t = ifaddrs*;
+diff -Naur a/util.cpp b/util.cpp
+--- a/util.cpp	2021-06-03 06:35:58.711113263 -0400
++++ b/util.cpp	2021-06-18 05:34:29.398201918 -0400
+@@ -7,6 +7,8 @@
+ #include <dirent.h>
+ #include <net/if.h>
+ #include <sys/wait.h>
++#include <unistd.h>
++#include <linux/rtnetlink.h>
+ 
+ #include <algorithm>
+ #include <cstdlib>
+@@ -23,6 +25,9 @@
+ #include <variant>
+ #include <xyz/openbmc_project/Common/error.hpp>
+ 
++#define IFA_F_DYNAMIC   0x00
++#define BUFSIZE 8192
++
+ namespace phosphor
+ {
+ namespace network
+@@ -34,122 +39,60 @@
+ using namespace phosphor::logging;
+ using namespace sdbusplus::xyz::openbmc_project::Common::Error;
+ namespace fs = std::filesystem;
++}
++using VectorAddressMap = std::pair<std::string, std::shared_ptr<IPAddress>>;
+ 
+-uint8_t toV6Cidr(const std::string& subnetMask)
++bool sortByListVal(const AddrInfo &a, const AddrInfo &b) 
+ {
+-    uint8_t pos = 0;
+-    uint8_t prevPos = 0;
+-    uint8_t cidr = 0;
+-    uint16_t buff{};
+-    do
+-    {
+-        // subnet mask look like ffff:ffff::
+-        // or ffff:c000::
+-        pos = subnetMask.find(":", prevPos);
+-        if (pos == std::string::npos)
+-        {
+-            break;
+-        }
+-
+-        auto str = subnetMask.substr(prevPos, (pos - prevPos));
+-        prevPos = pos + 1;
+-
+-        // String length is 0
+-        if (!str.length())
+-        {
+-            return cidr;
+-        }
+-        // converts it into number.
+-        if (sscanf(str.c_str(), "%hx", &buff) <= 0)
+-        {
+-            log<level::ERR>("Invalid Mask",
+-                            entry("SUBNETMASK=%s", subnetMask.c_str()));
+-
+-            return 0;
+-        }
+-
+-        // convert the number into bitset
+-        // and check for how many ones are there.
+-        // if we don't have all the ones then make
+-        // sure that all the ones should be left justify.
++    return (a.id > b.id); 
++} 
++bool sortByMapVal(const VectorAddressMap &a, const VectorAddressMap &b) 
++{ 
++    return (a.second->id() < b.second->id()); 
++} 
++void sortAddressMap(AddressMap& addressMap)
++{
++    std::sort(addressMap.begin(), addressMap.end(), sortByMapVal);
++}
++int getMissingId(AddressMap& addrs, IP::AddressOrigin origin)
++{
++    auto currentMax = 0;
++    auto flag = false;
+ 
+-        if (__builtin_popcount(buff) != 16)
++    for(auto it = addrs.begin(); it != addrs.end(); ++it)
++    {
++        if ((it ->second->id() > currentMax) && origin == it ->second->origin())
+         {
+-            if (((sizeof(buff) * 8) - (__builtin_ctz(buff))) !=
+-                __builtin_popcount(buff))
+-            {
+-                log<level::ERR>("Invalid Mask",
+-                                entry("SUBNETMASK=%s", subnetMask.c_str()));
+-
+-                return 0;
+-            }
+-            cidr += __builtin_popcount(buff);
+-            return cidr;
++            currentMax = it->second->id();
+         }
+ 
+-        cidr += 16;
+-    } while (1);
+-
+-    return cidr;
+-}
+-} // anonymous namespace
+-
+-uint8_t toCidr(int addressFamily, const std::string& subnetMask)
+-{
+-    if (addressFamily == AF_INET6)
+-    {
+-        return toV6Cidr(subnetMask);
++        if (origin == it ->second->origin())
++            flag = true;	
+     }
+ 
+-    uint32_t buff;
++    if (!flag && currentMax == 0)
++        return -1;	   
+ 
+-    auto rc = inet_pton(addressFamily, subnetMask.c_str(), &buff);
+-    if (rc <= 0)
++    auto i = 0;
++    while (i < currentMax) 
+     {
+-        log<level::ERR>("inet_pton failed:",
+-                        entry("SUBNETMASK=%s", subnetMask.c_str()));
+-        return 0;
+-    }
++        for(auto it = addrs.begin(); it != addrs.end(); ++it)
++	{
++            if ((it ->second->id() != i) && origin == it ->second->origin())
++                return i;
+ 
+-    buff = be32toh(buff);
+-    // total no of bits - total no of leading zero == total no of ones
+-    if (((sizeof(buff) * 8) - (__builtin_ctz(buff))) ==
+-        __builtin_popcount(buff))
+-    {
+-        return __builtin_popcount(buff);
+-    }
+-    else
+-    {
+-        log<level::ERR>("Invalid Mask",
+-                        entry("SUBNETMASK=%s", subnetMask.c_str()));
+-        return 0;
++            if (origin == it ->second->origin())
++	        i++;
++	}
+     }
+-}
+ 
+-std::string toMask(int addressFamily, uint8_t prefix)
+-{
+-    if (addressFamily == AF_INET6)
+-    {
+-        // TODO:- conversion for v6
+-        return "";
+-    }
++    if (i-1 == currentMax)
++        return i;
++    else if ( i == currentMax)
++        return i + 1;
+ 
+-    if (prefix < 1 || prefix > 30)
+-    {
+-        log<level::ERR>("Invalid Prefix", entry("PREFIX=%d", prefix));
+-        return "";
+-    }
+-    /* Create the netmask from the number of bits */
+-    unsigned long mask = 0;
+-    for (auto i = 0; i < prefix; i++)
+-    {
+-        mask |= 1 << (31 - i);
+-    }
+-    struct in_addr netmask;
+-    netmask.s_addr = htonl(mask);
+-    return inet_ntoa(netmask);
++    return -1;      
+ }
+-
+ InAddrAny addrFromBuf(int addressFamily, std::string_view buf)
+ {
+     if (addressFamily == AF_INET)
+@@ -250,82 +193,162 @@
+ 		out.push_back(str.substr(start, end - start));
+ 	}
+ }
++static void retrieveAddress(struct nlmsghdr *netlinkmsghdr, int nlmsglen, IntfAddrMap &intfIPAddress)
++{
++    std::string intfName{};
++    auto count = 0;
++ 
++    for(; NLMSG_OK(netlinkmsghdr, nlmsglen); netlinkmsghdr = NLMSG_NEXT(netlinkmsghdr, nlmsglen))
++    {
++        struct ifaddrmsg *nlifaddrmsg;
++        struct rtattr *nlrtattr;
++        int ifaddrmsglen;
++ 
++        nlifaddrmsg = (struct ifaddrmsg *) NLMSG_DATA(netlinkmsghdr);
++        nlrtattr = (struct rtattr *) IFA_RTA(nlifaddrmsg);
++        ifaddrmsglen = IFA_PAYLOAD(netlinkmsghdr);
++        char ifaddr[INET6_ADDRSTRLEN] = {0};
++        auto states = IP::AddressStates::Disabled;
++
++        for(;RTA_OK(nlrtattr, ifaddrmsglen); nlrtattr = RTA_NEXT(nlrtattr, ifaddrmsglen)) {
++ 
++            if (nlrtattr->rta_type == IFA_ADDRESS && nlifaddrmsg)
++            {
++		char ifname[IF_NAMESIZE+1];
++		std::string intfName = if_indextoname(nlifaddrmsg->ifa_index, ifname);
++                AddrInfo info{};
++		count++;
++
++                if(nlifaddrmsg->ifa_family == AF_INET)
++                    inet_ntop(AF_INET, RTA_DATA(nlrtattr), ifaddr, INET_ADDRSTRLEN);
++                
++		else if(nlifaddrmsg->ifa_family == AF_INET6)
++                    inet_ntop(AF_INET6, RTA_DATA(nlrtattr), ifaddr, INET6_ADDRSTRLEN);
++
++                if (nlifaddrmsg->ifa_flags & IFA_F_TENTATIVE)
++                    states = IP::AddressStates::DAD;
++
++		if (nlifaddrmsg->ifa_flags & IFA_F_DEPRECATED) 
++                    states = IP::AddressStates::Deprecated;
++
++                if (nlifaddrmsg->ifa_flags & IFA_F_DADFAILED)
++                    states = IP::AddressStates::DADFailed;
++
++		if ((nlifaddrmsg->ifa_flags & IFA_F_PERMANENT || !(nlifaddrmsg->ifa_flags & IFA_F_DYNAMIC) ||
++		         nlifaddrmsg->ifa_flags & IFA_F_SECONDARY) &&
++                         (!(nlifaddrmsg->ifa_flags & IFA_F_TENTATIVE)) &&
++                         (!(nlifaddrmsg->ifa_flags & IFA_F_DEPRECATED)) &&
++                         (!(nlifaddrmsg->ifa_flags & IFA_F_DADFAILED)))
++                    states = IP::AddressStates::Active;
++
++                info.id = count;
++                info.addrType = nlifaddrmsg->ifa_family;
++                info.ipaddress = ifaddr;
++                info.prefix = nlifaddrmsg->ifa_prefixlen; 
++                info.states = states;
++                intfIPAddress[intfName].push_back(info);
++                intfIPAddress[intfName].sort(sortByListVal);
++            }
++        }
++ 
++    }
++}
++static void recvAddress(int sockfd, __u32 sequence, __u32 pid, IntfAddrMap &intfIPAddress)
++{
++    std::array<char, BUFSIZE> msgBuf = {0};
++    char *buffer = msgBuf.data();
++    struct nlmsghdr *netlinkmsghdr, *linkmsghdr;
++    unsigned int nlmsglen;
++    
++    linkmsghdr = reinterpret_cast<nlmsghdr*>(msgBuf.data());
++
++    do
++    {
++        int readLen{};
+ 
++        readLen = recv(sockfd, buffer, BUFSIZE - nlmsglen, 0);
++        if(readLen < 0)
++        {
++            auto error = errno;
++            log<level::ERR>("Socket recv failed:",
++                            entry("ERROR=%s", strerror(error)));
++            elog<InternalFailure>();
++
++	    return;
++        }
++
++        netlinkmsghdr = reinterpret_cast<nlmsghdr*>(buffer);
++        
++        if ((NLMSG_OK(netlinkmsghdr, readLen) == 0) ||
++            (netlinkmsghdr->nlmsg_type == NLMSG_ERROR))
++        {
++            auto error = errno;
++            log<level::ERR>("Error received an uncomplete netlink packet",
++                            entry("ERROR=%s", strerror(error)));
++            elog<InternalFailure>();
++	    break;
++        }
++
++        if (netlinkmsghdr->nlmsg_type == NLMSG_DONE)
++            break;
++	else
++	{
++            buffer += readLen;
++	    nlmsglen += readLen;
++	}
++
++    }while ((netlinkmsghdr->nlmsg_seq != sequence) || (netlinkmsghdr->nlmsg_pid != pid));
++    
++    retrieveAddress(linkmsghdr, nlmsglen, intfIPAddress);
++}
+ IntfAddrMap getInterfaceAddrs()
+ {
+     IntfAddrMap intfMap{};
+-    struct ifaddrs* ifaddr = nullptr;
++    int sockfd;
++    sockfd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+ 
+-    // attempt to fill struct with ifaddrs
+-    if (getifaddrs(&ifaddr) == -1)
++    if (sockfd < 0)
+     {
+         auto error = errno;
+-        log<level::ERR>("Error occurred during the getifaddrs call",
++        log<level::ERR>("Error occurred during socket creation",
+                         entry("ERRNO=%s", strerror(error)));
+         elog<InternalFailure>();
+-    }
+-
+-    AddrPtr ifaddrPtr(ifaddr);
+-    ifaddr = nullptr;
+-
+-    std::string intfName{};
+ 
+-    for (ifaddrs* ifa = ifaddrPtr.get(); ifa != nullptr; ifa = ifa->ifa_next)
+-    {
+-        // walk interfaces
+-        if (ifa->ifa_addr == nullptr)
+-        {
+-            continue;
+-        }
++        return intfMap;
++    }
++    struct sockaddr_nl socketAddr;
++    memset(&socketAddr, 0, sizeof(socketAddr));
++    socketAddr.nl_family = AF_NETLINK;
++
++    int sequence = 0;
++    struct
++    {
++        struct nlmsghdr m_nlmsghdr;
++        struct rtgenmsg m_rtgenmsg;
++    } socketRequest;
++
++    socketRequest.m_nlmsghdr.nlmsg_len = sizeof(socketRequest);
++    socketRequest.m_nlmsghdr.nlmsg_type = RTM_GETADDR;
++    socketRequest.m_nlmsghdr.nlmsg_flags = NLM_F_ROOT|NLM_F_MATCH|NLM_F_REQUEST|NLM_F_DUMP;
++    socketRequest.m_nlmsghdr.nlmsg_pid = getpid();
++    socketRequest.m_nlmsghdr.nlmsg_seq = ++sequence;
++    socketRequest.m_rtgenmsg.rtgen_family = AF_UNSPEC;
+ 
+-        // get only INET interfaces not ipv6
+-        if (ifa->ifa_addr->sa_family == AF_INET ||
+-            ifa->ifa_addr->sa_family == AF_INET6)
+-        {
+-            // if loopback, or not running ignore
+-            if ((ifa->ifa_flags & IFF_LOOPBACK) ||
+-                !(ifa->ifa_flags & IFF_RUNNING))
+-            {
+-                continue;
+-            }
+-            intfName = ifa->ifa_name;
+-            AddrInfo info{};
+-            char ip[INET6_ADDRSTRLEN] = {0};
+-            char subnetMask[INET6_ADDRSTRLEN] = {0};
++    if (sendto(sockfd, (void*)&socketRequest, sizeof(socketRequest), 0, (struct sockaddr*)&socketAddr, sizeof(socketAddr)) < 0) {
++        close(sockfd);
++        auto error = errno;
++        log<level::ERR>("Error occurred during send on netlink socket",
++                        entry("ERRNO=%s", strerror(error)));
++        elog<InternalFailure>();
+ 
+-            if (ifa->ifa_addr->sa_family == AF_INET)
+-            {
++        return intfMap;
++    }
+ 
+-                inet_ntop(ifa->ifa_addr->sa_family,
+-                          &(((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr),
+-                          ip, sizeof(ip));
+-
+-                inet_ntop(
+-                    ifa->ifa_addr->sa_family,
+-                    &(((struct sockaddr_in*)(ifa->ifa_netmask))->sin_addr),
+-                    subnetMask, sizeof(subnetMask));
+-            }
+-            else
+-            {
+-                inet_ntop(ifa->ifa_addr->sa_family,
+-                          &(((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr),
+-                          ip, sizeof(ip));
+-
+-                inet_ntop(
+-                    ifa->ifa_addr->sa_family,
+-                    &(((struct sockaddr_in6*)(ifa->ifa_netmask))->sin6_addr),
+-                    subnetMask, sizeof(subnetMask));
+-            }
++    recvAddress(sockfd, sequence, getpid(), intfMap);
++    close(sockfd);
+ 
+-            info.addrType = ifa->ifa_addr->sa_family;
+-            info.ipaddress = ip;
+-            info.prefix = toCidr(info.addrType, std::string(subnetMask));
+-            intfMap[intfName].push_back(info);
+-        }
+-    }
+     return intfMap;
+ }
+-
+ InterfaceList getInterfaces()
+ {
+     InterfaceList interfaces{};
+diff -Naur a/util.hpp b/util.hpp
+--- a/util.hpp	2021-06-14 12:29:33.323990320 -0400
++++ b/util.hpp	2021-06-17 08:10:33.284112311 -0400
+@@ -22,6 +22,7 @@
+ 
+ using EthernetInterfaceIntf =
+     sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface;
++using AddressMap = std::vector<std::pair<std::string, std::shared_ptr<IPAddress>>>;
+ 
+ constexpr auto IPV4_MIN_PREFIX_LENGTH = 1;
+ constexpr auto IPV4_MAX_PREFIX_LENGTH = 32;
+@@ -81,13 +82,6 @@
+ constexpr auto networkdService = "systemd-networkd.service";
+ constexpr auto timeSynchdService = "systemd-timesyncd.service";
+ 
+-/* @brief converts the given subnet into prefix notation.
+- * @param[in] addressFamily - IP address family(AF_INET/AF_INET6).
+- * @param[in] mask - Subnet Mask.
+- * @returns prefix.
+- */
+-uint8_t toCidr(int addressFamily, const std::string& mask);
+-
+ /* @brief converts a sockaddr for the specified address family into
+  *        a type_safe InAddrAny.
+  * @param[in] addressFamily - The address family of the buf
+@@ -101,13 +95,6 @@
+  */
+ std::string toString(const InAddrAny& addr);
+ 
+-/* @brief converts the prefix into subnetmask.
+- * @param[in] addressFamily - IP address family(AF_INET/AF_INET6).
+- * @param[in] prefix - prefix length.
+- * @returns subnet mask.
+- */
+-std::string toMask(int addressFamily, uint8_t prefix);
+-
+ /* @brief checks that the given ip address is link local or not.
+  * @param[in] address - IP address.
+  * @returns true if it is linklocal otherwise false.
+@@ -141,6 +128,10 @@
+ 
+ void splitString(std::string const &str, const char delim,
+ 			std::vector<std::string> &out);
++
++void sortAddressMap(AddressMap& addrs);
++int getMissingId(AddressMap& addrs, IP::AddressOrigin origin);
++
+ /** @brief Delete the given interface.
+  *  @param[in] intf - interface name.
+  */
+diff -Naur a/xyz/openbmc_project/Network/IP/Create.interface.yaml b/xyz/openbmc_project/Network/IP/Create.interface.yaml
+--- a/xyz/openbmc_project/Network/IP/Create.interface.yaml	2021-06-14 12:52:14.688883710 -0400
++++ b/xyz/openbmc_project/Network/IP/Create.interface.yaml	2021-06-16 02:36:43.827439941 -0400
+@@ -20,6 +20,10 @@
+           type: string
+           description: >
+               Gateway Address.
++        - name: Id
++          type: byte
++          description: >
++              index.
+       returns:
+         - name: Path
+           type: path

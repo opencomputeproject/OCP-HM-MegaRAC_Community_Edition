@@ -1,0 +1,11 @@
+--- a/command/rakp12.cpp	2021-06-18 09:28:00.705395972 -0400
++++ b/command/rakp12.cpp	2021-06-18 03:49:21.243062087 -0400
+@@ -152,7 +152,7 @@
+     // initially set to USER privilege, regardless of the requested maximum
+     // privilege.
+     
+-    if (((request->req_max_privilege_level & session::reqMaxPrivMask) > ((csPrivilegeLevels[DEFAULT_CIPHER_INDEX]))))
++    if (((request->req_max_privilege_level & session::reqMaxPrivMask) > (csPrivilegeLevels[DEFAULT_CIPHER_INDEX])) || (csPrivilegeLevels[DEFAULT_CIPHER_INDEX] == session::Privilege::CALLBACK) || (csPrivilegeLevels[DEFAULT_CIPHER_INDEX] == session::Privilege::OEM))
+     {
+         response->rmcpStatusCode =
+             static_cast<uint8_t>(RAKP_ReturnCode::UNAUTH_ROLE_PRIV);

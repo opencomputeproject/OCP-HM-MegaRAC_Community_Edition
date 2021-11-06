@@ -12,15 +12,10 @@ RDEPENDS_${PN} += " \
         ${VIRTUAL-RUNTIME_base-utils} \
         "
 
-#S = "${WORKDIR}/git"
-#SRC_URI += "git://github.com/openbmc/phosphor-debug-collector"
+S = "${WORKDIR}/git"
+SRC_URI += "git://github.com/openbmc/phosphor-debug-collector"
 
-#SRCREV = "580d91ddb50d4aee9e3085e129c952f26654b4d0"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/phosphor-debug-collector"
-SRC_URI = "file://phosphor-debug-collector"
-SRCPV = "${AUTOREV}"
+SRCREV = "8b9b4690a4460ada5bf60a285ff6065eda6d5d4a"
 
 do_install() {
        install -d ${D}${bindir}

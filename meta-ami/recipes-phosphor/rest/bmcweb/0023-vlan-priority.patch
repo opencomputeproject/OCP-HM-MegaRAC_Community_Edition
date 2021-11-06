@@ -1,0 +1,286 @@
+diff -Naur a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+--- a/redfish-core/lib/ethernet.hpp	2021-03-30 14:23:27.725682888 +0530
++++ b/redfish-core/lib/ethernet.hpp	2021-03-30 14:27:15.855200461 +0530
+@@ -39,6 +39,13 @@
+ #include <unistd.h>
+ 
+ #include "headers.hpp" 
++#include <iostream>
++#include <fstream>
++#include <string>
++
++using namespace std;
++
++
+ 
+ namespace redfish
+ {
+@@ -1799,7 +1806,7 @@
+                 {
+                     addr = &(*address);
+                 }
+-                else if (niciPentry != ipv6Data.end())
++               else if (niciPentry != ipv6Data.end())
+                 {
+                     addr = &(niciPentry->address);
+                 }
+@@ -2238,13 +2245,16 @@
+             "/redfish/v1/Managers/bmc/EthernetInterfaces/" + parent_iface_id +
+             "/VLANs/" + iface_id;
+ 
++
+         json_response["VLANEnable"] = true;
+         if (!ethData.vlan_id.empty())
+         {
+             json_response["VLANId"] = ethData.vlan_id.back();
+         }
++	
+     }
+ 
++
+     bool verifyNames(const std::string& parent, const std::string& iface)
+     {
+         if (!boost::starts_with(iface, parent + "_"))
+@@ -2254,6 +2264,8 @@
+         return true;
+     }
+ 
++
++
+     /**
+      * Functions triggers appropriate requests on DBus
+      */
+@@ -2271,6 +2283,7 @@
+             res.end();
+             return;
+         }
++	
+ 
+         const std::string& parentIfaceId = params[0];
+         const std::string& ifaceId = params[1];
+@@ -2285,6 +2298,7 @@
+             return;
+         }
+ 
++
+         // Get single eth interface data, and call the below callback for
+         // JSON preparation
+         getEthernetIfaceData(
+@@ -2308,15 +2322,44 @@
+                         asyncResp->res, "VLAN Network Interface", ifaceId);
+                 }
+             });
++	
++
++	//AMI code added for getting vlan priority property
++        crow::connections::systemBus->async_method_call(
++        [asyncResp,ifaceId](const boost::system::error_code ec,const std::variant<uint32_t>& vpr)  {
++
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++            const uint32_t * vlanpriority = std::get_if<uint32_t>(&vpr);
++
++            if (vlanpriority == nullptr)
++            {
++                            messages::internalError(asyncResp->res);
++                            return;
++            }
++
++	    asyncResp->res.jsonValue["VLANPriority"] = *vlanpriority;
++        },
++        "xyz.openbmc_project.Network",
++        "/xyz/openbmc_project/network/" + ifaceId ,
++        "org.freedesktop.DBus.Properties", "Get",
++        "xyz.openbmc_project.Network.VLAN", "VlanPriority");
++        //AMI code ends here
++   
+ 
+ 	asyncResp->res.addHeader(boost::beast::http::field::allow,
+                                  redfish::Header::GetAllowHeaders("VLanNetworkInterface_v1.xml"));
++
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+                  const std::vector<std::string>& params) override
+     {
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
++
+         if (params.size() != 2)
+         {
+             messages::internalError(asyncResp->res);
+@@ -2333,64 +2376,36 @@
+             return;
+         }
+ 
+-        bool vlanEnable = false;
+-        uint32_t vlanId = 0;
++	uint32_t  vlanPriority = 0;
+ 
+-        if (!json_util::readJson(req, res, "VLANEnable", vlanEnable, "VLANId",
+-                                 vlanId))
++	if (!json_util::readJson(req, res,"VLANPriority" , vlanPriority))
+         {
+             return;
+         }
+ 
+-        // Get single eth interface data, and call the below callback for
+-        // JSON preparation
+-        getEthernetIfaceData(
+-            params[1],
+-            [asyncResp, parentIfaceId{std::string(params[0])},
+-             ifaceId{std::string(params[1])}, &vlanEnable,
+-             &vlanId](const bool& success, const EthernetInterfaceData& ethData,
+-                      const boost::container::flat_set<IPv4AddressData>&,
+-                      const boost::container::flat_set<IPv6AddressData>&) {
+-                if (success && !ethData.vlan_id.empty())
+-                {
+-                    auto callback =
++        //AMI code added from here
++        if(vlanPriority )
++        {
++                //call back function to be called after setting vlan priority
++                auto callback =
+                         [asyncResp](const boost::system::error_code ec) {
+                             if (ec)
+                             {
+                                 messages::internalError(asyncResp->res);
+                             }
++
+                         };
+ 
+-                    if (vlanEnable == true)
+-                    {
+-                        crow::connections::systemBus->async_method_call(
++                //patching vlan priority
++                crow::connections::systemBus->async_method_call(
+                             std::move(callback), "xyz.openbmc_project.Network",
+                             "/xyz/openbmc_project/network/" + ifaceId,
+                             "org.freedesktop.DBus.Properties", "Set",
+-                            "xyz.openbmc_project.Network.VLAN", "Id",
+-                            std::variant<uint32_t>(vlanId));
+-                    }
+-                    else
+-                    {
+-                        BMCWEB_LOG_DEBUG << "vlanEnable is false. Deleting the "
+-                                            "vlan interface";
+-                        crow::connections::systemBus->async_method_call(
+-                            std::move(callback), "xyz.openbmc_project.Network",
+-                            std::string("/xyz/openbmc_project/network/") +
+-                                ifaceId,
+-                            "xyz.openbmc_project.Object.Delete", "Delete");
+-                    }
+-                }
+-                else
+-                {
+-                    // TODO(Pawel)consider distinguish between non existing
+-                    // object, and other errors
+-                    messages::resourceNotFound(
+-                        asyncResp->res, "VLAN Network Interface", ifaceId);
+-                    return;
+-                }
+-            });
++                            "xyz.openbmc_project.Network.VLAN", "VlanPriority",
++                            std::variant<uint32_t>(vlanPriority));
+ 
++        }
++        //AMI code ends here
+ 	asyncResp->res.addHeader(boost::beast::http::field::allow,
+                                  redfish::Header::GetAllowHeaders("VLanNetworkInterface_v1.xml"));
+     }
+@@ -2546,6 +2561,35 @@
+                                  redfish::Header::GetAllowHeaders("VLanNetworkInterfaceCollection_v1.xml"));
+     }
+ 
++
++    void set_vlanpriority(const std::shared_ptr<AsyncResp>& asyncResp ,const uint32_t &vlanpriority,std::string rootInterfaceName,const uint32_t &vlanId)
++    {
++
++	    BMCWEB_LOG_DEBUG << "from set_vlanpriority  1";
++            //set vlan priority
++            crow::connections::systemBus->async_method_call(
++                            [asyncResp,vlanpriority,rootInterfaceName,vlanId](const boost::system::error_code err_code)
++                            {
++                                if (err_code)
++                                {
++                                BMCWEB_LOG_ERROR << "D-Bus response error: " << err_code;
++                                messages::internalError(asyncResp->res);
++                                return;
++                                }
++                            },
++                            "xyz.openbmc_project.Network",
++                            "/xyz/openbmc_project/network/" + rootInterfaceName + "_" + std::to_string(vlanId),
++                            "org.freedesktop.DBus.Properties",
++                            "Set",
++                            "xyz.openbmc_project.Network.VLAN",
++                            "VlanPriority",
++                            std::variant<uint32_t>(vlanpriority));
++
++	  BMCWEB_LOG_DEBUG << "from set_vlanpriority  2";
++	  return;
++    }	    
++
++
+     void doPost(crow::Response& res, const crow::Request& req,
+                 const std::vector<std::string>& params) override
+     {
+@@ -2555,13 +2599,15 @@
+             messages::internalError(asyncResp->res);
+             return;
+         }
++
+         bool vlanEnable = false;
+         uint32_t vlanId = 0;
+-        if (!json_util::readJson(req, res, "VLANId", vlanId, "VLANEnable",
+-                                 vlanEnable))
++
++	if (!json_util::readJson(req, res, "VLANId", vlanId, "VLANEnable",vlanEnable ))
+         {
+             return;
+         }
++
+         // Need both vlanId and vlanEnable to service this request
+         if (!vlanId)
+         {
+@@ -2569,7 +2615,8 @@
+         }
+         if (!vlanEnable)
+         {
+-            messages::propertyMissing(asyncResp->res, "VLANEnable");
++            
++		messages::propertyMissing(asyncResp->res, "VLANEnable");
+         }
+         if (static_cast<bool>(vlanId) ^ vlanEnable)
+         {
+@@ -2577,23 +2624,25 @@
+         }
+ 
+         const std::string& rootInterfaceName = params[0];
++
+         auto callback = [asyncResp](const boost::system::error_code ec) {
+             if (ec)
+             {
+-                // TODO(ed) make more consistent error messages based on
+-                // phosphor-network responses
+                 messages::internalError(asyncResp->res);
+                 return;
+             }
+             messages::created(asyncResp->res);
+-	    asyncResp->res.addHeader(boost::beast::http::field::allow,
+-                                     redfish::Header::GetAllowHeaders("VLanNetworkInterfaceCollection_v1.xml"));
++            asyncResp->res.addHeader(boost::beast::http::field::allow,redfish::Header::GetAllowHeaders("VLanNetworkInterfaceCollection_v1.xml"));
++	  
+         };
+         crow::connections::systemBus->async_method_call(
+             std::move(callback), "xyz.openbmc_project.Network",
+             "/xyz/openbmc_project/network",
+             "xyz.openbmc_project.Network.VLAN.Create", "VLAN",
+             rootInterfaceName, vlanId);
++
+     }
+ };
++
++
+ } // namespace redfish

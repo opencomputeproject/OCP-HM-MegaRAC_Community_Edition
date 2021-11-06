@@ -36,8 +36,10 @@ if [ -n "$TEMPLATECONF" ]; then
                 mkdir -p $BUILDDIR_NAME/tmp
             fi
 
-            python update-features-macro.py $TEMPLATECONF OSP.cfg
-            cp projdef.mod.cfg $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.cfg
+               python meta-ami/update-features-macro.py $TEMPLATECONF OSP.cfg
+               #cp projdef.mod.mk $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.mk
+               cp projdef.mod.cfg $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.cfg
+               cp projdef.mod.h $CURR_DIR/$BUILDDIR_NAME/tmp/projdef.h
             break
         fi
     done

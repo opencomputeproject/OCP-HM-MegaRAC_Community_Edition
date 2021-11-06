@@ -1,0 +1,25 @@
+diff -Naur a/include/devices.hpp b/include/devices.hpp
+--- a/include/devices.hpp	2021-03-03 14:43:00.546169164 +0530
++++ b/include/devices.hpp	2021-03-03 15:26:27.344859604 +0530
+@@ -58,6 +58,7 @@
+           ExportTemplate("emc1414 $Address",
+                          "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"Gpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
++	 {"Digitalgpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
+          {"INA230", ExportTemplate("ina230 $Address",
+                                    "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"ISL68137",
+diff -Naur a/src/EntityManager.cpp b/src/EntityManager.cpp
+--- a/src/EntityManager.cpp	2021-03-03 14:42:55.226220738 +0530
++++ b/src/EntityManager.cpp	2021-03-03 16:09:38.194471031 +0530
+@@ -76,8 +76,8 @@
+                  {"FOUND", probe_type_codes::FOUND},
+                  {"MATCH_ONE", probe_type_codes::MATCH_ONE}}};
+ 
+-static constexpr std::array<const char*, 6> settableInterfaces = {
+-    "FanProfile", "Pid", "Pid.Zone", "Stepwise", "Thresholds", "Polling"};
++static constexpr std::array<const char*, 7> settableInterfaces = {
++    "FanProfile", "Pid", "Pid.Zone", "Stepwise", "Thresholds", "Polling", "Discrete"};
+ using JsonVariantType =
+     std::variant<std::vector<std::string>, std::vector<double>, std::string,
+                  int64_t, uint64_t, double, int32_t, uint32_t, int16_t,

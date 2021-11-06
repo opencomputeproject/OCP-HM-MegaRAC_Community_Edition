@@ -29,9 +29,6 @@ SRC_URI += "file://${BPN}.conf"
 SRCREV = "d802b11942abc8a4641976e70d567758ef0bbd58"
 PV = "1.0+git${SRCPV}"
 
-require conf/machine/include/unpack.inc
-SRC_URI += "file://${BPN}.conf"
-
 REGISTERED_SERVICES_${PN} += "obmc_console:tcp:2200:"
 
 SYSTEMD_SERVICE_${PN} += "obmc-console-ssh@.service \

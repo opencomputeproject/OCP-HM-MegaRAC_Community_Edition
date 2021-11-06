@@ -1,0 +1,41 @@
+From a905380c0692a7e2fc2d511b9fbbfc58c421537e Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Mon, 1 Feb 2021 14:35:20 -0500
+Subject: [PATCH] clear object cache when default networkd files are created
+
+---
+ network_manager_main.cpp | 16 ++++++----------
+ 1 file changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/network_manager_main.cpp b/network_manager_main.cpp
+index 734a48a..9866b19 100644
+--- a/network_manager_main.cpp
++++ b/network_manager_main.cpp
+@@ -310,18 +310,14 @@ int main(int /*argc*/, char** /*argv*/)
+     if (phosphor::network::manager->createDefaultNetworkFiles(false))
+     {
+         // if files created restart the network.
+-        // don't need to call the create child objects as eventhandler
+-        // will create it.
+         phosphor::network::restartNetwork();
+     }
+-    else
+-    {
+-        // this will add the additional fixes which is needed
+-        // in the existing network file.
+-        phosphor::network::manager->writeToConfigurationFile();
+-        // whenever the configuration file gets written it restart
+-        // the network which creates the network objects
+-    }
++
++    // this will add the additional fixes which is needed
++    // in the existing network file.
++    phosphor::network::manager->writeToConfigurationFile();
++    // whenever the configuration file gets written it restart
++    // the network which creates the network objects
+ 
+     // RtnetLink socket
+     phosphor::Descriptor smartSock;
+-- 
+2.17.1
+

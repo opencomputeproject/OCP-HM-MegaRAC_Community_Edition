@@ -34,8 +34,6 @@ DBUS_SERVICE_${PN} = "${OBMC_INVENTORY_MGR_IFACE}.service"
 
 S = "${WORKDIR}/git"
 
-require conf/machine/include/unpack.inc
-
 EXTRA_OECONF = " \
         YAML_PATH=${STAGING_DIR_HOST}${base_datadir} \
         BUSNAME=${OBMC_INVENTORY_MGR_IFACE} \

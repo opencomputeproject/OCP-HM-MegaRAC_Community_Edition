@@ -1,0 +1,228 @@
+diff -Naru a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2021-05-03 06:55:58.999364238 -0400
++++ b/transporthandler.cpp	2021-05-05 04:11:29.832644334 -0400
+@@ -36,6 +36,7 @@
+ #include <xyz/openbmc_project/Network/EthernetInterface/server.hpp>
+ #include <xyz/openbmc_project/Network/IP/server.hpp>
+ #include <xyz/openbmc_project/Network/Neighbor/server.hpp>
++#include <xyz/openbmc_project/Network/ARPControl/server.hpp>
+ 
+ #define CONFIG_IPV6     "CONFIG_IPV6=y\n"
+ #define SHELL_COMMAND   "zcat /proc/config.gz | grep -w CONFIG_IPV6"
+@@ -49,6 +50,7 @@
+ using sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface;
+ using sdbusplus::xyz::openbmc_project::Network::server::IP;
+ using sdbusplus::xyz::openbmc_project::Network::server::Neighbor;
++using sdbusplus::xyz::openbmc_project::Network::server::ARPControl;
+ 
+ namespace cipher
+ {
+@@ -103,6 +105,7 @@
+     "xyz.openbmc_project.Network.Neighbor.CreateStatic";
+ constexpr auto INTF_VLAN = "xyz.openbmc_project.Network.VLAN";
+ constexpr auto INTF_VLAN_CREATE = "xyz.openbmc_project.Network.VLAN.Create";
++constexpr auto INTF_ARPCONTROL = "xyz.openbmc_project.Network.ARPControl";
+ 
+ /** @brief Generic paramters for different address families */
+ template <int family>
+@@ -1502,6 +1505,89 @@
+     return ((result.compare(configName)==0)?1:0);
+ }
+ 
++/** @brief Sets the BMC  Generated ARP Response state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] ARPResponse  - True: Enable BMC Generated ARP Response
++ *                             False: Disable BMC Generated ARP Response
++ */
++void setARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                       bool ARPResponse)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "ARPResponse", ARPResponse);
++}
++
++/** @brief Sets the BMC Generated GratuitousARP state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] ARPResponse  - True: Enable BMC Generated GARP Response
++ *                             False: Disable BMC Generated GARP Response
++ */
++void setGARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                       bool GARPResponse)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "GratuitousARP", GARPResponse);
++}
++
++/** @brief Sets the GratuitousARP Interval on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] GARPInterval  - GratuitousARPInterval
++ */
++void setGARPIntervalProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                      uint64_t GARPInterval)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "GratuitousARPInterval", GARPInterval);
++}
++
++/** @brief Gets the BMC  Generated ARP Response state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return status of ARP Response
++ */
++uint8_t getARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    bool arpstatus = std::get<bool>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "ARPResponse"));
++
++    return ((arpstatus)?2:0);
++}
++
++/** @brief Gets the BMC Generated GratuitousARP state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return status of GratuitousARP
++ */
++uint8_t getGARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    bool garpstatus = std::get<bool>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "GratuitousARP"));
++
++    return ((garpstatus)?1:0);
++}
++
++/** @brief Gets the GratuitousARP Interval on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return GARP Interval
++ */
++uint8_t getGARPIntervalProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    uint64_t garpInterval = std::get<uint64_t>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "GratuitousARPInterval"));
++
++    return (garpInterval/500);
++}
++
+ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                  uint8_t parameter, message::Payload& req)
+ {
+@@ -1700,6 +1786,53 @@
+                                             netmaskToPrefix(netmask));
+             return responseSuccess();
+         }
++        case LanParam::BMCARPControl:
++        {
++            uint8_t enables;
++            if (req.unpack(enables) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            switch (static_cast<ARPControlEnables>(enables))
++            {
++                case ARPControlEnables::BMCARPControlDisable:
++                {
++                    channelCall<setARPProperty>(channel, false);
++                    channelCall<setGARPProperty>(channel, false);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCGARPOnly:
++                {
++                    channelCall<setARPProperty>(channel, false);
++                    channelCall<setGARPProperty>(channel, true);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCARPOnly:
++                {
++                    channelCall<setARPProperty>(channel, true);
++                    channelCall<setGARPProperty>(channel, false);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCARPControlBoth:
++                {
++                    channelCall<setARPProperty>(channel, true);
++                    channelCall<setGARPProperty>(channel, true);
++                    return responseSuccess();
++		}
++	    }
++            return response(ccParamNotSupported);
++        }
++        case LanParam::GARPInterval:
++        {
++            uint8_t interval;
++            if (req.unpack(interval) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            uint64_t garpInterval = interval * 500;
++            channelCall<setGARPIntervalProperty>(channel, garpInterval);
++            return responseSuccess();
++        }
+         case LanParam::Gateway1:
+         {
+             EthernetInterface::DHCPConf dhcp =
+@@ -2083,6 +2216,7 @@
+     message::Payload ret;
+     constexpr uint8_t current_revision = 0x11;
+     ret.pack(current_revision);
++        log<level::ERR>("Get Lan - Invalid field in request");
+ 
+     if (revOnly)
+     {
+@@ -2185,6 +2319,20 @@
+             ret.pack(dataRef(netmask));
+             return responseSuccess(std::move(ret));
+         }
++        case LanParam::BMCARPControl:
++        {
++            uint8_t arp = channelCall<getARPProperty>(channel);
++            uint8_t garp = channelCall<getGARPProperty>(channel);
++            arp = (arp|garp);
++            ret.pack(dataRef(arp));
++            return responseSuccess(std::move(ret));
++        }
++        case LanParam::GARPInterval:
++        {
++            uint8_t interval = channelCall<getGARPIntervalProperty>(channel);
++            ret.pack(dataRef(interval));
++            return responseSuccess(std::move(ret));
++        }
+         case LanParam::Gateway1:
+         {
+             auto gateway =
+diff -Naru a/transporthandler.hpp b/transporthandler.hpp
+--- a/transporthandler.hpp	2021-05-03 06:55:45.030830479 -0400
++++ b/transporthandler.hpp	2021-05-05 04:07:21.223572211 -0400
+@@ -18,6 +18,8 @@
+     IPSrc = 4,
+     MAC = 5,
+     SubnetMask = 6,
++    BMCARPControl = 10,
++    GARPInterval = 11,
+     Gateway1 = 12,
+     Gateway1MAC = 13,
+     VLANId = 20,
+@@ -47,6 +49,15 @@
+     BMC = 4,
+ };
+ 
++/** @brief IPMI ARP Control Enables Flag */
++enum class ARPControlEnables : uint8_t
++{
++    BMCARPControlDisable = 0,
++    BMCGARPOnly = 1,
++    BMCARPOnly = 2,
++    BMCARPControlBoth = 3,
++};
++
+ /** @brief IPMI Set Status */
+ enum class SetStatus : uint8_t
+ {

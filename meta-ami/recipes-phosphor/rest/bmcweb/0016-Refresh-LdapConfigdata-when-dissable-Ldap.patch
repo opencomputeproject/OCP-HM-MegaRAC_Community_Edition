@@ -1,0 +1,64 @@
+diff -Naur a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+--- a/redfish-core/lib/account_service.hpp	2021-03-07 23:54:14.105593658 +0530
++++ b/redfish-core/lib/account_service.hpp	2021-03-07 23:52:22.473345439 +0530
+@@ -172,20 +172,46 @@
+ {
+     std::string service =
+         (ldapType == "LDAP") ? "LDAPService" : "ActiveDirectoryService";
+-    nlohmann::json ldap = {
+-        {"ServiceEnabled", confData.serviceEnabled},
+-        {"ServiceAddresses", nlohmann::json::array({confData.uri})},
+-        {"Authentication",
+-         {{"AuthenticationType", "UsernameAndPassword"},
+-          {"Username", confData.bindDN},
+-          {"Password", nullptr}}},
+-        {"LDAPService",
+-         {{"SearchSettings",
+-           {{"BaseDistinguishedNames",
+-             nlohmann::json::array({confData.baseDN})},
+-            {"UsernameAttribute", confData.userNameAttribute},
+-            {"GroupsAttribute", confData.groupAttribute}}}}},
+-    };
++
++    nlohmann::json ldap ;
++    if(confData.serviceEnabled == false)
++    {
++                        ldap = {
++           {"AccountProviderType", service},
++           {"ServiceEnabled", confData.serviceEnabled},
++           {"ServiceAddresses", nlohmann::json::array({""})},
++           {"Authentication",
++            {{"AuthenticationType", "UsernameAndPassword"},
++             {"Username", ""},
++             {"Password", nullptr}}},
++           {"LDAPService",
++            {{"SearchSettings",
++              {{"BaseDistinguishedNames",
++                nlohmann::json::array({""})},
++               {"UsernameAttribute", ""},
++               {"GroupsAttribute", ""}}}}},
++       };
++
++    }
++
++    else
++    {
++                        ldap = {
++           {"AccountProviderType", service},
++           {"ServiceEnabled", confData.serviceEnabled},
++           {"ServiceAddresses", nlohmann::json::array({confData.uri})},
++           {"Authentication",
++            {{"AuthenticationType", "UsernameAndPassword"},
++             {"Username", confData.bindDN},
++             {"Password", nullptr}}},
++           {"LDAPService",
++            {{"SearchSettings",
++              {{"BaseDistinguishedNames",
++                nlohmann::json::array({confData.baseDN})},
++               {"UsernameAttribute", confData.userNameAttribute},
++               {"GroupsAttribute", confData.groupAttribute}}}}},
++       };
++    }
+ 
+   if (confData.bindDNPassword.empty())
+     {

@@ -1,0 +1,173 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2021-04-23 18:14:09.845581397 +0530
++++ b/src/main.cpp	2021-04-23 18:14:45.361506794 +0530
+@@ -13,7 +13,6 @@
+ #include <nlohmann/json.hpp>
+ #include <sdbusplus/asio/connection.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
+-#include "syslog.h"
+ 
+ namespace fs = std::filesystem;
+ #define MAX_CMD_NAME_LEN                ((4*256) + 256)
+@@ -371,19 +370,28 @@
+         return false;
+     }
+ 
+-    static bool getStatus(const std::string& file_path, const std::string& status_name)
++    static bool getEjectStatus(const std::string& nbd_device)
+     {
+         std::ifstream fileWriter;
+-        fileWriter.open(file_path);
++        fileWriter.open("/etc/nbd-proxy/eject");
+         std::string temp_buf;
+         bool flag = false;
+         if(fileWriter)
+         {
+              while(std::getline(fileWriter,temp_buf))
+              {
+-                if(temp_buf.find(status_name) != std::string::npos)
++                if(temp_buf.find(nbd_device) != std::string::npos)
+                 {
+-                   if(temp_buf.find("1") != std::string::npos)
++                   if (nbd_device.find("1")!= std::string::npos)
++                   {
++                       int pos = temp_buf.rfind("1");
++                       if (pos == (temp_buf.length() - 1))
++                       {
++                          flag = true;
++                          break;
++                       }
++                   }
++                   else if(temp_buf.find("1") != std::string::npos)
+                    {
+                       flag = true;
+                       break;
+@@ -395,6 +403,43 @@
+         return flag;
+     }
+ 
++    static bool setEjectStatus(const std::string& device_name, const bool& instance)
++    {
++        std::ifstream fileWriter;
++        fileWriter.open("/etc/nbd-proxy/eject", std::ios::in);
++        if(fileWriter)
++        {
++           std::string temp_buf;
++           std::vector<std::string> filedata;
++           while(std::getline(fileWriter,temp_buf))
++           {
++              if((temp_buf.size() > 0) && (temp_buf.find(device_name) != std::string::npos))
++              {
++                 std::string outbuf;;
++                 if (instance == true)
++                 {
++                   outbuf = device_name + std::string("=1");
++                 }
++                 else
++                 {
++                   outbuf = device_name + std::string("=0");
++
++                 }
++                 filedata.push_back(outbuf);
++              }
++              else if((temp_buf.size() > 0))
++              filedata.push_back(temp_buf);
++           }
++           fileWriter.close();
++           std::ofstream fileWriter ("/etc/nbd-proxy/eject",  std::ios::out | std::ios::trunc);
++           std::ostream_iterator<std::string> output_iterator(fileWriter,"\n");
++           std::copy(filedata.begin(), filedata.end(), output_iterator);
++           fileWriter.close();
++           return true;
++        }
++        return false;
++    }
++
+     static int getmediasessionid(const std::string& file_path)
+     {
+     
+@@ -420,27 +465,6 @@
+     
+     }
+ 
+-    static bool setStatus(const std::string& file_path, const std::string& status_name, const bool& instance)
+-    {
+-        std::ofstream fileWriter;
+-        fileWriter.open(file_path, std::ios::out | std::ios::trunc);
+-        if(fileWriter)
+-        {
+-              fileWriter << status_name << "-status=";
+-              if(instance == true)
+-              {
+-                 fileWriter << "1";
+-              }
+-              else
+-              {
+-                 fileWriter << "0";
+-              }
+-              fileWriter.close();
+-              return true;
+-        }
+-        return false;
+-    }
+-
+   private:
+     boost::asio::io_context& ioc;
+     boost::process::child child;
+@@ -732,6 +756,11 @@
+         }
+ 	addKVMProcessInterface("kvm0");
+         addNBDProcessInterface("nbd0");
++        addNBDProcessInterface("nbd1");
++        addNBDProcessInterface("nbd2");
++        addNBDProcessInterface("nbd3");
++        addNBDProcessInterface("nbd4");
++        addNBDProcessInterface("nbd5");
+ 	addmediasessionid("mediasession");
+         prepareNBDFile();
+         devMonitor.run([this](const std::string& device, StateChange change) {
+@@ -1242,10 +1271,15 @@
+     void prepareNBDFile(void)
+     {
+         std::ofstream fileWriter;
+-        fileWriter.open("/etc/nbd-proxy/status", std::ios::out | std::ios::trunc);
++        fileWriter.open("/etc/nbd-proxy/eject", std::ios::out | std::ios::trunc);
+         if(fileWriter)
+         {
+-           fileWriter << "nbd0-status=0";
++           fileWriter << "nbd0=0\n";
++           fileWriter << "nbd1=0\n";
++           fileWriter << "nbd2=0\n";
++           fileWriter << "nbd3=0\n";
++           fileWriter << "nbd4=0\n";
++           fileWriter << "nbd5=0\n";
+            fileWriter.close();
+         }
+     }
+@@ -1378,21 +1412,12 @@
+             "/xyz/openbmc_project/VirtualMedia/Nbd/" + name,
+             "xyz.openbmc_project.Nbd.Process");
+         iface->register_property(
+-            "Active", bool(false),
+-            [](const bool& req, bool& property) {
+-                 throw sdbusplus::exception::SdBusError(
+-                 EPERM, "Setting Active property is not allowed");
+-                 return -1;
++            "Eject", bool(false),
++            [this, name](const bool& req, bool& property) {
++                 return Process::setEjectStatus(name, req);
+             },
+-            [](const bool& property) { 
+-		 return Process::getStatus(std::string("/etc/nbd-proxy/status"),std::string("nbd")); });
+-	iface->register_property(
+-	    "Eject", bool(false),
+-	    [](const bool& req, bool& property) { 
+-		 return Process::setStatus(std::string("/etc/nbd-proxy/eject"),std::string("eject"),req);
+-	    },
+-	    [](const bool& property) { 
+-		return Process::getStatus(std::string("/etc/nbd-proxy/eject"),std::string("eject")); });
++            [this, name](const bool& property) {
++                return Process::getEjectStatus(name); });
+         iface->initialize();
+     }
+ 

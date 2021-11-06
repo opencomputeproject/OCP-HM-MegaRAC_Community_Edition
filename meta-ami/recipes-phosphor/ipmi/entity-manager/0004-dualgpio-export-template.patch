@@ -1,0 +1,47 @@
+diff -Naur a/include/devices.hpp b/include/devices.hpp
+--- a/include/devices.hpp	2021-03-04 18:59:56.958074309 +0530
++++ b/include/devices.hpp	2021-03-04 19:01:00.802304791 +0530
+@@ -59,6 +59,8 @@
+                          "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"Gpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
+ 	 {"Digitalgpio", ExportTemplate("$Index", "/sys/class/gpio/export")},
++	 {"Discretegpio1", ExportTemplate("$Index1", "/sys/class/gpio/export")},
++        {"Discretegpio2", ExportTemplate("$Index2", "/sys/class/gpio/export")},
+          {"INA230", ExportTemplate("ina230 $Address",
+                                    "/sys/bus/i2c/devices/i2c-$Bus/new_device")},
+          {"ISL68137",
+diff -Naur a/src/Overlay.cpp b/src/Overlay.cpp
+--- a/src/Overlay.cpp	2021-03-04 18:59:53.022061481 +0530
++++ b/src/Overlay.cpp	2021-03-04 19:02:11.262604470 +0530
+@@ -234,12 +234,25 @@
+                 continue;
+             }
+             std::string type = findType.value().get<std::string>();
+-            auto device = devices::exportTemplates.find(type.c_str());
+-            if (device != devices::exportTemplates.end())
+-            {
+-                exportDevice(type, device->second, configuration);
+-                continue;
+-            }
++
++	    if(type == "Discretegpio"){
++                   auto device1 = devices::exportTemplates.find((type + "1").c_str());
++                   auto device2 = devices::exportTemplates.find((type + "2").c_str());
++                   if (device1 != devices::exportTemplates.end() &&
++                                 device2 != devices::exportTemplates.end())
++                   {
++                       exportDevice(type, device1->second, configuration);
++                       exportDevice(type, device2->second, configuration);
++                       continue;
++                   }
++           }else{
++               auto device = devices::exportTemplates.find(type.c_str());
++               if (device != devices::exportTemplates.end())
++               {
++                       exportDevice(type, device->second, configuration);
++                       continue;
++               }
++           }
+ 
+             // Because many devices are intentionally not exportable,
+             // this error message is not printed in all situations.

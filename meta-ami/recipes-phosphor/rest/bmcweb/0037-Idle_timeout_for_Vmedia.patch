@@ -1,0 +1,342 @@
+diff -Naur a/http/websocket.hpp b/http/websocket.hpp
+--- a/http/websocket.hpp	2021-05-18 01:08:07.378119822 +0530
++++ b/http/websocket.hpp	2021-05-18 01:08:31.302309190 +0530
+@@ -1,11 +1,16 @@
+ #pragma once
+ #include "http_request.hpp"
++#include "projdef.h"
+ 
+ #include <async_resp.hpp>
+ #include <boost/algorithm/string/predicate.hpp>
+ #include <boost/asio/buffer.hpp>
+ #include <boost/beast/websocket.hpp>
+ 
++#include <boost/asio/steady_timer.hpp>
++#include <boost/bind.hpp>
++
++
+ #include <array>
+ #include <functional>
+ 
+@@ -18,6 +23,7 @@
+ namespace websocket
+ {
+ 
++
+ struct Connection : std::enable_shared_from_this<Connection>
+ {
+   public:
+@@ -76,8 +82,18 @@
+         openHandler(std::move(open_handler)),
+         messageHandler(std::move(message_handler)),
+         closeHandler(std::move(close_handler)),
+-        errorHandler(std::move(error_handler)), session(reqIn.session)
++        errorHandler(std::move(error_handler)), session(reqIn.session),
++	Idle_timer_(ws.get_executor()),
++//	time_remaining_(OBMC_FEATURE_VIRTUAL_MEDIA_SESSION_TIMEOUT_TIMEDURATION),
++//	time_duration(OBMC_FEATURE_VIRTUAL_MEDIA_SESSION_TIMEOUT_TIMEINTERVAL),
++	time_remaining_(1800),
++	time_duration(180),
++	Idle_count(0),
++	read_cnt_lastupdate_(0),
++	state_filepath_("/sys/kernel/config/usb_gadget/mass-storage/functions/mass_storage.usb0/lun."),
++	media("0")
+     {
++
+        ws.set_option(boost::beast::websocket::stream_base::
+                         timeout::suggested(boost::beast::role_type::server));	  
+         BMCWEB_LOG_DEBUG << "Creating new connection " << this;
+@@ -89,56 +105,202 @@
+             ws.get_executor().context());
+     }
+ 
+-    void start()
++    void handle_timer(  )
+     {
+-        BMCWEB_LOG_DEBUG << "starting connection " << this;
++	    std::string state_filepath = state_filepath_+media+"/stats";
++	    std::ifstream fileReader;
++	    fileReader.open(state_filepath) ;
++	    if(fileReader)
++	    {
++		    int i=3;
++		    std::string read_cnt;
++		    int read_cnt_val1;
++		    while(i--)
++		    {
++			    fileReader >> read_cnt;
++
++		    }
++		    std::stringstream ss;
++		    ss << read_cnt;
++		    ss >> read_cnt_val1;
++
++		    if(read_cnt_lastupdate_ == 0)
++		    {
++			    read_cnt_lastupdate_ = read_cnt_val1;
++			    Idle_count++;
++		    }
++		    else if(read_cnt_val1 == read_cnt_lastupdate_)
++			    Idle_count++;
++
++
++		    else if(read_cnt_val1 != read_cnt_lastupdate_)
++		    {
++
++			    read_cnt_lastupdate_ = read_cnt_val1;
++			    Idle_count = 0;
++
++		    }
++
++		    else
++			    BMCWEB_LOG_DEBUG << "Something went wrong...!"<<"\n";
++
++
++		    if(Idle_count >= 10)
++		    {
++			    BMCWEB_LOG_DEBUG << "Close handler is invoking by Idle_timeout ...! "<<"\n";
++			//    closeHandler(*this, "Idle Timeout");
++			Idle_count = 0;	
++			std::string str ="echo > "+state_filepath_+media+"/file";
++			const char *cmd = str.c_str();
++
++			std::system(cmd);
++
++
++			int nbdname ;
++			std::stringstream ss;
++			ss << media;
++			ss >> nbdname;
++			std::string nbd_name_ = std::to_string(nbdname-1);
++
++			remove_media_instance("nbd"+nbd_name_,true);
++
++		    }
++		    else
++		    {
++			    initiate_timer();
++
++		    }
++
++		    fileReader.close();
++	    }
++	    else
++	    {
++
++		    BMCWEB_LOG_DEBUG << "File(State) Not exists ...!\n";
++	    }
++
++    }
+ 
+-        using bf = boost::beast::http::field;
+ 
+-        std::string_view protocol = req[bf::sec_websocket_protocol];
+ 
+-        ws.set_option(boost::beast::websocket::stream_base::decorator(
+-            [session{session}, protocol{std::string(protocol)}](
+-                boost::beast::websocket::response_type& m) {
++
++void remove_media_instance(const std::string& device_name, const bool& instance)
++{
++
++	
++        std::ifstream fileWriter;
++        fileWriter.open("/etc/nbd-proxy/eject", std::ios::in);
++        if(fileWriter)
++        {
++           std::string temp_buf;
++           std::vector<std::string> filedata;
++           while(std::getline(fileWriter,temp_buf))
++           {
++              if((temp_buf.size() > 0) && (temp_buf.find(device_name) != std::string::npos))
++              {
++                 std::string outbuf;;
++                 if (instance == true)
++                 {
++                   outbuf = device_name + std::string("=1");
++                 }
++                 else
++                 {
++                   outbuf = device_name + std::string("=0");
++
++                 }
++                 filedata.push_back(outbuf);
++              }
++              else if((temp_buf.size() > 0))
++              filedata.push_back(temp_buf);
++           }
++           fileWriter.close();
++           std::ofstream fileWriter ("/etc/nbd-proxy/eject",  std::ios::out | std::ios::trunc);
++           std::ostream_iterator<std::string> output_iterator(fileWriter,"\n");
++           std::copy(filedata.begin(), filedata.end(), output_iterator);
++           fileWriter.close();
++        }
++
++}
++
++
++   void start()
++   {
++	   BMCWEB_LOG_DEBUG << "starting connection " << this;
++
++	   using bf = boost::beast::http::field;
++
++	   std::string_view protocol = req[bf::sec_websocket_protocol];
++
++	   ws.set_option(boost::beast::websocket::stream_base::decorator(
++				   [session{session}, protocol{std::string(protocol)}](
++						   boost::beast::websocket::response_type& m) {
+ 
+ #ifndef BMCWEB_INSECURE_DISABLE_CSRF_PREVENTION
+-                // use protocol for csrf checking
+-                if (session->cookieAuth &&
+-                    !crow::utility::constantTimeStringCompare(
+-                        protocol, session->csrfToken))
+-                {
+-                    BMCWEB_LOG_ERROR << "Websocket CSRF error";
+-                    m.result(boost::beast::http::status::unauthorized);
+-                    return;
+-                }
++				   // use protocol for csrf checking
++				   if (session->cookieAuth &&
++						   !crow::utility::constantTimeStringCompare(
++							   protocol, session->csrfToken))
++				   {
++				   BMCWEB_LOG_ERROR << "Websocket CSRF error";
++				   m.result(boost::beast::http::status::unauthorized);
++				   return;
++				   }
+ #endif
+-                if (!protocol.empty())
+-                {
+-                    m.insert(bf::sec_websocket_protocol, protocol);
+-                }
++				   if (!protocol.empty())
++				   {
++				   m.insert(bf::sec_websocket_protocol, protocol);
++				   }
++
++				   m.insert(bf::strict_transport_security, "max-age=31536000; "
++						   "includeSubdomains; "
++						   "preload");
++				   m.insert(bf::pragma, "no-cache");
++				   m.insert(bf::cache_control, "no-Store,no-Cache");
++				   m.insert("Content-Security-Policy", "default-src 'self'");
++				   m.insert("X-XSS-Protection", "1; "
++						   "mode=block");
++				   m.insert("X-Content-Type-Options", "nosniff");
++				   }));
++
++	   // Perform the websocket upgrade
++	   ws.async_accept(req, [this, self(shared_from_this())](
++				   boost::system::error_code ec) {
++			   if (ec)
++			   {
++			   BMCWEB_LOG_ERROR << "Error in ws.async_accept " << ec;
++			   return;
++			   }
++			   acceptDone();
++
++			   std::ifstream fileReader;
++			   fileReader.open("/etc/nbd-proxy/target") ;
++			   if(fileReader)
++			   {
++
++			   static int user_session;
++			   static int endpoint;
++			   std::string target_name;
++			   std::getline(fileReader,target_name);
++
++			   std::stringstream session_name;
++			   session_name << target_name.at(4);
++			   session_name >> user_session;
++
++
++			   std::stringstream media_endpoint;
++			   media_endpoint << target_name.at(6);
++			   media_endpoint >> endpoint;
++
++			   time_duration = time_remaining_ / 10;
++			   media = std::to_string((2*user_session)+endpoint+1);
++			   initiate_timer();
++			   fileReader.close();
++			   std::system("rm -f /etc/nbd-proxy/target");
+ 
+-                m.insert(bf::strict_transport_security, "max-age=31536000; "
+-                                                        "includeSubdomains; "
+-                                                        "preload");
+-                m.insert(bf::pragma, "no-cache");
+-                m.insert(bf::cache_control, "no-Store,no-Cache");
+-                m.insert("Content-Security-Policy", "default-src 'self'");
+-                m.insert("X-XSS-Protection", "1; "
+-                                             "mode=block");
+-                m.insert("X-Content-Type-Options", "nosniff");
+-            }));
+-
+-        // Perform the websocket upgrade
+-        ws.async_accept(req, [this, self(shared_from_this())](
+-                                 boost::system::error_code ec) {
+-            if (ec)
+-            {
+-                BMCWEB_LOG_ERROR << "Error in ws.async_accept " << ec;
+-                return;
+-            }
+-            acceptDone();
+-        });
+-    }
++			   }
++
++	   });
++   }
+ 
+     void sendBinary(const std::string_view msg) override
+     {
+@@ -170,6 +332,8 @@
+ 
+     void close(const std::string_view msg) override
+     {
++	Idle_timer_.cancel();
++
+         ws.async_close(
+             {boost::beast::websocket::close_code::normal, msg},
+             [self(shared_from_this())](boost::system::error_code ec) {
+@@ -185,6 +349,12 @@
+             });
+     }
+ 
++    void initiate_timer()
++    {
++    	Idle_timer_.expires_after(time_duration);
++    	Idle_timer_.async_wait(boost::bind(&ConnectionImpl::handle_timer,this));
++    }
++
+     void acceptDone()
+     {
+         BMCWEB_LOG_DEBUG << "Websocket accepted connection";
+@@ -282,6 +452,14 @@
+     std::function<void(Connection&, const std::string&)> closeHandler;
+     std::function<void(Connection&)> errorHandler;
+     std::shared_ptr<persistent_data::UserSession> session;
++    boost::asio::steady_timer Idle_timer_;
++    std::chrono::seconds time_remaining_;
++    std::chrono::seconds time_duration;
++    int Idle_count;
++    int read_cnt_lastupdate_;
++    std::string state_filepath_;
++    std::string media;
++
+ };
+ } // namespace websocket
+ } // namespace crow
+diff -Naur a/include/vm_websocket.hpp b/include/vm_websocket.hpp
+--- a/include/vm_websocket.hpp	2021-05-18 01:08:07.406120043 +0530
++++ b/include/vm_websocket.hpp	2021-05-18 01:09:08.550602462 +0530
+@@ -239,7 +239,7 @@
+ 					media_endpoint >> endpoint;
+ 
+ 					fileReader.close();
+-					std::system("rm -f /etc/nbd-proxy/target");
++				//	std::system("rm -f /etc/nbd-proxy/target");
+ 
+ 				}
+ 

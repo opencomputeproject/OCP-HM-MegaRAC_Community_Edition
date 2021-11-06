@@ -1,0 +1,13 @@
+--- a/transporthandler.cpp	2021-04-12 03:57:40.301312610 -0400
++++ b/transporthandler.cpp	2021-04-12 06:56:52.146130876 -0400
+@@ -1746,6 +1746,10 @@
+             {
+                 return responseInvalidFieldRequest();
+             }
++            if (set >= MAX_IPV6_STATIC_ADDRESSES)
++            {
++                return responseParmOutOfRange();
++            }	 
+             copyInto(ip, ipbytes);
+             if (enabled)
+             {

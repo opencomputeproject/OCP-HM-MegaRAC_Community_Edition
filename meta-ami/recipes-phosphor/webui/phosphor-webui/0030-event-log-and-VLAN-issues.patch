@@ -1,0 +1,407 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-10 09:28:40.855041897 +0530
++++ b/app/common/services/api-utils.js	2021-06-10 09:33:43.657692896 +0530
+@@ -84,6 +84,30 @@
+             }
+           },6000);
+         },
++        getNextSystemLogs: function(recordType, url){
++          return $http({
++            method: 'GET',
++            url: DataService.getHost() + url,
++            withCredentials: true,
++            timeout: 15000
++          }).then(function(response){
++            var ret_obj = {};
++            ret_obj.logEntries = [];
++
++            if(response.data.hasOwnProperty('Members@odata.nextLink')){
++              ret_obj.next_url = response.data['Members@odata.nextLink'];
++            }
++
++            angular.forEach(response.data['Members'], function(log) {
++              if (log.hasOwnProperty('EntryType')) {
++                if (log['EntryType'] == recordType) {
++                  ret_obj.logEntries.push(log);
++                }
++              }
++            });
++            return ret_obj;
++          });
++        },
+         getSystemLogs: function(recordType) {
+           var uri = '/redfish/v1/Systems/' + DataService.systemName +
+               '/LogServices/EventLog/Entries';
+@@ -94,19 +118,26 @@
+           return $http({
+                    method: 'GET',
+                    url: DataService.getHost() + uri,
+-                   withCredentials: true
++                   withCredentials: true,
++                   timeout: 15000
+                  })
+               .then(
+                   function(response) {
+-                    var logEntries = [];
++                    var ret_obj = {};
++                    ret_obj.logEntries = [];
++
++                    if(response.data.hasOwnProperty('Members@odata.nextLink')){
++                      ret_obj.next_url = response.data['Members@odata.nextLink'];
++                    }
++
+                     angular.forEach(response.data['Members'], function(log) {
+                       if (log.hasOwnProperty('EntryType')) {
+                         if (log['EntryType'] == recordType) {
+-                          logEntries.push(log);
++                          ret_obj.logEntries.push(log);
+                         }
+                       }
+                     });
+-                    return logEntries;
++                    return ret_obj;
+                   },
+                   function(error) {
+                     console.log(JSON.stringify(error));
+@@ -347,6 +378,7 @@
+                               Nameservers: [],
+                               StaticNameServers: [],
+                               DHCPEnabled: false,
++                              vlan_DHCP: false,
+                               IPv6DHCPEnabled:false,
+                               defaultgateway:'',
+                               ipv4: {ids: [], values: []},
+@@ -378,6 +410,7 @@
+                             if(interfaceId.indexOf("_") > -1){
+                               data.interfaces[interfaceId].Id = content.data[key].Id;
+                               data.interfaces[interfaceId].VlanPriority = content.data[key].VlanPriority;
++                              data.interfaces[interfaceId].vlan_DHCP = true;
+                             }
+                           }
+                         } else if (
+@@ -618,7 +651,6 @@
+               });
+         },
+         setVLANPriority: function(data, interface_to_update){
+-          console.log("api utils priority");
+           return $http({
+               method: 'PUT',
+               url: DataService.getHost() +
+@@ -638,6 +670,16 @@
+                 return response.data;
+             })
+         },
++        modifyVLANPriority: function(data, interface_to_modify){
++          return $http({
++              method: 'PUT',
++              url: DataService.getHost() +
++                  '/xyz/openbmc_project/network/'+interface_to_modify+'/attr/VlanPriority',
++              data: data
++          }).then(function(response){
++              return response.data;
++          })
++        },
+         deleteVLAN: function(interface_to_delete) {
+             return $http({
+                 method: 'DELETE',
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-06-10 09:28:40.855041897 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-06-10 09:34:09.873571941 +0530
+@@ -181,23 +181,23 @@
+       </div>
+     </fieldset>
+ 
+-    <fieldset class="net-config__fieldset network-config__ipv4-wrap row column">
++    <fieldset class="net-config__fieldset network-config__ipv4-wrap pd_top28 row column">
+       <legend class="column small-12 page-header h2">VLAN</legend>
+-      <div class="net-config__fieldset-content">
+-        <div class="column small-12 large-6">
++      <div class="net-config__fieldset-content column small-12 large-12">
++        <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN Interface</label>
+-              <input id="net-config__host" type="text" ng-disabled="true" ng-model="selectedInterface" />
++              <input id="net-config__host" type="text" ng-disabled="true" ng-model="VLANInterfaces" />
+           </div>
+-          <div class="column small-12 large-6">
++          <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN ID</label>
+               <input id="net-config__host" type="number" min="0" max="4094" ng-model="vlan.id" />
+           </div>
+-          <div class="column small-12 large-6">
++          <div class="column small-12 large-3">
+               <label for="net-config__domain">VLAN Priority</label>
+               <input id="net-config__domain" type="number" min="0" max="7" ng-model="vlan.vlan_priority" />
+           </div>
+-          <div class="column small-12 large-6" ng-if="delete_VLAN_flag">
+-            <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="deleteVLAN(selectedInterface)">Remove</button>
++          <div class="column small-12 large-3 pd_top35" ng-show="delete_VLAN_flag">
++            <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="deleteVLAN(VLANInterfaces)">Remove</button>
+           </div>
+       </div>
+     </fieldset>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-06-10 09:28:40.855041897 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-06-10 10:26:53.537109214 +0530
+@@ -38,7 +38,7 @@
+       $scope.selectInterface = function(interfaceId) {
+         $scope.selectedinterfaceId = interfaceId;
+         $scope.interface = $scope.network.interfaces[interfaceId];
+-
++        dataService.mac_address = $scope.interface.MACAddress;
+         $scope.defaultGateway = $scope.interface.defaultgateway;
+         dataService.defaultgateway = $scope.defaultGateway;
+ 
+@@ -54,21 +54,12 @@
+           $scope.oldDHCPstatusIPv6 = false;
+         }
+ 
+-        if(interfaceId.indexOf("_") > -1){
+-          $scope.vlan.id = $scope.interface.Id;
+-          $scope.vlan.vlan_priority = $scope.interface.VlanPriority;
+-          $scope.delete_VLAN_flag = true;
+-        }else{
+-          $scope.vlan.id = '';
+-          $scope.vlan.vlan_priority = '';
+-          $scope.delete_VLAN_flag = false;
+-        }
+-        
+         // Copy the interface so we know later if changes were made to the page
+         $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+         $scope.selectedInterface = interfaceId;
+         $scope.networkDevice = false;
+         $scope.removeLinkAddress();
++        $scope.updateVLANInterface();
+       };
+       $scope.removeLinkAddress = function(){
+         var removeindex = -1;
+@@ -158,7 +149,7 @@
+ 
+       $scope.deleteVLAN = function(interface_to_delete) {
+         $scope.loading = true;
+-        APIUtils.deleteVLAN($scope.selectedInterface).then(
++        APIUtils.deleteVLAN(interface_to_delete).then(
+             function(data) {
+                 toastService.success("VLAN Interface deleted Successfully.");
+                 $route.reload();
+@@ -253,13 +244,12 @@
+           }
+         }
+ 
+-        if($scope.interface.IPv6DHCPEnabled && $scope.oldDHCPstatusIPv6 != $scope.interface.IPv6DHCPEnabled) {
+-          console.log("save ipv6 dhcp");
++        if($scope.interface.IPv6DHCPEnabled && $scope.oldDHCPstatusIPv6 != $scope.interface.IPv6DHCPEnabled && !$scope.interface.vlan_DHCP) {
+           promises.push(setIPv6DHCPEnabled());
+         }
+ 
+         // if ($scope.interface.DHCPEnabled != $scope.oldInterface.DHCPEnabled) {
+-        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
++        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled && !$scope.interface.vlan_DHCP) {
+           promises.push(setDHCPEnabled());
+         }
+ 
+@@ -278,7 +268,7 @@
+ 
+         // If switched from static to dhcp
+         // then delete the object. 
+-        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
++        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled && !$scope.interface.vlan_DHCP) {
+           promises.push(removeAllIPs());
+         }
+ 
+@@ -366,18 +356,27 @@
+ 
+         if ($scope.vlan.id) {
+           var tmp = [];
+-          var obj = {};
+-          if($scope.selectedInterface.indexOf("_") > -1){
+-            obj.data = $scope.vlan.id;
+-            promises.push(
+-              ModifyVLAN_ID(obj, $scope.selectedInterface)
+-            );
++          var IDobj = {};
++          var Priorityobj = {};
++          if($scope.VLANInterfaces.indexOf("_") > -1){
++            if($scope.oldVLANInterface.Id != $scope.vlan.id || $scope.oldVLANInterface.VlanPriority != $scope.vlan.vlan_priority){
++              IDobj.data = $scope.vlan.id;
++              promises.push(
++                ModifyVLAN_ID(IDobj, $scope.VLANInterfaces)
++              );
++
++              Priorityobj.data = $scope.vlan.vlan_priority;
++              promises.push(
++                ModifyVLAN_Priority(Priorityobj, $scope.VLANInterfaces)
++              );
++            }
+           }else{
+-            tmp.push($scope.selectedInterface);
++            tmp.push($scope.VLANInterfaces);
+             tmp.push(parseInt($scope.vlan.id));
++            var obj = {};
+             obj.data = tmp;
+             promises.push(
+-                setVLAN(JSON.stringify(obj))
++              setVLAN(JSON.stringify(obj))
+             );
+           }
+         }
+@@ -407,6 +406,7 @@
+                 toastService.error('Network settings could not be saved');
+               })
+         } else {
++          toastService.info('No Changes happened to Save!');
+           $scope.loading = false;
+         }
+       };
+@@ -746,11 +746,54 @@
+         )
+       }
+ 
++      function ModifyVLAN_Priority(data, interface_to_modify){
++        return APIUtils.modifyVLANPriority(data, interface_to_modify).then(
++            function(){},
++            function error(error){
++                return $q.reject();
++            }
++        )
++      }
++
+       $scope.refresh = function() {
+         // loadNetworkInfo();
+         $route.reload();
+       };
+ 
++      $scope.updateVLANInterface = function(){
++        $scope.VLANInterfaces = $scope.selectedInterface;
++        $scope.vlan.id = '';
++        $scope.vlan.vlan_priority = '';
++        $scope.delete_VLAN_flag = false;
++
++        if($scope.selectedInterface.indexOf("_") != -1){
++          var tmp = $scope.selectedInterface.split('_')[0];
++          $scope.interface.DHCPEnabled = $scope.network.interfaces[tmp].DHCPEnabled;
++          $scope.interface.IPv6DHCPEnabled = $scope.network.interfaces[tmp].IPv6DHCPEnabled;
++          $scope.vlan.id = $scope.network.interfaces[$scope.selectedInterface].Id;
++          $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.selectedInterface].VlanPriority;
++          $scope.delete_VLAN_flag = true;
++          $scope.oldVLANInterface = JSON.parse(JSON.stringify($scope.network.interfaces[$scope.selectedInterface]));
++        }else{
++          for(var i=0; i<$scope.network.interface_ids.length; i++){
++            if($scope.network.interface_ids[i].indexOf('_') != -1){
++              var tmp = $scope.network.interface_ids[i].split('_')[0];
++  
++              if(tmp == $scope.selectedInterface){
++                $scope.VLANInterfaces = $scope.network.interface_ids[i];
++                $scope.vlan.id = $scope.network.interfaces[$scope.network.interface_ids[i]].Id;
++                $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.network.interface_ids[i]].VlanPriority;
++                $scope.delete_VLAN_flag = true;
++
++                $scope.oldVLANInterface = JSON.parse(JSON.stringify($scope.network.interfaces[$scope.network.interface_ids[i]]));
++              }
++
++              break;
++            }
++          }
++        }
++      }
++
+       function loadNetworkInfo() {
+         APIUtils.getNetworkInfo().then(function(data) {
+           dataService.setNetworkInfo(data);
+@@ -817,6 +860,7 @@
+             $scope.interface.ipv6.values.splice(removeipv6index, 1);
+             $scope.interface.ipv6.ids.splice(removeipv6index, 1);
+           }
++          $scope.updateVLANInterface();
+         });
+       }
+     }
+diff -Naur a/app/configuration/styles/network.scss b/app/configuration/styles/network.scss
+--- a/app/configuration/styles/network.scss	2021-06-10 09:28:40.855041897 +0530
++++ b/app/configuration/styles/network.scss	2021-06-10 09:36:48.072926913 +0530
+@@ -60,4 +60,10 @@
+   .network-config__ipv4-wrap {
+     padding-bottom: 1.8em;
+   }
++  .pd_top35{
++    padding-top: 35px;
++  }
++  .pd_top28{
++    padding-top: 28px;
++  }
+ }
+diff -Naur a/app/server-health/controllers/syslog-controller.js b/app/server-health/controllers/syslog-controller.js
+--- a/app/server-health/controllers/syslog-controller.js	2021-06-10 09:28:40.855041897 +0530
++++ b/app/server-health/controllers/syslog-controller.js	2021-06-10 09:37:31.524771725 +0530
+@@ -35,6 +35,40 @@
+           $scope.filterTypes = [];
+           $scope.selectedType = 'All';
+ 
++          function checNextEventLogs(recordType, next_url){
++            APIUtils.getNextSystemLogs(recordType, next_url).then(function(response){
++              push_to_syslog(response.logEntries);
++              if(response.hasOwnProperty('next_url')){
++                checNextEventLogs(recordType, response.next_url);
++              }else{
++                update_event_log_table();
++              }
++            });
++          }
++
++          function update_event_log_table(){
++            $scope.sysLogs.forEach(function(log) {
++              var obj = {
++                Id:log.Id,
++                Created:log.Created,
++                EntryType:log.EntryType,
++                Message:log.Message
++              };
++              $scope.download_syslog.push(obj);
++              if(log.SensorType != undefined && log.SensorType != null){
++                if ($scope.filterTypes.indexOf(log.SensorType) < 0) {
++                  $scope.filterTypes.push(log.SensorType);
++                }
++              }
++            });
++          }
++
++          function push_to_syslog(data){
++            data.forEach(function(log) {
++              $scope.sysLogs.push(log);
++            });
++          }
++
+           $scope.selectRecordType = function(recordType) {
+             $scope.selectedRecordType = recordType;
+             $scope.showLogDropdown = false;
+@@ -44,22 +78,16 @@
+             APIUtils.getSystemLogs(recordType)
+                 .then(
+                     function(res) {
+-                      $scope.sysLogs = res;
++                      // $scope.sysLogs = res.logEntries;
++                      $scope.sysLogs = [];
++                      push_to_syslog(res.logEntries);
+                       $scope.filterTypes.push('All');
+-                      $scope.sysLogs.forEach(function(log) {
+-                        var obj = {
+-                          Id:log.Id,
+-                          Created:log.Created,
+-                          EntryType:log.EntryType,
+-                          Message:log.Message
+-                        };
+-                        $scope.download_syslog.push(obj);
+-                        if(log.SensorType != undefined && log.SensorType != null){
+-                          if ($scope.filterTypes.indexOf(log.SensorType) < 0) {
+-                            $scope.filterTypes.push(log.SensorType);
+-                          }
+-                        }
+-                      });
++
++                      if(res.hasOwnProperty('next_url')){
++                        checNextEventLogs(recordType, res.next_url);
++                      }else{
++                        update_event_log_table();
++                      }
+                     },
+                     function(error) {
+                       console.log(JSON.stringify(error));

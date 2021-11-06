@@ -1,0 +1,22 @@
+--- a/drivers/usb/gadget/function/ami_gadget_ioctl.h	2021-01-28 11:56:30.354081638 -0500
++++ b/drivers/usb/gadget/function/ami_gadget_ioctl.h	2021-01-28 11:48:23.677974735 -0500
+@@ -13,7 +13,7 @@
+ #ifndef __AMI_GADGET_IOCTL_H__
+ #define __AMI_GADGET_IOCTL_H__
+ 
+-#include "coreTypes.h"
++//#include "coreTypes.h"
+ 
+ /* Note :All Length Fields used in IUSB are Little Endian */
+ 
+@@ -25,6 +25,10 @@
+ #endif
+ #define AMI_USB_GADGET_MODE	(1)
+ 
++typedef unsigned char uint8;
++typedef unsigned short uint16;
++typedef unsigned long uint32;
++
+ /*Ioctls */
+ #define USB_KEYBD_LED		_IOC(_IOC_READ ,'U',0x12,0x3FFF)
+ #define USB_KEYBD_LED_NO_WAIT	_IOC(_IOC_READ,'U',0x13,0x3FFF)

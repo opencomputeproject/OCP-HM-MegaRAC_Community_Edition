@@ -1,7 +1,7 @@
 SUMMARY = "Network Block Device Proxy"
 HOMEPAGE = "https://github.com/openbmc/jsnbd"
 PR = "r1"
-PV = "1.0+git"
+PV = "1.0+git${SRCPV}"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENCE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
@@ -12,12 +12,10 @@ DEPENDS += "udev"
 
 RDEPENDS_${PN} += "nbd-client"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
-#SRC_URI = "git://github.com/openbmc/jsnbd"
-#SRCREV = "74c8a728212021e750686f4ec797e5f16283168a"
-
-require conf/machine/include/unpack.inc
+SRC_URI = "git://github.com/openbmc/jsnbd"
+SRCREV = "164fef38b703032045803f05301b256ed045a094"
 
 NBD_PROXY_CONFIG_JSON ??= "${S}/config.sample.json"
 

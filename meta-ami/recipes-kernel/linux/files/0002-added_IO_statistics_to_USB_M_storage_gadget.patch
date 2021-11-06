@@ -1,0 +1,115 @@
+diff -Naur kernel-source-org/drivers/usb/gadget/function/f_mass_storage.c kernel-source/drivers/usb/gadget/function/f_mass_storage.c
+--- kernel-source-org/drivers/usb/gadget/function/f_mass_storage.c	2021-05-13 11:35:01.771467732 +0530
++++ kernel-source/drivers/usb/gadget/function/f_mass_storage.c	2021-05-13 11:37:54.077481299 +0530
+@@ -770,6 +770,8 @@
+ 		amount_left  -= nread;
+ 		common->residue -= nread;
+ 
++		fsg_stats_rd_attempt(&curlun->stats, nread);
++
+ 		/*
+ 		 * Except at the end of the transfer, nread will be
+ 		 * equal to the buffer size, which is divisible by the
+@@ -967,6 +969,8 @@
+ 		amount_left_to_write -= nwritten;
+ 		common->residue -= nwritten;
+ 
++		fsg_stats_wr_attempt(&curlun->stats, nwritten);
++
+ 		/* If an error occurred, report it and its position */
+ 		if (nwritten < amount) {
+ 			curlun->sense_data = SS_WRITE_ERROR;
+@@ -4666,6 +4670,13 @@
+ 
+ CONFIGFS_ATTR(fsg_lun_opts_, inquiry_string);
+ 
++static ssize_t fsg_lun_opts_stats_show(struct config_item *item, char *page)
++{
++	return fsg_show_stats(to_fsg_lun_opts(item)->lun, page);
++}
++
++CONFIGFS_ATTR_RO(fsg_lun_opts_, stats);
++
+ static struct configfs_attribute *fsg_lun_attrs[] = {
+ 	&fsg_lun_opts_attr_file,
+ 	&fsg_lun_opts_attr_ro,
+@@ -4673,6 +4684,7 @@
+ 	&fsg_lun_opts_attr_cdrom,
+ 	&fsg_lun_opts_attr_nofua,
+ 	&fsg_lun_opts_attr_inquiry_string,
++	&fsg_lun_opts_attr_stats,
+ 	NULL,
+ };
+ 
+diff -Naur kernel-source-org/drivers/usb/gadget/function/storage_common.c kernel-source/drivers/usb/gadget/function/storage_common.c
+--- kernel-source-org/drivers/usb/gadget/function/storage_common.c	2021-05-13 11:35:01.775467778 +0530
++++ kernel-source/drivers/usb/gadget/function/storage_common.c	2021-05-13 11:38:36.481987827 +0530
+@@ -374,6 +374,15 @@
+ }
+ EXPORT_SYMBOL_GPL(fsg_show_inquiry_string);
+ 
++ssize_t fsg_show_stats(struct fsg_lun *curlun, char *buf)
++{
++	return sprintf(buf, "read cnt: %u\n" "read sum: %llu\n"
++		       "write cnt: %u\n" "write sum: %llu\n",
++		       curlun->stats.read.count, curlun->stats.read.bytes,
++		       curlun->stats.write.count, curlun->stats.write.bytes);
++}
++EXPORT_SYMBOL_GPL(fsg_show_stats);
++
+ /*
+  * The caller must hold fsg->filesem for reading when calling this function.
+  */
+diff -Naur kernel-source-org/drivers/usb/gadget/function/storage_common.h kernel-source/drivers/usb/gadget/function/storage_common.h
+--- kernel-source-org/drivers/usb/gadget/function/storage_common.h	2021-05-13 11:35:01.767467687 +0530
++++ kernel-source/drivers/usb/gadget/function/storage_common.h	2021-05-13 11:40:18.807224615 +0530
+@@ -95,6 +95,32 @@
+  */
+ #define INQUIRY_STRING_LEN ((size_t) (8 + 16 + 4 + 1))
+ 
++struct fsg_stats_cnt {
++	u64 bytes;
++	u32 count;
++};
++
++struct fsg_stats {
++	struct fsg_stats_cnt read;
++	struct fsg_stats_cnt write;
++};
++
++static inline void fsg_stats_update(struct fsg_stats_cnt *cnt, u64 diff)
++{
++	cnt->count++;
++	cnt->bytes += diff;
++}
++
++static inline void fsg_stats_wr_attempt(struct fsg_stats *stats, u64 b_written)
++{
++	fsg_stats_update(&stats->write, b_written);
++}
++
++static inline void fsg_stats_rd_attempt(struct fsg_stats *stats, u64 b_read)
++{
++	fsg_stats_update(&stats->read, b_read);
++}
++
+ struct fsg_lun {
+ 	struct file	*filp;
+ 	loff_t		file_length;
+@@ -120,6 +146,8 @@
+ 	const char	*name;		/* "lun.name" */
+ 	const char	**name_pfx;	/* "function.name" */
+ 	char		inquiry_string[INQUIRY_STRING_LEN];
++
++	struct fsg_stats	stats;
+ };
+ 
+ static inline bool fsg_lun_is_open(struct fsg_lun *curlun)
+@@ -213,6 +241,7 @@
+ ssize_t fsg_show_inquiry_string(struct fsg_lun *curlun, char *buf);
+ ssize_t fsg_show_cdrom(struct fsg_lun *curlun, char *buf);
+ ssize_t fsg_show_removable(struct fsg_lun *curlun, char *buf);
++ssize_t fsg_show_stats(struct fsg_lun *curlun, char *buf);
+ ssize_t fsg_store_ro(struct fsg_lun *curlun, struct rw_semaphore *filesem,
+ 		     const char *buf, size_t count);
+ ssize_t fsg_store_nofua(struct fsg_lun *curlun, const char *buf, size_t count);

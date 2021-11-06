@@ -1,0 +1,12 @@
+diff -Naur b/redfish-core/lib/serial_interface.hpp a/redfish-core/lib/serial_interface.hpp
+--- b/redfish-core/lib/serial_interface.hpp	2021-05-31 12:38:36.003215599 +0530
++++ a/redfish-core/lib/serial_interface.hpp	2021-05-31 12:39:29.743957402 +0530
+@@ -98,6 +98,8 @@
+ 		std::size_t cnt = 0;
+ 		while (getline (myfile,line))
+ 		{
++			if( line == "ttyS0")
++				continue;
+ 			string ttydriverpath = "/sys/class/tty/" + line + "/device/driver" ;
+ 			string stty = "stty -a -F /dev/" + line + " 2>/dev/null ";
+ 			if( stat(ttydriverpath.c_str(), &info ) == 0 )

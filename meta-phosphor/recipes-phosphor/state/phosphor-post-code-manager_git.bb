@@ -22,6 +22,3 @@ DEPENDS += " \
     phosphor-dbus-interfaces \
     phosphor-logging \
     "
-
-require conf/machine/include/unpack.inc
-

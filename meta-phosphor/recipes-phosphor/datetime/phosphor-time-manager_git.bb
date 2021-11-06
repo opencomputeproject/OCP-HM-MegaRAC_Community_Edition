@@ -16,7 +16,7 @@ DEPENDS += "${PYTHON_PN}-sdbus++-native"
 DEPENDS += "phosphor-logging"
 DEPENDS += "phosphor-dbus-interfaces"
 RDEPENDS_${PN} += "phosphor-settings-manager"
-#RDEPENDS_${PN} += "phosphor-network"
+RDEPENDS_${PN} += "phosphor-network"
 RDEPENDS_${PN} += "phosphor-mapper"
 
 SRC_URI += "git://github.com/openbmc/phosphor-time-manager"
@@ -25,5 +25,3 @@ PV = "1.0+git${SRCPV}"
 S = "${WORKDIR}/git"
 
 DBUS_SERVICE_${PN} += "xyz.openbmc_project.Time.Manager.service"
-
-require conf/machine/include/unpack.inc

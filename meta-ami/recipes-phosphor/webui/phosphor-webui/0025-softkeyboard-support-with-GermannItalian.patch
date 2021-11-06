@@ -1,0 +1,538 @@
+diff -Naur a/app/server-control/directives/kvm-console.html b/app/server-control/directives/kvm-console.html
+--- a/app/server-control/directives/kvm-console.html	2021-05-18 21:43:30.964534099 +0530
++++ b/app/server-control/directives/kvm-console.html	2021-05-18 21:44:24.771868040 +0530
+@@ -37,6 +37,482 @@
+     </ul>
+   </div>
+ 
++	<div id="softkeyboard_dialog" class=" keyboard_div dialog_div" ng-if="showItaliankeyboard">
++                <div id="softkeyboard_dialog_header">
++                        <div class="Softkeyboard_title_box">
++                                <button type="button" class="close" data-dismiss="modal" aria-hidden="true" id="close_softkeyboard"><i
++                                                class="fa fa-times"></i></button>
++                                <h5 class="softkeyboard-title">Soft Keyboard</h5>
++                        </div>
++			<div>	
++				<div class="container-fluid">
++                                        <div class="row_1">
++						<div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('backslash')" class="softkeboard_default_button remove_select">\</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('1')" class="softkeboard_default_button">1</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('2')" class="softkeboard_default_button">2</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('3')" class="softkeboard_default_button">3</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('4')" class="softkeboard_default_button">4</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('5')" class="softkeboard_default_button">5</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('6')" class="softkeboard_default_button">6</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('7')" class="softkeboard_default_button">7</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('8')" class="softkeboard_default_button">8</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('9')" class="softkeboard_default_button">9</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('0')" class="softkeboard_default_button">0</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('equal')" class="softkeboard_default_button">=</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('multiply')" class="softkeboard_default_button">*</div>
++                                                </div>
++                                                <div class="softkeyboard spl_keys_div_nlk">
++                                                        <div type="button" ng-click="sendkeys('BackSpace')" class="softkeboard_default_button resize_btn_with_width">bksp
++                                                        </div>
++                                                </div>
++                                        </div>
++				</div>
++                                 <div class="container-fluid">
++                                        <div class="row_2">
++
++                                                <div class="softkeyboard tab_key_div">
++                                                        <div type="button" ng-click="sendkeys('Tab')" class="softkeboard_default_button resize_btn_with_width">tab</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('q')" class="softkeboard_default_button">Q</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('w')" class="softkeboard_default_button">W</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('e')" class="softkeboard_default_button">E</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('r')" class="softkeboard_default_button">R</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('t')" class="softkeboard_default_button">T</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('y')" class="softkeboard_default_button">Y</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('u')" class="softkeboard_default_button">U</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('i')" class="softkeboard_default_button">I</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('o')" class="softkeboard_default_button">O</div>
++                                                </div>
++                                                 <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('p')" class="softkeboard_default_button">P</div>
++						 </div>
++						 <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('e')" class="softkeboard_default_button">é</div>
++                                                </div>
++
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('bracketleft')" class="softkeboard_default_button">[</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('bracketright')" class="softkeboard_default_button">]</div>
++                                                </div>
++                                                <div class="softkeyboard plus_key_div">
++                                                        <div type="button" ng-click="sendkeys('plus')" class="softkeboard_default_button plus_key_button">+</div>
++                                                </div>
++						<div class="softkeyboard left_ent_key_div">
++                                                        <div type="button" ng-click="sendkeys('KP_Enter')" class="softkeboard_default_button resize_btn_with_width">enter
++                                                        </div>
++                                                </div>
++
++
++                                        </div>
++                                </div>
++				<div class="container-fluid">
++                                        <div class="row_3">
++                                                <div class="softkeyboard caps_key_div">
++                                                        <div type="button" ng-click="sendkeys('Caps_Lock')"
++                                                                class="softkeboard_default_button remove_select resize_btn_with_width">Caps Lock</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('a')" class="softkeboard_default_button">A</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('s')" class="softkeboard_default_button">S</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('d')" class="softkeboard_default_button">D</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('f')" class="softkeboard_default_button">F</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('g')" class="softkeboard_default_button">G</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('h')" class="softkeboard_default_button">H</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('j')" class="softkeboard_default_button">J</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('k')" class="softkeboard_default_button">K</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('l')" class="softkeboard_default_button">L</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('o')" class="softkeboard_default_button">ö</div>
++                                                </div>
++                                                 <div class="softkeyboard ">
++							  <div type="button" ng-click="sendkeys('a')" class="softkeboard_default_button">ä</div>
++                                                </div>
++                                                 <div class="softkeyboard ">
++							  <div type="button" ng-click="sendkeys('u')" class="softkeboard_default_button">ü</div>
++                                                </div>
++                                        </div>
++                                </div>
++				<div class="container-fluid">
++                                        <div class="row_4">
++                                                <div class="softkeyboard shift_key_div">
++                                                        <div type="button" ng-click="sendkeys('Shift_L')"
++                                                                class="softkeboard_default_button remove_select resize_btn_with_width">shift</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++							<div type="button" ng-click="sendkeys('backslash')" class="softkeboard_default_button">v</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('z')" class="softkeboard_default_button">Z</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('x')" class="softkeboard_default_button">X</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('c')" class="softkeboard_default_button">C</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('v')" class="softkeboard_default_button">V</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('b')" class="softkeboard_default_button">B</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('n')" class="softkeboard_default_button">N</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('m')" class="softkeboard_default_button">M</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('comma')" class="softkeboard_default_button">,</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('periodcentered')" class="softkeboard_default_button">.</div>
++                                                </div>
++                                                <div class="softkeyboard shift_key_div">
++                                                        <div type="button" ng-click="sendkeys('Shift_R')"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">shift</div>
++                                                </div>
++                                        </div>
++                                         </div>
++					<div class="container-fluid">
++                                        <div class="row_5">
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Control_L')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">ctrl</div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Super_L')" type="button" class="softkeboard_default_button resize_btn_with_width remove_select">
++                                                                <icon file="window-icon.svg"></icon>
++                                                        </div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Alt_L')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Alt</div>
++                                                </div>
++                                                <div class="softkeyboard btn_div_space_width_key">
++                                                        <div ng-click="sendkeys('space')" type="button" class="softkeboard_default_button resize_btn_with_width">space
++                                                        </div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('key_105')" type="button" class="softkeboard_default_button resize_btn_with_width"><i
++                                                                        class="fa fa-bars"></i></div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Alt_R')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Alt Gr</div>
++                                                </div>
++                                                 <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Super_L')" type="button" class="softkeboard_default_button resize_btn_with_width remove_select">
++                                                                <icon file="window-icon.svg"></icon>
++                                                        </div>
++                                                </div>
++
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Control_R')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Ctrl</div>
++                                                </div>
++                                        </div>
++                                </div>
++                        </div>
++                         <!-- </div> modal-content -->
++                </div><!-- /.modal-dialog -->
++        </div>
++
++
++
++
++	<div id="softkeyboard_dialog" class=" keyboard_div dialog_div" ng-if="showGermankeyboard">
++		<div id="softkeyboard_dialog_header">
++			<div class="Softkeyboard_title_box">
++				<button type="button" class="close" data-dismiss="modal" aria-hidden="true" id="close_softkeyboard"><i
++						class="fa fa-times"></i></button>
++				<h5 class="softkeyboard-title">Soft Keyboard</h5>
++			</div>
++			 <div>
++				 <div class="container-fluid">
++                                        <div class="row_1">
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('key_16')" class="softkeboard_default_button">`</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('1')" class="softkeboard_default_button">1</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('2')" class="softkeboard_default_button">2</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('3')" class="softkeboard_default_button">3</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('4')" class="softkeboard_default_button">4</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('5')" class="softkeboard_default_button">5</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('6')" class="softkeboard_default_button">6</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('7')" class="softkeboard_default_button">7</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('8')" class="softkeboard_default_button">8</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('9')" class="softkeboard_default_button">9</div>
++                                                </div>
++						<div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('0')" class="softkeboard_default_button">0</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('equal')" class="softkeboard_default_button">=</div>
++                                                </div>
++                                                <div class="softkeyboard spl_keys_div_nlk">
++                                                        <div type="button" ng-click="sendkeys('BackSpace')" class="softkeboard_default_button resize_btn_with_width">bksp
++                                                        </div>
++                                                </div>
++                                        </div>
++                                </div>
++				 <div class="container-fluid">
++                                        <div class="row_2">
++
++                                                <div class="softkeyboard tab_key_div">
++                                                        <div type="button" ng-click="sendkeys('Tab')" class="softkeboard_default_button resize_btn_with_width">tab</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('q')" class="softkeboard_default_button">Q</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('w')" class="softkeboard_default_button">W</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('e')" class="softkeboard_default_button">E</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('r')" class="softkeboard_default_button">R</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('t')" class="softkeboard_default_button">T</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('z')" class="softkeboard_default_button">Z</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('u')" class="softkeboard_default_button">U</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('i')" class="softkeboard_default_button">I</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('o')" class="softkeboard_default_button">O</div>
++                                                </div>
++						 <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('p')" class="softkeboard_default_button">P</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('plus')" class="softkeboard_default_button">+</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('minus')" class="softkeboard_default_button">-</div>
++                                                </div>
++						<div class="softkeyboard left_ent_key_div">
++                                                        <div type="button" ng-click="sendkeys('KP_Enter')" class="softkeboard_default_button resize_btn_with_width">enter
++                                                        </div>
++                                                </div>
++
++
++                                        </div>
++                                </div>
++				<div class="container-fluid">
++                                        <div class="row_3">
++                                                <div class="softkeyboard caps_key_div">
++                                                        <div type="button" ng-click="sendkeys('Caps_Lock')"
++                                                                class="softkeboard_default_button remove_select resize_btn_with_width">Caps</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('a')" class="softkeboard_default_button">A</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('s')" class="softkeboard_default_button">S</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('d')" class="softkeboard_default_button">D</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('f')" class="softkeboard_default_button">F</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('g')" class="softkeboard_default_button">G</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('h')" class="softkeboard_default_button">H</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('j')" class="softkeboard_default_button">J</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('k')" class="softkeboard_default_button">K</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('l')" class="softkeboard_default_button">L</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('O')" class="softkeboard_default_button">Ö</div>
++                                                </div>
++						 <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('A')" class="softkeboard_default_button">Ä</div>
++                                                </div>
++                                        </div>
++                                </div>
++				<div class="container-fluid">
++                                        <div class="row_4">
++                                                <div class="softkeyboard shift_key_div">
++                                                        <div type="button" ng-click="sendkeys('Shift_L')"
++                                                                class="softkeboard_default_button remove_select resize_btn_with_width">shift</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('backslash')" class="softkeboard_default_button">^</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('y')" class="softkeboard_default_button">Y</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('x')" class="softkeboard_default_button">X</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('c')" class="softkeboard_default_button">C</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('v')" class="softkeboard_default_button">V</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('b')" class="softkeboard_default_button">B</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('n')" class="softkeboard_default_button">N</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('m')" class="softkeboard_default_button">M</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('comma')" class="softkeboard_default_button">,</div>
++                                                </div>
++						<div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('periodcentered')" class="softkeboard_default_button">.</div>
++                                                </div>
++                                                <div class="softkeyboard ">
++                                                        <div type="button" ng-click="sendkeys('slash')" class="softkeboard_default_button">/</div>
++                                                </div>
++                                                <div class="softkeyboard shift_key_div">
++                                                        <div type="button" ng-click="sendkeys('Shift_R')"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">shift</div>
++                                                </div>
++                                        </div>
++					 </div>
++                                <div class="container-fluid">
++                                        <div class="row_5">
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Control_L')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Strg</div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Super_L')" type="button" class="softkeboard_default_button resize_btn_with_width remove_select">
++                                                                <icon file="window-icon.svg"></icon>
++                                                        </div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Alt_L')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Alt</div>
++                                                </div>
++                                                <div class="softkeyboard btn_div_space_width_key">
++                                                        <div ng-click="sendkeys('space')" type="button" class="softkeboard_default_button resize_btn_with_width">space
++                                                        </div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('key_105')" type="button" class="softkeboard_default_button resize_btn_with_width"><i
++                                                                        class="fa fa-bars"></i></div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Alt_R')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Alt Gr</div>
++                                                </div>
++						 <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Super_L')" type="button" class="softkeboard_default_button resize_btn_with_width remove_select">
++                                                                <icon file="window-icon.svg"></icon>
++                                                        </div>
++                                                </div>
++                                                <div class="softkeyboard last_row_key">
++                                                        <div ng-click="sendkeys('Control_R')" type="button"
++                                                                class="softkeboard_default_button resize_btn_with_width remove_select">Strg</div>
++                                                </div>
++                                        </div>
++                                </div>
++                        </div>
++			 <!-- </div> modal-content -->
++                </div><!-- /.modal-dialog -->
++        </div>
++
+   	<div id="softkeyboard_dialog" class=" keyboard_div dialog_div" ng-if="showEnglishkeyboard">
+ 		<div id="softkeyboard_dialog_header">
+ 			<div class="Softkeyboard_title_box">
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-05-18 21:43:30.964534099 +0530
++++ b/app/server-control/directives/kvm-console.js	2021-05-18 22:03:50.766768587 +0530
+@@ -23,7 +23,11 @@
+               var rfb;
+ 		scope.showSoftkeyboard_dropdown = false;
+           	scope.showEnglishkeyboard = false;
+-          	scope.language_list = ["English"];
++            scope.showItaliankeyboard = false;
++            scope.showGermankeyboard = false;
++		scope.showGermankeyboard = false;
++		scope.showItaliankeyboard = false;
++          	scope.language_list = ["English","German","Italian"];
+           	scope.softkeyboard_text = "Soft Keyboard";
+ 
+               element.on('$destroy', function() {
+@@ -130,7 +134,15 @@
+               scope.showEnglishkeyboard = false;
+               scope.showSoftkeyboard_dropdown = false;
+               scope.softkeyboard_text = "Soft Keyboard";
+-            } else {
++            }else if(scope.showItaliankeyboard){
++              scope.showItaliankeyboard = false;
++              scope.showSoftkeyboard_dropdown = false;
++              scope.softkeyboard_text = "Soft Keyboard";
++            }else if(scope.showGermankeyboard){
++              scope.showGermankeyboard = false;
++              scope.showSoftkeyboard_dropdown = false;
++              scope.softkeyboard_text = "Soft Keyboard";
++            }else {
+               scope.showSoftkeyboard_dropdown = !scope.showSoftkeyboard_dropdown;
+             }
+           }
+@@ -142,8 +154,17 @@
+           }
+ 
+           scope.openSoftKeyboard = function (lang) {
++            // scope.language_list = ["English","German","Italian"];
+             scope.showSoftkeyboard_dropdown = false;
+-            scope.showEnglishkeyboard = !scope.showEnglishkeyboard;
++            if(lang == 'English'){
++              scope.showEnglishkeyboard = !scope.showEnglishkeyboard;
++            }
++            if(lang == 'Italian'){
++              scope.showItaliankeyboard = !scope.showItaliankeyboard;
++            }
++            if(lang == 'German'){
++              scope.showGermankeyboard = !scope.showGermankeyboard;
++            }
+             scope.softkeyboard_text = lang;
+           };
+ 

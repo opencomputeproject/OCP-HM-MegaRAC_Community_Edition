@@ -1,0 +1,295 @@
+diff -Nuar a/drivers/i2c/busses/i2c-new-aspeed.c b/drivers/i2c/busses/i2c-new-aspeed.c
+--- a/drivers/i2c/busses/i2c-new-aspeed.c	2021-06-04 21:28:09.080087791 +0530
++++ b/drivers/i2c/busses/i2c-new-aspeed.c	2021-06-04 21:34:10.713073526 +0530
+@@ -25,6 +25,7 @@
+ #include <linux/regmap.h>
+ #include <linux/of_device.h>
+ #include <linux/dma-mapping.h>
++#include <linux/i2c-smbus.h>
+ #include "ast2600-i2c-global.h"
+ 
+ /***************************************************************************/
+@@ -61,24 +62,6 @@
+ #define AST_I2CC_SCL_OE					BIT(26)
+ #define AST_I2CC_SCL_O					BIT(25)
+ 
+-// Tx State Machine
+-#define AST_I2CM_IDLE	 				0x0
+-#define AST_I2CM_MACTIVE				0x8
+-#define AST_I2CM_MSTART					0x9
+-#define AST_I2CM_MSTARTR				0xa
+-#define AST_I2CM_MSTOP					0xb
+-#define AST_I2CM_MTXD					0xc  
+-#define AST_I2CM_MRXACK					0xd
+-#define AST_I2CM_MRXD 					0xe
+-#define AST_I2CM_MTXACK 				0xf
+-#define AST_I2CM_SWAIT					0x1
+-#define AST_I2CM_SRXD 					0x4
+-#define AST_I2CM_STXACK 				0x5
+-#define AST_I2CM_STXD					0x6
+-#define AST_I2CM_SRXACK 				0x7
+-#define AST_I2CM_RECOVER 				0x3
+-
+-
+ #define AST_I2CC_SCL_LINE_STS			BIT(18)
+ #define AST_I2CC_SDA_LINE_STS			BIT(17)
+ #define AST_I2CC_BUS_BUSY_STS			BIT(16)
+@@ -396,6 +379,10 @@
+ 	u32					state;			//I2C xfer mode state matchine
+ 	u32					bus_recover;
+ 	struct i2c_adapter	adap;
++	/* smbus alert */
++	int					alert_enable;
++	struct i2c_smbus_alert_setup alert_data;
++	struct i2c_client *ara;
+ 	/* Multi-master */
+ 	bool				multi_master;
+ 	/* master structure */	
+@@ -450,23 +437,23 @@
+ 	unsigned long base_clk1, base_clk2, base_clk3, base_clk4;
+ 	u32 scl_low, scl_high;
+ 
+-	if(i2c_bus->clk_div_mode) {
++	if (i2c_bus->clk_div_mode) {
+ 		regmap_read(i2c_bus->global_reg, ASPEED_I2CG_CLK_DIV_CTRL, &clk_div_reg);
+-		base_clk1 = i2c_bus->apb_clk / (((clk_div_reg & 0xff) + 2) / 2);
+-		base_clk2 = i2c_bus->apb_clk / ((((clk_div_reg >> 8) & 0xff) + 2) / 2);
+-		base_clk3 = i2c_bus->apb_clk / ((((clk_div_reg >> 16) & 0xff) + 2) / 2);
+-		base_clk4 = i2c_bus->apb_clk / ((((clk_div_reg >> 24) & 0xff) + 2) / 2);
+-//		printk("base_clk1 %ld, base_clk2 %ld, base_clk3 %ld, base_clk4 %ld \n", base_clk1, base_clk2, base_clk3, base_clk4);
+-		if((i2c_bus->apb_clk / i2c_bus->bus_frequency) <= 32) {
+-			div = 0;
++		base_clk1 = (i2c_bus->apb_clk*10) / ((((clk_div_reg & 0xff) + 2) * 10) / 2);
++		base_clk2 = (i2c_bus->apb_clk*10) / (((((clk_div_reg >> 8) & 0xff) + 2) * 10) / 2);
++		base_clk3 = (i2c_bus->apb_clk*10) / (((((clk_div_reg >> 16) & 0xff) + 2) * 10) / 2);
++		base_clk4 = (i2c_bus->apb_clk*10) / (((((clk_div_reg >> 24) & 0xff) + 2) * 10)/ 2);
++//		printk("base_clk1 %ld, base_clk2 %ld, base_clk3 %ld, base_clk4 %ld\n", base_clk1, base_clk2, base_clk3, base_clk4);
++		if ((i2c_bus->apb_clk / i2c_bus->bus_frequency) <= 32) {
++			div = 0; 
+ 			divider_ratio = i2c_bus->apb_clk / i2c_bus->bus_frequency;
+-		} else if ((base_clk1 / i2c_bus->bus_frequency) <= 32) {
+-			div = 1;
++		} else if(i2c_bus->bus_frequency <= 100000) {
++			div = 1; 
+ 			divider_ratio = base_clk1 / i2c_bus->bus_frequency;
+-		} else if ((base_clk2 / i2c_bus->bus_frequency) <= 32) {
++		} else if ((i2c_bus->bus_frequency > 100000) && (i2c_bus->bus_frequency <= 400000)) {
+ 			div = 2;
+ 			divider_ratio = base_clk2 / i2c_bus->bus_frequency;
+-		} else if ((base_clk3 / i2c_bus->bus_frequency) <= 32) {
++		} else if ((i2c_bus->bus_frequency > 400000) && (i2c_bus->bus_frequency <= 1000000)) {
+ 			div = 3;
+ 			divider_ratio = base_clk3 / i2c_bus->bus_frequency;
+ 		} else {
+@@ -498,6 +485,8 @@
+ 	return data;
+ }
+ 
++static void aspeed_i2c_reset (struct aspeed_new_i2c_bus *i2c_bus);
++
+ static u8
+ aspeed_new_i2c_recover_bus(struct aspeed_new_i2c_bus *i2c_bus)
+ {
+@@ -528,19 +517,27 @@
+ 		r = wait_for_completion_timeout(&i2c_bus->cmd_complete,
+ 						i2c_bus->adap.timeout);
+ 		if (r == 0) {
+-			dev_dbg(i2c_bus->dev, "recovery timed out\n");
++			dev_info(i2c_bus->dev, "recovery timed out\n");
+ 			ret = -ETIMEDOUT;
+ 		} else {
+ 			if (i2c_bus->cmd_err) {
+-				dev_dbg(i2c_bus->dev, "recovery error \n");
++				dev_info(i2c_bus->dev, "recovery error\n");
+ 				ret = -EPROTO;
+-			} 
++			}
+ 		}
+ 	} else {
+-		dev_dbg(i2c_bus->dev, "can't recovery this situation\n");
++		dev_info(i2c_bus->dev, "can't recovery this situation\n");
+ 		ret = -EPROTO;
+ 	}
+-	dev_dbg(i2c_bus->dev, "Recovery done [%x]\n", aspeed_i2c_read(i2c_bus, AST_I2CC_STS_AND_BUFF));
++	dev_dbg(i2c_bus->dev, "After recovery attempt [%x]\n", aspeed_i2c_read(i2c_bus, AST_I2CC_STS_AND_BUFF));
++
++	aspeed_i2c_write(i2c_bus, ctrl, AST_I2CC_FUN_CTRL);
++	if(ret)
++	{
++		dev_info(i2c_bus->dev, "Recovery failed with error [0x%x]. Reseting the bus-%d\n", ret, i2c_bus->adap.nr);
++		aspeed_i2c_reset(i2c_bus);
++		return 0;
++	}
+ 
+ 	return ret;
+ }
+@@ -555,7 +552,7 @@
+ 	u32 sts = aspeed_i2c_read(i2c_bus, AST_I2CS_ISR);
+ 	u8 byte_data;
+ 	int slave_rx_len;
+-//	unsigned char wbuf[4];
++
+ 	if (!sts) return 0;
+ 	dev_dbg(i2c_bus->dev, "slave irq sts %x\n", sts);
+ 
+@@ -579,6 +576,11 @@
+ 		sts &= ~(AST_I2CS_PKT_DONE | AST_I2CS_PKT_ERROR);
+ 		aspeed_i2c_write(i2c_bus, AST_I2CS_PKT_DONE, AST_I2CS_ISR);
+ 		switch (sts) {
++			case AST_I2CS_SLAVE_MATCH:
++				dev_dbg(i2c_bus->dev, "S : Sw\n");
++				i2c_slave_event(i2c_bus->slave, I2C_SLAVE_WRITE_REQUESTED, &value);
++					break;
++
+ 			case AST_I2CS_SLAVE_MATCH | AST_I2CS_STOP:
+ 				dev_dbg(i2c_bus->dev, "S : Sw|P \n");
+ 				i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+@@ -713,13 +715,12 @@
+ 					writeb(byte_data, i2c_bus->buf_base);
+ 					aspeed_i2c_write(i2c_bus, AST_I2CC_SET_TX_BUF_LEN(1), AST_I2CC_BUFF_CTRL);
+ #else
+-					
+-					dev_dbg(i2c_bus->dev, "ssif tx len: [%x]\n", byte_data);
+-					for (i = 1; i < byte_data + 1; i++) {
+-						i2c_slave_event(i2c_bus->slave, I2C_SLAVE_READ_PROCESSED, &value);
+-						writel(value, i2c_bus->buf_base + i);
+-					}
+-					aspeed_i2c_write(i2c_bus, AST_I2CC_SET_TX_BUF_LEN(byte_data - 1), AST_I2CC_BUFF_CTRL);
++                                        dev_dbg(i2c_bus->dev, "ssif tx len: [%x]\n", byte_data);
++                                        for (i = 1; i < byte_data + 1; i++) {
++                                                i2c_slave_event(i2c_bus->slave, I2C_SLAVE_READ_PROCESSED, &value);
++                                                writel(value, i2c_bus->buf_base + i);
++                                        }
++                                        aspeed_i2c_write(i2c_bus, AST_I2CC_SET_TX_BUF_LEN(byte_data - 1), AST_I2CC_BUFF_CTRL);
+ #endif
+ 				} else {
+ 					cmd &= ~AST_I2CS_PKT_MODE_EN;
+@@ -844,7 +845,7 @@
+ static void aspeed_new_i2c_do_start(struct aspeed_new_i2c_bus *i2c_bus)
+ {
+ 	int i = 0;
+-	int	xfer_len;
++	int xfer_len = 0;
+ 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
+ 	u32 cmd = AST_I2CM_PKT_EN | AST_I2CM_PKT_ADDR(msg->addr) | AST_I2CM_START_CMD;
+ 
+@@ -1004,6 +1005,9 @@
+ 
+ 	dev_dbg(i2c_bus->dev, "M sts %x\n", sts);
+ 
++	if (!i2c_bus->alert_enable)
++		sts &= ~AST_I2CM_SMBUS_ALT;
++
+ 	if (AST_I2CM_BUS_RECOVER_FAIL & sts) {
+ 		printk("AST_I2CM_BUS_RECOVER_FAIL \n");
+ 		dev_dbg(i2c_bus->dev, "M clear isr: AST_I2CM_BUS_RECOVER_FAIL= %x\n", sts);
+@@ -1039,6 +1043,7 @@
+ 			aspeed_i2c_write(i2c_bus, aspeed_i2c_read(i2c_bus, AST_I2CM_IER) &
+ 				      ~AST_I2CM_SMBUS_ALT,
+ 				      AST_I2CM_IER);
++			i2c_handle_smbus_alert(i2c_bus->ara);
+ 			aspeed_i2c_write(i2c_bus, AST_I2CM_SMBUS_ALT, AST_I2CM_ISR);
+ 			dev_err(i2c_bus->dev, "TODO aspeed_master_alert_recv bus id %d, Disable Alt, Please Imple \n",
+ 				   i2c_bus->adap.nr);
+@@ -1296,6 +1301,10 @@
+ 	timeout = wait_for_completion_timeout(&i2c_bus->cmd_complete,
+ 						  i2c_bus->adap.timeout);
+ 	if (timeout == 0) {
++		int isr = aspeed_i2c_read(i2c_bus, AST_I2CM_ISR);
++
++		if (isr)
++			return aspeed_new_i2c_is_irq_error(isr);
+ 		/*
+ 		 * If timed out and bus is still busy in a multi master
+ 		 * environment, attempt recovery at here.
+@@ -1334,12 +1343,16 @@
+ 	aspeed_i2c_write(i2c_bus, 0xfffffff, AST_I2CM_ISR);
+ 
+ 	/* Set interrupt generation of I2C master controller */
+-	if (of_property_read_bool(pdev->dev.of_node, "smbus-alert"))
++	if (of_property_read_bool(pdev->dev.of_node, "smbus-alert")) {
++		i2c_bus->alert_enable = 1;
++		i2c_bus->ara = i2c_setup_smbus_alert(&i2c_bus->adap, &i2c_bus->alert_data);
+ 		aspeed_i2c_write(i2c_bus, AST_I2CM_PKT_DONE | AST_I2CM_BUS_RECOVER |
+-						AST_I2CM_SMBUS_ALT, AST_I2CM_IER);
+-	else
++					 AST_I2CM_SMBUS_ALT, AST_I2CM_IER);
++	} else {
++		i2c_bus->alert_enable = 0;
+ 		aspeed_i2c_write(i2c_bus, AST_I2CM_PKT_DONE | AST_I2CM_BUS_RECOVER,
+-						AST_I2CM_IER);
++				 AST_I2CM_IER);
++	}
+ 
+ #ifdef CONFIG_I2C_SLAVE
+ 	//for memory buffer initial
+@@ -1368,13 +1381,12 @@
+ }
+ 
+ #ifdef CONFIG_I2C_SLAVE
+-static int aspeed_new_i2c_reg_slave(struct i2c_client *client)
++
++static int __aspeed_new_i2c_reg_slave_internal(struct i2c_client *client)
+ {
+ 	struct aspeed_new_i2c_bus *i2c_bus = i2c_get_adapdata(client->adapter);
+ 	u32 cmd = AST_I2CS_ACTIVE_ALL | AST_I2CS_PKT_MODE_EN;
+-	if (i2c_bus->slave) {
+-		return -EINVAL;
+-	}
++
+ 
+ 	dev_dbg(i2c_bus->dev, "aspeed_new_i2c_reg_slave addr %x \n", client->addr);
+ 
+@@ -1401,6 +1413,18 @@
+ 	aspeed_i2c_write(i2c_bus, AST_I2CC_SLAVE_EN | aspeed_i2c_read(i2c_bus, AST_I2CC_FUN_CTRL), AST_I2CC_FUN_CTRL);
+ 	aspeed_i2c_write(i2c_bus, cmd, AST_I2CS_CMD_STS);
+ 
++	return 0;
++}
++
++static int aspeed_new_i2c_reg_slave(struct i2c_client *client)
++{
++	struct aspeed_new_i2c_bus *i2c_bus = i2c_get_adapdata(client->adapter);
++	if (i2c_bus->slave) {
++		return -EINVAL;
++	}
++
++	__aspeed_new_i2c_reg_slave_internal(client);
++
+ 	i2c_bus->slave = client;
+ 
+ 	return 0;
+@@ -1421,8 +1445,22 @@
+ 
+ 	return 0;
+ }
++
+ #endif
+ 
++
++static void aspeed_i2c_reset (struct aspeed_new_i2c_bus *i2c_bus)
++{
++	dev_info(i2c_bus->dev, "aspeed_i2c_reset for bus-%d \n", i2c_bus->adap.nr);
++
++	aspeed_new_i2c_init(i2c_bus);
++
++#ifdef CONFIG_I2C_SLAVE
++	if(i2c_bus->slave)
++		__aspeed_new_i2c_reg_slave_internal(i2c_bus->slave);
++#endif
++}
++
+ static u32 ast_i2c_functionality(struct i2c_adapter *adap)
+ {
+ 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL | I2C_FUNC_SMBUS_BLOCK_DATA;
+diff -Nuar a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+--- a/drivers/i2c/busses/Kconfig	2021-06-04 21:28:54.620717166 +0530
++++ b/drivers/i2c/busses/Kconfig	2021-06-04 21:33:59.868921846 +0530
+@@ -377,6 +377,7 @@
+ config I2C_NEW_ASPEED
+ 	bool "Aspeed New I2C Controller"
+ 	depends on ARCH_ASPEED || MACH_ASPEED_G6
++	select I2C_SMBUS
+ 
+ config I2C_ASPEED
+ 	bool "Aspeed I2C Controller"

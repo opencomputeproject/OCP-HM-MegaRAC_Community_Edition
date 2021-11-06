@@ -1,0 +1,274 @@
+From dbf852e82e4cf3ff228c1e83cf62d7f8b1dd004e Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Tue, 13 Apr 2021 14:38:41 -0400
+Subject: [PATCH] expose staticnameservers and dhcp.dnsenable
+
+---
+ app/common/services/api-utils.js              | 49 ++++++++++++++++++-
+ .../controllers/network-controller.html       | 20 ++++++--
+ .../controllers/network-controller.js         | 40 +++++++++++----
+ app/configuration/styles/network.scss         |  3 ++
+ 4 files changed, 95 insertions(+), 17 deletions(-)
+
+diff --git a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+index 00f7dfe..133117c 100644
+--- a/app/common/services/api-utils.js
++++ b/app/common/services/api-utils.js
+@@ -325,6 +325,7 @@ window.angular && (function(angular) {
+                     var hostname = '';
+                     var defaultgateway = '';
+                     var macAddress = '';
++                    var dhcp = {};
+ 
+                     function parseNetworkData(content) {
+                       var data = {
+@@ -344,6 +345,7 @@ window.angular && (function(angular) {
+                               DomainName: '',
+                               MACAddress: '',
+                               Nameservers: [],
++                              StaticNameServers: [],
+                               DHCPEnabled: 0,
+                               ipv4: {ids: [], values: []},
+                               ipv6: {ids: [], values: []}
+@@ -354,6 +356,8 @@ window.angular && (function(angular) {
+                                 content.data[key].DomainName.join(' ');
+                             data.interfaces[interfaceId].Nameservers =
+                                 content.data[key].Nameservers;
++                            data.interfaces[interfaceId].StaticNameServers =
++                                content.data[key].StaticNameServers;
+                             data.interfaces[interfaceId].DHCPEnabled =
+                                 content.data[key].DHCPEnabled;
+                             if(interfaceId.indexOf("_") > -1){
+@@ -399,6 +403,34 @@ window.angular && (function(angular) {
+                       }
+                     }
+ 
++                    if (content.data.hasOwnProperty(
++                            '/xyz/openbmc_project/network/config/dhcp')) {
++                      if (content.data['/xyz/openbmc_project/network/config/dhcp']
++                              .hasOwnProperty('DNSEnabled')) {
++                        dhcp['DNSEnabled'] =
++                          content.data['/xyz/openbmc_project/network/config/dhcp']
++                            .DNSEnabled;
++                      }
++                      if (content.data['/xyz/openbmc_project/network/config/dhcp']
++                              .hasOwnProperty('HostNameEnabled')) {
++                        dhcp['HostNameEnabled'] =
++                          content.data['/xyz/openbmc_project/network/config/dhcp']
++                            .HostNameEnabled;
++                      }
++                      if (content.data['/xyz/openbmc_project/network/config/dhcp']
++                              .hasOwnProperty('NTPEnabled')) {
++                        dhcp['NTPEnabled'] =
++                          content.data['/xyz/openbmc_project/network/config/dhcp']
++                            .NTPEnabled;
++                      }
++                      if (content.data['/xyz/openbmc_project/network/config/dhcp']
++                              .hasOwnProperty('SendHostNameEnabled')) {
++                        dhcp['SendHostNameEnabled'] =
++                          content.data['/xyz/openbmc_project/network/config/dhcp']
++                            .SendHostNameEnabled;
++                      }
++                    }
++
+                     if (content.data.hasOwnProperty(
+                             '/xyz/openbmc_project/network/eth0') &&
+                         content.data['/xyz/openbmc_project/network/eth0']
+@@ -413,6 +445,7 @@ window.angular && (function(angular) {
+                       hostname: hostname,
+                       defaultgateway: defaultgateway,
+                       mac_address: macAddress,
++                      dhcp: dhcp,
+                       formatted_data: parseNetworkData(content)
+                     });
+                   },
+@@ -460,12 +493,12 @@ window.angular && (function(angular) {
+                 return response.data;
+               });
+         },
+-        setNameservers: function(interfaceName, dnsServers) {
++        setStaticNameServers: function(interfaceName, dnsServers) {
+           return $http({
+                    method: 'PUT',
+                    url: DataService.getHost() +
+                        '/xyz/openbmc_project/network/' + interfaceName +
+-                       '/attr/Nameservers',
++                       '/attr/StaticNameServers',
+                    withCredentials: true,
+                    data: JSON.stringify({'data': dnsServers})
+                  })
+@@ -473,6 +506,18 @@ window.angular && (function(angular) {
+                 return response.data;
+               });
+         },
++        setDHCPDNSEnabled: function(enabled) {
++          return $http({
++                   method: 'PUT',
++                   url: DataService.getHost() +
++                       '/xyz/openbmc_project/network/config/dhcp/attr/DNSEnabled',
++                   withCredentials: true,
++                   data: JSON.stringify({'data': enabled})
++                 })
++              .then(function(response) {
++                return response.data;
++              });
++        },
+         /*
+         deleteIPV4: function(interfaceName, networkID) {
+           return $http({
+diff --git a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+index 35545de..98e90dc 100644
+--- a/app/configuration/controllers/network-controller.html
++++ b/app/configuration/controllers/network-controller.html
+@@ -40,6 +40,12 @@
+           <input id="net-config__domain" type="text" name = "defaultGateway" ng-model="defaultGateway" ng-disabled="dataService.isNotAdmin()" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+           <span class="modal__error" ng-show="network_form.defaultGateway.$error.pattern">Invalid IPv4 format.</span>
+         </div>
++        <div class="row column">
++          <label class="control-check" for="dhcp-dns-enable">Use DNS servers obtained from DHCP
++            <input type="checkbox" name="dhcp-dns-enable" id="dhcp-dns-enable" ng-disabled="dataService.isNotAdmin()" ng-model="dhcp.DNSEnabled">
++            <span class="control__indicator control__indicator-on"></span>
++          </label>
++        </div>
+       </div>
+     </fieldset>
+     <fieldset class="net-config__fieldset row column">
+@@ -99,20 +105,24 @@
+         DNS settings
+       </legend>
+       <div class="net-config__fieldset-content">
+-        <!-- Call Nameservers "DNS Servers" on the GUI -->
+-        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.Nameservers track by $index" ng-if="$index < 1">
++        <label>DNS Servers in Use</label>
++        <ol>
++          <li class="courier-bold" ng-repeat="dns in interface.Nameservers">{{dns}}</li>
++        </ol>
++        <!-- Call StaticNameServers "Fallback DNS Servers" on the GUI -->
++        <div class="net-config__static-ip-wrap" ng-repeat="dns in interface.StaticNameServers track by $index" ng-if="$index < 2">
+           <div class="column small-12">
+-            <label for="net-config__prime-dns{{$index+1}}">DNS Server {{$index+1}}</label>
++            <label for="net-config__prime-dns{{$index+1}}">Fallback DNS Server {{$index+1}}</label>
+             <!-- <input id="net-config__prime-dns{{$index+1}}" class="network-input column small-6 large-4 inline"
+               type="text" ng-model="dns" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input /> -->
+-              <input id="net-config__prime-dns{{$index+1}}" name="netdns{{$index+1}}" ng-disabled="dataService.isNotAdmin()" class="network-input column small-6 large-4 inline" type="text" ng-model="dns"ng-pattern="/^[a-zA-Z0-9\\.-]{0,64}$/" ng-blur="interface.Nameservers[$index] = dns" set-focus-on-new-input />
++              <input id="net-config__prime-dns{{$index+1}}" name="netdns{{$index+1}}" ng-disabled="dataService.isNotAdmin()" class="network-input column small-6 large-4 inline" type="text" ng-model="dns"ng-pattern="/^[a-zA-Z0-9\\.-]{0,64}$/" ng-blur="interface.StaticNameServers[$index] = dns" set-focus-on-new-input />
+               <span class="modal__error" ng-show="network_form.netdns{{$index+1}}.$error.pattern">Invalid format.</span>
+               <button type="button" ng-disabled="dataService.isNotAdmin()" class="btn  btn-tertiary  network-config_remove-button" ng-click="removeDNSField($index)">Remove</button>
+           </div>
+         </div>
+         <div class="row column">
+           <div class="column small-12">
+-            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()" ng-disabled="interface.Nameservers.length >= 1 || dataService.isNotAdmin()" >Add DNS server</button>
++            <button type="button" class="btn  btn-primary dns_add" ng-click="addDNSField()" ng-disabled="interface.StaticNameServers.length >= 2 || dataService.isNotAdmin()" >Add DNS server</button>
+           </div>
+         </div>
+       </div>
+diff --git a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+index 905f763..0889f35 100644
+--- a/app/configuration/controllers/network-controller.js
++++ b/app/configuration/controllers/network-controller.js
+@@ -20,12 +20,14 @@ window.angular && (function(angular) {
+       $scope.vlan = {};
+       $scope.oldInterface = {};
+       $scope.interface = {};
++      $scope.dhcp = {};
+       $scope.selectedinterfaceId = '';
+       $scope.networkDevice = false;
+       $scope.hostname = '';
+       $scope.defaultGateway = '';
+       $scope.selectedInterface = '';
+       $scope.oldDHCPstatus = '';
++      $scope.oldDHCPDNSEnabled = false;
+       $scope.confirmSettings = false;
+       $scope.loading = false;
+       $scope.ipv4sToDelete = [];
+@@ -88,15 +90,15 @@ window.angular && (function(angular) {
+       })();
+         
+       $scope.addDNSField = function() {
+-        if($scope.interface.Nameservers.length == 1){
+-          toastService.warn('Cannot Add more than one DNS Servers!!');
++        if($scope.interface.StaticNameServers.length == 2){
++          toastService.warn('Cannot Add more than two DNS Servers!!');
+         }else{
+-          $scope.interface.Nameservers.push('');
++          $scope.interface.StaticNameServers.push('');
+         }
+       };
+ 
+       $scope.removeDNSField = function(index) {
+-        $scope.interface.Nameservers.splice(index, 1);
++        $scope.interface.StaticNameServers.splice(index, 1);
+       };
+ 
+       $scope.addIpv4Field = function() {
+@@ -218,10 +220,14 @@ window.angular && (function(angular) {
+         // Remove any empty strings from the array. Important because we add an
+         // empty string to the end so the user can add a new DNS server, if the
+         // user doesn't fill out the field, we don't want to add.
+-        $scope.interface.Nameservers = $scope.interface.Nameservers.filter(Boolean);
++        $scope.interface.StaticNameServers = $scope.interface.StaticNameServers.filter(Boolean);
+         // toString() is a cheap way to compare 2 string arrays
+-        if ($scope.interface.Nameservers.toString() != $scope.oldInterface.Nameservers.toString()) {
+-          promises.push(setNameservers());
++        if ($scope.interface.StaticNameServers.toString() != $scope.oldInterface.StaticNameServers.toString()) {
++          promises.push(setStaticNameServers());
++        }
++
++        if ($scope.oldDHCPDNSEnabled != $scope.dhcp.DNSEnabled) {
++          promises.push(setDHCPDNSEnabled());
+         }
+ 
+         // If switched from static to dhcp
+@@ -377,10 +383,22 @@ window.angular && (function(angular) {
+                 });
+       }
+ 
+-      function setNameservers() {
++      function setStaticNameServers() {
++        return APIUtils
++            .setStaticNameServers(
++                $scope.selectedInterface, $scope.interface.StaticNameServers)
++            .then(
++                function(data) {},
++                function(error) {
++                  console.log(JSON.stringify(error));
++                  return $q.reject();
++                });
++      }
++
++      function setDHCPDNSEnabled() {
+         return APIUtils
+-            .setNameservers(
+-                $scope.selectedInterface, $scope.interface.Nameservers)
++            .setDHCPDNSEnabled(
++                $scope.dhcp.DNSEnabled)
+             .then(
+                 function(data) {},
+                 function(error) {
+@@ -539,6 +557,8 @@ window.angular && (function(angular) {
+           $scope.network = data.formatted_data;
+           $scope.hostname = data.hostname;
+           $scope.defaultGateway = data.defaultgateway;
++          $scope.dhcp = data.dhcp;
++          $scope.oldDHCPDNSEnabled = $scope.dhcp.DNSEnabled;
+           if ($scope.network.interface_ids.length) {
+             // Use the first network interface if the user hasn't chosen one
+             if (!$scope.selectedInterface ||
+diff --git a/app/configuration/styles/network.scss b/app/configuration/styles/network.scss
+index 92e91eb..d4729c0 100644
+--- a/app/configuration/styles/network.scss
++++ b/app/configuration/styles/network.scss
+@@ -38,6 +38,9 @@
+     margin-left: .7em;
+     font-weight: 700;
+   }
++  .control-check {
++    padding-left: 2em;
++  }
+   .network-config__submit-wrapper {
+     padding-top: 1em;
+     border-top: 1px solid $border-color-01;
+-- 
+2.17.1
+

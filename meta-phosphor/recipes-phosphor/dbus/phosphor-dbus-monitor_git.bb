@@ -40,5 +40,3 @@ S = "${WORKDIR}/git"
 EXTRA_OECONF = " \
         YAML_PATH=${STAGING_DIR_HOST}${config_dir} \
         "
-
-require conf/machine/include/unpack.inc

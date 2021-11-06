@@ -1,0 +1,23 @@
+diff -Naur a/include/ipmid/utils.hpp b/include/ipmid/utils.hpp
+--- a/include/ipmid/utils.hpp	2021-02-16 15:46:00.020847803 +0530
++++ b/include/ipmid/utils.hpp	2021-02-16 15:45:24.615784758 +0530
+@@ -449,4 +449,19 @@
+ ipmi::Cc i2cWriteRead(std::string i2cBus, const uint8_t slaveAddr,
+                       std::vector<uint8_t> writeData,
+                       std::vector<uint8_t>& readBuf);
++
++struct VariantToUnsignedIntVisitor
++{
++    template <typename T>
++    unsigned int operator()(const T& t) const
++    {
++        if constexpr (std::is_arithmetic_v<T>)
++        {
++            return static_cast<unsigned int>(t);
++        }
++        throw std::invalid_argument("Cannot translate type to unsigned int");
++    }
++};
++
++
+ } // namespace ipmi

@@ -1,0 +1,50 @@
+From b7cc1f20f2aa5d0f43fd2e12bf80b10869e637a1 Mon Sep 17 00:00:00 2001
+From: pranoygoru <gorumanip@amiindia.co.in>
+Date: Fri, 30 Apr 2021 16:20:21 +0530
+Subject: [PATCH] removed VM polling on proxy mode in redfish
+
+---
+ virtual-media/src/main.cpp       | 4 ++--
+ virtual-media/virtual-media.json | 8 ++++----
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/main.cpp b/src/main.cpp
+index c062a30..629c9b7 100755
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -738,8 +738,8 @@ class App
+         {
+             if (entry.second.mode == Configuration::Mode::Proxy)
+             {
+-                devMonitor.addDevice(entry.second.nbdDevice);
+-                Process::addProcess(entry.first);
++//                devMonitor.addDevice(entry.second.nbdDevice);
++  //              Process::addProcess(entry.first);
+             }
+ 
+             if (entry.second.mode == Configuration::Mode::Legacy)
+diff --git a/virtual-media.json b/virtual-media.json
+index 3b63df3..5fe5c0a 100644
+--- a/virtual-media.json
++++ b/virtual-media.json
+@@ -20,16 +20,16 @@
+         "USB1": {
+             "EndpointId": "",
+             "Mode": 1,
+-            "NBDDevice": "nbd2",
+-            "UnixSocket": "/tmp/nbd2.sock",
++            "NBDDevice": "nbd7",
++            "UnixSocket": "/tmp/nbd7.sock",
+             "Timeout": 30,
+             "BlockSize": 512
+         },
+         "USB2": {
+             "EndpointId": "",
+             "Mode": 1,
+-            "NBDDevice": "nbd3",
+-            "UnixSocket": "/tmp/nbd3.sock",
++            "NBDDevice": "nbd8",
++            "UnixSocket": "/tmp/nbd8.sock",
+             "Timeout": 30,
+             "BlockSize": 512
+         }

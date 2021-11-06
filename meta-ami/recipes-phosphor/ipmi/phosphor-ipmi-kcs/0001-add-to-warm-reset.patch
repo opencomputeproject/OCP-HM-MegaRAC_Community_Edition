@@ -1,0 +1,30 @@
+From 42d72ad7222caeace2c38f9425c4c8308c6ee93a Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 17 Feb 2021 14:02:15 -0500
+Subject: [PATCH] add to warm reset
+
+---
+ phosphor-ipmi-kcs@.service | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/phosphor-ipmi-kcs@.service b/phosphor-ipmi-kcs@.service
+index 56c0b72..7f6881d 100644
+--- a/phosphor-ipmi-kcs@.service
++++ b/phosphor-ipmi-kcs@.service
+@@ -2,11 +2,13 @@
+ Description=Phosphor IPMI KCS DBus Bridge
+ Requires=phosphor-ipmi-host.service
+ After=phosphor-ipmi-host.service
++PartOf=phosphor-ipmi-warm-reset.target
+ 
+ [Service]
+ Restart=always
+ ExecStart=/usr/bin/kcsbridged -c "%i"
+ SyslogIdentifier=kcsbridged-%i
++StartLimitIntervalSec=0
+ 
+ [Install]
+ WantedBy=multi-user.target
+-- 
+2.17.1
+

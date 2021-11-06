@@ -1,0 +1,15 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-06-09 20:02:38.540493249 +0530
++++ b/dcmihandler.cpp	2021-06-09 19:57:29.919474844 +0530
+@@ -910,9 +910,9 @@
+                 val &= dcmi::gMaxSELEntriesMask;
+             }
+             val <<= cap.position;
+-            responseData->data[cap.bytePosition - 1] |=
++            responseData->data[cap.bytePosition] |=
+                 static_cast<uint8_t>(val);
+-            responseData->data[cap.bytePosition] |= val >> dcmi::gByteBitSize;
++            responseData->data[cap.bytePosition-1] |= val >> dcmi::gByteBitSize;
+         }
+         else
+         {

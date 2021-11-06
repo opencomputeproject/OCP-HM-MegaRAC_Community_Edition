@@ -1,0 +1,124 @@
+--- a/ethernet_interface.cpp	2021-06-18 13:33:14.963745287 -0400
++++ b/ethernet_interface.cpp	2021-06-18 13:25:21.461077574 -0400
+@@ -6,6 +6,7 @@
+ #include "network_manager.hpp"
+ #include "routing_table.hpp"
+ #include "vlan_interface.hpp"
++#include "network_config.hpp"
+ 
+ #include <linux/ncsi.h>
+ #include <netlink/genl/ctrl.h>
+@@ -41,6 +42,7 @@
+ using namespace std::string_literals;
+ using namespace phosphor::logging;
+ using namespace sdbusplus::xyz::openbmc_project::Common::Error;
++using namespace phosphor::network::bmc;
+ using NotAllowed = sdbusplus::xyz::openbmc_project::Common::Error::NotAllowed;
+ using NotAllowedArgument = xyz::openbmc_project::Common::NotAllowed;
+ using Argument = xyz::openbmc_project::Common::InvalidArgument;
+@@ -56,6 +58,7 @@
+ constexpr auto sysctlConfigSurffix = "/arp_ignore";		
+ std::string arpResponseDisable = "echo 8 >";		
+ std::string arpResponseEnable = "echo 0 >";		
++constexpr char ARPCONTROL_CONF_DIR[] = "/etc/arpcontrol";
+ 
+ using nlMsgPtr = std::unique_ptr<nl_msg, decltype(&::nlmsg_free)>;
+ using nlSocketPtr = std::unique_ptr<nl_sock, decltype(&::nl_socket_free)>;
+@@ -845,6 +848,28 @@
+     manager.writeToConfigurationFile();
+ }
+ 
++
++bool deleteDefaultVLANARPControlFiles(std::string vlanInterfaceName)
++{
++    fs::path arpConfDir(ARPCONTROL_CONF_DIR);
++    auto isCreated = false;
++    try
++    {
++        auto fileName = phosphor::network::arpPrefix +
++                                   vlanInterfaceName + phosphor::network::arpSurffix;
++
++        fs::path filePath = arpConfDir;
++        filePath /= fileName;
++
++        fs::remove(filePath);
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>("Unable to create the default ARP Control file");
++    }
++    return isCreated;
++}
++
+ void EthernetInterface::deleteVLANFromSystem(const std::string& interface)
+ {
+     auto confDir = manager.getConfDir();
+@@ -861,6 +886,8 @@
+     std::string vlanPriorityService = "vlanpriority@" + interface + ".service";
+     char cmd[50];
+ 
++    deleteDefaultVLANARPControlFiles(interface);
++
+     for (const auto& vlanIntf : vlanInterfaces)
+     {
+           
+@@ -1242,6 +1269,50 @@
+                                  std::move(vlanIntf));
+ }
+ 
++bool createDefaultVLANARPControlFiles(bool force, std::string vlanInterfaceName)
++{
++    fs::path arpConfDir(ARPCONTROL_CONF_DIR);
++    auto isCreated = false;
++    try
++    {
++        // Directory would have created before with
++        // setConfDir function.
++        if (force)
++        {
++            // Factory Reset case
++            // we need to forcefully write the files
++            // so delete the existing ones.
++            if (fs::is_directory(arpConfDir))
++            {
++                for (const auto& file : fs::directory_iterator(arpConfDir))
++                {
++                    fs::remove(file.path());
++                }
++            }
++
++        }
++
++        auto fileName = phosphor::network::arpPrefix + vlanInterfaceName + phosphor::network::arpSurffix;
++        fs::path filePath = arpConfDir;
++        filePath /= fileName;
++        // create the interface specific network file
++        // if not exist or we forcefully wants to write
++        // the network file.
++
++        if (force || !fs::is_regular_file(filePath.string()))
++        {
++            bmc::writeARPControlDefault(filePath.string());
++            isCreated = true;
++        }
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>("Unable to create the default ARP Control file");
++    }
++    return isCreated;
++}
++
++
+ ObjectPath EthernetInterface::createVLAN(VlanId id)
+ {
+     std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
+@@ -1266,6 +1337,8 @@
+     // write the socket file for the vlan interface.
+     vlanIntf->writeSocketFile(SearchString,vlanInterfaceName);
+ 
++    createDefaultVLANARPControlFiles(false, vlanInterfaceName);
++
+     system("systemctl daemon-reload");
+     
+     //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service

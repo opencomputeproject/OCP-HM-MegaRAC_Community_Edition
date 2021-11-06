@@ -1,0 +1,1282 @@
+diff -Naur a/ethernet_interface.cpp b/ethernet_interface.cpp
+--- a/ethernet_interface.cpp	2021-06-22 10:25:26.282989166 -0400
++++ b/ethernet_interface.cpp	2021-06-30 08:28:35.942671854 -0400
+@@ -58,19 +58,18 @@
+ constexpr auto sysctlConfigSurffix = "/arp_ignore";		
+ std::string arpResponseDisable = "echo 8 >";		
+ std::string arpResponseEnable = "echo 0 >";		
+-constexpr char ARPCONTROL_CONF_DIR[] = "/etc/arpcontrol";
+ 
+ using nlMsgPtr = std::unique_ptr<nl_msg, decltype(&::nlmsg_free)>;
+ using nlSocketPtr = std::unique_ptr<nl_sock, decltype(&::nl_socket_free)>;
+-constexpr unsigned int DEFAULT_VALUE = -1;
+-constexpr auto NONE = 0;
+ 
+-constexpr auto NCSI_PACKAGE = 0x00;
+-constexpr auto NCSI_CHANNEL = 0x00;
+-
+-constexpr auto NCSI_CMD_CLEAN_INIT_STATE = 0x00;
+-constexpr auto NCSI_CMD_SET_VLAN_FILTER = 0x0B;
+-constexpr auto NCSI_CMD_ENABLE_VLAN = 0x0C;
++constexpr auto USER_PRIORITY = 0x01;
++constexpr auto ENABLE_VLAN = 0x01;
++constexpr auto DISABLE_VLAN = 0x00;
++constexpr auto VLAN_FILTER_SELECTOR = 0x01;
++constexpr auto VLAN_MODE = 0x03;
++constexpr auto ncsiPrefix = "/sys/class/net/";
++constexpr auto ncsiSurffix = "/device/of_node/use-ncsi";
++constexpr auto ipmiNetPrefix = "phosphor-ipmi-net@";
+ 
+ struct EthernetIntfSocket
+ {
+@@ -179,6 +178,7 @@
+     this->staticIPv6Counter = 0;
+     this->linkLocalIPv4Counter = 0;
+     this->linkLocalIPv6Counter = 0;
++    this->vlanInterfaces.clear();
+ 
+     // Emit deferred signal.
+     if (emitSignal)
+@@ -187,9 +187,9 @@
+     }
+ }
+ 
+-int EthernetInterface::SendNCSICommand(int ifindex, int cmd, unsigned int package = DEFAULT_VALUE,
+-             unsigned int channel = DEFAULT_VALUE, int flags = NONE,
+-             int type = NONE, uint8_t *payload = nullptr, short payload_len = NONE)
++int EthernetInterface::sendNCSICommand(int ifindex, int cmd, unsigned int package,
++             unsigned int channel, int flags,
++             int type, uint8_t *payload, short payload_len)
+ {
+     struct ncsi_pkt_hdr *hdr;
+     uint8_t *pData, *pCtrlPktPayload;
+@@ -319,14 +319,14 @@
+                                 "if_nametoindex");
+     }
+ 
+-    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, &payload, payload_len);
++    sendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, 
++		    NONE, CommandNumber, &payload, payload_len);
++
+     return 0;
+ }
+ 
+-uint8_t EthernetInterface::setVlanFilter(uint16_t vlanID,
+-                                         uint8_t userPriority,
+-                                         uint8_t enable,
+-                                         uint8_t filterSelector)
++uint8_t EthernetInterface::setVlanFilter(uint16_t vlanID, uint8_t userPriority,
++                                         uint8_t enable, uint8_t filterSelector)
+ {
+     int CommandNumber = NCSI_CMD_SET_VLAN_FILTER;
+     int channel= NCSI_CHANNEL;
+@@ -340,41 +340,67 @@
+     payload[7] = enable;
+ 
+     short payload_len = sizeof(payload);
+-
+     unsigned ifindex = if_nametoindex(interfaceName().c_str());
++
+     if (ifindex == 0)
+     {
+         throw std::system_error(errno, std::generic_category(),
+                                 "if_nametoindex");
+     }
++    sendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, 
++		    NONE, CommandNumber, payload, payload_len);
+ 
+-    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, payload, payload_len);
+     return 0;
+ }
+ 
+-uint8_t EthernetInterface::enableVLAN(uint8_t mode)
++uint8_t EthernetInterface::enableVLAN(uint8_t mode, bool enable)
+ {
+-    int CommandNumber = NCSI_CMD_ENABLE_VLAN;
++    int CommandNumber = (enable)?NCSI_CMD_ENABLE_VLAN:NCSI_CMD_DISABLE_VLAN;
+     int channel= NCSI_CHANNEL;
+     int package = NCSI_PACKAGE;
+ 
+     uint8_t payload[4] = {0};
+ 
+-    payload[3] = mode;
++    if (enable)
++        payload[3] = mode;
+ 
+     short payload_len = sizeof(payload);
+-
+     unsigned ifindex = if_nametoindex(interfaceName().c_str());
++
+     if (ifindex == 0)
+     {
+         throw std::system_error(errno, std::generic_category(),
+                                 "if_nametoindex");
+     }
++    sendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, 
++		    NONE, CommandNumber, payload, payload_len);
+ 
+-    SendNCSICommand(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD, package, channel, NONE, CommandNumber, payload, payload_len);
+     return 0;
+ }
+ 
++void EthernetInterface::ncsiVLAN(IntfName interfaceName, uint8_t id, bool enable)
++{
++    uint8_t vlanEnable = ENABLE_VLAN;
++    std::string ncsiConfig = ncsiPrefix + interfaceName + ncsiSurffix;
++    fs::path ncsiPath(ncsiConfig);
++
++    /* Check if the given Interface has NCSI Configuration */
++    if (fs::exists(ncsiPath))
++    {
++        /* Send the ClearChannelInitState Command */
++        this->nCSIClearInitState();
++
++	if (!enable)
++	    vlanEnable = DISABLE_VLAN;
++
++        /* Set the VLAN Filter for the given VLAN ID*/
++        this->setVlanFilter(id, (uint8_t)USER_PRIORITY,
++		       	vlanEnable, (uint8_t)VLAN_FILTER_SELECTOR);
++        /* Enable/Disable the VLAN */
++        this->enableVLAN((uint8_t)VLAN_MODE, enable);
++    }
++}  
++
+ static IP::Protocol convertFamily(int family)
+ {
+     switch (family)
+@@ -848,28 +874,6 @@
+     manager.writeToConfigurationFile();
+ }
+ 
+-
+-bool deleteDefaultVLANARPControlFiles(std::string vlanInterfaceName)
+-{
+-    fs::path arpConfDir(ARPCONTROL_CONF_DIR);
+-    auto isCreated = false;
+-    try
+-    {
+-        auto fileName = phosphor::network::arpPrefix +
+-                                   vlanInterfaceName + phosphor::network::arpSurffix;
+-
+-        fs::path filePath = arpConfDir;
+-        filePath /= fileName;
+-
+-        fs::remove(filePath);
+-    }
+-    catch (std::exception& e)
+-    {
+-        log<level::ERR>("Unable to create the default ARP Control file");
+-    }
+-    return isCreated;
+-}
+-
+ void EthernetInterface::deleteVLANFromSystem(const std::string& interface)
+ {
+     auto confDir = manager.getConfDir();
+@@ -879,37 +883,7 @@
+ 
+     fs::path deviceFile = confDir;
+     deviceFile /= interface + systemd::config::deviceFileSuffix;
+-    std::string SearchString = "sys-subsystem-net-devices-"+ interface +".device";
+-    std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
+-    std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
+-
+-    std::string vlanPriorityService = "vlanpriority@" + interface + ".service";
+-    char cmd[50];
+-
+-    deleteDefaultVLANARPControlFiles(interface);
+ 
+-    for (const auto& vlanIntf : vlanInterfaces)
+-    {
+-          
+-       vlanIntf.second->writeSocketFile(SearchString,"%i");
+-
+-       system("systemctl daemon-reload");
+-
+-       //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
+-       snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetService.c_str());
+-       system(cmd);
+-
+-       snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetSocket.c_str());
+-       system(cmd);
+-
+-
+-       snprintf(cmd,sizeof(cmd),"%s%s","systemctl disable ",vlanPriorityService.c_str());
+-       system(cmd);
+-
+-       //Stop the VLAN Priority service
+-       snprintf(cmd,sizeof(cmd),"%s%s","systemctl stop ",vlanPriorityService.c_str());
+-       system(cmd);
+-    }
+     // delete the vlan network file
+     if (fs::is_regular_file(networkFile))
+     {
+@@ -935,8 +909,9 @@
+     }
+ }
+ 
+-void EthernetInterface::deleteVLANObject(const std::string& interface)
++void EthernetInterface::deleteVLANObject(const std::string& interface, const uint8_t id)
+ {
++    std::string ipmiNetService = ipmiNetPrefix + interfaceName() + systemd::config::serviceFileSuffix;
+     auto it = vlanInterfaces.find(interface);
+     if (it == vlanInterfaces.end())
+     {
+@@ -946,10 +921,22 @@
+     }
+ 
+     deleteVLANFromSystem(interface);
++    
++    auto index = interface.find(".");
++    if (index != std::string::npos)
++    {
++        // it is vlan interface
++        auto interfaceName = interface.substr(0, index);
++        // Disable NCSI for VLAN Interface 
++        ncsiVLAN(interfaceName, id, false);
++    }
+     // delete the interface
+     vlanInterfaces.erase(it);
+ 
++    // Remove vlan device entry from the configuration(network) file.
+     manager.writeToConfigurationFile();
++    // Restart IPMI net service
++    manager.restartSystemdUnit(ipmiNetService);    
+ }
+ 
+ std::string EthernetInterface::generateObjectPath(
+@@ -1248,7 +1235,7 @@
+     return servers;
+ }
+ 
+-void EthernetInterface::loadVLAN(VlanId id)
++void EthernetInterface::loadVLAN(VlanId id, bool flag)
+ {
+     std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
+     std::string path = objPath;
+@@ -1256,9 +1243,9 @@
+ 
+     DHCPConf dhcpEnabled =
+         getDHCPValue(manager.getConfDir().string(), vlanInterfaceName);
++
+     auto vlanIntf = std::make_unique<phosphor::network::VlanInterface>(
+-        bus, path.c_str(), dhcpEnabled, EthernetInterfaceIntf::nICEnabled(), id,
+-        *this, manager);
++        bus, path.c_str(), dhcpEnabled, id, *this, manager, false);
+ 
+     // Fetch the ip address from the system
+     // and create the dbus object.
+@@ -1267,98 +1254,61 @@
+ 
+     this->vlanInterfaces.emplace(std::move(vlanInterfaceName),
+                                  std::move(vlanIntf));
++    if (flag)
++    {
++        std::string ipmiNetService = ipmiNetPrefix + interfaceName() + systemd::config::serviceFileSuffix;
++        // Restart IPMI net service
++        manager.restartSystemdUnit(ipmiNetService);    
++    }
+ }
+ 
+-bool createDefaultVLANARPControlFiles(bool force, std::string vlanInterfaceName)
++ObjectPath EthernetInterface::createVLAN(VlanId id)
+ {
+-    fs::path arpConfDir(ARPCONTROL_CONF_DIR);
+-    auto isCreated = false;
+-    try
+-    {
+-        // Directory would have created before with
+-        // setConfDir function.
+-        if (force)
+-        {
+-            // Factory Reset case
+-            // we need to forcefully write the files
+-            // so delete the existing ones.
+-            if (fs::is_directory(arpConfDir))
+-            {
+-                for (const auto& file : fs::directory_iterator(arpConfDir))
+-                {
+-                    fs::remove(file.path());
+-                }
+-            }
++    std::string ipmiNetService = ipmiNetPrefix + interfaceName() + systemd::config::serviceFileSuffix;
++    std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
++    std::string path = objPath;
++    path += "_" + std::to_string(id);
+ 
+-        }
++    for (auto it = vlanInterfaces.begin(); it != vlanInterfaces.end(); ++it)
++    {
++        std::string interface(it->second->EthernetInterface::interfaceName());
++        auto vlanID = it->second->getID();
+ 
+-        auto fileName = phosphor::network::arpPrefix + vlanInterfaceName + phosphor::network::arpSurffix;
+-        fs::path filePath = arpConfDir;
+-        filePath /= fileName;
+-        // create the interface specific network file
+-        // if not exist or we forcefully wants to write
+-        // the network file.
++        it->second->clear();
++        // delete the interface
++        deleteVLANFromSystem(interface);
+ 
+-        if (force || !fs::is_regular_file(filePath.string()))
++        auto index = interface.find(".");
++        if (index != std::string::npos)
+         {
+-            bmc::writeARPControlDefault(filePath.string());
+-            isCreated = true;
++            // it is vlan interface
++            auto interfaceName = interface.substr(0, index);
++            // Disable NCSI for VLAN interface
++            ncsiVLAN(interfaceName, vlanID, false);
+         }
+-    }
+-    catch (std::exception& e)
+-    {
+-        log<level::ERR>("Unable to create the default ARP Control file");
+-    }
+-    return isCreated;
+-}
+ 
++        vlanInterfaces.erase(it);
++        vlanInterfaces.clear();
+ 
+-ObjectPath EthernetInterface::createVLAN(VlanId id)
+-{
+-    std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
+-    std::string SearchString = "sys-subsystem-net-devices-%i.device";
+-    std::string path = objPath;
+-    path += "_" + std::to_string(id);
++        // Remove vlan device entry from the configuration(network) file.
++        manager.writeToConfigurationFile();
++        break;
++    }
+ 
+-    std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
+-    std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
+-    std::string vlanPriorityService = "vlanpriority@" + vlanInterfaceName + ".service";
+-    char cmd[50];
+-    
+     // Pass the parents nICEnabled property, so that the child
+     // VLAN interface can inherit.
+     auto vlanIntf = std::make_unique<phosphor::network::VlanInterface>(
+-        bus, path.c_str(), EthernetInterface::DHCPConf::none,
+-        EthernetInterfaceIntf::nICEnabled(), id, *this, manager);
++        bus, path.c_str(), EthernetInterfaceIntf::dHCPEnabled(), id, *this, manager);
+ 
+     // write the device file for the vlan interface.
+     vlanIntf->writeDeviceFile();
+ 
+-    // write the socket file for the vlan interface.
+-    vlanIntf->writeSocketFile(SearchString,vlanInterfaceName);
+-
+-    createDefaultVLANARPControlFiles(false, vlanInterfaceName);
+-
+-    system("systemctl daemon-reload");
+-    
+-    //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
+-    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetService.c_str());
+-    system(cmd);
+-
+-    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetSocket.c_str());
+-    system(cmd);
+-
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+     manager.writeToConfigurationFile();
++    // Restart IPMI net service
++    manager.restartSystemdUnit(ipmiNetService);    
+ 
+-    snprintf(cmd,sizeof(cmd),"%s%s","systemctl enable ",vlanPriorityService.c_str());
+-    system(cmd);
+-
+-    //Start the service file to monitor VLAN Priority
+-    snprintf(cmd,sizeof(cmd),"%s%s","systemctl start ",vlanPriorityService.c_str());
+-    system(cmd);
+-    
+     return path;
+ }
+ 
+@@ -1899,7 +1849,7 @@
+     auto pPipe = ::popen(cmd.c_str(), "r");
+     if (pPipe == nullptr)
+     {
+-        std::cout<<"popen failed in setResponse()"<<std::endl;
++        std::cout<<"popen failed in sysctlConfig()"<<std::endl;
+         return false;
+     }
+ 
+diff -Naur a/ethernet_interface.hpp b/ethernet_interface.hpp
+--- a/ethernet_interface.hpp	2021-06-23 07:30:32.713221706 -0400
++++ b/ethernet_interface.hpp	2021-06-28 04:44:47.993921362 -0400
+@@ -12,7 +12,6 @@
+ #include <string>
+ #include <xyz/openbmc_project/Collection/DeleteAll/server.hpp>
+ #include <xyz/openbmc_project/Network/EthernetInterface/server.hpp>
+-#include <xyz/openbmc_project/Network/NCSIInterface/server.hpp>
+ #include <xyz/openbmc_project/Network/MACAddress/server.hpp>
+ #include <xyz/openbmc_project/Network/ARPControl/server.hpp>
+ 
+@@ -24,7 +23,6 @@
+ using Ifaces = sdbusplus::server::object::object<
+     sdbusplus::xyz::openbmc_project::Network::server::ARPControl,
+     sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface,
+-    sdbusplus::xyz::openbmc_project::Network::server::NCSIInterface,
+     sdbusplus::xyz::openbmc_project::Network::server::MACAddress,
+     sdbusplus::xyz::openbmc_project::Network::IP::server::Create,
+     sdbusplus::xyz::openbmc_project::Network::Neighbor::server::CreateStatic,
+@@ -70,6 +68,18 @@
+     std::map<InterfaceName, std::unique_ptr<VlanInterface>>;
+ using LinkLocalConfig = sdbusplus::xyz::openbmc_project::Network::server::
+     EthernetInterface::LinkLocalConf;
++
++constexpr unsigned int DEFAULT_VALUE = -1;
++constexpr auto NONE = 0;
++
++constexpr auto NCSI_PACKAGE = 0x00;
++constexpr auto NCSI_CHANNEL = 0x00;
++
++constexpr auto NCSI_CMD_CLEAN_INIT_STATE = 0x00;
++constexpr auto NCSI_CMD_SET_VLAN_FILTER = 0x0B;
++constexpr auto NCSI_CMD_ENABLE_VLAN = 0x0C;
++constexpr auto NCSI_CMD_DISABLE_VLAN = 0x0D;
++
+ /** @class EthernetInterface
+  *  @brief OpenBMC Ethernet Interface implementation.
+  *  @details A concrete implementation for the
+@@ -101,36 +111,8 @@
+      */
+     virtual void loadNameServers();
+ 
+-    /** @brief Implementation for NCSIClearInitState
+-    *  The Clear Initial State command provides the mechanism for the Management Controller to acknowledge that it considers a channel to be in the Initial State.
+-    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
+-    */
+-
+-    uint8_t nCSIClearInitState() override;
+-
+-    /** @brief The Set VLAN Filter function is used to program one or more VLAN IDs that are used for VLAN filtering.
+-     *
+-     *  @param[in] vlanID - The VLAN ID value used in VLAN Filter
+-     *  @param[in] userPriority - The User Priority level
+-     *  @param[in] enable - The Enable field is used to Enable/Disable a give VLAN Filter.
+-     *  @param[in] filterSelector - Used to select a given VLAN filter.
+-     *
+-     *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
+-     */
+-
+-    uint8_t setVlanFilter(
+-            uint16_t vlanID,
+-            uint8_t userPriority,
+-            uint8_t enable,
+-            uint8_t filterSelector)  override;
+-
+-   /** @brief The Enable VLAN function is used to enable the channel to accept VLAN-tagged packets from the network for NC-SI Pass-through operation.
+-    *  @param[in] mode - The Mode field describes the modes for VLAN eg:- VLAN only or VLAN + non-VLAN.
+-    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
+-    */
+-    uint8_t enableVLAN(
+-            uint8_t mode) override;
+ 
++    void ncsiVLAN(IntfName interfaceName, uint8_t id, bool enable = true);
+ 
+     /** @brief Function to create ipaddress dbus object.
+      *  @param[in] addressType - Type of ip address.
+@@ -165,8 +147,9 @@
+     /* @brief delete the vlan dbus object of the given interface.
+      *        Also deletes the device file and the network file.
+      * @param[in] interface - VLAN Interface.
++     * @param[in] id - VLAN ID.
+      */
+-    void deleteVLANObject(const std::string& interface);
++    void deleteVLANObject(const std::string& interface, const uint8_t id);
+ 
+     /* @brief creates the dbus object(IPaddres) given in the address list.
+      * @param[in] addrs - address list for which dbus objects needs
+@@ -258,9 +241,10 @@
+ 
+     /** @brief load the vlan info from the system
+      *         and creates the ip address dbus objects.
+-     *  @param[in] vlanID- VLAN identifier.
++     *  @param[in] vlanID - VLAN identifier.
++     *  @param[in] flag - Indicate netwwork service restarted.
+      */
+-    void loadVLAN(VlanId vlanID);
++    void loadVLAN(VlanId vlanID, bool flag);
+ 
+     /** @brief write the network conf file with the in-memory objects.
+      */
+@@ -316,6 +300,12 @@
+      */	
+     void setIPCounter(IP::AddressOrigin origin, IP::Protocol type, uint8_t id);
+ 
++    /** @brief set the ARP Response status in sysctl config for the ethernet interface.
++     *  @param[in] cmd - shell command.
++     *  @return status of the shell command execution
++     */
++    bool sysctlConfig(const std::string& cmd);
++	   
+     using EthernetInterfaceIntf::dHCPEnabled;
+     using EthernetInterfaceIntf::interfaceName;
+     using EthernetInterfaceIntf::linkUp;
+@@ -442,6 +432,32 @@
+ 
+     friend class TestEthernetInterface;
+ 
++  private:
++    /** @brief Implementation for NCSIClearInitState
++    *  The Clear Initial State command provides the mechanism for the Management Controller to acknowledge
++    *  that it considers a channel to be in the Initial State.
++    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++    */
++    uint8_t nCSIClearInitState();
++
++    /** @brief The Set VLAN Filter function is used to program one or more VLAN IDs that are used for VLAN filtering.
++     *
++     *  @param[in] vlanID - The VLAN ID value used in VLAN Filter
++     *  @param[in] userPriority - The User Priority level
++     *  @param[in] enable - The Enable field is used to Enable/Disable a give VLAN Filter.
++     *  @param[in] filterSelector - Used to select a given VLAN filter.
++     *
++     *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++     */
++    uint8_t setVlanFilter(uint16_t vlanID, uint8_t userPriority, uint8_t enable, uint8_t filterSelector);
++
++   /** @brief The Enable VLAN function is used to enable the channel to accept
++    * VLAN-tagged packets from the network for NC-SI Pass-through operation.
++    *  @param[in] mode - The Mode field describes the modes for VLAN eg:- VLAN only or VLAN + non-VLAN.
++    *  @return completionCode[uint8_t] - The Completion Code tells if the command was successfully executed or not.
++    */
++    uint8_t enableVLAN(uint8_t mode, bool enable);
++
+      /** @brief Send NCSI Command to a given Interface.
+      * @param[in] ifindex - Ethernet Interface index number
+      *            cmd - NCSI driver Command
+@@ -452,12 +468,9 @@
+      *            payload - NCSI Message Payload
+      *            payload_len - NCSI Payload length.
+      * */
++    int sendNCSICommand(int ifindex, int cmd, unsigned int package = DEFAULT_VALUE, unsigned int channel = DEFAULT_VALUE,
++		    int flags = NONE, int type = NONE, uint8_t *payload = nullptr, short payload_len = NONE);
+ 
+-    int SendNCSICommand(int ifindex, int cmd, unsigned int package,
+-             unsigned int channel, int flags,
+-             int type, uint8_t *payload, short payload_len);
+-
+-  private:
+     /** @brief Determines if DHCP is active for the IP::Protocol supplied.
+      *  @param[in] protocol - Either IPv4 or IPv6
+      *  @param[in] ignoreProtocol - Allows IPv4 and IPv6 to be checked using a
+@@ -505,12 +518,6 @@
+      */
+     uint64_t getGratuitousARPInterval(config::Parser& parser);
+ 
+-    /** @brief set the ARP Response status in sysctl config for the ethernet interface.
+-     *  @param[in] cmd - shell command.
+-     *  @return status of the shell command execution
+-     */
+-    bool sysctlConfig(const std::string& cmd);
+-	   
+     /** @brief loads the disabled IPs from config
+      */
+     void loadDisabledIPAddressObjects();
+diff -Naur a/network_manager.cpp b/network_manager.cpp
+--- a/network_manager.cpp	2021-06-22 10:25:57.879211854 -0400
++++ b/network_manager.cpp	2021-06-30 00:28:53.096496833 -0400
+@@ -44,6 +44,7 @@
+ {
+     fs::path confDir(path);
+     setConfDir(confDir);
++    this->flag = true;
+ }
+ 
+ bool Manager::createDefaultNetworkFiles(bool force)
+@@ -102,6 +103,7 @@
+     }
+     return isCreated;
+ }
++
+ bool Manager::createDefaultARPControlFiles(bool force)
+ {
+     auto isCreated = false;
+@@ -126,13 +128,6 @@
+         auto interfaceStrList = getInterfaces();
+         for (const auto& interface : interfaceStrList)
+         {
+-            // if the interface has '.' in the name, it means that this is a
+-            // VLAN - don't create the network file.
+-            if (interface.find(".") != std::string::npos)
+-            {
+-                continue;
+-            }
+-
+             auto fileName = phosphor::network::arpPrefix + 
+                                    interface + phosphor::network::arpSurffix;
+ 
+@@ -159,62 +154,6 @@
+     return isCreated;
+ }
+ 
+-bool Manager::createVlanPriorityScript()
+-{
+-    std::ofstream filestream;
+-    fs::path filePath = "/etc/vlanpriority.sh";
+-    filestream.open(filePath.string(),std::ofstream::out);
+-    filestream << "#!/bin/bash\n"
+-	    "INTERFACE=$1\n"
+-	    "PROPERTY=$2\n"
+-	    "echo $PROPERTY\n"
+-	    "echo $INTERFACE\n"
+-	    "if [ -f \"/proc/net/vlan/$INTERFACE\" ]\n"
+-	    "then\n"
+-	    "echo \"Executing command:- ip link set $INTERFACE type vlan egress 0:$PROPERTY\"\n"
+-            "echo \"Executing command:- ip link set $INTERFACE type vlan egress 6:$PROPERTY\" \n"
+-	    "ip link set $INTERFACE type vlan egress 0:$PROPERTY\n"
+-	    "ip link set $INTERFACE type vlan egress 6:$PROPERTY\n"
+-	    "fi\n";
+-    chmod(filePath.string().c_str(),0777);
+-    filestream.close();
+-    return true;
+-}
+-
+-bool Manager::createVlanPriorityFile()
+-{
+-    std::string fileName = "vlanpriority@.service";
+-    fs::path filePath = "/lib/systemd/system/";
+-    filePath /= fileName;
+-    std::ofstream filestream;
+-    auto isCreated = false;
+-
+-    try
+-    {
+-        if (!fs::is_regular_file(filePath.string()))
+-        { 
+-            filestream.open(filePath.string(),std::ofstream::out);
+-            filestream << "[Unit]\nDescription=VLAN Priority monitoring service\n"
+-                "\nAfter= xyz.openbmc_project.Network.service\n"
+-                "\n[Service]\n"
+-		"EnvironmentFile=/etc/systemd/network/vlan_priority_%i\n"
+-                "ExecStart=/etc/vlanpriority.sh %i $PRIORITY\n"
+-		"SyslogIdentifier=vlanpriority\n"
+-                "\n[Install]\n"
+-                "WantedBy=multi-user.target\n";
+-            filestream.close();
+-            isCreated = true;
+-            createVlanPriorityScript();
+-        }
+-    }
+-    catch (std::exception& e)
+-    {
+-        log<level::ERR>("Unable to create the default network file");
+-    }
+-
+-    return isCreated;
+-}
+-
+ void Manager::setConfDir(const fs::path& dir)
+ {
+     confDir = dir;
+@@ -265,8 +204,17 @@
+             auto interfaceName = interface.substr(0, index);
+             auto vlanid = interface.substr(index + 1);
+             uint32_t vlanInt = std::stoul(vlanid);
++            auto flag = false;
+ 
+-            interfaces[interfaceName]->loadVLAN(vlanInt);
++            if (this->flag)
++            {
++                interfaces[interfaceName]->ncsiVLAN(interfaceName, vlanInt);
++		this->flag = false;
++		flag = true;
++            }
++
++            interfaces[interfaceName]->loadVLAN(vlanInt, flag);
++            createDefaultARPControlFiles(false);
+             continue;
+         }
+         // normal ethernet interface
+@@ -305,10 +253,15 @@
+     dhcpConf = std::make_unique<phosphor::network::dhcp::Configuration>(
+         bus, objPath.string(), *this);
+ }
+-
++    
+ ObjectPath Manager::vLAN(IntfName interfaceName, uint32_t id)
+ {
+-    return interfaces[interfaceName]->createVLAN(id);
++    interfaces[interfaceName]->ncsiVLAN(interfaceName, id);
++    ObjectPath vlanObjPath = interfaces[interfaceName]->createVLAN(id);
++    createDefaultARPControlFiles(false);
++    this->flag = true;
++
++    return vlanObjPath;
+ }
+ 
+ void Manager::reset()
+@@ -324,11 +277,6 @@
+         log<level::ERR>("Network ARP Control Factory Reset failed.");
+         return;
+     }
+-    if(!createVlanPriorityFile())
+-    {
+-        log<level::ERR>("Failed to create Vlan Configuration files.");
+-	return;
+-    }
+     log<level::INFO>("Network Factory Reset done.");
+ }
+ 
+@@ -342,8 +290,8 @@
+     {
+         intf.second->writeConfigurationFile();
+     }
+-    restartTimers();
+     system("networkctl reload");
++    restartTimers();
+ }
+ 
+ #if SYNC_MAC_FROM_INVENTORY
+diff -Naur a/network_manager.hpp b/network_manager.hpp
+--- a/network_manager.hpp	2021-06-24 10:24:30.439121461 -0400
++++ b/network_manager.hpp	2021-06-28 02:46:24.448258802 -0400
+@@ -125,9 +125,6 @@
+ 
+     bool createDefaultARPControlFiles(bool force);
+ 
+-    bool createVlanPriorityFile();
+-
+-    bool createVlanPriorityScript();
+     /** @brief restart the network timers. */
+     void restartTimers();
+ 
+@@ -180,7 +177,7 @@
+ 
+     /** @brief BMC network reset - resets network configuration for BMC. */
+     void reset() override;
+-
++    
+     /** @brief Path of Object. */
+     std::string objectPath;
+ 
+@@ -195,6 +192,8 @@
+ 
+     /** @brief ARP Control Configuration directory. */
+     fs::path arpConfDir;
++
++    bool flag;
+ };
+ 
+ } // namespace network
+diff -Naur a/network_manager_main.cpp b/network_manager_main.cpp
+--- a/network_manager_main.cpp	2021-06-27 12:43:32.356671465 -0400
++++ b/network_manager_main.cpp	2021-06-28 13:24:30.266578428 -0400
+@@ -303,11 +303,6 @@
+     phosphor::network::manager = std::make_unique<phosphor::network::Manager>(
+         bus, DEFAULT_OBJPATH, NETWORK_CONF_DIR);
+ 
+-    if(!phosphor::network::manager->createVlanPriorityFile())
+-    {
+-        log<level::ERR>("Failed to create Vlan Configuration files.");
+-    }
+-
+     // create the default network files if the network file
+     // is not there for any interface.
+     // Parameter false means don't create the network
+diff -Naur a/routing_table.cpp b/routing_table.cpp
+--- a/routing_table.cpp	2021-06-22 10:25:39.555081497 -0400
++++ b/routing_table.cpp	2021-06-30 08:36:11.243578068 -0400
+@@ -57,8 +57,6 @@
+             auto error = errno;
+             log<level::ERR>("Socket recv failed:",
+                             entry("ERROR=%s", strerror(error)));
+-            elog<InternalFailure>();
+-
+ 	    return msgLen;
+         }
+ 
+@@ -73,8 +71,6 @@
+             log<level::ERR>("Error validating header",
+                             entry("NLMSGTYPE=%d", nlHdr->nlmsg_type),
+                             entry("ERROR=%s", strerror(error)));
+-            elog<InternalFailure>();
+-              	    
+ 	    return msgLen;
+         }
+ 
+@@ -95,6 +91,7 @@
+         {
+             break;
+         }
++
+     } while ((nlHdr->nlmsg_seq != seqNum) || (nlHdr->nlmsg_pid != pID));
+ 
+     return msgLen;
+@@ -187,12 +184,12 @@
+ 
+     uint8_t msgSeq{0};
+     // Create Socket
+-    if ((sock = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE)) < 0)
++    if ((sock = socket(PF_NETLINK, SOCK_RAW|SOCK_NONBLOCK, NETLINK_ROUTE)) < 0)
+     {
+         auto error = errno;
+         log<level::ERR>("Error occurred during socket creation",
+                         entry("ERRNO=%s", strerror(error)));
+-        elog<InternalFailure>();
++	return routeList;
+     }
+ 
+     phosphor::Descriptor smartSock(sock);
+@@ -216,7 +213,7 @@
+         auto error = errno;
+         log<level::ERR>("Error occurred during send on netlink socket",
+                         entry("ERRNO=%s", strerror(error)));
+-        elog<InternalFailure>();
++	return routeList;
+     }
+ 
+     // Read the response
+diff -Naur a/types.hpp b/types.hpp
+--- a/types.hpp	2021-06-27 05:03:28.686355248 -0400
++++ b/types.hpp	2021-06-28 00:39:17.034834734 -0400
+@@ -42,6 +42,8 @@
+ constexpr auto networkFilePrefix = "00-bmc-";
+ constexpr auto networkFileSuffix = ".network";
+ constexpr auto deviceFileSuffix = ".netdev";
++constexpr auto socketFileSuffix = ".socket";
++constexpr auto serviceFileSuffix = ".service";
+ 
+ } // namespace config
+ } // namespace systemd
+diff -Naur a/util.cpp b/util.cpp
+--- a/util.cpp	2021-06-23 23:32:03.463717279 -0400
++++ b/util.cpp	2021-06-30 08:20:44.551837189 -0400
+@@ -181,17 +181,16 @@
+ 
+     return true;
+ }
+-void splitString(std::string const &str, const char delim,
+-			std::vector<std::string> &out)
++void splitString(std::string const &str, const char delim, std::vector<std::string> &out)
+ {
+-	size_t start;
+-	size_t end = 0;
++    size_t start;
++    size_t end = 0;
+ 
+-	while ((start = str.find_first_not_of(delim, end)) != std::string::npos)
+-	{
+-		end = str.find(delim, start);
+-		out.push_back(str.substr(start, end - start));
+-	}
++    while ((start = str.find_first_not_of(delim, end)) != std::string::npos)
++    {
++        end = str.find(delim, start);
++        out.push_back(str.substr(start, end - start));
++    }
+ }
+ static void retrieveAddress(struct nlmsghdr *netlinkmsghdr, int nlmsglen, IntfAddrMap &intfIPAddress)
+ {
+@@ -235,10 +234,8 @@
+                     states = IP::AddressStates::DADFailed;
+ 
+ 		if ((nlifaddrmsg->ifa_flags & IFA_F_PERMANENT || !(nlifaddrmsg->ifa_flags & IFA_F_DYNAMIC) ||
+-		         nlifaddrmsg->ifa_flags & IFA_F_SECONDARY) &&
+-                         (!(nlifaddrmsg->ifa_flags & IFA_F_TENTATIVE)) &&
+-                         (!(nlifaddrmsg->ifa_flags & IFA_F_DEPRECATED)) &&
+-                         (!(nlifaddrmsg->ifa_flags & IFA_F_DADFAILED)))
++                    nlifaddrmsg->ifa_flags & IFA_F_SECONDARY) && (!(nlifaddrmsg->ifa_flags & IFA_F_TENTATIVE)) &&
++                    (!(nlifaddrmsg->ifa_flags & IFA_F_DEPRECATED)) && (!(nlifaddrmsg->ifa_flags & IFA_F_DADFAILED)))
+                     states = IP::AddressStates::Active;
+ 
+                 info.id = count;
+@@ -272,8 +269,6 @@
+             auto error = errno;
+             log<level::ERR>("Socket recv failed:",
+                             entry("ERROR=%s", strerror(error)));
+-            elog<InternalFailure>();
+-
+ 	    return;
+         }
+ 
+@@ -285,7 +280,6 @@
+             auto error = errno;
+             log<level::ERR>("Error received an uncomplete netlink packet",
+                             entry("ERROR=%s", strerror(error)));
+-            elog<InternalFailure>();
+ 	    break;
+         }
+ 
+@@ -305,15 +299,13 @@
+ {
+     IntfAddrMap intfMap{};
+     int sockfd;
+-    sockfd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
++    sockfd = socket(PF_NETLINK, SOCK_RAW|SOCK_NONBLOCK, NETLINK_ROUTE);
+ 
+     if (sockfd < 0)
+     {
+         auto error = errno;
+         log<level::ERR>("Error occurred during socket creation",
+                         entry("ERRNO=%s", strerror(error)));
+-        elog<InternalFailure>();
+-
+         return intfMap;
+     }
+     struct sockaddr_nl socketAddr;
+@@ -339,8 +331,6 @@
+         auto error = errno;
+         log<level::ERR>("Error occurred during send on netlink socket",
+                         entry("ERRNO=%s", strerror(error)));
+-        elog<InternalFailure>();
+-
+         return intfMap;
+     }
+ 
+diff -Naur a/vlan_interface.cpp b/vlan_interface.cpp
+--- a/vlan_interface.cpp	2021-06-22 12:09:05.293108729 -0400
++++ b/vlan_interface.cpp	2021-06-30 08:27:59.306343757 -0400
+@@ -20,21 +20,90 @@
+ 
+ using namespace phosphor::logging;
+ using namespace sdbusplus::xyz::openbmc_project::Common::Error;
++using namespace std::string_literals;
++namespace fs = std::filesystem;
++
++std::string egressPrefix = "ip link set ";
++std::string egressSurffix = " type vlan egress ";
+ 
+ VlanInterface::VlanInterface(sdbusplus::bus::bus& bus,
+-                             const std::string& objPath, DHCPConf dhcpEnabled,
+-                             bool nICEnabled, uint32_t vlanID,
+-                             EthernetInterface& intf, Manager& parent) :
++                             const std::string& objPath, DHCPConf dhcpEnabled, uint32_t vlanID,
++                             EthernetInterface& intf, Manager& parent, bool flag) :
+     VlanIface(bus, objPath.c_str()),
+     DeleteIface(bus, objPath.c_str()),
+     EthernetInterface(bus, objPath, dhcpEnabled, parent, false),
+     parentInterface(intf)
+ {
++    if (flag)
++    {
++        EthernetInterfaceIntf::dHCPEnabled(
++                        parentInterface.EthernetInterfaceIntf::dHCPEnabled());
++        EthernetInterfaceIntf::linkLocalAutoConf(
++                        parentInterface.EthernetInterfaceIntf::linkLocalAutoConf());
++        EthernetInterfaceIntf::iPv6AcceptRA(
++                        parentInterface.EthernetInterfaceIntf::iPv6AcceptRA());
++        EthernetInterfaceIntf::nICEnabled(
++                        parentInterface.EthernetInterfaceIntf::nICEnabled());
++    }
++
+     id(vlanID);
+-    EthernetInterfaceIntf::nICEnabled(nICEnabled);
+     VlanIface::interfaceName(EthernetInterface::interfaceName());
++    auto value = getPriorityFromFile();
++    VlanIface::priority(value);
+     MacAddressIntf::mACAddress(parentInterface.mACAddress());
+ 
++    auto addrs = parentInterface.getAddresses();
++    // Static IP addresses
++    auto count = 0;
++    for (const auto& addr : addrs)
++    {
++        if (addr.second->active() && addr.second->origin() == IP::AddressOrigin::Static)
++	{
++	    iP(addr.second->type(), addr.second->address(),
++			 addr.second->prefixLength(), "", addr.second->id()); 
++	    count++;
++	}
++    }
++
++    auto vlanaddrs = getAddresses();
++
++    for (auto& addr : addrs)
++    {
++        if (addr.second->origin() != IP::AddressOrigin::LinkLocal)
++	{	   
++            if (!addr.second->active() && addr.second->origin() == IP::AddressOrigin::Static)
++	    {
++                for (auto it = vlanaddrs.begin(); it != vlanaddrs.end(); ++it)
++                {
++                    if (it->first.compare(addr.second->address()) == 0)
++		    {
++                        it->second->active(false);	       
++                        break;
++		    }
++                }	
++	    }
++            addr.second->active(false);
++	}
++    }
++
++    if (count > 0 && flag)
++    {
++        EthernetInterfaceIntf::defaultGateway(
++			parentInterface.EthernetInterfaceIntf::defaultGateway());
++        EthernetInterfaceIntf::defaultGateway6(
++			parentInterface.EthernetInterfaceIntf::defaultGateway6());
++    }
++
++    parentInterface.dHCPEnabled(EthernetInterface::DHCPConf::none);
++    parentInterface.iPv6AcceptRA(false);
++
++    auto priority = egressPrefix + VlanIface::interfaceName() + egressSurffix + 
++	            "0:" + std::to_string(value);
++    sysctlConfig(priority);
++    priority = egressPrefix + VlanIface::interfaceName() + egressSurffix + 
++               "6:" + std::to_string(value);
++    sysctlConfig(priority);
++
+     emit_object_added();
+ }
+ 
+@@ -44,106 +113,124 @@
+     elog<InternalFailure>();
+ }
+ 
+-void VlanInterface::writeSocketFile(std::string SearchString,std::string ReplaceIntfName)
+-{
+-    std::string data, newdata;
+-    std::fstream fin;
+-    std::string confPath = "/etc/systemd/system/sockets.target.wants/";
+-    std::string VLANIntfName = EthernetInterface::interfaceName();
+-    std::string IntfName  = VLANIntfName.substr(0, VLANIntfName.find("."));
+-    std::string ReplaceString = "sys-subsystem-net-devices-" + ReplaceIntfName + ".device";
+-    std::string fileName = "phosphor-ipmi-net@" + IntfName + ".socket";
+-
+-    confPath += fileName;
+-
+-    fin.open(confPath.c_str(),std::ios::in);
+-    newdata="";
+-    if(!fin)
+-    {
+-        syslog(LOG_INFO,"Unable to open file to read\n");
+-        return ;
+-    }
+-    while(fin)
+-    {
+-        getline(fin,data);
+-        int a =(int) data.find(SearchString.c_str(),0);
+-        while (a !=(int) std::string::npos)
+-        {
+-             data.replace(a,strlen(SearchString.c_str()),ReplaceString.c_str());
+-             a =(int) data.find(SearchString.c_str(),(a+1));
+-        }
+-        newdata=newdata+data+"\n";
+-    }
+-    fin.close();
+-    fin.open(confPath.c_str(),std::ios::out);
+-    if(!fin)
+-    {
+-        syslog(LOG_INFO,"Unable to open file to write\n");
+-        return ;
+-    }
+-    fin<<newdata;
+-    fin.close();
+-    return ;
+-}
+-
+-
+ void VlanInterface::writeDeviceFile()
+ {
+-    using namespace std::string_literals;
+     fs::path confPath = manager.getConfDir();
+-    std::string fileName = EthernetInterface::interfaceName() + ".netdev"s;
++    std::string fileName = EthernetInterface::interfaceName() + systemd::config::deviceFileSuffix;
+     confPath /= fileName;
+     std::fstream stream;
+-    try
+-    {
+-        stream.open(confPath.c_str(), std::fstream::out);
+-    }
+-    catch (std::ios_base::failure& e)
++
++    stream.open(confPath.c_str(), std::fstream::out);
++    if (!stream.is_open())
+     {
+         log<level::ERR>("Unable to open the VLAN device file",
+-                        entry("FILE=%s", confPath.c_str()),
+-                        entry("ERROR=%s", e.what()));
++                        entry("FILE=%s", confPath.c_str()));
+         elog<InternalFailure>();
+     }
+ 
+     stream << "[NetDev]\n";
+-    stream << "Name=" << EthernetInterface::interfaceName() << "\n";
++    stream << "Name=" << VlanIface::interfaceName() << "\n";
+     stream << "Kind=vlan\n";
+     stream << "[VLAN]\n";
+     stream << "Id=" << id() << "\n";
++    stream << "#Egress=" << VlanIface::priority() << "\n";
++
+     stream.close();
+ }
+ 
+-void VlanInterface::writeToVlanPriorityFile(uint32_t vlan_priority)
++uint32_t VlanInterface::getPriorityFromFile()
+ {
+-    std::ofstream filestream;
+-    fs::path filePath = "/etc/systemd/network/vlan_priority_" + VlanIface::interfaceName();
+-    
+-    filestream.open(filePath.string(),std::ofstream::out);
+-    filestream << "PRIORITY="<< vlan_priority;
+-    filestream.close();
+-    return;
+-}
++    config::ValueList values;
++    auto rc = config::ReturnCode::SUCCESS;
++    uint32_t vlanPriority = 0;
++    fs::path confPath = manager.getConfDir();
++    std::string fileName = EthernetInterface::interfaceName() + systemd::config::deviceFileSuffix;
++    confPath /= fileName;
++
++    config::Parser parser(confPath.string());
++    std::tie(rc, values) = parser.getValues("VLAN", "#Egress");
+ 
++    if (rc == config::ReturnCode::SUCCESS && !values.empty())
++    {
++	std::stringstream priority(values[0]);
++        priority>>vlanPriority;
++
++        return vlanPriority;
++    }
+ 
+-uint32_t VlanInterface::vlanPriority(uint32_t value)
++    return vlanPriority;
++}
++
++uint32_t VlanInterface::priority(uint32_t value)
+ {
+-    char cmd[50];
+-    std::string vlanPriorityService = "vlanpriority@" + VlanIface::interfaceName() + ".service";
++    if (value == VlanIface::priority())
++    {
++        return value;
++    }
+ 
+-    auto vlan_priority = VlanIface::vlanPriority(value);
+-    writeToVlanPriorityFile(value);
++    VlanIface::priority(value);
++    writeDeviceFile();
++    auto priority = egressPrefix + VlanIface::interfaceName() + egressSurffix + 
++	            "0:" + std::to_string(value);
++    sysctlConfig(priority);
++    priority = egressPrefix + VlanIface::interfaceName() + egressSurffix + 
++               "6:" + std::to_string(value);
++    sysctlConfig(priority);
++
++    return value;
++}
++
++void VlanInterface::clear()
++{
++    fs::path confPath = manager.getARPConfDir();
++    std::string fileName = phosphor::network::arpPrefix + 
++                           VlanIface::interfaceName() + phosphor::network::arpSurffix;
++    confPath /= fileName;
+ 
+-    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ",vlanPriorityService.c_str());
+-    system(cmd);
++    auto vlanaddrs = getAddresses();
++    auto addrs = parentInterface.getAddresses();
++    //Enabling Static IP addresses
++    for (auto& addr : addrs)
++    {
++        auto flag = true;	   
++        if (addr.second->origin() == IP::AddressOrigin::Static)
++	{
++            for (auto it = vlanaddrs.begin(); it != vlanaddrs.end(); ++it)
++            {
++                if (it->first.compare(addr.second->address()) == 0 && !it->second->active())
++		{
++                    flag = false;	       
++                    break;
++		}
++            }	
++            addr.second->active(flag);		
++	}
++    }
++    
++    parentInterface.EthernetInterfaceIntf::dHCPEnabled(EthernetInterfaceIntf::dHCPEnabled());
++    parentInterface.EthernetInterfaceIntf::linkLocalAutoConf(EthernetInterfaceIntf::linkLocalAutoConf());
++    parentInterface.EthernetInterfaceIntf::iPv6AcceptRA(EthernetInterfaceIntf::iPv6AcceptRA());
+ 
+-    return vlan_priority;
+-}
++    if (fs::exists(confPath))
++        fs::remove(confPath);
+ 
++}
+ 
+ void VlanInterface::delete_()
+ {
+-    parentInterface.deleteVLANObject(EthernetInterface::interfaceName());
++    clear();
++
++    EthernetInterfaceIntf::dHCPEnabled(EthernetInterface::DHCPConf::none);
++    EthernetInterfaceIntf::iPv6AcceptRA(false);
++
++    auto vlanaddrs = getAddresses();
++    //Deleteing VLAN IP addresses
++    for (auto addrit = vlanaddrs.begin(); addrit != vlanaddrs.end(); ++addrit)
++    {
++       deleteObject(addrit->second->address());
++    }	
++
++    parentInterface.deleteVLANObject(EthernetInterface::interfaceName(), id());
+ }
+ 
+ } // namespace network
+diff -Naur a/vlan_interface.hpp b/vlan_interface.hpp
+--- a/vlan_interface.hpp	2021-06-23 04:31:58.234068887 -0400
++++ b/vlan_interface.hpp	2021-06-30 08:26:37.345660914 -0400
+@@ -46,9 +46,8 @@
+      *
+      *  This constructor is called during loading the VLAN Interface
+      */
+-    VlanInterface(sdbusplus::bus::bus& bus, const std::string& objPath,
+-                  DHCPConf dhcpEnabled, bool nicEnabled, uint32_t vlanID,
+-                  EthernetInterface& intf, Manager& parent);
++    VlanInterface(sdbusplus::bus::bus& bus, const std::string& objPath, DHCPConf dhcpEnabled,
++		  uint32_t vlanID, EthernetInterface& intf, Manager& parent, bool flag = true);
+ 
+     /** @brief Delete this d-bus object.
+      */
+@@ -65,19 +64,30 @@
+                and creates the vlan interface.*/
+     void writeDeviceFile();
+ 
++    /** @brief copies the object from VLAN to ethernet.
++     */
++    void clear();
++
+     /** @brief writes the socket configuration.
+                systemd reads this configuration file
+                and creates the vlan interface.*/
+-    void writeSocketFile(std::string, std::string);
++    uint32_t priority(uint32_t value) override;
+ 
+-    void VlanPriorityUnit(const std::string&, const std::string&);
+-
+-    void writeToVlanPriorityFile(uint32_t value);
++    /** @brief VLAN ID from VLAN Object.
++     */
++    uint32_t getID()
++    {
++       return id();
++    }
+ 
+-    uint32_t vlanPriority(uint32_t value) override;
+-    using VlanIface::vlanPriority;
++    using VlanIface::priority;
+   
+     private:
++
++    /** @brief read the VLAN priority from conf file.
++     */
++    uint32_t getPriorityFromFile();
++
+     /** @brief VLAN Identifier. */
+     using VlanIface::id;
+ 

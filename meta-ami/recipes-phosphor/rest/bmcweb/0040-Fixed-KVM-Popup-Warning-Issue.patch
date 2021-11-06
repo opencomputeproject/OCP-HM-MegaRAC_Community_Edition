@@ -1,0 +1,30 @@
+diff -Naur a/include/kvm_websocket.hpp b/include/kvm_websocket.hpp
+--- a/include/kvm_websocket.hpp	2021-05-21 16:43:37.637159182 +0530
++++ b/include/kvm_websocket.hpp	2021-05-21 16:47:10.884543733 +0530
+@@ -13,6 +13,18 @@
+ 
+ static constexpr const uint maxSessions = 4;
+ 
++
++void ResetKvmInstance (void) 
++{
++   std::ofstream fileWriter;
++   fileWriter.exceptions(std::ofstream::failbit | std::ofstream::badbit);
++   fileWriter.open("/var/kvm_instance", std::ios::out | std::ios::trunc);
++   fileWriter << "0";
++   fileWriter.close();
++   BMCWEB_LOG_DEBUG << "KVM WebSocket Closed! Reseting the KVM Instance!";
++}
++
++
+ class KvmSession
+ {
+   public:
+@@ -174,6 +186,7 @@
+             sessions[&conn] = std::make_unique<KvmSession>(conn);
+         })
+         .onclose([](crow::websocket::Connection& conn, const std::string&) {
++	    ResetKvmInstance();
+             sessions.erase(&conn);
+         })
+         .onmessage([](crow::websocket::Connection& conn,

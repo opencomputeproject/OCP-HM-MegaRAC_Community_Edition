@@ -1,0 +1,49 @@
+diff -Naur a/xyz/openbmc_project/Network/IP.interface.yaml b/xyz/openbmc_project/Network/IP.interface.yaml
+--- a/xyz/openbmc_project/Network/IP.interface.yaml	2021-06-03 03:02:43.240158495 -0400
++++ b/xyz/openbmc_project/Network/IP.interface.yaml	2021-06-13 05:57:38.295395800 -0400
+@@ -46,6 +46,21 @@
+       description: >
+           This indicates the IPv4 or IPv6 status.
+ 
++    - name: States
++      type: enum[self.AddressStates]
++      description: >
++          This indicates the address states.
++      errors:
++          - xyz::openbmc_project.Common.Error.NotAllowed
++
++    - name: Id
++      type: byte
++      description: >
++          This is the index of the ipaddress.
++      errors:
++          - xyz::openbmc_project.Common.Error.NotAllowed
++
++
+ enumerations:
+     - name: Protocol
+       description: >
+@@ -70,3 +85,23 @@
+         - name: SLAAC
+           description: >
+               Address is provided by a Stateless Address Autoconfiguration.
++
++    - name: AddressStates
++      description: >
++          Possible IP address States.
++      values:
++        - name: Active
++          description: >
++              An address assigned to an interface whose use is unrestricted.
++        - name: Disabled
++          description: >
++              An address that is not assigned to interface.
++        - name: DAD
++          description: >
++              Duplicate Address Detection (DAD) is running, ordinary traffic not allowed yet.
++        - name: DADFailed
++          description: >
++              Duplicate Address Detection (DAD) failed.
++        - name: Deprecated
++          description: >
++              An address assigned to an interface whose use is discouraged.

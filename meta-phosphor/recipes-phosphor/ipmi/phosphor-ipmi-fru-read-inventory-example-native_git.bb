@@ -9,7 +9,7 @@ require phosphor-ipmi-host.inc
 
 PROVIDES += "virtual/phosphor-ipmi-fru-read-inventory"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
 do_install() {
         DEST=${D}${config_datadir}

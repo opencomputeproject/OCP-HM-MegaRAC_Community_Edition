@@ -1,0 +1,985 @@
+diff -Naur a/include/ipmi_to_redfish_hooks.hpp b/include/ipmi_to_redfish_hooks.hpp
+--- a/include/ipmi_to_redfish_hooks.hpp	2021-04-01 01:25:00.428012755 -0400
++++ b/include/ipmi_to_redfish_hooks.hpp	2021-04-01 01:39:30.674132975 -0400
+@@ -39,6 +39,7 @@
+ namespace redfish_hooks
+ {
+ 
++
+ enum class EventTypeCode
+ {
+     threshold = 0x1,
+@@ -72,6 +73,8 @@
+ struct SELData
+ {
+     int generatorID;
++    int evmRev;
++    int sensorType;
+     int sensorNum;
+     int eventType;
+     int offset;
+
+diff -Naur a/include/redfish_map.hpp b/include/redfish_map.hpp
+--- a/include/redfish_map.hpp	1969-12-31 19:00:00.000000000 -0500
++++ b/include/redfish_map.hpp	2021-04-01 02:11:29.780324905 -0400
+@@ -0,0 +1,45 @@
++#include <string>
++#include <map>
++#include <bits/stdc++.h>
++
++static const int MaxRecords=1000;
++
++struct SELInfo_T
++{
++	char FileName[30];
++	unsigned long mod_time;
++	int StartingID;
++	int SELEntries;
++};
++
++SELInfo_T **SELInfoPtr=NULL;
++int totalfiles=0;
++int totalSELEntries=0;
++
++enum class EventType
++{
++    threshold = 0x1,
++    //generic range is 0x2 - 0xc ,TODO: should be added according to requirement
++    generic = 0x3,
++    sensor_specific = 0x6f,
++    oem = 0x2,
++};
++
++ std::map<uint8_t, std::map<uint8_t, std::string>> THRESHOLD_EVENT_TABLE = {
++		{0x1,{{0x00,".SensorThresholdWarningLowGoingLow"},{0x01,".SensorThresholdWarningLowGoingHigh"},{0x02, ".SensorThresholdCriticalLowGoingLow"},{0x03, ".SensorThresholdCriticalLowGoingHigh"}, {0x06, ".SensorThresholdWarningHighGoingLow"} ,{0x07, ".SensorThresholdWarningHighGoingHigh"}, {0x08, ".SensorThresholdCriticalHighGoingLow"},{0x09, ".SensorThresholdCriticalHighGoingHigh"},{0x04, ".TempLowerNonRecoverableGoingLow"},{0x05,".TempLowerNonRecoverableGoingHigh"},{0x0a,".TempUpperNonRecoverableGoingLow"},{0x0b,".TempUpperNonRecoverableGoingHigh"}}},
++		{0x2, {{0x00,".SensorThresholdWarningLowGoingLow"},{0x01,".SensorThresholdWarningLowGoingHigh"},{0x02, ".SensorThresholdCriticalLowGoingLow"},{0x03, ".SensorThresholdCriticalLowGoingHigh"},{0x06, ".SensorThresholdWarningHighGoingLow"},{0x07, ".SensorThresholdWarningHighGoingHigh"},{0x08, ".SensorThresholdCriticalHighGoingLow"},{0x09, ".SensorThresholdCriticalHighGoingHigh"},{0x04, ".VoltLowerNonRecoverableGoingLow"},{0x05,".VoltLowerNonRecoverableGoingHigh"},{0x0a,".VoltUpperNonRecoverableGoingLow"},{0x0b,".VoltUpperNonRecoverableGoingHigh"}}},
++		{0x3,{{0x00,".SensorThresholdWarningLowGoingLow"},{0x01,".SensorThresholdWarningLowGoingHigh"},{0x02, ".SensorThresholdCriticalLowGoingLow"},{0x03, ".SensorThresholdCriticalLowGoingHigh"},{0x06, ".SensorThresholdWarningHighGoingLow"},{0x07, ".SensorThresholdWarningHighGoingHigh"},{0x08, ".SensorThresholdCriticalHighGoingLow"},{0x09, ".SensorThresholdCriticalHighGoingHigh"},{0x04, ".CurrLowerNonRecoverableGoingLow"},{0x05,".CurrLowerNonRecoverableGoingHigh"},{0x0a,".CurrUpperNonRecoverableGoingLow"},{0x0b,".CurrUpperNonRecoverableGoingHigh"}}},
++		{0x4,{{0x00,".SensorThresholdWarningLowGoingLow"},{0x01,".SensorThresholdWarningLowGoingHigh"},{0x02, ".SensorThresholdCriticalLowGoingLow"},{0x03, ".SensorThresholdCriticalLowGoingHigh"},{0x06, ".SensorThresholdWarningHighGoingLow"},{0x07, ".SensorThresholdWarningHighGoingHigh"},{0x08, ".SensorThresholdCriticalHighGoingLow"},{0x09, ".SensorThresholdCriticalHighGoingHigh"}, {0x04, ".FanLowerNonRecoverableGoingLow"},{0x05,".FanLowerNonRecoverableGoingHigh"},{0x0a,".FanUpperNonRecoverableGoingLow"},{0x0b,".FanUpperNonRecoverableGoingHigh"}}},
++		{0xB,{{0x00,".SensorThresholdWarningLowGoingLow"},{0x01,".SensorThresholdWarningLowGoingHigh"},{0x02, ".SensorThresholdCriticalLowGoingLow"},{0x03, ".SensorThresholdCriticalLowGoingHigh"},{0x06, ".SensorThresholdWarningHighGoingLow"},{0x07, ".SensorThresholdWarningHighGoingHigh"},{0x08, ".SensorThresholdCriticalHighGoingLow"},{0x09, ".SensorThresholdCriticalHighGoingHigh"},{0x04, ".PwrLowerNonRecoverableGoingLow"},{0x05,".PwrLowerNonRecoverableGoingHigh"},{0x0a,".PwrUpperNonRecoverableGoingLow"},{0x0b,".PwrUpperNonRecoverableGoingHigh"}}}};
++ 
++ std::map<uint8_t, std::map<uint8_t, std::string>> SENSOR_SPECIFIC_EVENT_TABLE = {
++    {0x0C, {{0x00, ".CorrectableECC"},{0x01, ".UncorrectableECC"},{0x02, ".Parity"},{0x03,".MemoryScrubFailed"},{0x04,".MemoryDeviceDisabled"},{0x05,".CorrectableECClogging"},{0x06,".PresenceDetected"},{0x07,".ConfigurationError"},{0x08,".Spare"},{0x09,".Throttled"},{0x0a,".CriticalOvertemp"}}},
++    {0x0D, {{0x00,".DrivePresent"},{0x01,".DriveFault"},{0x02,".PredictiveFailure"},{0x03,".HotSpare"},{0x04,".ParityCheck"},{0x05,".InCriticalArray"},{0x06,".InFailedArray"},{0x07,".RebuildInProgress"},{0x08,".RebuildAborted"}}},
++    {0x05, {{0x00,".GenChassisIntrusion"},{0x01,".DriveBayIntrusion"},{0x02,".IOCardAreaIntrusion"},{0x03,".ProcessorAreaIntrusion"},{0x04,".LanLost"},{0x05,".UnauthorizedDock"},{0x06,".FanAreaIntrusion"}}},
++    {0x10, {{0x00,".Correctablememoryerror"},{0x01,".Eventloggingdisabled"},{0x02,".Logareareset"},{0x03,".Alleventloggingdisabled"},{0x04,".Logfull"},{0x05,".Logalmostfull"}}},
++    {0x22, {{0x00,".S0_G0"},{0x01,".S1"},{0x02,".S2"},{0x03,".S3"},{0x04,".S4"},{0x05,".S5_G2"},{0x06,".S4_S5"},{0x07,".G3"},{0x08,".S1_S2_S3"},{0x09,".G1"},{0x0a,".S5"},{0x0b,".LegacyOn"},{0x0c,".LegacyOff"},{0x0e,".ACPI_Unknown"}}},
++    {0x23, {{0x00,".Timerexpired"},{0x01,".Hardreset"},{0x02,".Powerdown"},{0x03,".Powercycle"},{0x08,".Timerinterrupt"}}}};
++	
++ std::map<uint8_t, std::map<unsigned char, std::string>> GENERIC_EVENT_TABLE = {
++        {0x07, {{0x00,".ActiveStateLow"},{0x01,".ActiveStateHigh"}}},
++        {0x01, {{0x00,".ActiveStateLow"},{0x01,".ActiveStateHigh"}}}};
+
+diff -Naur a/include/storagecommands.hpp b/include/storagecommands.hpp
+--- a/include/storagecommands.hpp	2021-04-01 01:25:00.432012971 -0400
++++ b/include/storagecommands.hpp	2021-04-01 01:39:30.674132975 -0400
+@@ -13,7 +13,9 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ */
+-
++#include <string>
++#include <map>
++#include <bits/stdc++.h> 
+ #pragma once
+ #include <phosphor-ipmi-host/sensorhandler.hpp>
+ 
+
+diff -Naur a/src/ipmi_to_redfish_hooks.cpp b/src/ipmi_to_redfish_hooks.cpp
+--- a/src/ipmi_to_redfish_hooks.cpp	2021-04-01 01:25:00.432012971 -0400
++++ b/src/ipmi_to_redfish_hooks.cpp	2021-04-01 01:39:30.674132975 -0400
+@@ -932,7 +932,7 @@
+                         messageID = ".IpmiSensorThresholdCriticalLowGoingLow";
+                         break;
+                 case 0x03:
+-                        messageID = "IpmiSensorThresholdCriticalLowGoingHigh";
++                        messageID = ".IpmiSensorThresholdCriticalLowGoingHigh";
+                         break;
+                 case 0x06:
+                         messageID = ".IpmiSensorThresholdWarningHighGoingLow";
+@@ -1412,9 +1412,9 @@
+         std::string journalMsg = "SEL Entry Added: " + ipmiRaw;
+         phosphor::logging::log<phosphor::logging::level::INFO>(
+         journalMsg.c_str(),
+-        phosphor::logging::entry("REDFISH_MESSAGE_ID=%s", messageID.c_str()),
+-        phosphor::logging::entry("REDFISH_MESSAGE_ARGS=%s",
+-                                 SensorName.c_str()));
++        phosphor::logging::entry("REDFISH_MESSAGE_ID=%x,%x,%x,%s", selData.sensorType, selData.sensorNum, selData.eventType, messageID.c_str()),
++        phosphor::logging::entry("REDFISH_MESSAGE_ARGS=%s,%x,%x",
++                                 SensorName.c_str(), selData.eventData3, selData.eventData3));
+         return true;
+ 
+ }
+@@ -1571,6 +1571,8 @@
+ 
+     // Extract the SEL data for the hook
+     redfish_hooks::SELData selData = {.generatorID = generatorID,
++	    			      .evmRev = evmRev,
++				      .sensorType=sensorType,
+                                       .sensorNum = sensorNum,
+                                       .eventType = eventType,
+                                       .offset = eventData1 & 0x0F,
+@@ -1592,6 +1594,8 @@
+ 
+     // Extract the SEL data for the hook
+     redfish_hooks::SELData selData = {.generatorID = generatorID,
++                                      .evmRev = evmRev,
++                                      .sensorType=sensorType,
+                                       .sensorNum = sensorNum,
+                                       .eventType = eventType,
+                                       .offset = eventData1 & 0x0F,
+
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-04-01 01:25:00.864036373 -0400
++++ b/src/storagecommands.cpp	2021-04-01 04:00:02.302533070 -0400
+@@ -20,6 +20,7 @@
+ #include "ipmi_to_redfish_hooks.hpp"
+ #include "sdrutils.hpp"
+ #include "types.hpp"
++#include "redfish_map.hpp"
+ 
+ #include <boost/algorithm/string.hpp>
+ #include <boost/container/flat_map.hpp>
+@@ -37,13 +38,19 @@
+ #include <stdexcept>
+ #include <string_view>
+ #include<unistd.h>
++#include <string>
++#include <map>
++#include <bits/stdc++.h> 
++#include <sstream> 
++#include <algorithm>
++
++using namespace std;
+ 
+ static constexpr bool DEBUG = false;
+ 
+ namespace intel_oem::ipmi::sel
+ {
+ static const std::filesystem::path selLogDir = "/var/sellog";
+-static const std::string selLogFilename = "ipmi_sel";
+ static const std::string redfishLogFilename = "redfish";
+ 
+ static int getFileTimestamp(const std::filesystem::path& file)
+@@ -737,7 +744,7 @@
+     return IPMI_CC_OK;
+ }
+ 
+-static bool getRedfishLogFiles(std::vector<std::filesystem::path>& redfishLogFiles)
++static bool getSELLogFiles(std::vector<std::filesystem::path>& selLogFiles, int* fileindex)
+ {
+     // Loop through the directory looking for ipmi_sel log files
+     for (const std::filesystem::directory_entry& dirEnt :
+@@ -747,30 +754,9 @@
+         if (boost::starts_with(filename, intel_oem::ipmi::sel::redfishLogFilename))
+         {
+             // If we find an ipmi_sel log file, save the path
+-            redfishLogFiles.emplace_back(intel_oem::ipmi::sel::selLogDir /
+-                                     filename);
+-        }
+-    }
+-    // As the log files rotate, they are appended with a ".#" that is higher for
+-    // the older logs. Since we don't expect more than 10 log files, we
+-    // can just sort the list to get them in order from newest to oldest
+-    std::sort(redfishLogFiles.begin(), redfishLogFiles.end());
+-
+-    return !redfishLogFiles.empty();
+-}
+-
+-static bool getSELLogFiles(std::vector<std::filesystem::path>& selLogFiles)
+-{
+-    // Loop through the directory looking for ipmi_sel log files
+-    for (const std::filesystem::directory_entry& dirEnt :
+-         std::filesystem::directory_iterator(intel_oem::ipmi::sel::selLogDir))
+-    {
+-        std::string filename = dirEnt.path().filename();
+-        if (boost::starts_with(filename, intel_oem::ipmi::sel::selLogFilename))
+-        {
+-            // If we find an ipmi_sel log file, save the path
+             selLogFiles.emplace_back(intel_oem::ipmi::sel::selLogDir /
+                                      filename);
++			*fileindex=*fileindex+1;
+         }
+     }
+     // As the log files rotate, they are appended with a ".#" that is higher for
+@@ -785,7 +771,8 @@
+ {
+     // Get the list of ipmi_sel log files
+     std::vector<std::filesystem::path> selLogFiles;
+-    if (!getSELLogFiles(selLogFiles))
++	int fileindex=0;
++    if (!getSELLogFiles(selLogFiles,&fileindex))
+     {
+         return 0;
+     }
+@@ -819,7 +806,7 @@
+     ss << std::hex << recordID;
+     std::string res = ss.str();
+     std::string search = " " + res + ",";
+-
++	int linecount=0; 
+     // Loop through the ipmi_sel log entries
+     for (const std::filesystem::path& file : selLogFiles)
+     {
+@@ -831,11 +818,10 @@
+ 
+         while (std::getline(logStream, entry))
+         {
+-            // Check if the record ID matches
+-            if (entry.find(search) != std::string::npos)
+-            {
+-                return true;
+-            }
++			if(recordID == linecount)
++				return true;
++			linecount++;
++
+         }
+     }
+     return false;
+@@ -846,7 +832,8 @@
+ static uint16_t initializeRecordId(void)
+ {
+     std::vector<std::filesystem::path> selLogFiles;
+-    if (!getSELLogFiles(selLogFiles))
++	int fileindex=0;
++    if (!getSELLogFiles(selLogFiles,&fileindex))
+     {
+         return selInvalidRecID;
+     }
+@@ -955,7 +942,7 @@
+     constexpr uint8_t selVersion = ipmi::sel::selVersion;
+     uint16_t entries = countSELEntries();
+     uint32_t addTimeStamp = intel_oem::ipmi::sel::getFileTimestamp(
+-        intel_oem::ipmi::sel::selLogDir / intel_oem::ipmi::sel::selLogFilename);
++        intel_oem::ipmi::sel::selLogDir / intel_oem::ipmi::sel::redfishLogFilename);
+     uint32_t eraseTimeStamp = intel_oem::ipmi::sel::erase_time::get();
+     constexpr uint8_t operationSupport =
+         intel_oem::ipmi::sel::selOperationSupport;
+@@ -966,6 +953,201 @@
+                                  eraseTimeStamp, operationSupport);
+ }
+ 
++/* Compare the latest timestamp of the file with given index and 
++	return 1 if file is modified and 0 if there is no change */
++static int CheckLatestTimestamp(int index)
++{
++	struct stat st;
++	unsigned long timediff;
++	unsigned long newmod_time;
++	stat(SELInfoPtr[index]->FileName, &st);
++	newmod_time = st.st_mtime;
++	
++	timediff = newmod_time - SELInfoPtr[index]->mod_time;
++	if (timediff)
++	{
++		SELInfoPtr[index]->mod_time = newmod_time;
++		return 1;
++	}
++	else
++		return 0;
++	
++}
++
++static int CheckandLoadSELTable()
++{
++	std::vector<std::filesystem::path> selLogFiles;
++	int filecount=0,i=0,linecount=0,tempcount=0,j=0;
++	std::string databuf;
++	std::string tempbuf;
++	struct stat st; 
++	
++	if (SELInfoPtr == NULL) //condition for very first read
++	{
++		filecount=0;
++		getSELLogFiles(selLogFiles,&filecount);
++		totalfiles=filecount;
++	
++		/* Dynamically allocate memory based on the no of files*/
++		SELInfoPtr = (struct SELInfo_T **)malloc(filecount * sizeof(struct SELInfo_T *));
++		for ( i=0; i< totalfiles ; i++)
++			SELInfoPtr[i] = (struct SELInfo_T *)malloc(sizeof(struct SELInfo_T));
++		
++		/*Update the table with filename,timestamp, starting id, NoofEntries(last entry in file)*/
++		for ( i=filecount-1; j<filecount; i--)
++		{
++			tempbuf=selLogFiles[i];
++			strcpy(SELInfoPtr[j]->FileName,tempbuf.c_str());
++			
++			std::ifstream logStream(SELInfoPtr[i]->FileName);
++			if (!logStream.is_open())
++			{
++				std::cout << "Error opening file" << endl;
++			}
++			
++			stat(SELInfoPtr[j]->FileName, &st);
++			SELInfoPtr[j]->mod_time=st.st_mtime;
++			tempcount = linecount;
++			while (std::getline(logStream, databuf))
++				linecount++;
++			
++			
++			SELInfoPtr[j]->StartingID = tempcount;
++			SELInfoPtr[j]->SELEntries = linecount;
++			
++			j++;
++			logStream.close();
++		}
++		
++		/*Linecount will have total number of records*/
++		totalSELEntries=linecount;
++		
++		return 0;
++	}
++	else 
++	{
++		int value_0=0, value_1=0;
++		filecount=0;
++		getSELLogFiles(selLogFiles,&filecount);
++		
++		/* Check for change in filecount and change in first and last file in the table with the files in directory*/
++		if ((totalfiles == filecount) && ((strcmp(SELInfoPtr[0]->FileName,selLogFiles[filecount-1].c_str()) == 0) && (strcmp(SELInfoPtr[filecount-1]->FileName,selLogFiles[0].c_str()) == 0)))
++		{
++			/* if files are same check timestamp for last two files*/
++			value_0 = CheckLatestTimestamp(filecount-1);
++			if (filecount > 1)
++				value_1 = CheckLatestTimestamp(filecount-2);
++			
++			if((value_0 == 1) && (value_1 ==1)) /*if both file timestamp are changed update the entire table*/
++			{	
++				/*Free the memory*/
++				for ( i=0; i< totalfiles ; i++)
++					free(SELInfoPtr[i]);
++				free ( SELInfoPtr);
++			
++				totalfiles=filecount;
++				
++				SELInfoPtr = (struct SELInfo_T **)malloc(filecount * sizeof(struct SELInfo_T *));
++				for ( i=0; i< filecount ; i++)
++					SELInfoPtr[i] = (struct SELInfo_T *)malloc(sizeof(struct SELInfo_T));
++			
++				
++				j=0;
++				for ( i=filecount-1; j < filecount ; i--)
++				{
++					tempbuf=selLogFiles[i];
++					strcpy(SELInfoPtr[j]->FileName,tempbuf.c_str());
++					
++					std::ifstream FileStream(SELInfoPtr[j]->FileName);
++					if (!FileStream.is_open())
++					{
++						std::cout << "Error opening file" << endl;
++					}
++					stat(SELInfoPtr[j]->FileName, &st);
++					SELInfoPtr[j]->mod_time=st.st_mtime;
++					tempcount = linecount;
++					while (std::getline(FileStream, databuf))
++						linecount++;
++				
++					SELInfoPtr[j]->StartingID = tempcount;
++					SELInfoPtr[j]->SELEntries = linecount;
++				
++					j++;
++					FileStream.close();
++				}
++				totalSELEntries=linecount;
++				std::cout << "totalSELEntries : " << totalSELEntries << endl;
++				return 0;
++			}
++			else if ((value_0 == 1 ) && (value_1 ==0)) /*if only last file timestamp is changed update only the last latest file*/
++			{
++				std::ifstream fileStream(SELInfoPtr[filecount-1]->FileName);
++				if (!fileStream.is_open())
++				{
++					std::cout << "Error opening file" << endl;
++				}
++				stat(SELInfoPtr[filecount-1]->FileName, &st);
++				SELInfoPtr[filecount-1]->mod_time=st.st_mtime;
++				linecount=SELInfoPtr[filecount-1]->StartingID;
++				while (std::getline(fileStream, databuf))
++					linecount++;
++				SELInfoPtr[filecount-1]->SELEntries = linecount;
++				totalSELEntries = linecount;
++				std::cout << "Last file updated no of entries: " << linecount << endl;
++				fileStream.close();
++				return 0;
++			}
++			else /* if there is no change use the same table*/
++			{
++				return 0;
++			}
++			
++		}	
++		else /*if the filecount is changed i.e., when a new file is created update the entire table*/
++		{
++			/*Free the memory*/
++			for ( i=0; i< totalfiles ; i++)
++					free(SELInfoPtr[i]);
++				free ( SELInfoPtr);
++			
++				totalfiles=filecount;
++			
++				SELInfoPtr = (struct SELInfo_T **)malloc(filecount * sizeof(struct SELInfo_T *));
++				for ( i=0; i< filecount ; i++)
++					SELInfoPtr[i] = (struct SELInfo_T *)malloc(sizeof(struct SELInfo_T));
++			
++				j=0;
++				for ( i=filecount-1; j < filecount ; i--)
++				{
++					tempbuf=selLogFiles[i];
++					strcpy(SELInfoPtr[j]->FileName,tempbuf.c_str());
++					
++					std::ifstream FileStream(SELInfoPtr[j]->FileName);
++					if (!FileStream.is_open())
++					{
++						std::cout << "Error opening file" << endl;
++					}
++					stat(SELInfoPtr[j]->FileName, &st);
++					SELInfoPtr[j]->mod_time=st.st_mtime;
++					tempcount = linecount;
++					while (std::getline(FileStream, databuf))
++						linecount++;
++				
++					SELInfoPtr[j]->StartingID = tempcount;
++					SELInfoPtr[j]->SELEntries = linecount;
++				
++					j++;
++					FileStream.close();
++				}
++				totalSELEntries=linecount;
++				return 0;
++		}
++	
++	}
++	return 0;
++}
++
++
+ using systemEventType = std::tuple<
+     uint32_t, // Timestamp
+     uint16_t, // Generator ID
+@@ -1005,55 +1187,57 @@
+             return ipmi::responseInvalidReservationId();
+         }
+     }
+-
+-    // Get the ipmi_sel log files
+-    std::vector<std::filesystem::path> selLogFiles;
+-    if (!getSELLogFiles(selLogFiles))
+-    {
+-        return ipmi::responseSensorInvalid();
+-    }
+-
+-    std::string targetEntry;
+-
+-    if (targetID == ipmi::sel::firstEntry)
+-    {
+-        // The first entry will be at the top of the oldest log file
+-        std::ifstream logStream(selLogFiles.back());
+-        if (!logStream.is_open())
+-        {
+-            return ipmi::responseUnspecifiedError();
+-        }
+-
+-        if (!std::getline(logStream, targetEntry))
+-        {
+-            return ipmi::responseUnspecifiedError();
+-        }
+-    }
+-    else if (targetID == ipmi::sel::lastEntry)
+-    {
+-        // The last entry will be at the bottom of the newest log file
+-        std::ifstream logStream(selLogFiles.front());
+-        if (!logStream.is_open())
+-        {
+-            return ipmi::responseUnspecifiedError();
+-        }
+-
+-        std::string line;
+-        while (std::getline(logStream, line))
+-        {
+-            targetEntry = line;
+-        }
+-    }
+-    else
+-    {
+-        if (!findSELEntry(targetID, selLogFiles, targetEntry))
+-        {
+-            return ipmi::responseSensorInvalid();
+-        }
+-    }
+-
++	//Load the SEL table
++	CheckandLoadSELTable();
++	int i=0;
++	uint16_t ignorerecord =0;
++	std::string targetEntry; //Record data from file
++	std::string databuf;
++	int linecount=0;
++	size_t pos;
++	if ( totalSELEntries > MaxRecords)
++	{
++		ignorerecord = totalSELEntries - MaxRecords;
++	}
++	
++	/*Change the requested ID(targetID) to the 0th record according to the table*/
++	int changedrec=ignorerecord+targetID;
++	
++	/*iterate the table to find the SEL entry*/
++	for(i=0; i< totalfiles ; i++)
++	{
++		/*Check the changed record is present in the range of each file of the table*/
++		if (changedrec < SELInfoPtr[i]->SELEntries)
++		{
++			std::ifstream logStream(SELInfoPtr[i]->FileName);
++			if (!logStream.is_open())
++			{
++				std::cout << "Error opening file" << endl;
++			}
++			/*Initialize the linecount to starting id of the file*/
++			linecount=SELInfoPtr[i]->StartingID;
++			
++			while (std::getline(logStream, databuf))
++			{
++				if (changedrec == linecount)
++				{
++					targetEntry = databuf;
++					break;
++				}
++				linecount=linecount+1;
++			}
++			logStream.close();
++		}
++	}
++	
++	if(targetEntry.empty())
++	{
++		std::cout << "Target ID not found" << endl;
++		return ipmi::responseSensorInvalid();
++	}
++	
+     // The format of the ipmi_sel message is "<Timestamp>
+-    // <ID>,<Type>,<EventData>,[<Generator ID>,<Path>,<Direction>]".
++    // <sensorType>,<sensorNum>,<eventType>,[<MessageID>,<MessageArgs>,
+     // First get the Timestamp
+     size_t space = targetEntry.find_first_of(" ");
+     if (space == std::string::npos)
+@@ -1073,183 +1257,202 @@
+     std::vector<std::string> targetEntryFields;
+     boost::split(targetEntryFields, entry, boost::is_any_of(","),
+                  boost::token_compress_on);
+-    if (targetEntryFields.size() < 3)
++
++		std::tm timeStruct = {};
++    std::istringstream entryStream(entryTimestamp);
++
++    uint32_t timestamp = ipmi::sel::invalidTimeStamp;
++    if (entryStream >> std::get_time(&timeStruct, "%Y-%m-%dT%H:%M:%S"))
+     {
+-        return ipmi::responseUnspecifiedError();
++        timestamp = std::mktime(&timeStruct);
+     }
+-    std::string& recordIDStr = targetEntryFields[0];
+-    std::string& recordTypeStr = targetEntryFields[1];
+-    std::string& eventDataStr = targetEntryFields[8];
++	
++	
++	uint8_t recordType = 0x02;
++	
++	uint16_t nextRecordID = targetID + 1;
++	
++	uint16_t recordID = targetID;
++    
++	uint8_t evmRev = 4;
++	uint16_t generatorID = 0;
++    unsigned int sensorType = 0x00;
++    unsigned int sensorNum = 0x00;
++    unsigned int eventType = 0x00;
++    bool eventDir = 0;
++    
++	std::array<uint8_t, intel_oem::ipmi::sel::systemEventSize> eventData{};
++	std::string redfishMessageID= "OpenBMC.0.1";
++	std::string DefaultStr="Ipmi";
++	std::string InvalidSELdata = targetEntryFields[0];
++	pos = InvalidSELdata.find(redfishMessageID);
++	if (pos != std::string::npos)
++    {
++		eventData[0]=0xFF;
++		eventData[1]=0xFF;
++		eventData[2]=0xFF;
++		std::cout << "return harcoded SEL data" << endl;
++		return ipmi::responseSuccess(
++            nextRecordID, recordID, recordType,
++            systemEventType{timestamp, generatorID, evmRev, sensorType,
++                            sensorNum, eventType, eventDir, eventData});
++	}
++	
++    std::string& sensorTypeStr = targetEntryFields[0];
++    std::string& sensorNumStr = targetEntryFields[1];
++    std::string& eventTypeStr = targetEntryFields[2];
++	std::string& eventDataStr0=  targetEntryFields[3];
++    std::string& eventDataStr1 = targetEntryFields[5];
++	std::string& eventDataStr2 = targetEntryFields[6];
++
+ 
+-    uint16_t recordID;
+-    uint8_t recordType;
++    // Get the sensorType
+     try
+     {
+-        //recordID = std::stoul(recordIDStr);
+-	recordID = std::stoul(recordIDStr, nullptr, 16);
+-        recordType = std::stoul(recordTypeStr, nullptr, 16);
++        sensorType = std::stoul(sensorTypeStr, nullptr, 16);
+     }
+     catch (const std::invalid_argument&)
+     {
+-        return ipmi::responseUnspecifiedError();
++        std::cerr << "Invalid sensorType\n";
+     }
+-    uint16_t nextRecordID = getNextRecordID(recordID, selLogFiles);
+-    std::vector<uint8_t> eventDataBytes;
+-    if (fromHexStr(eventDataStr, eventDataBytes) < 0)
++
++    // Get the sensorNum
++    try
+     {
+-        return ipmi::responseUnspecifiedError();
++        sensorNum = std::stoul(sensorNumStr, nullptr, 16);
+     }
+-
+-    if (recordType == intel_oem::ipmi::sel::systemEvent)
++    catch (const std::invalid_argument&)
+     {
+-        // Get the timestamp
+-        std::tm timeStruct = {};
+-        std::istringstream entryStream(entryTimestamp);
+-
+-        uint32_t timestamp = ipmi::sel::invalidTimeStamp;
+-        if (entryStream >> std::get_time(&timeStruct, "%Y-%m-%dT%H:%M:%S"))
+-        {
+-            timestamp = std::mktime(&timeStruct);
+-        }
+-
+-        // Set the event message revision
+-      //  uint8_t evmRev = intel_oem::ipmi::sel::eventMsgRev;
+-          uint8_t evmRev = 0;
+-        uint16_t generatorID = 0;
+-        uint8_t sensorType = 0;
+-        uint16_t sensorAndLun = 0;
+-        uint8_t sensorNum = 0xFF;
+-        uint8_t eventType = 0;
+-        bool eventDir = 0;
+-        // System type events should have six fields
+-        if (targetEntryFields.size() >= 6)
+-        {
+-            std::string& generatorIDStr = targetEntryFields[3];
+-        //    std::string& sensorPath = targetEntryFields[4];
+-          //  std::string& eventDirStr = targetEntryFields[5];
+-            std::string& evmRevStr = targetEntryFields[4];
+-            std::string& sensorTypeStr = targetEntryFields[5];
+-            std::string& sensorNumStr = targetEntryFields[6];
+-            std::string& eventEventStr = targetEntryFields[7];
+-            std::string& eventDirStr = targetEntryFields[7];
+-            // Get the generator ID
+-            try
+-            {
+-                generatorID = std::stoul(generatorIDStr, nullptr, 16);
+-            }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid Generator ID\n";
+-            }
+-
+-            // Get the sensor type, sensor number, and event type for the sensor
+-//            sensorType = getSensorTypeFromPath(sensorPath);
+-  //          sensorNum = getSensorNumberFromPath(sensorPath);
+-    //        eventType = getSensorEventTypeFromPath(sensorPath);
+-
+-	     // Get the evmrev
+-            try
+-            {
+-                evmRev = std::stoul(evmRevStr, nullptr, 16);
+-           }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid EvmRev\n";
+-            }
+-
+-            // Get the sensorType
+-            try
+-            {
+-                sensorType = std::stoul(sensorTypeStr, nullptr, 16);
+-            }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid sensorType\n";
+-            }
+-
+-            // Get the sensorNum
+-            try
+-            {
+-                sensorNum = std::stoul(sensorNumStr, nullptr, 16);
+-            }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid sensorNum\n";
+-            }
+-
+-           // Get the eventtype
+-            try
+-            {
+-                eventType = std::stoul(eventEventStr, nullptr, 16);
+-            }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid eventtype\n";
+-            }
+-
+-
+-            // Get the event direction
+-            try
+-            {
+-               eventDir = ( eventType & (1 << 7) ) ? 1 : 0;
+-            }
+-            catch (const std::invalid_argument&)
+-            {
+-                std::cerr << "Invalid Event Direction\n";
+-            }
+-        }
+-
+-        // Only keep the eventData bytes that fit in the record
+-        std::array<uint8_t, intel_oem::ipmi::sel::systemEventSize> eventData{};
+-        std::copy_n(eventDataBytes.begin(),
+-                    std::min(eventDataBytes.size(), eventData.size()),
+-                    eventData.begin());
++        std::cerr << "Invalid sensorNum\n";
++    }
+ 
+-        return ipmi::responseSuccess(
+-            nextRecordID, recordID, recordType,
+-            systemEventType{timestamp, generatorID, evmRev, sensorType,
+-                            sensorNum, eventType, eventDir, eventData});
++   // Get the eventtype
++    try
++    {
++		eventType=std::stoul(eventTypeStr, nullptr, 16);
+     }
+-    else if (recordType >= intel_oem::ipmi::sel::oemTsEventFirst &&
+-             recordType <= intel_oem::ipmi::sel::oemTsEventLast)
++    catch (const std::invalid_argument&)
+     {
+-        // Get the timestamp
+-        std::tm timeStruct = {};
+-        std::istringstream entryStream(entryTimestamp);
+-
+-        uint32_t timestamp = ipmi::sel::invalidTimeStamp;
+-        if (entryStream >> std::get_time(&timeStruct, "%Y-%m-%dT%H:%M:%S"))
+-        {
+-            timestamp = std::mktime(&timeStruct);
+-        }
+-        phosphor::logging::log<phosphor::logging::level::INFO>(
+-        "OEM Ts event 1");
+-        // Only keep the bytes that fit in the record
+-        std::array<uint8_t, intel_oem::ipmi::sel::oemTsEventSize> eventData{};
+-        std::copy_n(eventDataBytes.begin(),
+-                    std::min(eventDataBytes.size(), eventData.size()),
+-                    eventData.begin());
+-
+-	phosphor::logging::log<phosphor::logging::level::INFO>(
+-        "OEM Ts event 2");
+-
+-        return ipmi::responseSuccess(nextRecordID, recordID, recordType,
+-                                     oemTsEventType{timestamp, eventData});
++        std::cerr << "Invalid eventtype\n";
+     }
+-    else if (recordType >= intel_oem::ipmi::sel::oemEventFirst)
++	
++	try
+     {
+-        // Only keep the bytes that fit in the record
+-        std::array<uint8_t, intel_oem::ipmi::sel::oemEventSize> eventData{};
+-        std::copy_n(eventDataBytes.begin(),
+-                    std::min(eventDataBytes.size(), eventData.size()),
+-                    eventData.begin());
+-
+-        return ipmi::responseSuccess(nextRecordID, recordID, recordType,
+-                                     eventData);
++        eventData[1] = std::stoul(eventDataStr1, nullptr, 16);
++    }
++    catch (const std::invalid_argument&)
++    {
++		eventData[1]=0xFF;
++        std::cerr << "Invalid eventtype\n";
+     }
++	
++	try
++    {
++        eventData[2] = std::stoul(eventDataStr2, nullptr, 16);
++    }
++    catch (const std::invalid_argument&)
++    {
++		eventData[2]=0xFF;
++        std::cerr << "Invalid eventtype\n";
++    }
++	
++	try
++    {
++       eventDir = ( eventType & (1 << 7) ) ? 1 : 0;
++    }
++    catch (const std::invalid_argument&)
++    {
++        std::cerr << "Invalid Event Direction\n";
++    }
++	
++	map<uint8_t, std::string>::iterator ptr;
++    map<uint8_t, map<uint8_t, std::string> >::iterator itr;
++	
++
++	pos = eventDataStr0.find(redfishMessageID);
++	
++	if (pos != std::string::npos)
++	{
++		eventDataStr0.erase(pos,redfishMessageID.length());
++	}
++	
++	if (eventType == 0x01)
++	{
++			pos= eventDataStr0.find(DefaultStr);
++			if (pos != std::string::npos)
++			{
++				generatorID=0x41;
++				eventDataStr0.erase(pos,DefaultStr.length());
++			}
++			else
++				generatorID=0x20;
++			
++			for (itr = THRESHOLD_EVENT_TABLE.begin(); itr != THRESHOLD_EVENT_TABLE.end(); itr++) { 
++				if ( sensorType == itr->first) {
++					for (ptr = itr->second.begin(); ptr != itr->second.end(); ptr++) { 
++					if (ptr->second == eventDataStr0)
++					{
++						eventData[0]=ptr->first;
++						break;
++					}
++					}
++				}
++			}
++	}
++	
++	if (eventType == 0x6f)
++	{
++			pos= eventDataStr0.find(DefaultStr);
++			if (pos != std::string::npos)
++			{
++				generatorID=0x41;
++				eventDataStr0.erase(pos,DefaultStr.length());
++			}
++			else
++				generatorID=0x20;
++			for (itr = SENSOR_SPECIFIC_EVENT_TABLE.begin(); itr != SENSOR_SPECIFIC_EVENT_TABLE.end(); itr++) { 
++				if ( sensorType == itr->first) {
++					for (ptr = itr->second.begin(); ptr != itr->second.end(); ptr++) { 
++					if (ptr->second == eventDataStr0)
++					{
++						eventData[0]=ptr->first;
++						break;
++					}
++					}
++				}
++			}
++	}
++	
++	if ( eventType == 0x03)
++	{
++			pos = eventDataStr0.find(DefaultStr);
++			if (pos != std::string::npos)
++			{
++				generatorID=0x41;
++				eventDataStr0.erase(pos,DefaultStr.length());
++			}
++			else
++				generatorID=0x20;
++			for (itr = GENERIC_EVENT_TABLE.begin(); itr != GENERIC_EVENT_TABLE.end(); itr++) { 
++				if ( sensorType == itr->first) {
++					for (ptr = itr->second.begin(); ptr != itr->second.end(); ptr++) { 
++					if (ptr->second == eventDataStr0)
++					{
++						eventData[0]=ptr->first;
++						break;
++					}
++					}
++				}
++			}
++	}
+ 
+-    return ipmi::responseUnspecifiedError();
+-}
++	return ipmi::responseSuccess(
++            nextRecordID, recordID, recordType,
++            systemEventType{timestamp, generatorID, evmRev, sensorType,
++                            sensorNum, eventType, eventDir, eventData});
++	
++	}
++ 
+ 
+ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
+     uint16_t recordID, uint8_t recordType, uint32_t timestamp,
+@@ -1260,12 +1463,13 @@
+     // Per the IPMI spec, need to cancel any reservation when a SEL entry is
+     // added
+     cancelSELReservation();
+-  intel_oem::ipmi::sel::checkSelHooks(
++  /*intel_oem::ipmi::sel::checkSelHooks(
+         recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+-        sensorNum, eventType, eventData1, eventData2, eventData3);
++        sensorNum, eventType, eventData1, eventData2, eventData3);*/
+ 
+     // Send this request to the Redfish hooks to log it as a Redfish message
+     // instead.  There is no need to add it to the SEL, so just return success.
++    std::cout << "In ipmiStorageAddSELEntry send req to checkRedfishHooks" << endl;
+     intel_oem::ipmi::sel::checkRedfishHooks(
+         recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+         sensorNum, eventType, eventData1, eventData2, eventData3);
+@@ -1376,10 +1580,10 @@
+ 
+     // Save the erase time
+     intel_oem::ipmi::sel::erase_time::save();
+-
++	int fileindex=0;
+     // Clear the SEL by deleting the log files
+     std::vector<std::filesystem::path> selLogFiles;
+-    if (getSELLogFiles(selLogFiles))
++    if (getSELLogFiles(selLogFiles,&fileindex))
+     {
+         for (const std::filesystem::path& file : selLogFiles)
+         {
+@@ -1390,15 +1594,15 @@
+ 
+ 
+     // Clear the SEL by deleting the log files
+-    std::vector<std::filesystem::path> redfishLogFiles;
+-    if (getRedfishLogFiles(redfishLogFiles))
++    //std::vector<std::filesystem::path> redfishLogFiles;
++    /*if (getRedfishLogFiles(redfishLogFiles))
+     {
+         for (const std::filesystem::path& file : redfishLogFiles)
+         {
+             std::error_code ec;
+             std::filesystem::remove(file, ec);
+          }
+-     }
++     }*/
+ 
+     // Reload rsyslog so it knows to start new log files
+     std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+@@ -1446,8 +1650,8 @@
+         "deleteSELEntry intel");
+ 
+     std::vector<std::filesystem::path> selLogFiles;
+-
+-    if (!getSELLogFiles(selLogFiles))
++	int fileindex=0;
++    if (!getSELLogFiles(selLogFiles, &fileindex))
+     {
+         return ipmi::responseSensorInvalid();
+     }

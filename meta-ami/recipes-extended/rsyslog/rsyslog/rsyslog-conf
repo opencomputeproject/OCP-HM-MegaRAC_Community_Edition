@@ -14,31 +14,7 @@ module(load="imjournal" StateFile="/var/sellog/state"
                         RateLimit.Interval="60"
                         RateLimit.Burst="2000")
 
-# Template for IPMI SEL messages
-# "<timestamp> <ID>,<Type>,<EventData>,[<Generator ID>,<Path>,<Direction>]"
-template(name="IPMISELTemplate" type="list") {
-    property(name="timereported" dateFormat="rfc3339")
-    constant(value=" ")
-    property(name="$!IPMI_SEL_RECORD_ID")
-    constant(value=",")
-    property(name="$!IPMI_SEL_RECORD_TYPE")
-    constant(value=",")
-    property(name="$!IPMI_SEL_TIME_STAMP")
-    constant(value=",")
-    property(name="$!IPMI_SEL_GENERATOR_ID")
-    constant(value=",")
-    property(name="$!IPMI_SEL_EVMREV")
-    constant(value=",")
-    property(name="$!IPMI_SEL_SENSOR_TYPE")
-    constant(value=",")
-    property(name="$!IPMI_SEL_SENSOR_NUM")
-    constant(value=",")
-    property(name="$!IPMI_SEL_EVENT_TYPE")
-    constant(value=",")
-    property(name="$!IPMI_SEL_DATA")
-    constant(value="\n")
-}
-
+module(load="omprog")
 # Template for Redfish messages
 # "<timestamp> <MessageId>,<MessageArgs>"
 template(name="RedfishTemplate" type="list") {
@@ -50,16 +26,14 @@ template(name="RedfishTemplate" type="list") {
     constant(value="\n")
 }
 
-# If the journal entry has the IPMI SEL MESSAGE_ID, save as IPMI SEL
-# The MESSAGE_ID string is generated using journalctl and must match the
-# MESSAGE_ID used in IPMI to correctly find the SEL entries.
-if ($!MESSAGE_ID == "b370836ccf2f4850ac5bee185b77893a") then {
-   action(type="omfile" file="/var/sellog/ipmi_sel" template="IPMISELTemplate")
-}
 
 # If the journal entry has a Redfish MessageId, save as a Redfish event
 if ($!REDFISH_MESSAGE_ID != "") then {
-   action(type="omfile" file="/var/sellog/redfish" template="RedfishTemplate")
+    action(type="omprog" 
+           binary="/usr/bin/rsyslog-rotate" 
+	   queue.workerThreads="1" 
+	   template="RedfishTemplate" )
+
 }
 
 #

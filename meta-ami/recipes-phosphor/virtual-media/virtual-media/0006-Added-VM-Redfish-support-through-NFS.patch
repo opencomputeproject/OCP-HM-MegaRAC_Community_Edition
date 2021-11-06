@@ -1,0 +1,252 @@
+From dcc7842822fd80fbab20f8c4593cbdaa36fb2e57 Mon Sep 17 00:00:00 2001
+From: pranoygoru <gorumanip@amiindia.co.in>
+Date: Fri, 19 Feb 2021 16:04:47 +0530
+Subject: [PATCH] Added VM-Redfish support through NFS
+
+---
+ src/main.cpp | 145 +++++++++++++++++++++++++++++++++++--
+ 1 file changed, 137 insertions(+), 8 deletions(-)
+
+diff --git a/src/main.cpp b/src/main.cpp
+index e1b70c1..153a4db 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -13,8 +13,10 @@
+ #include <nlohmann/json.hpp>
+ #include <sdbusplus/asio/connection.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
++#include "syslog.h"
+ 
+ namespace fs = std::filesystem;
++#define MAX_CMD_NAME_LEN                ((4*256) + 256)
+ 
+ namespace udev
+ {
+@@ -804,8 +806,16 @@ class App
+         }
+         // StateChange: unknown, notmonitored, inserted were handler
+         // earlier. We'll get here only for removed, or cleanup
++	int ret = -1;
++	std::string cmd = "/bin/sh /etc/vm/rmstate " + device ;
++	ret = system(cmd.c_str());
+ 
+-        fs::remove_all(massStorageDir, ec);
++	if(ret!=0)
++	{
++		std::cerr << "failed in final: " << strerror(errno) << '\n';
++		result = -1;
++	}
++ /*       fs::remove_all(massStorageDir, ec);
+         if (ec)
+         {
+             std::cerr << ec.message() << '\n';
+@@ -835,7 +845,7 @@ class App
+         {
+             std::cerr << ec.message() << '\n';
+             result = -1;
+-        }
++        }*/
+ 
+         return result;
+     }
+@@ -933,11 +943,12 @@ class App
+                              const std::string& imageUrl,
+                              std::string* imagePath)
+     {
++
+         if (checkUrl(urlScheme, imageUrl))
+         {
+             if (imagePath != nullptr)
+             {
+-                *imagePath = imageUrl.substr(urlScheme.size() - 1);
++                *imagePath = imageUrl.substr(urlScheme.size());
+                 return true;
+             }
+             else
+@@ -949,6 +960,7 @@ class App
+         else
+         {
+             std::cerr << "Provied url does not match scheme\n";
++
+             return false;
+         }
+     }
+@@ -969,17 +981,28 @@ class App
+         return checkUrl("smb://", imageUrl);
+     }
+ 
++    bool checkNfsUrl(const std::string& imageUrl)
++    {
++        return checkUrl("nfs://", imageUrl);
++    }
++
+     bool getImagePathFromCifsUrl(const std::string& imageUrl,
+                                  std::string* imagePath)
+     {
+         return getImagePathFromUrl("smb://", imageUrl, imagePath);
+     }
+ 
++    bool getImagePathFromNfsUrl(const std::string& imageUrl,
++                                 std::string* imagePath)
++    {
++        return getImagePathFromUrl("nfs://", imageUrl, imagePath);
++    }
++
+     fs::path getImagePath(const std::string& imageUrl)
+     {
+         std::string imagePath;
+ 
+-        if (getImagePathFromHttpsUrl(imageUrl, &imagePath))
++        if (getImagePathFromNfsUrl(imageUrl, &imagePath))
+         {
+             return fs::path(imagePath);
+         }
+@@ -987,6 +1010,10 @@ class App
+         {
+             return fs::path(imagePath);
+         }
++        else if (getImagePathFromHttpsUrl(imageUrl, &imagePath))
++        {
++            return fs::path(imagePath);
++        }
+         else
+         {
+             std::cerr << "Unrecognized url's scheme encountered\n";
+@@ -1021,7 +1048,7 @@ class App
+         int result = -1;
+         fs::path imageUrlPath = getImagePath(imageUrl);
+         const std::string imageUrlParentPath =
+-            "/" + imageUrlPath.parent_path().string();
++            "//" + imageUrlPath.parent_path().string();
+ 	const std::string userName = getUserNameorPassWord("username");
+ 	const std::string passWord = getUserNameorPassWord("password");
+ 	if(userName.empty() || passWord.empty())
+@@ -1071,6 +1098,90 @@ class App
+         return result;
+     }
+ 
++
++    int mountNfsUrlForLegcyMode(const std::string& name,
++                                 const std::string& imageUrl,
++                                 ParametersManager::Parameters* parameters)
++    {
++
++        int result = -1;
++	char MountCmd [MAX_CMD_NAME_LEN]={0};
++	int size=sizeof(MountCmd);
++	int MntStatus = -1;
++
++        fs::path imageUrlPath = getImagePath(imageUrl);
++        const std::string imageUrlParentPath =
++             imageUrlPath.parent_path().string();
++
++        std::string mountDirectoryPath;
++        result = prepareTempDirForLegacyMode(mountDirectoryPath);
++        if (result != 0)
++        {
++            std::cerr << "Failed to create tmp directory\n";
++            return result;
++        }
++
++	int ret = snprintf (MountCmd, size, "mount -t nfs -o rw,nolock  %s %s",imageUrlParentPath.c_str(), mountDirectoryPath.c_str());
++	if(ret >= size || ret < 0)
++	{
++		std::cerr << "Buffer Overflow\n";
++                return -1;
++        }
++
++	MntStatus = system(MountCmd);
++	if( MntStatus != 0)
++	{
++		std::cerr << " mountNfsUrlForLegcyMode Failed to mount the url\n";
++		fs::remove_all(fs::path(mountDirectoryPath));
++		return -1;
++	}
++
++        const std::string imageMountPath =
++            mountDirectoryPath + "/" + imageUrlPath.filename().string();
++        result =
++            configureUsbGadget(name, StateChange::inserted, imageMountPath);
++        if (result != 0)
++        {
++            std::cerr << "Failed to run usb gadget\n";
++            umount(mountDirectoryPath.c_str());
++            fs::remove_all(fs::path(mountDirectoryPath));
++            return result;
++        }
++
++        parameters->mountDirectoryPath = mountDirectoryPath;
++
++        return result;
++
++    }
++
++
++    int umountNfsUrlForLegcyMode(const std::string& name,
++                                  ParametersManager::Parameters* parameters)
++    {
++        int result = -1;
++
++        result = configureUsbGadget(name, StateChange::removed);
++        if (result != 0)
++        {
++            std::cerr << "Failed to unmount resource\n";
++            return result;
++        }
++
++       //int ret = umount2(parameters->mountDirectoryPath.c_str(), MNT_FORCE);
++	const std::string umt = "umount " + parameters->mountDirectoryPath; 
++	int ret = system(umt.c_str());
++	if (ret != 0)
++	{
++		std::cerr << "Failed to unmount resource: " << strerror(errno) << '\n';
++	}
++      //  int ret = umount(parameters->mountDirectoryPath.c_str());
++        fs::remove_all(fs::path(parameters->mountDirectoryPath));
++        parameters->mountDirectoryPath.clear();
++
++        return result;
++    }
++
++
+     int umountCifsUrlForLegcyMode(const std::string& name,
+                                   ParametersManager::Parameters* parameters)
+     {
+@@ -1121,8 +1232,17 @@ class App
+                     throw sdbusplus::exception::SdBusError(
+                         ETXTBSY, "Node already used and resource mounted.");
+                 }
+-
+-                if (checkCifsUrl(imageUrl))
++                if (checkNfsUrl(imageUrl))
++                {
++                    int result =
++                        mountNfsUrlForLegcyMode(name, imageUrl, parameters);
++                    if (result != 0)
++                    {
++                        throw sdbusplus::exception::SdBusError(
++                            -result, "Failed to mount cifs url.");
++                    }
++                }
++		else if (checkCifsUrl(imageUrl))
+                 {
+                     int result =
+                         mountCifsUrlForLegcyMode(name, imageUrl, parameters);
+@@ -1154,7 +1274,16 @@ class App
+                     ENOENT, "Node is not used and no resource mounted.");
+             }
+ 
+-            if (checkCifsUrl(parameters->imageUrl))
++            if (checkNfsUrl(parameters->imageUrl))
++            {
++                int result = umountNfsUrlForLegcyMode(name, parameters);
++                if (result != 0)
++                {
++                    throw sdbusplus::exception::SdBusError(
++                        -result, "Failed to unmount cifs resource.");
++                }
++            }
++	    else if (checkCifsUrl(parameters->imageUrl))
+             {
+                 int result = umountCifsUrlForLegcyMode(name, parameters);
+                 if (result != 0)

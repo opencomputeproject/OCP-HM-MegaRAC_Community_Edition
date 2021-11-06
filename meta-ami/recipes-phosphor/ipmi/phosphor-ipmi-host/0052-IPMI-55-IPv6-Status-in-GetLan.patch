@@ -1,0 +1,14 @@
+--- a/transporthandler.cpp	2021-04-12 03:57:40.301312610 -0400
++++ b/transporthandler.cpp	2021-04-12 06:44:01.121728077 -0400
+@@ -2069,8 +2069,9 @@
+             ret.pack(MAX_IPV6_STATIC_ADDRESSES);
+             ret.pack(MAX_IPV6_DYNAMIC_ADDRESSES);
+             std::bitset<8> support;
+-            support[IPv6StatusFlag::DHCP] = 1;
+-            support[IPv6StatusFlag::SLAAC] = 1;
++            auto IPv6_status = configLookup(SHELL_COMMAND, CONFIG_IPV6);
++            support[IPv6StatusFlag::DHCP] = IPv6_status;
++            support[IPv6StatusFlag::SLAAC] = IPv6_status;
+             ret.pack(support);
+             return responseSuccess(std::move(ret));
+         }

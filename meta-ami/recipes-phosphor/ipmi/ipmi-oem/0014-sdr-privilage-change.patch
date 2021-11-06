@@ -1,0 +1,29 @@
+--- a/src/sensorcommands.cpp	2021-03-30 21:16:58.737860990 +0530
++++ b/src/sensorcommands.cpp	2021-03-30 21:19:42.575498570 +0530
+@@ -1918,7 +1918,7 @@
+     // <Get Device SDR Info>
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetDeviceSdrInfo,
+-                          ipmi::Privilege::User, ipmiSensorGetDeviceSdrInfo);
++                          ipmi::Privilege::sys_iface, ipmiSensorGetDeviceSdrInfo);
+ 
+     // <Get SDR Allocation Info>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+@@ -1929,7 +1929,7 @@
+     // <Reserve SDR Repo>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdReserveDeviceSdrRepository,
+-                          ipmi::Privilege::User, ipmiStorageReserveSDR);
++                          ipmi::Privilege::sys_iface, ipmiStorageReserveSDR);
+ 
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdReserveSdrRepository,
+@@ -1938,7 +1938,7 @@
+     // <Get Sdr>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetDeviceSdr,
+-                          ipmi::Privilege::User, ipmiStorageGetSDR);
++                          ipmi::Privilege::sys_iface, ipmiStorageGetSDR);
+ 
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdGetSdr, ipmi::Privilege::User,

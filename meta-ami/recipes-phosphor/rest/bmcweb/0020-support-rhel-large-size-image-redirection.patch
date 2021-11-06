@@ -1,0 +1,12 @@
+diff -Naur a/include/vm_websocket.hpp b/include/vm_websocket.hpp
+--- a/include/vm_websocket.hpp	2021-03-19 14:50:28.192737495 +0530
++++ b/include/vm_websocket.hpp	2021-03-19 14:52:34.805482755 +0530
+@@ -17,7 +17,7 @@
+ // The max network block device buffer size is 128kb plus 16bytes
+ // for the message header:
+ // https://github.com/NetworkBlockDevice/nbd/blob/master/doc/proto.md#simple-reply-message
+-static constexpr auto nbdBufferSize = 131088;
++static constexpr auto nbdBufferSize = 262176;
+ 
+ int Media_instance_processID[4][2]={0};
+ crow::websocket::Connection* websocket_session_conn[4][2]={0};

@@ -1,0 +1,246 @@
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2021-03-26 11:04:31.316966130 +0530
++++ b/include/sensor.hpp	2021-03-30 11:50:19.573912368 +0530
+@@ -628,4 +628,5 @@
+         }
+     }
+ };
+-bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord );
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord,
++		const std::string* matchLabel = nullptr  );
+diff -Naur a/src/FanMain.cpp b/src/FanMain.cpp
+--- a/src/FanMain.cpp	2021-03-26 11:04:31.312966109 +0530
++++ b/src/FanMain.cpp	2021-03-30 12:10:10.884892804 +0530
+@@ -48,6 +48,9 @@
+     "xyz.openbmc_project.Configuration.AspeedFan",
+     "xyz.openbmc_project.Configuration.I2CFan",
+     "xyz.openbmc_project.Configuration.NuvotonFan"};
++static constexpr std::array<const char*, 2> pwmsensorTypes = {
++       "xyz.openbmc_project.Configuration.IntelFanConnector",
++       "xyz.openbmc_project.Configuration.NuvotonFanConnector"};
+ constexpr const char* redundancyConfiguration =
+     "xyz.openbmc_project.Configuration.FanRedundancy";
+ static std::regex inputRegex(R"(fan(\d+)_input)");
+@@ -149,6 +152,7 @@
+                       const ManagedObjectType& sensorConfigurations) {
+             bool firstScan = sensorsChanged == nullptr;
+             std::vector<fs::path> paths;
++	    bool useCache = false;
+             if (!findFiles(fs::path("/sys/class/hwmon"), R"(fan\d+_input)",
+                            paths))
+             {
+@@ -454,11 +458,24 @@
+             }
+             createRedundancySensor(tachSensors, dbusConnection, objectServer);
+             std::vector<fs::path> pwms;
++	    struct sdr::SdrRecord pwmsdrRecord;
++            ManagedObjectType pwmsensorConfigurations;
+             if (!findFiles(fs::path("/sys/class/hwmon"), R"(pwm\d+$)", pwms))
+             {
+                 std::cerr << "No pwm in system\n";
+                 return;
+             }
++	    useCache = false;
++           for (const char* type : pwmsensorTypes)
++           {
++               if (!getSensorConfiguration(type, dbusConnection, pwmsensorConfigurations,
++                                useCache))
++               {
++               std::cerr << "error communicating to entity manager\n";
++               return;
++               }
++               useCache = true;
++           }
+             for (const fs::path& pwm : pwms)
+             {
+                 if (pwmSensors.find(pwm) != pwmSensors.end())
+@@ -466,34 +483,77 @@
+                     continue;
+                 }
+                 const std::string* path = nullptr;
+-                const std::string* pwmName = nullptr;
+ 
+                 for (const auto& [index, configPath, name] : pwmNumbers)
+                 {
+                     if (pwm.filename().string() ==
+                         "pwm" + std::to_string(index + 1))
+                     {
+-                        path = &configPath;
+-                        pwmName = &name;
+-                        break;
+-                    }
+-                }
++			const char* pwmbaseType;
++                       const SensorData* pwmsensorData = nullptr;
++                       const std::string* pwminterfacePath = nullptr;
++                       const SensorBaseConfiguration* pwmbaseConfiguration = nullptr;
++                       for (const std::pair<sdbusplus::message::object_path, SensorData>&
++                               pwmsensor : pwmsensorConfigurations)
++                       {
++                               // find the base of the configuration to see if indexes match
++                               //pwmsensorData = nullptr;
++                               for (const char* type : pwmsensorTypes)
++                               {
++                                       auto sensorBaseFind = pwmsensor.second.find(type);
++                                       if (sensorBaseFind != pwmsensor.second.end())
++                                       {
++                                               pwmbaseConfiguration = &(*sensorBaseFind);
++                                               pwminterfacePath = &(pwmsensor.first.str);
++                                               pwmbaseType = type;
++                                               break;
++                                       }
++                               }
++                               if (pwmbaseConfiguration == nullptr)
++                               {
++                                       continue;
++                               }
++                               auto findPwm = pwmbaseConfiguration->second.find("Pwm");
++                               if (findPwm == pwmbaseConfiguration->second.end())
++                               {
++                                       std::cerr << pwmbaseConfiguration->first << " missing Pwm\n";
++                                       continue;
++                               }
++			       unsigned int configPwm =
++                               std::visit(VariantToUnsignedIntVisitor(), findPwm->second);
++                               if (configPwm != index)
++                               {
++                                       continue;
++                               }
++                               pwmsensorData = &(pwmsensor.second);
++                               path = &configPath;
++                               memset(&pwmsdrRecord, 0, sizeof(pwmsdrRecord));
++                               if( !parseSdrRecordFromConfig(*pwmsensorData,pwmsdrRecord))
++                               {
++                                       std::cerr << "error getting sdr record " << std::endl;
++                               }
++                               break;
++
++                       }
++
+ 
+                 if (path == nullptr)
+                 {
+                     continue;
+                 }
+ 
+-                // only add new elements
++		// only add new elements
+                 const std::string& sysPath = pwm.string();
+-		std::string sensorUnit = "xyz.openbmc_project.Sensor.Value.Unit.Percent";
+-		struct sdr::SdrRecord pwmsdrRecord;
+-                pwmSensors.insert(
+-                    std::pair<std::string, std::unique_ptr<PwmSensor>>(
+-                        sysPath, std::make_unique<PwmSensor>(
+-                                     *pwmName, sysPath, dbusConnection,
+-                                     objectServer, *path, "Fan",sensorUnit, pwmsdrRecord)));
+-            }
++	       	std::string sensorUnit = "xyz.openbmc_project.Sensor.Value.Unit.Percent";
++       		const std::string& pwmName =
++            	"Pwm_" + sysPath.substr(sysPath.find_last_of("pwm") + 1);
++        	pwmSensors.insert(
++                       std::pair<std::string, std::unique_ptr<PwmSensor>>(
++                        sysPath, std::make_unique<PwmSensor>(pwmName, sysPath, dbusConnection,
++			 objectServer, *path, "Fan",sensorUnit, pwmsdrRecord)));
++	   }
++	}
++	 }
+         }));
+     getter->getConfiguration(
+         std::vector<std::string>{sensorTypes.begin(), sensorTypes.end()},
+diff -Naur a/src/IntrusionSensorMain.cpp b/src/IntrusionSensorMain.cpp
+--- a/src/IntrusionSensorMain.cpp	2021-03-26 11:04:31.312966109 +0530
++++ b/src/IntrusionSensorMain.cpp	2021-03-30 12:11:36.268404022 +0530
+@@ -42,7 +42,8 @@
+ #include <string>
+ #include <utility>
+ #include <vector>
+-bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord );
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord, 
++	       const std::string* matchLabel = nullptr );
+ static constexpr bool DEBUG = false;
+ 
+ static constexpr const char* sensorType =
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2021-03-26 11:04:31.316966130 +0530
++++ b/src/PSUSensorMain.cpp	2021-03-30 12:21:00.658134536 +0530
+@@ -40,7 +40,7 @@
+ 
+ static constexpr bool DEBUG = false;
+ 
+-static constexpr std::array<const char*, 14> sensorTypes = {
++static constexpr std::array<const char*, 18> sensorTypes = {
+     "xyz.openbmc_project.Configuration.ADM1272",
+     "xyz.openbmc_project.Configuration.ADM1278",
+     "xyz.openbmc_project.Configuration.INA219",
+@@ -54,12 +54,19 @@
+     "xyz.openbmc_project.Configuration.MAX34451",
+     "xyz.openbmc_project.Configuration.pmbus",
+     "xyz.openbmc_project.Configuration.PXE1610",
+-    "xyz.openbmc_project.Configuration.RAA228228"};
++    "xyz.openbmc_project.Configuration.RAA228228",
++    "xyz.openbmc_project.Configuration.TPS53622",
++    "xyz.openbmc_project.Configuration.TPS53659",
++    "xyz.openbmc_project.Configuration.TPS53679",
++    "xyz.openbmc_project.Configuration.FLEXPOWER"};
++
+ 
+ static std::vector<std::string> pmbusNames = {
+     "adm1272",  "adm1278",  "ina219",   "ina230",   "isl68137",
+     "isl68220", "max16601", "max20730", "max20734", "max20796",
+-    "max34451", "pmbus",    "pxe1610",  "raa228228"};
++    "max34451", "pmbus",    "pxe1610",  "raa228228", "tps53622",
++    "tps53659", "tps53679", "flexpower"};
++
+ 
+ namespace fs = std::filesystem;
+ 
+@@ -744,7 +751,7 @@
+ 
+ 	    struct sdr::SdrRecord sdrRecord;
+ 
+-           if( !parseSdrRecordFromConfig(*sensorData,sdrRecord))
++           if( !parseSdrRecordFromConfig(*sensorData,sdrRecord, &labelHead))
+            {
+                  std::cerr << "error getting sdr record for " << deviceName << std::endl;
+            }
+@@ -888,6 +895,7 @@
+                   {"vout31", PSUProperty("Output Voltage", 255, 0, 3)},
+                   {"vout32", PSUProperty("Output Voltage", 255, 0, 3)},
+                   {"in1", PSUProperty("Output Voltage", 255, 0, 3)},
++		  {"vin1", PSUProperty("Output Voltage", 255, 0, 3)},
+                   {"iin", PSUProperty("Input Current", 20, 0, 3)},
+                   {"iout1", PSUProperty("Output Current", 255, 0, 3)},
+                   {"iout2", PSUProperty("Output Current", 255, 0, 3)},
+diff -Naur a/src/SdrRecord.cpp b/src/SdrRecord.cpp
+--- a/src/SdrRecord.cpp	2021-03-26 11:04:31.312966109 +0530
++++ b/src/SdrRecord.cpp	2021-03-30 12:25:03.625450435 +0530
+@@ -13,15 +13,24 @@
+ #include <sdbusplus/asio/object_server.hpp>
+ #include <Utils.hpp>
+ #include <syslog.h>
+-bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord )
++bool  parseSdrRecordFromConfig( const SensorData& sensorData,struct sdr::SdrRecord& sdrRecord,
++               const std::string* matchLabel )
+ {
+-   for (const auto& item : sensorData)
+-    {
+-        if (item.first.find("SdrInfo") == std::string::npos)
++	std::string sdrName;
++        if (matchLabel != nullptr)
+         {
+-            continue;
++	     sdrName = (*matchLabel) + "_SdrInfo";
++        }else{
++            sdrName = "SdrInfo";
+         }
+ 
++        for (const auto& item : sensorData)
++        {
++               if (item.first.find(sdrName) == std::string::npos)
++               {
++                       continue;
++               }
++
+         auto RecordTypeFind = item.second.find("RecordType");
+         auto entityidFind = item.second.find("EntityId");
+         auto EntityInstanceFind = item.second.find("EntityInstance");

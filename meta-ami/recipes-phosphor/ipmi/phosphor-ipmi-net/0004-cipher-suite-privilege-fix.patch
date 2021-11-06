@@ -1,0 +1,47 @@
+--- a/command/rakp12.cpp	2021-06-03 11:02:46.415480136 -0400
++++ b/command/rakp12.cpp	2021-06-04 11:58:02.354420600 -0400
+@@ -11,6 +11,7 @@
+ #include <cstring>
+ #include <iomanip>
+ #include <phosphor-logging/log.hpp>
++#include <user_channel/cipher_mgmt.hpp>
+ 
+ using namespace phosphor::logging;
+ 
+@@ -135,14 +136,23 @@
+             static_cast<uint8_t>(RAKP_ReturnCode::INSUFFICIENT_RESOURCE);
+         return outPayload;
+     }
++
++
++    std::array<uint4_t, ipmi::maxCSRecords> csPrivilegeLevels;
++    uint8_t channel_num = static_cast<uint8_t>(getInterfaceIndex());
++
++    ipmi::CipherConfig cipherConfig(ipmi::csPrivFileName, ipmi::csPrivDefaultFileName);
++
++    cipherConfig.getCSPrivilegeLevels(channel_num,csPrivilegeLevels);
++
++
+     // As stated in Set Session Privilege Level command in IPMI Spec, when
+     // creating a session through Activate command / RAKP 1 message, it must
+     // be established with USER privilege as well as all other sessions are
+     // initially set to USER privilege, regardless of the requested maximum
+     // privilege.
+-    if (!(static_cast<session::Privilege>(request->req_max_privilege_level &
+-                                          session::reqMaxPrivMask) >=
+-          session::Privilege::CALLBACK))
++    
++    if (((request->req_max_privilege_level & session::reqMaxPrivMask) > ((csPrivilegeLevels[DEFAULT_CIPHER_INDEX]))))
+     {
+         response->rmcpStatusCode =
+             static_cast<uint8_t>(RAKP_ReturnCode::UNAUTH_ROLE_PRIV);
+--- a/command/rakp12.hpp	2021-06-03 10:33:49.543395915 -0400
++++ b/command/rakp12.hpp	2021-06-04 11:57:18.376230992 -0400
+@@ -14,6 +14,7 @@
+ constexpr uint8_t userNameOnlyLookupMask = 0x10;
+ constexpr uint8_t userNameOnlyLookup = 0x10;
+ constexpr uint8_t userNamePrivLookup = 0x0;
++constexpr int DEFAULT_CIPHER_INDEX = 0;
+ 
+ /**
+  * @struct RAKP1request

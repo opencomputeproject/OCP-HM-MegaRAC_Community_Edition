@@ -1,0 +1,129 @@
+From 708fb875342db9c2914d4c4e43ed86b7db7d256c Mon Sep 17 00:00:00 2001
+From: eddyhan <eddyhan@ami.com.tw>
+Date: Thu, 18 Feb 2021 11:19:22 +0800
+Subject: [PATCH] Update chassis power off handler and Fix PowerCycle state
+ issue.
+
+
+diff --git a/chassishandler.cpp b/chassishandler.cpp
+old mode 100644
+new mode 100755
+index 3250b2c..a14d968
+--- a/chassishandler.cpp
++++ b/chassishandler.cpp
+@@ -31,6 +31,7 @@
+ #include <xyz/openbmc_project/Control/Boot/Mode/server.hpp>
+ #include <xyz/openbmc_project/Control/Boot/Source/server.hpp>
+ #include <xyz/openbmc_project/Control/Power/RestorePolicy/server.hpp>
++#include <xyz/openbmc_project/State/Chassis/server.hpp>
+ #include <xyz/openbmc_project/State/Host/server.hpp>
+ #include <xyz/openbmc_project/State/PowerOnHours/server.hpp>
+ 
+@@ -841,7 +842,7 @@ int initiate_state_transition(State::Host::Transition transition)
+ 
+     // Convert to string equivalent of the passed in transition enum.
+     auto request = State::convertForMessage(transition);
+-
++	log<level::ERR>(request.c_str());
+     rc = sd_bus_call_method(bus_type,                // On the system bus
+                             busname,                 // Service to contact
+                             HOST_STATE_MANAGER_ROOT, // Object path
+@@ -867,6 +868,63 @@ int initiate_state_transition(State::Host::Transition transition)
+ 
+     return rc;
+ }
++//------------------------------------------
++// Calls into Chassis State Manager Dbus object
++//------------------------------------------
++int initiate_chassis_state_transition(State::Chassis::Transition transition)
++{
++    // OpenBMC Host State Manager dbus framework
++    constexpr auto CHASSIS_STATE_MANAGER_ROOT = "/xyz/openbmc_project/state/chassis0";
++    constexpr auto CHASSIS_STATE_MANAGER_IFACE = "xyz.openbmc_project.State.Chassis";
++    constexpr auto DBUS_PROPERTY_IFACE = "org.freedesktop.DBus.Properties";
++    constexpr auto PROPERTY = "RequestedPowerTransition";
++
++    // sd_bus error
++    int rc = 0;
++    char* busname = NULL;
++
++    // SD Bus error report mechanism.
++    sd_bus_error bus_error = SD_BUS_ERROR_NULL;
++
++    // Gets a hook onto either a SYSTEM or SESSION bus
++    sd_bus* bus_type = ipmid_get_sd_bus_connection();
++    rc = mapper_get_service(bus_type, CHASSIS_STATE_MANAGER_ROOT, &busname);
++    if (rc < 0)
++    {
++        log<level::ERR>(
++            "Failed to get bus name",
++            entry("ERRNO=0x%X, OBJPATH=%s", -rc, CHASSIS_STATE_MANAGER_ROOT));
++        return rc;
++    }
++
++    // Convert to string equivalent of the passed in transition enum.
++    auto request = State::convertForMessage(transition);
++log<level::ERR>(request.c_str());
++    rc = sd_bus_call_method(bus_type,                // On the system bus
++                            busname,                 // Service to contact
++                            CHASSIS_STATE_MANAGER_ROOT, // Object path
++                            DBUS_PROPERTY_IFACE,     // Interface name
++                            "Set",                   // Method to be called
++                            &bus_error,              // object to return error
++                            nullptr,                 // Response buffer if any
++                            "ssv",                   // Takes 3 arguments
++                            CHASSIS_STATE_MANAGER_IFACE, PROPERTY, "s",
++                            request.c_str());
++    if (rc < 0)
++    {
++        log<level::ERR>("Failed to initiate chassis transition",
++                        entry("ERRNO=0x%X, REQUEST=%s", -rc, request.c_str()));
++    }
++    else
++    {
++        log<level::INFO>("Chassis transition request initiated successfully");
++    }
++
++    sd_bus_error_free(&bus_error);
++    free(busname);
++
++    return rc;
++}
+ 
+ //------------------------------------------
+ // Set Enabled property to inform NMI source
+@@ -1408,7 +1466,7 @@ ipmi::RspType<> ipmiChassisControl(uint8_t chassisControl)
+                 indicate_no_softoff_needed();
+ 
+                 // Now request the shutdown
+-                rc = initiate_state_transition(State::Host::Transition::Off);
++                rc = initiate_chassis_state_transition(State::Chassis::Transition::Off);
+             }
+             else
+             {
+@@ -1427,6 +1485,22 @@ ipmi::RspType<> ipmiChassisControl(uint8_t chassisControl)
+             // that it should not run since this is a direct user initiated
+             // power reboot request (i.e. a reboot request that is not
+             // originating via a soft power off SMS request)
++			
++			//Winnie
++			{
++				std::optional<bool> powerGood = power_policy::getPowerStatus();//Winnie
++				
++				if(!(*powerGood))
++				{	
++					log<level::ERR>("Power Good is false");
++					return ipmi::responseCommandNotAvailable();
++				}
++				else
++				{
++					log<level::ERR>("Power Good is true");
++				}
++			}
++			//Winnie
+             indicate_no_softoff_needed();
+ 
+             rc = initiate_state_transition(State::Host::Transition::Reboot);
+-- 
+2.7.4
+

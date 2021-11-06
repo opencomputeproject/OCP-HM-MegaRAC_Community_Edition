@@ -53,6 +53,3 @@ ENABLE_WATCHDOG_FMT = "../${ENABLE_WATCHDOG_TMPL}:obmc-host-startmin@{0}.target.
 
 SYSTEMD_LINK_${PN} += "${@compose_list(d, 'WATCHDOG_FMT', 'OBMC_HOST_WATCHDOG_INSTANCES', 'OBMC_HOST_INSTANCES')}"
 SYSTEMD_LINK_${PN} += "${@compose_list(d, 'ENABLE_WATCHDOG_FMT', 'OBMC_HOST_INSTANCES')}"
-
-require conf/machine/include/unpack.inc
-

@@ -17,6 +17,6 @@ PE = "1"
 
 PV = "v2019.04"
 S = "${WORKDIR}/u-boot-sdk600"
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
+#FILESPATH =. "${TOPDIR}/../openbmc_modules:"
 SRC_URI = "file://u-boot-sdk600.tar.bz2"
 

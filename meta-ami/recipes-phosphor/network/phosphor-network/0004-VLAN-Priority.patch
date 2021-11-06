@@ -1,0 +1,264 @@
+--- a/network_manager.cpp	2021-03-08 11:18:04.509618532 -0500
++++ b/network_manager.cpp	2021-03-16 14:38:12.905831759 -0400
+@@ -10,7 +10,7 @@
+ #include <arpa/inet.h>
+ #include <dirent.h>
+ #include <net/if.h>
+-
++#include <sys/stat.h>
+ #include <algorithm>
+ #include <bitset>
+ #include <filesystem>
+@@ -102,6 +102,62 @@
+     return isCreated;
+ }
+ 
++bool Manager::createVlanPriorityScript()
++{
++    std::ofstream filestream;
++    fs::path filePath = "/etc/vlanpriority.sh";
++    filestream.open(filePath.string(),std::ofstream::out);
++    filestream << "#!/bin/bash\n"
++	    "INTERFACE=$1\n"
++	    "PROPERTY=$2\n"
++	    "echo $PROPERTY\n"
++	    "echo $INTERFACE\n"
++	    "if [ -f \"/proc/net/vlan/$INTERFACE\" ]\n"
++	    "then\n"
++	    "echo \"Executing command:- ip link set $INTERFACE type vlan egress 0:$PROPERTY\"\n"
++            "echo \"Executing command:- ip link set $INTERFACE type vlan egress 6:$PROPERTY\" \n"
++	    "ip link set $INTERFACE type vlan egress 0:$PROPERTY\n"
++	    "ip link set $INTERFACE type vlan egress 6:$PROPERTY\n"
++	    "fi\n";
++    chmod(filePath.string().c_str(),0777);
++    filestream.close();
++    return true;
++}
++
++bool Manager::createVlanPriorityFile()
++{
++    std::string fileName = "vlanpriority@.service";
++    fs::path filePath = "/lib/systemd/system/";
++    filePath /= fileName;
++    std::ofstream filestream;
++    auto isCreated = false;
++
++    try
++    {
++        if (!fs::is_regular_file(filePath.string()))
++        { 
++            filestream.open(filePath.string(),std::ofstream::out);
++            filestream << "[Unit]\nDescription=VLAN Priority monitoring service\n"
++                "\nAfter= xyz.openbmc_project.Network.service\n"
++                "\n[Service]\n"
++		"EnvironmentFile=/etc/systemd/network/vlan_priority_%i\n"
++                "ExecStart=/etc/vlanpriority.sh %i $PRIORITY\n"
++		"SyslogIdentifier=vlanpriority\n"
++                "\n[Install]\n"
++                "WantedBy=multi-user.target\n";
++            filestream.close();
++            isCreated = true;
++            createVlanPriorityScript();
++        }
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>("Unable to create the default network file");
++    }
++
++    return isCreated;
++}
++
+ void Manager::setConfDir(const fs::path& dir)
+ {
+     confDir = dir;
+@@ -193,7 +249,11 @@
+         return;
+         // TODO: openbmc/openbmc#1721 - Log ResetFailed error here.
+     }
+-
++    if(!createVlanPriorityFile())
++    {
++        log<level::ERR>("Failed to create Vlan Configuration files.");
++	return;
++    }
+     log<level::INFO>("Network Factory Reset done.");
+ }
+ 
+--- a/network_manager.hpp	2021-03-08 11:18:04.509618532 -0500
++++ b/network_manager.hpp	2021-03-16 11:55:33.874003303 -0400
+@@ -109,6 +109,9 @@
+      */
+     bool createDefaultNetworkFiles(bool force);
+ 
++    bool createVlanPriorityFile();
++
++    bool createVlanPriorityScript();
+     /** @brief restart the network timers. */
+     void restartTimers();
+ 
+--- a/vlan_interface.cpp	2021-03-08 11:18:05.845686597 -0500
++++ b/vlan_interface.cpp	2021-03-16 14:53:31.600243757 -0400
+@@ -114,6 +114,33 @@
+     stream.close();
+ }
+ 
++void VlanInterface::writeToVlanPriorityFile(uint32_t vlan_priority)
++{
++    std::ofstream filestream;
++    fs::path filePath = "/etc/systemd/network/vlan_priority_" + VlanIface::interfaceName();
++    
++    filestream.open(filePath.string(),std::ofstream::out);
++    filestream << "PRIORITY="<< vlan_priority;
++    filestream.close();
++    return;
++}
++
++
++uint32_t VlanInterface::vlanPriority(uint32_t value)
++{
++    char cmd[50];
++    std::string vlanPriorityService = "vlanpriority@" + VlanIface::interfaceName() + ".service";
++
++    auto vlan_priority = VlanIface::vlanPriority(value);
++    writeToVlanPriorityFile(value);
++
++    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ",vlanPriorityService.c_str());
++    system(cmd);
++
++    return vlan_priority;
++}
++
++
+ void VlanInterface::delete_()
+ {
+     parentInterface.deleteVLANObject(EthernetInterface::interfaceName());
+--- a/vlan_interface.hpp	2021-03-08 11:18:05.845686597 -0500
++++ b/vlan_interface.hpp	2021-03-16 14:55:08.917760186 -0400
+@@ -70,7 +70,14 @@
+                and creates the vlan interface.*/
+     void writeSocketFile(std::string, std::string);
+ 
+-  private:
++    void VlanPriorityUnit(const std::string&, const std::string&);
++
++    void writeToVlanPriorityFile(uint32_t value);
++
++    uint32_t vlanPriority(uint32_t value) override;
++    using VlanIface::vlanPriority;
++  
++    private:
+     /** @brief VLAN Identifier. */
+     using VlanIface::id;
+ 
+--- a/network_manager_main.cpp	2021-03-08 11:18:05.657677020 -0500
++++ b/network_manager_main.cpp	2021-03-16 15:11:37.554388555 -0400
+@@ -303,6 +303,11 @@
+     phosphor::network::manager = std::make_unique<phosphor::network::Manager>(
+         bus, DEFAULT_OBJPATH, NETWORK_CONF_DIR);
+ 
++    if(!phosphor::network::manager->createVlanPriorityFile())
++    {
++        log<level::ERR>("Failed to create Vlan Configuration files.");
++    }
++
+     // create the default network files if the network file
+     // is not there for any interface.
+     // Parameter false means don't create the network
+--- a/ethernet_interface.cpp	2021-03-08 11:18:05.845686597 -0500
++++ b/ethernet_interface.cpp	2021-03-16 15:06:09.638135225 -0400
+@@ -452,22 +452,35 @@
+ 
+     fs::path deviceFile = confDir;
+     deviceFile /= interface + systemd::config::deviceFileSuffix;
+-
+     std::string SearchString = "sys-subsystem-net-devices-"+ interface +".device";
+     std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
+     std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
+ 
++    std::string vlanPriorityService = "vlanpriority@" + interface + ".service";
++    char cmd[50];
++
+     for (const auto& vlanIntf : vlanInterfaces)
+     {
+-        vlanIntf.second->writeSocketFile(SearchString,"%i");
+-    }
++          
++       vlanIntf.second->writeSocketFile(SearchString,"%i");
+ 
+-    system("systemctl daemon-reload");
++       system("systemctl daemon-reload");
+ 
+-    //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
+-    manager.restartSystemdUnit(phosphorNetService);
+-    manager.restartSystemdUnit(phosphorNetSocket);
++       //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
++       snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetService.c_str());
++       system(cmd);
++
++       snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetSocket.c_str());
++       system(cmd);
+ 
++
++       snprintf(cmd,sizeof(cmd),"%s%s","systemctl disable ",vlanPriorityService.c_str());
++       system(cmd);
++
++       //Stop the VLAN Priority service
++       snprintf(cmd,sizeof(cmd),"%s%s","systemctl stop ",vlanPriorityService.c_str());
++       system(cmd);
++    }
+     // delete the vlan network file
+     if (fs::is_regular_file(networkFile))
+     {
+@@ -780,16 +793,17 @@
+ ObjectPath EthernetInterface::createVLAN(VlanId id)
+ {
+     std::string vlanInterfaceName = interfaceName() + "." + std::to_string(id);
+-    std::string path = objPath;
+     std::string SearchString = "sys-subsystem-net-devices-%i.device";
++    std::string path = objPath;
++    path += "_" + std::to_string(id);
++
+     std::string phosphorNetService =  "phosphor-ipmi-net@" + interfaceName() + ".service";
+     std::string phosphorNetSocket = "phosphor-ipmi-net@" + interfaceName() + ".socket";
+-
+-    path += "_" + std::to_string(id);
++    std::string vlanPriorityService = "vlanpriority@" + vlanInterfaceName + ".service";
++    char cmd[50];
+     
+     // Pass the parents nICEnabled property, so that the child
+     // VLAN interface can inherit.
+-
+     auto vlanIntf = std::make_unique<phosphor::network::VlanInterface>(
+         bus, path.c_str(), EthernetInterface::DHCPConf::none,
+         EthernetInterfaceIntf::nICEnabled(), id, *this, manager);
+@@ -801,15 +815,26 @@
+     vlanIntf->writeSocketFile(SearchString,vlanInterfaceName);
+ 
+     system("systemctl daemon-reload");
+-
++    
+     //Restart  phosphor-ipmi-net@<original interface>.socket & phosphor-ipmi-net@<original interface>.service
+-    manager.restartSystemdUnit(phosphorNetService);
+-    manager.restartSystemdUnit(phosphorNetSocket);
++    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetService.c_str());
++    system(cmd);
++
++    snprintf(cmd,sizeof(cmd),"%s%s","systemctl restart ", phosphorNetSocket.c_str());
++    system(cmd);
++
+ 
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+     manager.writeToConfigurationFile();
+ 
++    snprintf(cmd,sizeof(cmd),"%s%s","systemctl enable ",vlanPriorityService.c_str());
++    system(cmd);
++
++    //Start the service file to monitor VLAN Priority
++    snprintf(cmd,sizeof(cmd),"%s%s","systemctl start ",vlanPriorityService.c_str());
++    system(cmd);
++    
+     return path;
+ }
+ 

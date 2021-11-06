@@ -1,0 +1,11 @@
+--- a/user_channel/usercommands.cpp	2021-06-04 17:43:47.475647699 -0400
++++ b/user_channel/usercommands.cpp	2021-06-04 17:40:48.266472314 -0400
+@@ -662,7 +662,7 @@
+     }
+     if (getChannelSessionSupport(chNum) == EChannelSessSupported::none)
+     {
+-        return ipmi::response(ccActionNotSupportedForChannel);
++        return ipmi::responseInvalidFieldRequest();
+     }
+     if (!ipmiUserIsValidUserId(static_cast<uint8_t>(userId)))
+     {

@@ -1,0 +1,153 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-07-06 21:32:03.040666609 +0530
++++ b/app/common/services/api-utils.js	2021-07-06 21:32:39.156844236 +0530
+@@ -411,10 +411,10 @@
+                               data.interfaces[interfaceId].DHCPEnabled = true;
+                               data.interfaces[interfaceId].IPv6DHCPEnabled = true;
+                             }
+-                            if(dhcp_check == 'none'){
+-                              data.interfaces[interfaceId].none_flag_ipv4 = true;
+-                              data.interfaces[interfaceId].none_flag_ipv6 = true;
+-                            }
++                            // if(dhcp_check == 'none' && !content.data[key].LinkUp){
++                            //   data.interfaces[interfaceId].none_flag_ipv4 = true;
++                            //   data.interfaces[interfaceId].none_flag_ipv6 = true;
++                            // }
+                             if(interfaceId.indexOf("_") > -1){
+                               data.interfaces[interfaceId].Id = content.data[key].Id;
+                               data.interfaces[interfaceId].Priority = content.data[key].Priority;
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-07-06 21:32:03.040666609 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-07-06 21:33:28.509063625 +0530
+@@ -171,6 +171,34 @@
+         )
+       };
+ 
++      $scope.check_IPv6_address_count = function(){
++        var count = 0;
++        if (!$scope.interface.IPv6DHCPEnabled) {
++          // Update any changed IPV6 addresses and add new
++          for (var i in $scope.interface.ipv6.values) {
++            if ( ($scope.interface.ipv6.values[i].updateAddress ||
++                $scope.interface.ipv6.values[i].updateGateway ||
++                $scope.interface.ipv6.values[i].updatePrefix) 
++                || $scope.oldInterface.IPv6DHCPEnabled) {
++              if ($scope.interface.ipv6.values[i].id) {
++                count = count+1;
++              } else {
++                count = count+1;
++              }
++              if(count > 3){
++                toastService.warn("Cannot Add/Modify/Delete more than 3 IPv6 address at the same time!!");
++                return false;
++              }
++            }
++          }
++        }
++        if($scope.ipv6sToDelete.length > 3){
++          toastService.warn("Cannot Add/Modify/Delete more than 3 IPv6 address at the same time!!");
++          return false;
++        }
++        return true;
++      };
++
+       $scope.validate_mac_address = function(){
+         if(!(/^[0-9a-f]{1,2}([\.:-])(?:[0-9a-f]{1,2}\1){4}[0-9a-f]{1,2}$/i).test($scope.interface.MACAddress)){
+           $scope.false_mac_address = true;
+@@ -226,7 +254,7 @@
+       };
+ 
+       $scope.saveConfirm = function() {
+-        if($scope.validate_mac_address() && $scope.checkduplicateIPv4address()){
++        if($scope.validate_mac_address() && $scope.checkduplicateIPv4address() && $scope.check_IPv6_address_count()){
+           $scope.confirmSettings = true;
+         }
+       };
+@@ -641,31 +669,16 @@
+           );
+         }
+         if(type == "static_to_static"){
+-          return APIUtils
+-          .deleteIPVs(
++
++          return APIUtils.addIPVs(
++            'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+             $scope.selectedInterface,
+-            $scope.interface.ipv4.values[index].id,
+-            'ipv4')
++            $scope.interface.ipv4.values[index].Address,
++            $scope.interface.ipv4.values[index].PrefixLength,
++            $scope.interface.ipv4.values[index].Gateway,
++            parseInt(index))
+           .then(
+-            function(data) {
+-              toastService.info("Modifying Static IPv4 Settings on progress..");
+-              $timeout(function(){
+-                return APIUtils.addIPVs(
+-                  'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+-                  $scope.selectedInterface,
+-                  $scope.interface.ipv4.values[index].Address,
+-                  $scope.interface.ipv4.values[index].PrefixLength,
+-                  $scope.interface.ipv4.values[index].Gateway,
+-                  parseInt(index))
+-                .then(
+-                  function(data) {},
+-                  function(error) {
+-                    console.log(JSON.stringify(error));
+-                    return $q.reject();
+-                  }
+-                );
+-              }, 1000);
+-            },
++            function(){},
+             function(error) {
+               console.log(JSON.stringify(error));
+               return $q.reject();
+@@ -696,31 +709,15 @@
+             }, 2000);
+         }
+         if(type == "static_to_static"){
+-          return APIUtils
+-          .deleteIPVs(
++          return APIUtils.addIPVs(
++            'xyz.openbmc_project.Network.IP.Protocol.IPv6',
+             $scope.selectedInterface,
+-            $scope.interface.ipv6.values[index].id,
+-            'ipv6')
++            $scope.interface.ipv6.values[index].Address,
++            $scope.interface.ipv6.values[index].PrefixLength,
++            $scope.interface.ipv6.values[index].Gateway,
++            parseInt(index))
+           .then(
+-            function(data) {
+-              toastService.info("Modifying Static IPv6 Settings on progress..");
+-              $timeout(function(){
+-                return APIUtils.addIPVs(
+-                  'xyz.openbmc_project.Network.IP.Protocol.IPv6',
+-                  $scope.selectedInterface,
+-                  $scope.interface.ipv6.values[index].Address,
+-                  $scope.interface.ipv6.values[index].PrefixLength,
+-                  $scope.interface.ipv6.values[index].Gateway,
+-                  parseInt(index))
+-                .then(
+-                  function(data) {},
+-                  function(error) {
+-                    console.log(JSON.stringify(error));
+-                    return $q.reject();
+-                  }
+-                );
+-              }, 1000);
+-            },
++            function(data) {},
+             function(error) {
+               console.log(JSON.stringify(error));
+               return $q.reject();
+@@ -814,6 +811,8 @@
+               var tmp = $scope.network.interface_ids[i].split('_')[0];
+   
+               if(tmp == $scope.selectedInterface){
++                $scope.interface.none_flag_ipv4 = true;
++                $scope.interface.none_flag_ipv6 = true;
+                 $scope.VLANInterfaces = $scope.network.interface_ids[i];
+                 $scope.vlan.id = $scope.network.interfaces[$scope.network.interface_ids[i]].Id;
+                 $scope.vlan.vlan_priority = $scope.network.interfaces[$scope.network.interface_ids[i]].Priority;

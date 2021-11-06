@@ -1,0 +1,36 @@
+--- a/include/vm_websocket.hpp	2021-06-11 15:55:02.494306916 +0530
++++ b/include/vm_websocket.hpp	2021-06-11 15:28:17.619453194 +0530
+@@ -226,6 +226,7 @@
+ 
+ 				//const char* media = "0";
+ 				std::string media = std::to_string((2*user_session)+endpoint);
++				BMCWEB_LOG_ERROR << "media- "<<media<<"user_session-"<<user_session<<"endpoint"<<endpoint ;
+ 				std::shared_ptr<Handler> handler;
+ 
+ 				handler = std::make_shared<Handler>(media,conn.getIoContext());
+@@ -244,6 +245,7 @@
+ 						break;
+ 					}
+ 				}
++
+ 		})
+ 	.onclose([](crow::websocket::Connection& conn,
+ 				const std::string& /*reason*/) {
+@@ -258,7 +260,7 @@
+ 			{
+ 			   for (j=0; j<2 ;j++)
+ 			   {
+-				if(g_handler[i][j]->session == &conn)
++				if(g_handler[i][j] != 0 && g_handler[i][j]->session == &conn)
+ 				{	
+ 				   handler=g_handler[i][j];
+ 			           g_handler[i][j]= 0;
+@@ -307,7 +309,7 @@
+ 			{
+ 			  for (j=0; j<2 ;j++)
+ 			  {
+-				if(g_handler[i][j]->session == &conn)
++				if(g_handler[i][j]!=0 && g_handler[i][j]->session == &conn)
+ 				{	
+ 				  handler=g_handler[i][j];
+ 				  BMCWEB_LOG_ERROR << "###### under on_message fun def handler_onmessgae is ==>  "<< handler << "\n";

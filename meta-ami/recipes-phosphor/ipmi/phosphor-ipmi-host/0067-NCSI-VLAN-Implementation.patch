@@ -1,0 +1,99 @@
+--- a/transporthandler.cpp	2021-05-31 12:30:55.212919752 -0400
++++ b/transporthandler.cpp	2021-05-31 12:28:30.257520624 -0400
+@@ -97,6 +97,7 @@
+ constexpr auto INTF_SYSTEMCONFIG =
+     "xyz.openbmc_project.Network.SystemConfiguration";
+ constexpr auto INTF_ETHERNET = "xyz.openbmc_project.Network.EthernetInterface";
++constexpr auto INTF_NCSI = "xyz.openbmc_project.Network.NCSIInterface";
+ constexpr auto INTF_IP = "xyz.openbmc_project.Network.IP";
+ constexpr auto INTF_IP_CREATE = "xyz.openbmc_project.Network.IP.Create";
+ constexpr auto INTF_MAC = "xyz.openbmc_project.Network.MACAddress";
+@@ -106,6 +107,10 @@
+ constexpr auto INTF_VLAN = "xyz.openbmc_project.Network.VLAN";
+ constexpr auto INTF_VLAN_CREATE = "xyz.openbmc_project.Network.VLAN.Create";
+ constexpr auto INTF_ARPCONTROL = "xyz.openbmc_project.Network.ARPControl";
++constexpr auto USER_PRIORITY = 0x01;
++constexpr auto ENABLE_VLAN = 0x01;
++constexpr auto VLAN_FILTER_SELECTOR = 0x01;
++constexpr auto VLAN_MODE = 0x03;
+ 
+ /** @brief Generic paramters for different address families */
+ template <int family>
+@@ -1259,6 +1264,54 @@
+     params.logicalPath = std::move(newPath);
+ }
+ 
++uint8_t NCSI_NCSIClearInitStateCommand(sdbusplus::bus::bus& bus, ChannelParams& params)
++{
++    uint8_t CompletionCode = -1;
++
++    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
++                                   INTF_NCSI, "NCSIClearInitState");
++
++    auto reply = bus.call(req);
++    reply.read(CompletionCode);
++    return CompletionCode;
++}
++
++uint8_t NCSI_SetVLANFilterCommand(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlanID)
++{
++    uint8_t CompletionCode = -1;
++
++    if (vlanID == 0)
++    {
++        return CompletionCode;
++    }
++
++    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
++                                   INTF_NCSI, "SetVlanFilter");
++
++
++    req.append(vlanID, (uint8_t)USER_PRIORITY, (uint8_t)ENABLE_VLAN, (uint8_t)VLAN_FILTER_SELECTOR);
++
++    auto reply = bus.call(req);
++    reply.read(CompletionCode);
++    return CompletionCode;
++}
++
++
++uint8_t NCSI_EnableVLANCommand(sdbusplus::bus::bus& bus, ChannelParams& params)
++{
++    uint8_t CompletionCode = -1;
++    auto req = bus.new_method_call(params.service.c_str(), params.ifPath.c_str(),
++                                   INTF_NCSI, "EnableVLAN");
++    req.append((uint8_t)VLAN_MODE);
++    auto reply = bus.call(req);
++    reply.read(CompletionCode);
++
++    return CompletionCode;
++}
++
++
++
++
+ /** @brief Performs the necessary reconfiguration to change the VLAN
+  *
+  *  @param[in] bus    - The bus object used for lookups
+@@ -1292,6 +1345,22 @@
+     auto neighbor4 = findGatewayNeighbor<AF_INET>(bus, params, neighbors);
+     auto neighbor6 = findGatewayNeighbor<AF_INET6>(bus, params, neighbors);
+ 
++    std::string NCSIConfigPath = "/sys/class/net/" +  params.ifname +  "/device/of_node/use-ncsi";
++
++    /* Check if the given Interface has NCSI Configuration */
++    if(!access(NCSIConfigPath.c_str(), F_OK))
++    {
++        /* Send the ClearChannelInitState Command */
++        NCSI_NCSIClearInitStateCommand(bus, params);
++
++        /* Set the VLAN Filter for the given VLAN ID*/
++        NCSI_SetVLANFilterCommand(bus, params, vlan);
++
++        /* Enable the VLAN */
++        NCSI_EnableVLANCommand(bus, params);
++    }
++
++    
+     deconfigureChannel(bus, params);
+     createVLAN(bus, params, vlan);
+ 

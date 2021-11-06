@@ -1,0 +1,377 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-17 01:38:06.429611056 +0530
++++ b/app/common/services/api-utils.js	2021-06-17 01:40:01.121435585 +0530
+@@ -541,6 +541,15 @@
+                 return response.data;
+               });
+         },
++        setIPv6AcceptRAStatus: function(interface_name, data){
++          return $http({
++            method: 'PUT',
++            url: DataService.getHost() + '/xyz/openbmc_project/network/' + interface_name + '/attr/IPv6AcceptRA',
++            data: JSON.stringify({'data': data})
++          }).then(function(response){
++            return response;
++          })
++        },
+         setIPv6DHCPEnabled: function(interfaceName, dhcpEnabled) {
+           return $http({
+                    method: 'PUT',
+@@ -1185,24 +1194,18 @@
+                         warning: false,
+                         normal: false
+                       },
+-                          severityText = '', order = 0;
+-                      
++                      severityText = '', order = 0;
++                      reading.CriticalLow = reading.hasOwnProperty('CriticalLow') ? reading.CriticalLow : 'N/A';
++                      reading.CriticalHigh = reading.hasOwnProperty('CriticalHigh') ? reading.CriticalHigh : 'N/A';
++                      reading.WarningLow = reading.hasOwnProperty('WarningLow') ? reading.WarningLow : 'N/A';
++                      reading.WarningHigh = reading.hasOwnProperty('WarningHigh') ? reading.WarningHigh : 'N/A';
++
+                       //replace null values to zero
+-                      if(reading.hasOwnProperty('Value') && reading.Value == null){
+-                        reading.Value = 0;
+-                      }
+-                      if(reading.hasOwnProperty('CriticalLow') && reading.CriticalLow == null){
+-                        reading.CriticalLow = 0;
+-                      }
+-                      if(reading.hasOwnProperty('CriticalHigh') && reading.CriticalHigh == null){
+-                        reading.CriticalHigh = 0;
+-                      }
+-                      if(reading.hasOwnProperty('WarningLow') && reading.WarningLow == null){
+-                        reading.WarningLow = 0;
+-                      }
+-                      if(reading.hasOwnProperty('WarningHigh') && reading.WarningHigh == null){
+-                        reading.WarningHigh = 0;
+-                      }  
++                      reading.Value = reading.Value == null ? 0 : reading.Value;
++                      reading.CriticalLow = reading.CriticalLow == null ? 0 : reading.CriticalLow;
++                      reading.CriticalHigh = reading.CriticalHigh == null ? 0 : reading.CriticalHigh;
++                      reading.WarningLow = reading.WarningLow == null ? 0 : reading.WarningLow;
++                      reading.WarningHigh = reading.WarningHigh == null ? 0 : reading.WarningHigh;
+ 
+                       if (reading.hasOwnProperty('CriticalLow') &&
+                           reading.Value < reading.CriticalLow) {
+diff -Naur a/app/configuration/controllers/alert-policy-controller.html b/app/configuration/controllers/alert-policy-controller.html
+--- a/app/configuration/controllers/alert-policy-controller.html	2021-06-17 01:38:06.429611056 +0530
++++ b/app/configuration/controllers/alert-policy-controller.html	2021-06-17 01:40:33.677385877 +0530
+@@ -65,12 +65,9 @@
+ 
+             <div class="column small-12 large-4">
+               <label for="alert-channel_dest">Channel Number</label>
+-              <select name="channel_number" ng-model="data.channel_number" ng-options="chan_num for chan_num in [1,8]" ng-disabled="dataService.isNotAdmin()">
++              <select name="channel_number" ng-model="data.channel_number" ng-options="chan_num for chan_num in [1,2]" ng-disabled="dataService.isNotAdmin()">
+               </select>
+             </div>
+-
+-            
+-
+         </fieldset>
+     </form>
+ 
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-06-17 01:38:06.429611056 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-06-17 01:41:45.861275785 +0530
+@@ -121,7 +121,7 @@
+           </label>
+         </div>
+         <div class="row column network-config__ipv4-wrap">
+-          <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv6 in interface.ipv6.values track by $index" ng-if="$index < 2" >
++          <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv6 in interface.ipv6.values track by $index" ng-if="$index < 15" >
+             <div class="column small-12 large-3">
+               <label for="ipv6-address-{{$index+1}}">IPV6 address</label>
+               <input id="ipv6-address-{{$index+1}}" name="netipv6{{$index+1}}" ng-change="ipv6.updateAddress = true" type="text"
+@@ -132,13 +132,13 @@
+               <label for="ipv6-gateway-{{$index+1}}">Gateway</label>
+               <input id="ipv6-gateway-{{$index+1}}" name="netipv6gateway{{$index+1}}" ng-change="ipv6.updateGateway = true" type="text"
+               ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()" value="" ng-model="ipv6.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
+-              <span class="modal__error" ng-show="network_form.netipv6gateway{{$index+1}}.$error.pattern">Invalid IPv6 format.</span>
++              <span class="modal__error" ng-show="network_form.netipv6gateway{{$index+1}}.$error.pattern">Invalid Gateway Address format.</span>
+             </div>
+             <!-- This netmask prefix length max only works with IPV6 -->
+             <div class="column small-12 large-6">
+               <label for="ipv6-prefix-{{$index+1}}">Netmask Prefix Length</label>
+               <input id="ipv6-prefix-{{$index+1}}" class="column small-6" ng-change="ipv6.updatePrefix = true"
+-              type="number" min="1" max="64" step="1" ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()"
++              type="number" min="1" max="128" step="1" ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()"
+                 ng-model="ipv6.PrefixLength" ng-required="!interface.IPv6DHCPEnabled"/>
+                 <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv6Address($index)"
+                 ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length == 1 || dataService.isNotAdmin()">Remove</button>
+@@ -146,7 +146,7 @@
+           </fieldset>
+           <div class="row column">
+             <div class="column small-12">
+-              <button type="button" class="btn  btn-primary" ng-click="addIpv6Field()" ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length >= 2 || dataService.isNotAdmin()">Add IPV6 address</button>
++              <button type="button" class="btn  btn-primary" ng-click="addIpv6Field()" ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length >= 15 || dataService.isNotAdmin()">Add IPV6 address</button>
+             </div>
+           </div>
+         </div>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-06-17 01:38:06.429611056 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-06-17 01:43:10.813146509 +0530
+@@ -329,7 +329,11 @@
+         if (!$scope.interface.IPv6DHCPEnabled) {
+           // Delete existing IPV6 addresses that were removed
+           if(!$scope.network.interfaces[$scope.selectedinterfaceId].IPv6DHCPEnabled){
+-            promises.push(removeIPV6s());
++            if($scope.oldInterface.IPv6DHCPEnabled){
++              promises.push(setIPv6AcceptRAStatus());
++            }else{
++              promises.push(removeIPV6s());
++            }
+           }
+           // Update any changed IPV6 addresses and add new
+           for (var i in $scope.interface.ipv6.values) {
+@@ -359,12 +363,16 @@
+           var IDobj = {};
+           var Priorityobj = {};
+           if($scope.VLANInterfaces.indexOf("_") > -1){
+-            if($scope.oldVLANInterface.Id != $scope.vlan.id || $scope.oldVLANInterface.VlanPriority != $scope.vlan.vlan_priority){
+-              IDobj.data = $scope.vlan.id;
++            if($scope.oldVLANInterface.Id != $scope.vlan.id){
++              tmp.push($scope.VLANInterfaces.split('_')[0]);
++              tmp.push(parseInt($scope.vlan.id));
++              var obj = {};
++              obj.data = tmp;
+               promises.push(
+-                ModifyVLAN_ID(IDobj, $scope.VLANInterfaces)
++                ModifyVLAN_ID(JSON.stringify(obj), $scope.VLANInterfaces)
+               );
+-
++            }
++            if($scope.oldVLANInterface.Id == $scope.vlan.id && $scope.oldVLANInterface.VlanPriority != $scope.vlan.vlan_priority){
+               Priorityobj.data = $scope.vlan.vlan_priority;
+               promises.push(
+                 ModifyVLAN_Priority(Priorityobj, $scope.VLANInterfaces)
+@@ -399,7 +407,7 @@
+                   $route.reload();
+                   $scope.loading = false;
+                   toastService.success('Network settings saved');
+-                }, 20000);
++                }, 33000);
+               },
+               function(error) {
+                 $scope.loading = false;
+@@ -463,7 +471,6 @@
+       }
+ 
+       function setIPv6DHCPEnabled(){
+-        console.log("function setIPv6DHCPEnabled",$scope.interface.IPv6DHCPEnabled);
+         if($scope.interface.IPv6DHCPEnabled == true){
+           if($scope.interface.DHCPEnabled){
+             $scope.interface.IPv6DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
+@@ -471,15 +478,20 @@
+             $scope.interface.IPv6DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v6";
+           }
+         }
+-        return APIUtils
+-            .setIPv6DHCPEnabled(
+-                $scope.selectedInterface, $scope.interface.IPv6DHCPEnabled)
+-            .then(
+-                function(data) {},
+-                function(error) {
+-                  console.log(JSON.stringify(error));
+-                  return $q.reject();
+-                });
++
++        return APIUtils.setIPv6DHCPEnabled($scope.selectedInterface, $scope.interface.IPv6DHCPEnabled)
++          .then(function(response){
++            $timeout(function(){
++              return APIUtils.setIPv6AcceptRAStatus($scope.selectedInterface, true).then(function(){},
++              function(error){
++                console.log(JSON.stringify(error));
++                return $q.reject();
++              });
++            }, 2000);
++          }, function(error){
++            console.log(JSON.stringify(error));
++            return $q.reject();
++          });
+       }
+ 
+       function setStaticNameServers() {
+@@ -518,6 +530,14 @@
+         });
+       }
+ 
++      function setIPv6AcceptRAStatus(){
++        return APIUtils.setIPv6AcceptRAStatus($scope.selectedInterface, false).then(function(){
++        }, function(error){
++            console.log(JSON.stringify(error));
++            return $q.reject();
++        });
++      }
++
+       function removeIPV6s() {
+         return $scope.ipv6sToDelete.map(function(ipv6) {
+           return APIUtils.deleteIPVs($scope.selectedInterface, ipv6.id, 'ipv6')
+@@ -645,35 +665,21 @@
+         // The correct way to edit an IPV4 interface is to remove it and then
+         // add a new one
+         if(type == "dhcp_to_static"){
+-          return APIUtils
+-          .addIPVs(
+-            'xyz.openbmc_project.Network.IP.Protocol.IPv6',
+-            $scope.selectedInterface,
+-            $scope.interface.ipv6.values[index].Address,
+-            $scope.interface.ipv6.values[index].PrefixLength,
+-            $scope.interface.ipv6.values[index].Gateway
+-          ).then(
+-            function(data) {
+-              toastService.info("Switching Network IPv6 Settings to Static..");
+-              $timeout(function(){
+-                return APIUtils.deleteIPVs(
+-                  $scope.selectedInterface,
+-                  $scope.interface.ipv6.values[index].id,
+-                  'ipv6'
+-                ).then(
+-                  function(data) {},
+-                  function(error) {
+-                    console.log(JSON.stringify(error));
+-                    return $q.reject();
+-                  }
+-                );
+-              }, 19000);
+-            },
+-            function(error) {
+-              console.log(JSON.stringify(error));
+-              return $q.reject();
+-            }
+-          );
++          $timeout(function(){
++            return APIUtils
++            .addIPVs(
++              'xyz.openbmc_project.Network.IP.Protocol.IPv6',
++              $scope.selectedInterface,
++              $scope.interface.ipv6.values[index].Address,
++              $scope.interface.ipv6.values[index].PrefixLength,
++              $scope.interface.ipv6.values[index].Gateway
++              ).then(function(response){
++                
++              }, function(error){
++                console.log(JSON.stringify(error));
++                return $q.reject();
++              })
++            }, 2000);
+         }
+         if(type == "static_to_static"){
+           return APIUtils
+@@ -717,7 +723,7 @@
+                 vlan_priority_data.data = parseInt($scope.vlan.vlan_priority);
+                 $timeout(function(){
+                   call_setVLANPriority(vlan_priority_data, tmp_intf_val);
+-                },15000);
++                },25000);
+               }
+             },
+             function(error) {
+@@ -738,11 +744,18 @@
+       }
+ 
+       function ModifyVLAN_ID(data, interface_to_modify){
+-        return APIUtils.modifyVLANID(data, interface_to_modify).then(
+-            function(){},
+-            function error(error){
+-                return $q.reject();
+-            }
++        return APIUtils.deleteVLAN(interface_to_modify).then(
++          function(response){
++            $timeout(function(){
++              setVLAN(data);
++              // return APIUtils.setVLAN(data).then(function(response){
++              //   console.log("success");
++              // });
++            }, 5000);
++          },
++          function() {
++            console.log("failure");
++          }
+         )
+       }
+ 
+diff -Naur a/app/configuration/controllers/smtp-controller.html b/app/configuration/controllers/smtp-controller.html
+--- a/app/configuration/controllers/smtp-controller.html	2021-06-17 01:38:06.429611056 +0530
++++ b/app/configuration/controllers/smtp-controller.html	2021-06-17 01:43:38.125105012 +0530
+@@ -70,7 +70,7 @@
+               <button type="submit" class="btn btn-primary" ng-disabled="!smtp__configuration.$valid || dataService.isNotAdmin()"
+                 ng-click="$parent.submitted=true; smtp__configuration.$valid && saveSMTPSettings(); smtp__configuration.$setUntouched()">Save</button>
+                 <button type="button" class="btn btn-secondary" ng-disabled="dataService.isNotAdmin()"
+-                ng-click="reset(); smtp__configuration.$setUntouched()">Reset</button>
++                ng-click="reset(); smtp__configuration.$setUntouched()">Cancel</button>
+             </div>
+       </fieldset>
+     </form>
+diff -Naur a/app/server-health/controllers/log-controller.js b/app/server-health/controllers/log-controller.js
+--- a/app/server-health/controllers/log-controller.js	2021-06-17 01:38:06.429611056 +0530
++++ b/app/server-health/controllers/log-controller.js	2021-06-17 01:43:51.401084845 +0530
+@@ -93,7 +93,7 @@
+           };
+ 
+           $scope.filterByDate = function(log) {
+-            var logDate = new Date(log.Created);
++            var logDate = new Date(log.Timestamp);
+             var sdate = new Date($scope.start_date);
+             var edate = new Date($scope.end_date);
+ 
+diff -Naur a/app/server-health/controllers/sensors-overview-controller.html b/app/server-health/controllers/sensors-overview-controller.html
+--- a/app/server-health/controllers/sensors-overview-controller.html	2021-06-17 01:38:06.429611056 +0530
++++ b/app/server-health/controllers/sensors-overview-controller.html	2021-06-17 01:44:09.921056724 +0530
+@@ -67,24 +67,24 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low critical</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info">{{sensor.CriticalLow | number}}</span>
+-              <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+-            <span class="sensors__tbody-unit">{{sensor.unit}}</span>
++            <span class="sensors__tbody-info">{{sensor.CriticalLow}}</span>
++              <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C' && sensor.CriticalLow != 'N/A'">&deg;</span>
++            <span class="sensors__tbody-unit" ng-if="sensor.CriticalLow != 'N/A'">{{sensor.unit}}</span>
+           </span>
+         </td>
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">Low warning</span>
+           <span class="sensors__tbody-cell__content">
+-              <span class="sensors__tbody-info">{{sensor.WarningLow | number}}</span>
+-              <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+-            <span class="sensors__tbody-unit">{{sensor.unit}}</span>
++              <span class="sensors__tbody-info">{{sensor.WarningLow}}</span>
++              <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C' && sensor.WarningLow != 'N/A'">&deg;</span>
++            <span class="sensors__tbody-unit" ng-if="sensor.WarningLow != 'N/A'">{{sensor.unit}}</span>
+           </span>
+         </td>
+         <td class="sensors__tbody-cell sensors__tbody-current" ng-class="{'sensors__tbody-current--critical': sensor.status == 'critical', 'sensors__tbody-current--warn': sensor.status == 'warning', 'sensors__tbody-current--normal': sensor.status == 'normal'}">
+           <span class="sensors__tbody-cell__title">Current</span>
+           <span class="sensors__tbody-cell__content">
+               <span class="sensors__tbody-info" ng-if="sensor.Value == '' || sensor.Value == null">0</span>
+-              <span class="sensors__tbody-info" ng-if="sensor.Value != ''">{{sensor.Value | number}}</span>
++              <span class="sensors__tbody-info" ng-if="sensor.Value != ''">{{sensor.Value}}</span>
+               <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+             <span class="sensors__tbody-unit">{{sensor.unit}}</span>
+           </span>
+@@ -92,19 +92,19 @@
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High warning</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh != '' || sensor.WarningHigh != null">{{sensor.WarningHigh | number}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.WarningHigh != '' || sensor.WarningHigh != null">{{sensor.WarningHigh}}</span>
+             <span class="sensors__tbody-info" ng-if="sensor.WarningHigh == '' || sensor.WarningHigh == null">0</span>
+-            <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+-            <span class="sensors__tbody-unit">{{sensor.unit}}</span>
++            <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C' && sensor.WarningHigh != 'N/A'">&deg;</span>
++            <span class="sensors__tbody-unit" ng-if="sensor.WarningHigh != 'N/A'">{{sensor.unit}}</span>
+           </span>
+         </td>
+         <td class="sensors__tbody-cell">
+           <span class="sensors__tbody-cell__title">High critical</span>
+           <span class="sensors__tbody-cell__content">
+-            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh != '' || sensor.CriticalHigh != null">{{sensor.CriticalHigh | number}}</span>
++            <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh != '' || sensor.CriticalHigh != null">{{sensor.CriticalHigh}}</span>
+             <span class="sensors__tbody-info" ng-if="sensor.CriticalHigh == '' || sensor.CriticalHigh == null">0</span>
+-            <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C'">&deg;</span>
+-            <span class="sensors__tbody-unit">{{sensor.unit}}</span>
++            <span class="sensors__tbody-degree" ng-if="sensor.unit == 'C' && sensor.CriticalHigh != 'N/A'">&deg;</span>
++            <span class="sensors__tbody-unit" ng-if="sensor.CriticalHigh != 'N/A'">{{sensor.unit}}</span>
+           </span>
+         </td>
+       </tr>

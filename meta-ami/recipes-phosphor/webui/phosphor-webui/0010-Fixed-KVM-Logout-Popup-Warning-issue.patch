@@ -1,0 +1,36 @@
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-02-04 10:41:33.010482884 +0000
++++ b/app/server-control/directives/kvm-console.js	2021-02-04 10:43:29.428348297 +0000
+@@ -12,8 +12,8 @@
+   'use strict';
+ 
+   angular.module('app.serverControl').directive('kvmConsole', [
+-    '$log', '$cookies', '$location', 'APIUtils', '$timeout',
+-    function($log, $cookies, $location, APIUtils, $timeout) {
++    '$log', '$cookies', '$location', 'APIUtils', '$timeout', 'dataService',
++    function($log, $cookies, $location, APIUtils, $timeout, dataService) {
+       return {
+         restrict: 'E', template: require('./kvm-console.html'),
+             scope: {newWindowBtn: '=?'}, link: function(scope, element) {
+@@ -93,9 +93,20 @@
+                    rfb.disconnect();
+                 }
+ 
+-                window.open(
++                var kvm_window = window.open(
+                     '#/server-control/kvm-window', 'Kvm Window',
+                     'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=1125,height=900');
++
++                // Store the kvm window object and add a timer event to it,
++                // which will handle the kvm window close event.
++                dataService.KVM_window_obj = kvm_window;
++
++                var interval = setInterval(function() {
++                    if(kvm_window.closed) {
++                        clearInterval(interval);
++                        dataService.KVM_window_obj = null;
++                    }
++                }, 1000);
+               };
+             }
+       }

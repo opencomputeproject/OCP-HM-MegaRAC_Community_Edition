@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart NTP
+After=network.target
+After=avahi-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart systemd-timesyncd.service
+
+[Install]
+WantedBy=multi-user.target

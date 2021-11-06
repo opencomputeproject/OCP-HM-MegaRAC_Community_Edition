@@ -9,7 +9,7 @@ inherit python3native
 inherit obmc-phosphor-dbus-service
 
 LICENSE = "Apache-2.0"
-LIC_FILES_CHKSUM = "file://${WORKDIR}/${PN}/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/git/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 
 SRC_URI += "git://github.com/openbmc/phosphor-snmp"
 SRCREV = "e5d90c3575a832b971c8139bcb016a444a0336fb"
@@ -24,5 +24,3 @@ DEPENDS += "phosphor-logging"
 DEPENDS += "net-snmp"
 
 S = "${WORKDIR}/git"
-
-require conf/machine/include/unpack.inc

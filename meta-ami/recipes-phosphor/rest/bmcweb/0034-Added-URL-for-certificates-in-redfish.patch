@@ -1,0 +1,23 @@
+From fd010f3af81b40001c13323c69b530182dfe3f39 Mon Sep 17 00:00:00 2001
+From: pranoygoru <gorumanip@amiindia.co.in>
+Date: Mon, 10 May 2021 15:14:34 +0530
+Subject: [PATCH] Added URL for certificates in redfish
+
+---
+ redfish-core/lib/managers.hpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index f1203ca..dc49707 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -1752,6 +1752,9 @@ class Manager : public Node
+             {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
+ */
+ 
++        res.jsonValue["Certificates"] = {
++            {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates"}};
++
+         // Manager.Reset (an action) can be many values, OpenBMC only supports
+         // BMC reboot.
+         nlohmann::json& managerReset =

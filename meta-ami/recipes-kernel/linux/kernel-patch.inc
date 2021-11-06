@@ -1,0 +1,32 @@
+FILESEXTRAPATHS_prepend := "${AMIBASE_KERNEL}/files:"
+
+#SPX-13
+SRC_URI += "file://004-bigphysarea.patch"
+SRC_URI += "file://005-dma_alloc_coherent_with_null_dev.patch"
+SRC_URI += "file://006-i2c_extension.patch"
+SRC_URI += "file://007-hw_random_ast_rng.patch"
+SRC_URI += "file://009-linux_fs_jffs2_scan_c.patch"
+SRC_URI += "file://010-linux_net_ipv6_addrconf_c.patch"
+SRC_URI += "file://013-linux_drivers_char_ipmi.patch"
+SRC_URI += "file://020-linux_drivers_i2c.patch"
+SRC_URI += "file://025-linux_drivers_net_ethernet_faraday_ftgmac100.patch"
+SRC_URI += "file://026-peci-support.patch"
+SRC_URI += "file://034-peci-support.patch"
+#SRC_URI += "file://030-linux_drivers_usb_gadget_function.patch"
+#SRC_URI += "file://030-linux_drivers_usb_gadget_function_ami_ioctl_fix.patch"
+#SRC_URI += "file://031-linux_drivers_usb_gadget_udc.patch"
+#SRC_URI += "file://032-linux_drivers_usb_gadget.patch"
+#SRC_URI += "file://035-linux_include_linux_usb_gadget.patch"
+SRC_URI += "file://041-drivers_i2c_busses_ast2600-i2c-aspeed.patch"
+SRC_URI += "file://044-Update_LAN_Driver_by_SDK.patch"
+SRC_URI += "file://049-linux_drivers_char_ipmi_bt-bmc_c.patch"
+SRC_URI += "file://064-linux_drivers_usb_gadget_function.patch"
+SRC_URI += "file://065-linux_drivers_usb_gadget.patch"
+
+
+#OSP2.2
+SRC_URI += "file://kernel.cfg"
+SRC_URI += "file://0001-mt25ql01gb-spi-support.patch"
+SRC_URI += "file://nfs.cfg"
+SRC_URI += "file://0002-added_IO_statistics_to_USB_M_storage_gadget.patch"
+SRC_URI += "file://0003-Allow_mounted_image_eject_from_host.patch"

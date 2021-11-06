@@ -12,18 +12,13 @@ DEPENDS += "autoconf-archive-native"
 DEPENDS += "systemd"
 DEPENDS += "phosphor-logging"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
-#SRC_URI += "git://github.com/openbmc/mboxbridge.git"
+SRC_URI += "git://github.com/openbmc/mboxbridge.git"
 
 SRC_URI += "file://99-aspeed-lpc-ctrl.rules"
 
-#SRCREV="dfbeae251c8ebe9939c6eb7241380d8cf4313169"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/mboxbridge"
-SRC_URI = "file://mboxbridge"
-SRCPV = "${AUTOREV}"
+SRCREV="5ff50e3cbd7702aefc185264e4adfb9952040575"
 
 PROVIDES += "mboxctl"
 

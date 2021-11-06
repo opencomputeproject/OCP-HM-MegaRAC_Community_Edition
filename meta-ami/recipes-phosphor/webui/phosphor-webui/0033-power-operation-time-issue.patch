@@ -1,0 +1,155 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-19 22:58:36.966894291 +0530
++++ b/app/common/services/api-utils.js	2021-06-19 23:00:52.922639426 +0530
+@@ -1051,7 +1051,7 @@
+                 return response.data;
+               });
+         },
+-        hostPowerOn: function() {
++        hostImmediateReboot: function(){
+           var deferred = $q.defer();
+           $timeout(function(){
+             $http({
+@@ -1072,9 +1072,31 @@
+                   console.log(error);
+                   deferred.reject(error);
+                 });
+-                return deferred.promise;
++              return deferred.promise;
+           }, 25000);
+         },
++        hostPowerOn: function(timeout) {
++          var deferred = $q.defer();
++            $http({
++              method: 'PUT',
++              url: DataService.getHost() +
++              '/xyz/openbmc_project/state/host0/attr/RequestedHostTransition',
++              withCredentials: true,
++              data: JSON.stringify(
++                {'data': 'xyz.openbmc_project.State.Host.Transition.On'})
++              })
++              .then(
++                function(response) {
++                  var json = JSON.stringify(response.data);
++                  var content = JSON.parse(json);
++                  deferred.resolve(content.status);
++                },
++                function(error) {
++                  console.log(error);
++                  deferred.reject(error);
++                });
++            return deferred.promise;  
++        },
+         hostPowerOff: function() {
+           var deferred = $q.defer();
+           $http({
+diff -Naur a/app/server-control/controllers/power-operations-controller.js b/app/server-control/controllers/power-operations-controller.js
+--- a/app/server-control/controllers/power-operations-controller.js	2021-06-19 22:58:36.970894284 +0530
++++ b/app/server-control/controllers/power-operations-controller.js	2021-06-19 23:01:45.878541336 +0530
+@@ -92,6 +92,7 @@
+             })
+             .finally(() => {
+               $scope.operationPending = false;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -112,7 +113,7 @@
+             })
+             .then(() => {
+               toastService.info('Performing Power Operation.. Please wait few seconds.');
+-              return APIUtils.hostPowerOn();
++              return APIUtils.hostImmediateReboot();
+             })
+             .then(() => {
+               // Check for on state
+@@ -127,6 +128,7 @@
+             })
+             .finally(() => {
+               $scope.operationPending = false;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -151,6 +153,7 @@
+             })
+             .finally(() => {
+               $scope.operationPending = false;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -179,6 +182,7 @@
+             })
+             .finally(() => {
+               $scope.operationPending = false;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -201,6 +205,7 @@
+             })
+             .finally(() => {
+               $scope.operationPending = false;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -240,6 +245,7 @@
+             })
+             .finally(function() {
+               $scope.activeModal = undefined;
++              $scope.LoadServerOperationData();
+             });
+       };
+ 
+@@ -387,28 +393,31 @@
+         }
+       };
+ 
++      $scope.LoadServerOperationData = function(){
++        APIUtils.getLastPowerTime()
++          .then(
++              function(data) {
++                if (data.data == 0) {
++                  $scope.powerTime = 'not available';
++                } else {
++                  $scope.powerTime = data.data;
++                }
++              },
++              function(error) {
++                toastService.error(
++                    'Unable to get last power operation time.');
++                console.log(JSON.stringify(error));
++              })
++          .finally(function() {
++            $scope.loading = false;
++          });
++      };
++
+       /*
+        *   Emitted every time the view is reloaded
+        */
+       $scope.$on('$viewContentLoaded', function() {
+-        APIUtils.getLastPowerTime()
+-            .then(
+-                function(data) {
+-                  if (data.data == 0) {
+-                    $scope.powerTime = 'not available';
+-                  } else {
+-                    $scope.powerTime = data.data;
+-                  }
+-                },
+-                function(error) {
+-                  toastService.error(
+-                      'Unable to get last power operation time.');
+-                  console.log(JSON.stringify(error));
+-                })
+-            .finally(function() {
+-              $scope.loading = false;
+-            });
+-
++        $scope.LoadServerOperationData();
+         loadBootSettings();
+         loadTPMStatus();
+       });

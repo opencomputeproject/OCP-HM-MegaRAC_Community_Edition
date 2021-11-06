@@ -1,0 +1,78 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2021-03-18 16:24:44.056080013 +0530
++++ b/src/main.cpp	2021-03-18 16:29:44.422283554 +0530
+@@ -395,6 +395,31 @@
+         return flag;
+     }
+ 
++    static int getmediasessionid(const std::string& file_path)
++    {
++    
++    std::ifstream fileReader;
++            fileReader.open(file_path);
++            std::string temp_buf;
++    	int i=0;
++    	if(fileReader)
++    	{
++    	
++    		std::getline(fileReader,temp_buf);
++    		std::stringstream media_endpoint;
++    		media_endpoint << temp_buf;
++    		media_endpoint >> i;
++    
++    		fileReader.close();
++    	
++    	}
++    	if( (i>=0 ) && (i<=2 ) )
++    		return i;
++    	else
++    		return -1;
++    
++    }
++
+     static bool setStatus(const std::string& file_path, const std::string& status_name, const bool& instance)
+     {
+         std::ofstream fileWriter;
+@@ -707,6 +732,7 @@
+         }
+ 	addKVMProcessInterface("kvm0");
+         addNBDProcessInterface("nbd0");
++	addmediasessionid("mediasession");
+         prepareNBDFile();
+         devMonitor.run([this](const std::string& device, StateChange change) {
+             configureUsbGadget(device, change);
+@@ -1351,6 +1377,23 @@
+         iface->initialize();
+     }
+ 
++    void addmediasessionid(const std::string& name)
++    {
++        auto iface = objServer->add_interface(
++            "/xyz/openbmc_project/VirtualMedia/session/" + name,
++            "xyz.openbmc_project.media.Process");
++        iface->register_property(
++            "Media_session_id", int(0),
++            [](const int& req, int& property) {
++	    throw sdbusplus::exception::SdBusError(
++                 EPERM, "Setting Media_session_id property is not allowed");
++                 return -1;
++	    },
++            [](const int& property) { 
++	    return Process::getmediasessionid(std::string("/etc/nbd-proxy/mediasession")); });
++        iface->initialize();
++    }
++
+     boost::asio::io_context& ioc;
+     DeviceMonitor devMonitor;
+     std::shared_ptr<sdbusplus::asio::connection> bus;
+diff -Naur a/xyz.openbmc_project.VirtualMedia.service b/xyz.openbmc_project.VirtualMedia.service
+--- a/xyz.openbmc_project.VirtualMedia.service	2021-03-18 16:24:44.056080013 +0530
++++ b/xyz.openbmc_project.VirtualMedia.service	2021-03-18 16:30:17.466510822 +0530
+@@ -4,6 +4,7 @@
+ 
+ [Service]
+ ExecStart=/usr/sbin/virtual-media
++ExecStartPost=/bin/bash -c '/bin/echo 0 > /etc/nbd-proxy/mediasession'
+ Restart=always
+ Type=simple
+ 

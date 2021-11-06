@@ -53,6 +53,3 @@ SRC_URI += "git://github.com/openbmc/pyphosphor"
 SRCREV = "d2aadf1220b03580ab5f93fd15e068040cdb895b"
 
 S = "${WORKDIR}/git"
-
-require conf/machine/include/unpack.inc
-

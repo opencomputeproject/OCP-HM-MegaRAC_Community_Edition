@@ -1,0 +1,122 @@
+diff -Naur a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2021-02-08 10:14:34.211421475 -0500
++++ b/transporthandler.cpp	2021-02-08 10:33:05.408594002 -0500
+@@ -1732,7 +1732,34 @@
+             return responseSuccess();
+         }
+         case LanParam::CiphersuiteSupport:
++         {
++               uint8_t reserved = 0xE0;
++               if (req.unpack(reserved) || !req.fullyUnpacked())
++               {
++                       return responseReqDataLenInvalid();
++               }
++               req.trailingOk = true;
++               return response(ccParamReadOnly);
++         }
+         case LanParam::CiphersuiteEntries:
++         {
++            uint8_t reserved;
++            std::array<uint4_t, ipmi::maxCSEntries> cipherSuiteEntries;
++
++            if (req.unpack(reserved, cipherSuiteEntries) || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++
++            if (reserved)
++            {
++                return responseInvalidFieldRequest();
++            }
++
++            req.trailingOk = true;
++            return response(ccParamReadOnly);
++         }
++	
+         case LanParam::IPFamilySupport:
+         {
+             req.trailingOk = true;
+diff -Naur a/user_channel/channelcommands.cpp b/user_channel/channelcommands.cpp
+--- a/user_channel/channelcommands.cpp	2021-02-08 10:14:34.211421475 -0500
++++ b/user_channel/channelcommands.cpp	2021-02-08 10:34:27.816194150 -0500
+@@ -120,6 +120,13 @@
+             return response(ccAccessModeNotSupportedForChannel);
+     }
+ 
++    /*Handle for Invalid access mode */
++    if((setActFlag == 0) && (setNVFlag == 0 ))
++    {
++           log<level::DEBUG>("Set channel access - Invalid access set mode");
++           return response(ccAccessModeNotSupportedForChannel);
++    }
++
+     if (setNVFlag != 0)
+     {
+         compCode = setChannelAccessPersistData(chNum, chNVData, setNVFlag);
+diff -Naur a/user_channel/channel_mgmt.cpp b/user_channel/channel_mgmt.cpp
+--- a/user_channel/channel_mgmt.cpp	2021-02-08 10:14:34.215421685 -0500
++++ b/user_channel/channel_mgmt.cpp	2021-02-08 10:37:30.684481229 -0500
+@@ -237,13 +237,14 @@
+ 
+     boost::interprocess::scoped_lock<boost::interprocess::named_recursive_mutex>
+         channelLock{*channelMutex};
+-    // skip updating the values, if this property change originated from IPMI.
++    /* Update dbus if the change is from IPMI*/
++    /* skip updating the values, if this property change originated from IPMI.
+     if (signalFlag & (1 << chNum))
+     {
+         signalFlag &= ~(1 << chNum);
+         log<level::DEBUG>("Request originated from IPMI so ignoring signal");
+         return;
+-    }
++    }*/
+ 
+     // Update both volatile & Non-volatile, if there is mismatch.
+     // as property change other than IPMI, has to update both volatile &
+@@ -604,7 +605,14 @@
+     }
+     if (setFlag & setPrivLimit)
+     {
+-        // Send Update to network channel config interfaces over dbus
++        /*
++         * Removing the synchronization between IPMI and Network process
++         * as the network process does not have channle interface and if channels other
++         * than LAN is updated synchronization might be required b/w IPMI and other process
++         * Herby update the volatile and non volatile data
++         * */
++
++        /* Send Update to network channel config interfaces over dbus
+         std::string privStr = convertToPrivLimitString(chAccessData.privLimit);
+         std::string networkIntfObj = std::string(networkIntfObjectBasePath) +
+                                      "/" + channelData[chNum].chName;
+@@ -625,9 +633,18 @@
+             log<level::ERR>("Exception: Network interface does not exist");
+             return ccInvalidFieldRequest;
+         }
+-        signalFlag |= (1 << chNum);
++        signalFlag |= (1 << chNum);*/
++
+         channelData[chNum].chAccess.chNonVolatileData.privLimit =
+             chAccessData.privLimit;
++	channelData[chNum].chAccess.chVolatileData.privLimit =
++            chAccessData.privLimit;
++
++	if (writeChannelVolatileData() != 0)
++        {
++                log<level::DEBUG>("Failed to update the channel volatile data");
++                return ccUnspecifiedError;
++        }
+     }
+ 
+     // Write persistent data to file
+diff -Naur a/user_channel/cipher_mgmt.hpp b/user_channel/cipher_mgmt.hpp
+--- a/user_channel/cipher_mgmt.hpp	2021-02-08 10:14:34.159418751 -0500
++++ b/user_channel/cipher_mgmt.hpp	2021-02-08 10:38:03.862020956 -0500
+@@ -30,6 +30,7 @@
+     "/var/lib/ipmi/cs_privilege_levels.json";
+ 
+ static const size_t maxCSRecords = 16;
++static const size_t  maxCSEntries =2;
+ 
+ using ChannelNumCipherIDPair = std::pair<uint8_t, uint8_t>;
+ using privMap = std::map<ChannelNumCipherIDPair, uint4_t>;

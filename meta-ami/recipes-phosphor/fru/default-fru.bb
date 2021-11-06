@@ -8,7 +8,7 @@ SYSTEMD_SERVICE_${PN} = "SetBaseboardFru.service"
 S = "${WORKDIR}"
 SRC_URI = "file://checkFru.sh \
            file://SetBaseboardFru.service \
-           file://*.fru.bin"
+           file://S2600WFT.fru.bin"
 
 #LICENSE = "Apache-2.0"
 LICENSE = "CLOSED"
@@ -21,7 +21,7 @@ do_install() {
     install -m 0755 ${S}/checkFru.sh ${D}/${bindir}/checkFru.sh
 
     install -d ${D}${sysconfdir}/fru
-    cp ${S}/*.fru.bin ${D}/${sysconfdir}/fru
+    #cp ${S}/S2600WFT.fru.bin ${D}/${sysconfdir}/fru
 
     install -d ${D}${base_libdir}/systemd/system
     install -m 0644 ${S}/SetBaseboardFru.service ${D}${base_libdir}/systemd/system

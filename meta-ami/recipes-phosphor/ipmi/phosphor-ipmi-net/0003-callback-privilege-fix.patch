@@ -1,0 +1,34 @@
+--- a/command/channel_auth.cpp	2021-06-01 15:41:43.603962734 -0400
++++ b/command/channel_auth.cpp	2021-06-01 15:39:09.546098404 -0400
+@@ -30,10 +30,17 @@
+     uint8_t chNum = ipmi::convertCurrentChannelNum(
+         request->channelNumber & channelMask, getInterfaceIndex());
+ 
++    if(!ipmi::isValidPrivLimit(request->reqMaxPrivLevel))
++      {
++         sd_journal_print(LOG_ERR, "Callback is Depricated\n");
++	 //std::vector<uint8_t> errorPayload{ipmi::ccInsufficientPrivilege};
++	 //return errorPayload;
++      }
++
++    
+     if (!ipmi::isValidChannel(chNum) ||
+         (ipmi::EChannelSessSupported::none ==
+-         ipmi::getChannelSessionSupport(chNum)) ||
+-        !ipmi::isValidPrivLimit(request->reqMaxPrivLevel))
++         ipmi::getChannelSessionSupport(chNum)))
+     {
+         std::vector<uint8_t> errorPayload{IPMI_CC_INVALID_FIELD_REQUEST};
+         return errorPayload;
+
+--- a/command/rakp12.cpp        2021-06-01 18:11:23.553927167 -0400
++++ b/command/rakp12.cpp        2021-06-01 18:10:52.977572402 -0400
+@@ -141,7 +141,7 @@
+     // initially set to USER privilege, regardless of the requested maximum
+     // privilege.
+     if (!(static_cast<session::Privilege>(request->req_max_privilege_level &
+-                                          session::reqMaxPrivMask) >
++                                          session::reqMaxPrivMask) >=
+           session::Privilege::CALLBACK))
+     {
+         response->rmcpStatusCode =

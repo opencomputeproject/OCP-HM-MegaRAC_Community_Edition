@@ -1,0 +1,658 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-05-17 07:25:27.231143951 +0530
++++ b/app/common/services/api-utils.js	2021-05-17 07:28:42.035222923 +0530
+@@ -346,7 +346,9 @@
+                               MACAddress: '',
+                               Nameservers: [],
+                               StaticNameServers: [],
+-                              DHCPEnabled: 0,
++                              DHCPEnabled: false,
++                              IPv6DHCPEnabled:false,
++                              defaultgateway:'',
+                               ipv4: {ids: [], values: []},
+                               ipv6: {ids: [], values: []}
+                             };
+@@ -358,8 +360,21 @@
+                                 content.data[key].Nameservers;
+                             data.interfaces[interfaceId].StaticNameServers =
+                                 content.data[key].StaticNameServers;
+-                            data.interfaces[interfaceId].DHCPEnabled =
+-                                content.data[key].DHCPEnabled;
++                            data.interfaces[interfaceId].defaultgateway = 
++                                content.data[key].DefaultGateway;
++                            // data.interfaces[interfaceId].DHCPEnabled =
++                            //     content.data[key].DHCPEnabled;
++                            var dhcp_check = content.data[key].DHCPEnabled.split(".").pop();
++                            if(dhcp_check == "v6"){
++                              data.interfaces[interfaceId].IPv6DHCPEnabled = true;
++                            }
++                            if(dhcp_check == "v4"){
++                              data.interfaces[interfaceId].DHCPEnabled = true;
++                            }
++                            if(dhcp_check == "both"){
++                              data.interfaces[interfaceId].DHCPEnabled = true;
++                              data.interfaces[interfaceId].IPv6DHCPEnabled = true;
++                            }
+                             if(interfaceId.indexOf("_") > -1){
+                               data.interfaces[interfaceId].Id = content.data[key].Id;
+                               data.interfaces[interfaceId].VlanPriority = content.data[key].VlanPriority;
+@@ -395,12 +410,12 @@
+                             content.data['/xyz/openbmc_project/network/config']
+                                 .HostName;
+                       }
+-                      if (content.data['/xyz/openbmc_project/network/config']
+-                              .hasOwnProperty('DefaultGateway')) {
+-                        defaultgateway =
+-                            content.data['/xyz/openbmc_project/network/config']
+-                                .DefaultGateway;
+-                      }
++                      // if (content.data['/xyz/openbmc_project/network/config']
++                      //         .hasOwnProperty('DefaultGateway')) {
++                      //   defaultgateway =
++                      //       content.data['/xyz/openbmc_project/network/config']
++                      //           .DefaultGateway;
++                      // }
+                     }
+ 
+                     if (content.data.hasOwnProperty(
+@@ -443,7 +458,7 @@
+                     deferred.resolve({
+                       data: content.data,
+                       hostname: hostname,
+-                      defaultgateway: defaultgateway,
++                      // defaultgateway: defaultgateway,
+                       mac_address: macAddress,
+                       dhcp: dhcp,
+                       formatted_data: parseNetworkData(content)
+@@ -493,6 +508,19 @@
+                 return response.data;
+               });
+         },
++        setIPv6DHCPEnabled: function(interfaceName, dhcpEnabled) {
++          return $http({
++                   method: 'PUT',
++                   url: DataService.getHost() +
++                       '/xyz/openbmc_project/network/' + interfaceName +
++                       '/attr/DHCPEnabled',
++                   withCredentials: true,
++                   data: JSON.stringify({'data': dhcpEnabled})
++                 })
++              .then(function(response) {
++                return response.data;
++              });
++        },
+         setStaticNameServers: function(interfaceName, dnsServers) {
+           return $http({
+                    method: 'PUT',
+@@ -533,12 +561,12 @@
+               });
+         },
+         */
+-        deleteIPV4: function(interfaceName, networkID) {
++        deleteIPVs: function(interfaceName, networkID, type) {
+           return $http({
+                   method: 'DELETE',
+                   url: DataService.getHost() +
+                     '/xyz/openbmc_project/network/' + interfaceName +
+-                    '/ipv4/' + networkID,
++                    '/'+type+'/' + networkID,
+                   withCredentials: true,
+                   // data: JSON.stringify({'data': []})
+                  })
+@@ -558,8 +586,8 @@
+             return response.data;
+           });
+         },
+-        addIPV4: function(
+-            interfaceName, ipAddress, netmaskPrefixLength, gateway) {
++        addIPVs: function(
++            type, interfaceName, ipAddress, netmaskPrefixLength, gateway) {
+           return $http({
+                    method: 'POST',
+                    url: DataService.getHost() +
+@@ -568,8 +596,8 @@
+                    withCredentials: true,
+                    data: JSON.stringify({
+                      'data': [
+-                       'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+-                       ipAddress, +netmaskPrefixLength, gateway
++                      //  'xyz.openbmc_project.Network.IP.Protocol.IPv4',
++                       type, ipAddress, +netmaskPrefixLength, gateway
+                      ]
+                    })
+                  })
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-05-17 07:25:27.231143951 +0530
++++ b/app/common/services/dataService.js	2021-05-17 07:28:54.731227683 +0530
+@@ -206,6 +206,18 @@
+       }
+      };
+ 
++     this.validate_ipv6_address = function(value){
++       var reg1 = /^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/;
++       var reg2 = /^localhost$|^127(?:\.[0-9]+){0,2}\.[0-9]+$|^(?:0*\:)*?:?0*1$/;
++       var reg3 = /[fF][eE][8][0]::/;
++
++       if( !(reg1.test(value)) || (reg2.test(value)) || (reg3.test(value)) || (value != undefined && value != null && (String(value).charAt(0) == "0" || value.trim()=='::')) ){
++        return false;
++       }else{
++        return true;
++       }
++     }
++
+       // Create a KVM Window Object,
+       // for handling the kvm window at the time of logout.
+       this.KVM_window_obj = null;
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-05-17 07:25:27.231143951 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-05-17 07:29:19.431234985 +0530
+@@ -100,6 +100,59 @@
+         </div>
+       </div>
+     </fieldset>
++
++    <fieldset class="net-config__fieldset row column">
++      <legend class="column small-12 page-header h2">
++        IPV6 settings
++      </legend>
++      <div class="net-config__fieldset-content">
++        <div class="row column">
++          <label class="control-radio" for="ipv6-dhcp-address">Obtain an IPv6 address automatically using DHCP
++            <input type="radio" name="ipv6-address" id="ipv6-dhcp-address" ng-checked="true" ng-disabled="dataService.isNotAdmin()" ng-model="interface.IPv6DHCPEnabled"
++              ng-value="true">
++            <span class="control__indicator control__indicator-on"></span>
++          </label>
++        </div>
++        <div class="row column">
++          <label class="control-radio" for="static-ipv6-address">Assign a static IPv6 address
++            <input type="radio" name="ipv6-address" id="static-ipv6-address" ng-disabled="dataService.isNotAdmin()" ng-model="interface.IPv6DHCPEnabled"
++              ng-value="false" />
++            <span class="control__indicator control__indicator-on"></span>
++          </label>
++        </div>
++        <div class="row column network-config__ipv4-wrap">
++          <fieldset class="net-config__fieldset net-config__static-ip-wrap" ng-repeat="ipv6 in interface.ipv6.values track by $index" ng-if="$index < 2" >
++            <div class="column small-12 large-3">
++              <label for="ipv6-address-{{$index+1}}">IPV6 address</label>
++              <input id="ipv6-address-{{$index+1}}" name="netipv6{{$index+1}}" ng-change="ipv6.updateAddress = true" type="text"
++              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()" ng-model="ipv6.Address" ng-pattern="validateIPv6Address" set-focus-on-new-input ng-required="!interface.IPv6DHCPEnabled"/>
++              <span class="modal__error" ng-show="network_form.netipv6{{$index+1}}.$error.pattern">Invalid IPv6 format.</span>
++            </div>
++            <div class="column small-12 large-3">
++              <label for="ipv6-gateway-{{$index+1}}">Gateway</label>
++              <input id="ipv6-gateway-{{$index+1}}" name="netipv6gateway{{$index+1}}" ng-change="ipv6.updateGateway = true" type="text"
++              ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()" value="" ng-model="ipv6.Gateway" ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"/>
++              <span class="modal__error" ng-show="network_form.netipv6gateway{{$index+1}}.$error.pattern">Invalid IPv6 format.</span>
++            </div>
++            <!-- This netmask prefix length max only works with IPV6 -->
++            <div class="column small-12 large-6">
++              <label for="ipv6-prefix-{{$index+1}}">Netmask Prefix Length</label>
++              <input id="ipv6-prefix-{{$index+1}}" class="column small-6" ng-change="ipv6.updatePrefix = true"
++              type="number" min="1" max="64" step="1" ng-disabled="interface.IPv6DHCPEnabled || dataService.isNotAdmin()"
++                ng-model="ipv6.PrefixLength" ng-required="!interface.IPv6DHCPEnabled"/>
++                <button type="button" class="btn  btn-tertiary network-config_remove-button" ng-click="removeIpv6Address($index)"
++                ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length == 1 || dataService.isNotAdmin()">Remove</button>
++            </div>
++          </fieldset>
++          <div class="row column">
++            <div class="column small-12">
++              <button type="button" class="btn  btn-primary" ng-click="addIpv6Field()" ng-disabled="interface.IPv6DHCPEnabled || interface.ipv6.values.length >= 2 || dataService.isNotAdmin()">Add IPV6 address</button>
++            </div>
++          </div>
++        </div>
++      </div>
++    </fieldset>
++
+     <fieldset class="net-config__fieldset row column">
+       <legend class="column small-12 page-header h2">
+         DNS settings
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-05-17 07:25:27.231143951 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-05-17 07:33:26.575188510 +0530
+@@ -31,24 +31,29 @@
+       $scope.confirmSettings = false;
+       $scope.loading = false;
+       $scope.ipv4sToDelete = [];
++      $scope.ipv6sToDelete = [];
+ 
+       loadNetworkInfo();
+ 
+       $scope.selectInterface = function(interfaceId) {
+         $scope.selectedinterfaceId = interfaceId;
+         $scope.interface = $scope.network.interfaces[interfaceId];
+-        var check_dhcp_type = $scope.network.interfaces[interfaceId].DHCPEnabled;
+-        if(check_dhcp_type != true && check_dhcp_type != false){
+-          check_dhcp_type = check_dhcp_type.split(".").pop();
+-        }
+-        if(check_dhcp_type == "v4" || check_dhcp_type == "both"){
+-          $scope.network.interfaces[interfaceId].DHCPEnabled = true;
++
++        $scope.defaultGateway = $scope.interface.defaultgateway;
++        dataService.defaultgateway = $scope.defaultGateway;
++
++        if($scope.network.interfaces[interfaceId].DHCPEnabled){
+           $scope.oldDHCPstatus = true;
+         }else{
+-          $scope.network.interfaces[interfaceId].DHCPEnabled = false;
+           $scope.oldDHCPstatus = false;
+         }
+ 
++        if($scope.network.interfaces[interfaceId].IPv6DHCPEnabled){
++          $scope.oldDHCPstatusIPv6 = true;
++        }else{
++          $scope.oldDHCPstatusIPv6 = false;
++        }
++
+         if(interfaceId.indexOf("_") > -1){
+           $scope.vlan.id = $scope.interface.Id;
+           $scope.vlan.vlan_priority = $scope.interface.VlanPriority;
+@@ -68,17 +73,33 @@
+       $scope.removeLinkAddress = function(){
+         var removeindex = -1;
+         for (var i = 0; i < $scope.interface.ipv4.values.length; i++) {
+-          if($scope.interface.ipv4.values[i].Origin.indexOf("LinkLocal") != -1){
+-            removeindex = i;
+-            //$scope.interface.ipv4.values.splice(i, 1);
+-          }else{
+-            $scope.interface.ipv4.values[i].id = $scope.interface.ipv4.ids[i];
++          if($scope.interface.ipv4.values[i].hasOwnProperty("Origin")){
++            if($scope.interface.ipv4.values[i].Origin.indexOf("LinkLocal") != -1){
++              removeindex = i;
++            }else{
++              $scope.interface.ipv4.values[i].id = $scope.interface.ipv4.ids[i];
++            }
+           }
+         }
+         if(removeindex > -1){
+           $scope.interface.ipv4.values.splice(removeindex, 1);
+           $scope.interface.ipv4.ids.splice(removeindex, 1);
+         }
++
++        var removeindexipv6 = -1;
++        for (var i = 0; i < $scope.interface.ipv6.values.length; i++) {
++          if($scope.interface.ipv6.values[i].hasOwnProperty("Origin")){
++            if($scope.interface.ipv6.values[i].Origin.indexOf("LinkLocal") != -1){
++              removeindexipv6 = i;
++            }else{
++              $scope.interface.ipv6.values[i].id = $scope.interface.ipv6.ids[i];
++            }
++          }
++        }
++        if(removeindexipv6 > -1){
++          $scope.interface.ipv6.values.splice(removeindexipv6, 1);
++          $scope.interface.ipv6.ids.splice(removeindexipv6, 1);
++        }
+       };
+         
+       $scope.validateHostname = (function(){
+@@ -88,6 +109,14 @@
+           }
+         }
+       })();
++
++      $scope.validateIPv6Address = (function(){
++        return {
++          test: function(value){
++            return dataService.validate_ipv6_address(value);
++          }
++        }
++      })();
+         
+       $scope.addDNSField = function() {
+         if($scope.interface.StaticNameServers.length == 2){
+@@ -106,6 +135,11 @@
+             {Address: '', PrefixLength: '', Gateway: ''});
+       };
+ 
++      $scope.addIpv6Field = function() {
++        $scope.interface.ipv6.values.push(
++            {Address: '', PrefixLength: '', Gateway: ''});
++      };
++
+       $scope.removeIpv4Address = function(index) {
+         // Check if the IPV4 being removed has an id. This indicates that it is
+         // an existing address and needs to be removed in the back end.
+@@ -115,6 +149,13 @@
+         $scope.interface.ipv4.values.splice(index, 1);
+       };
+ 
++      $scope.removeIpv6Address = function(index) {
++        if ($scope.interface.ipv6.values[index].id) {
++          $scope.ipv6sToDelete.push($scope.interface.ipv6.values[index]);
++        }
++        $scope.interface.ipv6.values.splice(index, 1);
++      };
++
+       $scope.deleteVLAN = function(interface_to_delete) {
+         $scope.loading = true;
+         APIUtils.deleteVLAN($scope.selectedInterface).then(
+@@ -212,6 +253,11 @@
+           }
+         }
+ 
++        if($scope.interface.IPv6DHCPEnabled && $scope.oldDHCPstatusIPv6 != $scope.interface.IPv6DHCPEnabled) {
++          console.log("save ipv6 dhcp");
++          promises.push(setIPv6DHCPEnabled());
++        }
++
+         // if ($scope.interface.DHCPEnabled != $scope.oldInterface.DHCPEnabled) {
+         if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled) {
+           promises.push(setDHCPEnabled());
+@@ -290,6 +336,34 @@
+           }
+         }
+ 
++        if (!$scope.interface.IPv6DHCPEnabled) {
++          // Delete existing IPV6 addresses that were removed
++          if(!$scope.network.interfaces[$scope.selectedinterfaceId].IPv6DHCPEnabled){
++            promises.push(removeIPV6s());
++          }
++          // Update any changed IPV6 addresses and add new
++          for (var i in $scope.interface.ipv6.values) {
++            if ( ($scope.interface.ipv6.values[i].updateAddress ||
++                $scope.interface.ipv6.values[i].updateGateway ||
++                $scope.interface.ipv6.values[i].updatePrefix) 
++                || $scope.oldInterface.IPv6DHCPEnabled) {
++              // If IPV4 has an id it means it already exists in the back end,
++              // and in order to update it is required to remove previous IPV4
++              // address and add new one. See openbmc/openbmc/issues/2163.
++              // TODO: update to use PUT once issue 2163 is resolved.
++              if ($scope.interface.ipv6.values[i].id) {
++                if($scope.interface.ipv6.values[i].Origin.indexOf("DHCP") > -1){
++                  promises.push(updateIPV6(i, "dhcp_to_static"));
++                }else{
++                  promises.push(updateIPV6(i, "static_to_static"));
++                }
++              } else {
++                promises.push(addIPV6(i));
++              }
++            }
++          }
++        }
++
+         if ($scope.vlan.id) {
+           var tmp = [];
+           var obj = {};
+@@ -371,7 +445,11 @@
+ 
+       function setDHCPEnabled() {
+         if($scope.interface.DHCPEnabled == true){
+-          $scope.interface.DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v4";
++          if($scope.interface.IPv6DHCPEnabled){
++            $scope.interface.DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
++          }else{
++            $scope.interface.DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v4";
++          }
+         }
+         return APIUtils
+             .setDHCPEnabled(
+@@ -384,6 +462,26 @@
+                 });
+       }
+ 
++      function setIPv6DHCPEnabled(){
++        console.log("function setIPv6DHCPEnabled",$scope.interface.IPv6DHCPEnabled);
++        if($scope.interface.IPv6DHCPEnabled == true){
++          if($scope.interface.DHCPEnabled){
++            $scope.interface.IPv6DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
++          }else{
++            $scope.interface.IPv6DHCPEnabled = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v6";
++          }
++        }
++        return APIUtils
++            .setIPv6DHCPEnabled(
++                $scope.selectedInterface, $scope.interface.IPv6DHCPEnabled)
++            .then(
++                function(data) {},
++                function(error) {
++                  console.log(JSON.stringify(error));
++                  return $q.reject();
++                });
++      }
++
+       function setStaticNameServers() {
+         return APIUtils
+             .setStaticNameServers(
+@@ -410,7 +508,7 @@
+ 
+       function removeIPV4s() {
+         return $scope.ipv4sToDelete.map(function(ipv4) {
+-          return APIUtils.deleteIPV4($scope.selectedInterface, ipv4.id)
++          return APIUtils.deleteIPVs($scope.selectedInterface, ipv4.id, 'ipv4')
+               .then(
+                   function(data) {},
+                   function(error) {
+@@ -420,6 +518,18 @@
+         });
+       }
+ 
++      function removeIPV6s() {
++        return $scope.ipv6sToDelete.map(function(ipv6) {
++          return APIUtils.deleteIPVs($scope.selectedInterface, ipv6.id, 'ipv6')
++              .then(
++                  function(data) {},
++                  function(error) {
++                    console.log(JSON.stringify(error));
++                    return $q.reject();
++                  });
++        });
++      }
++
+       function removeAllIPs() {
+         return APIUtils
+         .deleteAllIP($scope.selectedInterface)
+@@ -434,7 +544,8 @@
+ 
+       function addIPV4(index) {
+         return APIUtils
+-            .addIPV4(
++            .addIPVs(
++                'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+                 $scope.selectedInterface,
+                 $scope.interface.ipv4.values[index].Address,
+                 $scope.interface.ipv4.values[index].PrefixLength,
+@@ -447,12 +558,29 @@
+                 })
+       }
+ 
++      function addIPV6(index){
++        return APIUtils.addIPVs(
++          'xyz.openbmc_project.Network.IP.Protocol.IPv6',
++          $scope.selectedInterface,
++          $scope.interface.ipv6.values[index].Address,
++          $scope.interface.ipv6.values[index].PrefixLength,
++          $scope.interface.ipv6.values[index].Gateway
++        ).then(
++          function(data){},
++          function(error){
++            console.log(JSON.stringify(error));
++            return $q.reject();
++          }
++        )
++      }
++
+       function updateIPV4(index, type) {
+         // The correct way to edit an IPV4 interface is to remove it and then
+         // add a new one
+         if(type == "dhcp_to_static"){
+           return APIUtils
+-          .addIPV4(
++          .addIPVs(
++            'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+             $scope.selectedInterface,
+             $scope.interface.ipv4.values[index].Address,
+             $scope.interface.ipv4.values[index].PrefixLength,
+@@ -461,9 +589,10 @@
+             function(data) {
+               toastService.info("Switching Network IPv4 Settings to Static..");
+               $timeout(function(){
+-                return APIUtils.deleteIPV4(
++                return APIUtils.deleteIPVs(
+                   $scope.selectedInterface,
+-                  $scope.interface.ipv4.values[index].id
++                  $scope.interface.ipv4.values[index].id,
++                  'ipv4'
+                 ).then(
+                   function(data) {},
+                   function(error) {
+@@ -481,14 +610,16 @@
+         }
+         if(type == "static_to_static"){
+           return APIUtils
+-          .deleteIPV4(
++          .deleteIPVs(
+             $scope.selectedInterface,
+-            $scope.interface.ipv4.values[index].id)
++            $scope.interface.ipv4.values[index].id,
++            'ipv4')
+           .then(
+             function(data) {
+               toastService.info("Modifying Static IPv4 Settings on progress..");
+               $timeout(function(){
+-                return APIUtils.addIPV4(
++                return APIUtils.addIPVs(
++                  'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+                   $scope.selectedInterface,
+                   $scope.interface.ipv4.values[index].Address,
+                   $scope.interface.ipv4.values[index].PrefixLength,
+@@ -510,6 +641,73 @@
+         }
+       };
+ 
++      function updateIPV6(index, type) {
++        // The correct way to edit an IPV4 interface is to remove it and then
++        // add a new one
++        if(type == "dhcp_to_static"){
++          return APIUtils
++          .addIPVs(
++            'xyz.openbmc_project.Network.IP.Protocol.IPv6',
++            $scope.selectedInterface,
++            $scope.interface.ipv6.values[index].Address,
++            $scope.interface.ipv6.values[index].PrefixLength,
++            $scope.interface.ipv6.values[index].Gateway
++          ).then(
++            function(data) {
++              toastService.info("Switching Network IPv6 Settings to Static..");
++              $timeout(function(){
++                return APIUtils.deleteIPVs(
++                  $scope.selectedInterface,
++                  $scope.interface.ipv6.values[index].id,
++                  'ipv6'
++                ).then(
++                  function(data) {},
++                  function(error) {
++                    console.log(JSON.stringify(error));
++                    return $q.reject();
++                  }
++                );
++              }, 19000);
++            },
++            function(error) {
++              console.log(JSON.stringify(error));
++              return $q.reject();
++            }
++          );
++        }
++        if(type == "static_to_static"){
++          return APIUtils
++          .deleteIPVs(
++            $scope.selectedInterface,
++            $scope.interface.ipv6.values[index].id,
++            'ipv6')
++          .then(
++            function(data) {
++              toastService.info("Modifying Static IPv6 Settings on progress..");
++              $timeout(function(){
++                return APIUtils.addIPVs(
++                  'xyz.openbmc_project.Network.IP.Protocol.IPv6',
++                  $scope.selectedInterface,
++                  $scope.interface.ipv6.values[index].Address,
++                  $scope.interface.ipv6.values[index].PrefixLength,
++                  $scope.interface.ipv6.values[index].Gateway)
++                .then(
++                  function(data) {},
++                  function(error) {
++                    console.log(JSON.stringify(error));
++                    return $q.reject();
++                  }
++                );
++              }, 1000);
++            },
++            function(error) {
++              console.log(JSON.stringify(error));
++              return $q.reject();
++            }
++          );
++        }
++      };
++
+       function setVLAN(data) {
+         return APIUtils.setVLAN(data).then(
+             function(response) {
+@@ -558,7 +756,7 @@
+           dataService.setNetworkInfo(data);
+           $scope.network = data.formatted_data;
+           $scope.hostname = data.hostname;
+-          $scope.defaultGateway = data.defaultgateway;
++          // $scope.defaultGateway = data.defaultgateway;
+           $scope.dhcp = data.dhcp;
+           $scope.oldDHCPDNSEnabled = $scope.dhcp.DNSEnabled;
+           if ($scope.network.interface_ids.length) {
+@@ -567,23 +765,24 @@
+                 !$scope.network.interfaces[$scope.selectedInterface]) {
+               $scope.selectedInterface = $scope.network.interface_ids[0];
+             }
+-            $scope.interface =
+-                $scope.network.interfaces[$scope.selectedInterface];
++            $scope.interface = $scope.network.interfaces[$scope.selectedInterface];
++            $scope.defaultGateway = $scope.interface.defaultgateway;
++            dataService.defaultgateway = $scope.defaultGateway;
+             // Copy the interface so we know later if changes were made to the
+             // page
+             $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+-            var check_dhcp_type = $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled;
+ 
+-            if(check_dhcp_type != true && check_dhcp_type != false){
+-              check_dhcp_type = check_dhcp_type.split(".").pop();
+-            }
+-            if(check_dhcp_type == "v4" || check_dhcp_type == "both"){
+-              $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled = true;
++            if($scope.network.interfaces[$scope.selectedInterface].DHCPEnabled){
+               $scope.oldDHCPstatus = true;
+             }else{
+-              $scope.network.interfaces[$scope.selectedInterface].DHCPEnabled = false;
+               $scope.oldDHCPstatus = false;
+             }
++
++            if($scope.network.interfaces[$scope.selectedInterface].IPv6DHCPEnabled){
++              $scope.oldDHCPstatusIPv6 = true;
++            }else{
++              $scope.oldDHCPstatusIPv6 = false;
++            }
+           }
+           // Add id values and update flags to corresponding IPV4 objects
+           var removeindex = -1;
+@@ -601,6 +800,23 @@
+             $scope.interface.ipv4.values.splice(removeindex, 1);
+             $scope.interface.ipv4.ids.splice(removeindex, 1);
+           }
++
++          // Add id values and update flags to corresponding IPV6 objects
++          var removeipv6index = -1;
++          for (var i = 0; i < $scope.interface.ipv6.values.length; i++) {
++            if($scope.interface.ipv6.values[i].Origin.indexOf("LinkLocal") == -1){
++              $scope.interface.ipv6.values[i].id = $scope.interface.ipv6.ids[i];
++              $scope.interface.ipv6.values[i].updateAddress = false;
++              $scope.interface.ipv6.values[i].updateGateway = false;
++              $scope.interface.ipv6.values[i].updatePrefix = false;
++            }else{
++              removeipv6index = i;
++            }
++          }
++          if(removeipv6index > -1){
++            $scope.interface.ipv6.values.splice(removeipv6index, 1);
++            $scope.interface.ipv6.ids.splice(removeipv6index, 1);
++          }
+         });
+       }
+     }

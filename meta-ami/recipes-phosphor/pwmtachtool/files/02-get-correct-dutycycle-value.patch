@@ -1,0 +1,34 @@
+diff -Naur a/pwmtach.c b/pwmtach.c
+--- a/pwmtach.c	2021-06-18 20:59:46.674335115 -0400
++++ b/pwmtach.c	2021-06-18 23:23:44.682988457 -0400
+@@ -116,6 +116,10 @@
+ 	int retval = 0;
+ 	int fd;
+ 	char duty_num[5];
++    int duty_val;
++    float temp;
++    int temp_int;
++    float diff;
+ 
+ 	retval = pwmtach_directory_check();
+ 	if(retval != 0)
+@@ -134,7 +138,18 @@
+ 		return fd;
+ 	}
+ 	read(fd, duty_num, 5);
+-	ppwmtach_arg->dutycycle = atoi(duty_num);
++	//ppwmtach_arg->dutycycle = atoi(duty_num);
++
++    duty_val = atoi(duty_num) ;
++    temp = (duty_val *100.0)/255.0;
++    temp_int = (int)temp;
++
++    diff = temp - temp_int;
++
++    if (diff >= 0.5)
++        temp_int = temp_int + 1;
++     
++    ppwmtach_arg->dutycycle = temp_int;
+ 	printf("%s:dutycycle value %d to pwm %d\n",__FUNCTION__,ppwmtach_arg->dutycycle,ppwmtach_arg->pwmnumber);
+ 	(void)sigwrap_close(fd);
+ 

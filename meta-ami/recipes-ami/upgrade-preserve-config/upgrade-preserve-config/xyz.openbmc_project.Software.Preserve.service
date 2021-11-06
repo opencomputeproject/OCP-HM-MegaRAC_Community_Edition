@@ -1,0 +1,13 @@
+[Unit]
+Description=OSP firmware upgrade preservation configuration manager
+After=obmc-mapper.target
+
+[Service]
+ExecStart=/usr/bin/env upgrade-preserve-config
+SyslogIdentifier=upgrade-preserve-config
+Restart=always
+Type=dbus
+BusName=xyz.openbmc_project.Software.Preserve
+
+[Install]
+WantedBy=multi-user.target

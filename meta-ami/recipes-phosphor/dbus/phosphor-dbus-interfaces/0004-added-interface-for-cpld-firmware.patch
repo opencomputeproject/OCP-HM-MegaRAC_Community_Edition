@@ -1,0 +1,166 @@
+diff -Naur b/gen/xyz/openbmc_project/Cpld/meson.build c/gen/xyz/openbmc_project/Cpld/meson.build
+--- b/gen/xyz/openbmc_project/Cpld/meson.build	1970-01-01 05:30:00.000000000 +0530
++++ c/gen/xyz/openbmc_project/Cpld/meson.build	2021-03-08 17:59:23.605768349 +0530
+@@ -0,0 +1,16 @@
++# Generated file; do not modify.
++subdir('Version')
++generated_others += custom_target(
++    'xyz/openbmc_project/Cpld/Version__markdown'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Cpld/Version.errors.yaml', meson.source_root() / 'xyz/openbmc_project/Cpld/Version.interface.yaml',  ],
++    output: [ 'Version.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Cpld/Version',
++    ],
++    build_by_default: true,
++)
++
+diff -Naur b/gen/xyz/openbmc_project/Cpld/Version/meson.build c/gen/xyz/openbmc_project/Cpld/Version/meson.build
+--- b/gen/xyz/openbmc_project/Cpld/Version/meson.build	1970-01-01 05:30:00.000000000 +0530
++++ c/gen/xyz/openbmc_project/Cpld/Version/meson.build	2021-03-08 17:59:23.605768349 +0530
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Cpld/Version__cpp'.underscorify(),
++    input: [ meson.source_root() / 'xyz/openbmc_project/Cpld/Version.errors.yaml', meson.source_root() / 'xyz/openbmc_project/Cpld/Version.interface.yaml',  ],
++    output: [ 'error.cpp', 'error.hpp', 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.source_root(),
++        'xyz/openbmc_project/Cpld/Version',
++    ],
++)
++
+diff -Naur b/gen/xyz/openbmc_project/meson.build c/gen/xyz/openbmc_project/meson.build
+--- b/gen/xyz/openbmc_project/meson.build	2021-03-08 17:31:40.193345238 +0530
++++ c/gen/xyz/openbmc_project/meson.build	2021-03-08 17:59:23.605768349 +0530
+@@ -49,6 +49,7 @@
+ )
+ 
+ subdir('Control')
++subdir('Cpld')
+ subdir('Dump')
+ subdir('Inventory')
+ generated_others += custom_target(
+diff -Naur b/xyz/openbmc_project/Cpld/Version.errors.yaml c/xyz/openbmc_project/Cpld/Version.errors.yaml
+--- b/xyz/openbmc_project/Cpld/Version.errors.yaml	1970-01-01 05:30:00.000000000 +0530
++++ c/xyz/openbmc_project/Cpld/Version.errors.yaml	2021-03-08 17:59:23.617768315 +0530
+@@ -0,0 +1,7 @@
++- name: Incompatible
++  description: >
++    A system component has a CPLD version that is incompatible as determined
++    by the implementation and needs to be updated. Some usage examples for this
++    error include creating logging events and providing information on
++    implementation reactions such as when the system is prevented from powering
++    on if a minimum version level is not met.
+diff -Naur b/xyz/openbmc_project/Cpld/Version.interface.yaml c/xyz/openbmc_project/Cpld/Version.interface.yaml
+--- b/xyz/openbmc_project/Cpld/Version.interface.yaml	1970-01-01 05:30:00.000000000 +0530
++++ c/xyz/openbmc_project/Cpld/Version.interface.yaml	2021-03-08 17:59:23.617768315 +0530
+@@ -0,0 +1,102 @@
++description: >
++    Simple definition of a Cpld or Firmware version. Note that this
++    interface may be implemented by D-Bus objects that do not necessarily
++    contain a CPLD level. For example an OpenBMC log may implement this
++    interface to store the cpld level of the BMC or Host for debug purposes.
++    If looking for real cpld versions associated with a device then ensure
++    this interface is under the /xyz/openbmc_project/cpld object path.
++methods:
++    - name: cpldverify
++      description: Verifying the CPLD device.
++      returns:
++        - name: Verify Status
++          type: string
++          description: Return the status of verifying the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++    - name: cplderase
++      description: Erasing the CPLD device.
++      returns:
++        - name: Erase Status 
++          type: string
++          description: Return the status of erasing the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++
++    - name: cpldprogram
++      description: >
++          Program the cpld device.
++      returns:
++        - name: Program Status
++          type: string
++          description: Return the status of programing the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++ 
++    - name: cpldstatus
++      description: To Get CPLD device status.
++      returns:
++        - name: Status
++          type: string
++          description: Return the status of the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++    - name: erasestatus
++      description: To Get CPLD erase status.
++      returns:
++        - name: Status
++          type: string
++          description: Return the erase status of the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++    - name: programstatus
++      description: To Get CPLD program status.
++      returns:
++        - name: Status
++          type: string
++          description: Return the program status of the device.
++      errors:
++        - xyz.openbmc_project.Common.Error.InternalFailure
++
++properties:
++    - name: Version
++      type: string
++      description: >
++        The version identifier.
++    - name: Purpose
++      type: enum[self.VersionPurpose]
++      description: >
++        The purpose of the version.  As in, what can it be used for or
++        applied to?
++    - name: Functionalversion
++      type: string
++      description: >
++        The current running image version.
++enumerations:
++    - name: VersionPurpose
++      description: >
++        An enumeration of possible purposes of the version.
++      values:
++        - name: Unknown
++          description: >
++            The version is of unknown purpose.
++        - name: Other
++          description: >
++            The version is of some other purpose.
++        - name: System
++          description: >
++            The version is an aggregate for the system as a whole.
++        - name: BMC
++          description: >
++            The version is a version for the BMC.
++        - name: Host
++          description: >
++            The version is a version for a managed host.
++        - name: PSU
++          description: >
++            The version is a version for a PSU.

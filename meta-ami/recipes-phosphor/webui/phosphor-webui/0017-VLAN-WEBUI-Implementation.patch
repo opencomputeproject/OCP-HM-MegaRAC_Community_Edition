@@ -1,0 +1,228 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-03-31 16:33:19.431751163 +0530
++++ b/app/common/services/api-utils.js	2021-03-31 16:35:12.797197467 +0530
+@@ -356,6 +356,10 @@
+                                 content.data[key].Nameservers;
+                             data.interfaces[interfaceId].DHCPEnabled =
+                                 content.data[key].DHCPEnabled;
++                            if(interfaceId.indexOf("_") > -1){
++                              data.interfaces[interfaceId].Id = content.data[key].Id;
++                              data.interfaces[interfaceId].VlanPriority = content.data[key].VlanPriority;
++                            }
+                           }
+                         } else if (
+                             key.match(
+@@ -528,6 +532,50 @@
+                 return response.data;
+               });
+         },
++        setVLAN: function(data) {
++          return $http({
++                  method: 'POST',
++                  url: DataService.getHost() +
++                      '/xyz/openbmc_project/network/action/VLAN',
++                  withCredentials: true,
++                  data: data
++              })
++              .then(function(response) {
++                  return response.data;
++              });
++        },
++        setVLANPriority: function(data, interface_to_update){
++          console.log("api utils priority");
++          return $http({
++              method: 'PUT',
++              url: DataService.getHost() +
++                  '/xyz/openbmc_project/network/'+interface_to_update+'/attr/VlanPriority',
++              data: data
++          }).then(function(response){
++              return response.data;
++          })
++        },
++        modifyVLANID: function(data, interface_to_modify){
++            return $http({
++                method: 'PUT',
++                url: DataService.getHost() +
++                    '/xyz/openbmc_project/network/'+interface_to_modify+'/attr/Id',
++                data: data
++            }).then(function(response){
++                return response.data;
++            })
++        },
++        deleteVLAN: function(interface_to_delete) {
++            return $http({
++                method: 'DELETE',
++                url: DataService.getHost() +
++                    '/xyz/openbmc_project/network/' + interface_to_delete,
++                withCredentials: true
++            }).then(function(response) {
++                console.log("delete VLAN", response);
++                return response.data;
++            });
++        },
+         getLEDState: function() {
+           var deferred = $q.defer();
+           $http({
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-03-31 16:33:19.431751163 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-03-31 16:35:26.021366190 +0530
+@@ -117,6 +117,28 @@
+         </div>
+       </div>
+     </fieldset>
++
++    <fieldset class="net-config__fieldset network-config__ipv4-wrap row column">
++      <legend class="column small-12 page-header h2">VLAN</legend>
++      <div class="net-config__fieldset-content">
++        <div class="column small-12 large-6">
++              <label for="net-config__host">VLAN Interface</label>
++              <input id="net-config__host" type="text" ng-disabled="true" ng-model="selectedInterface" />
++          </div>
++          <div class="column small-12 large-6">
++              <label for="net-config__host">VLAN ID</label>
++              <input id="net-config__host" type="number" min="0" max="4094" ng-model="vlan.id" />
++          </div>
++          <div class="column small-12 large-6">
++              <label for="net-config__domain">VLAN Priority</label>
++              <input id="net-config__domain" type="number" min="0" max="7" ng-model="vlan.vlan_priority" />
++          </div>
++          <div class="column small-12 large-6" ng-if="delete_VLAN_flag">
++            <button type="button" class="btn  btn-tertiary  network-config_remove-button" ng-click="deleteVLAN(selectedInterface)">Remove</button>
++          </div>
++      </div>
++    </fieldset>
++
+     <div class="row column">
+       <div class="network-config__submit-wrapper column">
+         <div class="float-right">
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-03-31 16:33:19.431751163 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-03-31 16:37:02.726600029 +0530
+@@ -17,6 +17,7 @@
+         toastService) {
+       $scope.dataService = dataService;
+       $scope.network = {};
++      $scope.vlan = {};
+       $scope.oldInterface = {};
+       $scope.interface = {};
+       $scope.selectedinterfaceId = '';
+@@ -45,6 +46,17 @@
+           $scope.network.interfaces[interfaceId].DHCPEnabled = false;
+           $scope.oldDHCPstatus = false;
+         }
++
++        if(interfaceId.indexOf("_") > -1){
++          $scope.vlan.id = $scope.interface.Id;
++          $scope.vlan.vlan_priority = $scope.interface.VlanPriority;
++          $scope.delete_VLAN_flag = true;
++        }else{
++          $scope.vlan.id = '';
++          $scope.vlan.vlan_priority = '';
++          $scope.delete_VLAN_flag = false;
++        }
++        
+         // Copy the interface so we know later if changes were made to the page
+         $scope.oldInterface = JSON.parse(JSON.stringify($scope.interface));
+         $scope.selectedInterface = interfaceId;
+@@ -101,6 +113,21 @@
+         $scope.interface.ipv4.values.splice(index, 1);
+       };
+ 
++      $scope.deleteVLAN = function(interface_to_delete) {
++        $scope.loading = true;
++        APIUtils.deleteVLAN($scope.selectedInterface).then(
++            function(data) {
++                toastService.success("VLAN Interface deleted Successfully.");
++                $route.reload();
++                $scope.loading = false;
++            },
++            function(error) {
++                $scope.loading = false;
++                toastService.error("Error in Deleting VLAN Interface!!");
++            }
++        )
++      };
++
+       $scope.validate_mac_address = function(){
+         if(!(/^[0-9a-f]{1,2}([\.:-])(?:[0-9a-f]{1,2}\1){4}[0-9a-f]{1,2}$/i).test($scope.interface.MACAddress)){
+           $scope.false_mac_address = true;
+@@ -256,6 +283,24 @@
+           }
+         }
+ 
++        if ($scope.vlan.id) {
++          var tmp = [];
++          var obj = {};
++          if($scope.selectedInterface.indexOf("_") > -1){
++            obj.data = $scope.vlan.id;
++            promises.push(
++              ModifyVLAN_ID(obj, $scope.selectedInterface)
++            );
++          }else{
++            tmp.push($scope.selectedInterface);
++            tmp.push(parseInt($scope.vlan.id));
++            obj.data = tmp;
++            promises.push(
++                setVLAN(JSON.stringify(obj))
++            );
++          }
++        }
++
+         if (promises.length) {
+           $q.all(promises).then(
+               function(response) {
+@@ -270,7 +315,8 @@
+                 // changed if the user continues to edit network settings.
+                 // TODO: The reload is not ideal. Revisit this.
+                 $timeout(function() {
+-                  loadNetworkInfo();
++                  // loadNetworkInfo();
++                  $route.reload();
+                   $scope.loading = false;
+                   toastService.success('Network settings saved');
+                 }, 20000);
+@@ -445,6 +491,44 @@
+         }
+       };
+ 
++      function setVLAN(data) {
++        return APIUtils.setVLAN(data).then(
++            function(response) {
++              if($scope.vlan.vlan_priority >= 0){
++                var tmp_intf_val = response.data.split("/").pop();
++                var vlan_priority_data = {};
++                vlan_priority_data.data = parseInt($scope.vlan.vlan_priority);
++                $timeout(function(){
++                  call_setVLANPriority(vlan_priority_data, tmp_intf_val);
++                },15000);
++              }
++            },
++            function(error) {
++                console.log(error);
++                return $q.reject();
++            }
++        );
++      }
++
++      function call_setVLANPriority(data, interface_to_update){
++        APIUtils.setVLANPriority(data, interface_to_update).then(
++            function(data){},
++            function error(){
++                console.log(error);
++                return $q.reject();
++            }
++        );
++      }
++
++      function ModifyVLAN_ID(data, interface_to_modify){
++        return APIUtils.modifyVLANID(data, interface_to_modify).then(
++            function(){},
++            function error(error){
++                return $q.reject();
++            }
++        )
++      }
++
+       $scope.refresh = function() {
+         loadNetworkInfo();
+       };

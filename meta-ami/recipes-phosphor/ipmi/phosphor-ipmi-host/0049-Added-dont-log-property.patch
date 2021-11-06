@@ -1,0 +1,39 @@
+diff -Naur a/app/watchdog.cpp b/app/watchdog.cpp
+--- a/app/watchdog.cpp	2021-04-19 12:27:56.019907830 +0530
++++ b/app/watchdog.cpp	2021-04-19 12:21:25.732369533 +0530
+@@ -211,6 +211,16 @@
+                          uint8_t preTimeoutInterval,
+                          std::bitset<8> expFlagValue, uint16_t initialCountdown)
+ {
++     sdbusplus::bus::bus bus{ipmid_get_sd_bus_connection()};
++
++    static constexpr auto SEN_WATCHDOG_SERVICE =
++        "xyz.openbmc_project.Eventsensor";
++    static constexpr auto SEN_WATCHDOG_ROOT =
++        "/xyz/openbmc_project/sensors/watchdog2/WATCHDOG2";
++    static constexpr auto WATCHDOG_SEN_INTERFACE =
++        "xyz.openbmc_project.Sensor.Discrete.State";
++    static constexpr auto SEN_INTERFACE = "org.freedesktop.DBus.Properties";
++
+     if ((timerUse == wdTimerUseResTimer1) ||
+         (timerUse == wdTimerUseResTimer2) ||
+         (timerUse == wdTimerUseResTimer3) ||
+@@ -233,6 +243,18 @@
+     timerPreTimeoutInterrupt = preTimeoutInterrupt;
+ 	uint8_t ReqRreTimeoutInterrupt = (static_cast<uint8_t>(timerPreTimeoutInterrupt) << 4) & 0xF0;
+ 
++std::variant <uint8_t> value = uint8_t (timerNotLogFlags);
++    auto method =
++         bus.new_method_call(SEN_WATCHDOG_SERVICE, SEN_WATCHDOG_ROOT,
++                                          SEN_INTERFACE, "Set");
++         method.append(WATCHDOG_SEN_INTERFACE,"DontLog",value);
++         auto reply = bus.call(method);
++        if (reply.is_method_error())
++        {
++                       log<level::ERR>("Error in DontLog Set");
++                       return ipmi::responseUnspecifiedError();
++         }
++
+     try
+     {
+         WatchdogService wd_service;

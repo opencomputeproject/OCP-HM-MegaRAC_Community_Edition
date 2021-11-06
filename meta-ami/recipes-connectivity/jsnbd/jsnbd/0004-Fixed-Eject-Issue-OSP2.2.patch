@@ -1,0 +1,110 @@
+diff -Naur a/Makefile.am b/Makefile.am
+--- a/Makefile.am	2021-04-23 18:17:28.176428317 +0530
++++ b/Makefile.am	2021-04-23 18:21:48.142183410 +0530
+@@ -8,4 +8,5 @@
+ 
+ nbd_proxy_LDADD = \
+ 	$(JSON_LIBS) \
++	-lpthread \
+ 	$(UDEV_LIBS)
+diff -Naur a/nbd-proxy.c b/nbd-proxy.c
+--- a/nbd-proxy.c	2021-04-23 18:17:28.176428317 +0530
++++ b/nbd-proxy.c	2021-04-23 18:26:58.544214024 +0530
+@@ -42,6 +42,7 @@
+ #include <libudev.h>
+ 
+ #include "config.h"
++#include <pthread.h>
+ 
+ struct config {
+ 	char			*name;
+@@ -76,6 +77,74 @@
+ static const size_t bufsize = 0x20000;
+ static const int nbd_timeout_default = 30;
+ 
++#define LSIZ 8
++#define RSIZ 6
++
++static void set_image_status (const char* device_name)
++{
++    char eject_file [30] = "/etc/nbd-proxy/eject";
++    char line[RSIZ][LSIZ];
++    int i = 0;
++    int tot = 0;
++    FILE *fileWriter = fopen(eject_file, "r");
++    char *ret = NULL;
++    while(fgets(line[i], LSIZ, fileWriter))
++    {
++        line[i][strlen(line[i]) - 1] = '\n';
++        if ((ret = strstr(line[i],device_name)) != NULL)
++        {
++          char status_buf [8] = "";
++	  sprintf(status_buf,"%s=1\n",device_name);
++          strcpy(line[i],status_buf);
++        }
++    	i++;
++    }
++    tot = i;
++    fclose(fileWriter);
++    fileWriter = fopen(eject_file, "w");
++    for(i = 0; i < tot; ++i)
++    {
++        fputs(line[i], fileWriter);
++    }
++    fclose(fileWriter);
++    return;
++}
++
++static void* get_image_eject_status (void *nbd_device)
++{
++        int nbd_device_no;
++        char usb_lun_file_path [100] = "";
++        char temp_buf [20] = "";
++        FILE *fileWriter;
++        sscanf((char *)nbd_device, "%*[^0123456789]%d", &nbd_device_no);
++        nbd_device_no = nbd_device_no+1;
++        sprintf(usb_lun_file_path,"/sys/kernel/config/usb_gadget/mass-storage/functions/mass_storage.usb0/lun.%d/file",nbd_device_no);
++	/* delay the thread, till image gets mounted on host */
++	sleep(5);
++
++	while (1)
++	{
++            fileWriter = fopen(usb_lun_file_path, "r");
++            if (fileWriter)
++            {
++               fgets(temp_buf,19,fileWriter);
++               if((strstr(temp_buf,(char *)nbd_device)) == 0)
++               {
++                   fclose(fileWriter);
++	       	   memset(temp_buf, '\0', sizeof(char)*(strlen(temp_buf)));
++		   sprintf(temp_buf,"nbd%d",nbd_device_no-1);
++		   temp_buf[5] = '\0';
++	           set_image_status (temp_buf);
++                   return NULL;
++               }
++	       memset(temp_buf, '\0', sizeof(char)*(strlen(temp_buf)));
++               fclose(fileWriter);
++            }
++	    sleep(1);
++	}
++    return NULL;
++}
++
+ static int open_nbd_socket(struct ctx *ctx)
+ {
+ 	struct sockaddr_un addr;
+@@ -530,6 +599,14 @@
+ 
+ 	n_fd = 4;
+ 
++        char nbd_device [10] = "";
++        strcat(nbd_device,ctx->config->nbd_device);
++	/* run a thread, which will monitor image
++	 * eject status from host side 
++	 */
++        pthread_t id;
++        pthread_create(&id, NULL, get_image_eject_status, nbd_device);
++	
+ 	for (;;) {
+ 		errno = 0;
+ 		rc = poll(pollfds, n_fd, -1);

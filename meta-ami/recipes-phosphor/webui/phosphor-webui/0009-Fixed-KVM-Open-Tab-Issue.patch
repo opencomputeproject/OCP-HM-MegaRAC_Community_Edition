@@ -1,0 +1,30 @@
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-02-04 08:30:34.912119148 +0000
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-02-04 08:36:23.721636544 +0000
+@@ -11,10 +11,10 @@
+ 
+   angular.module('app.serverControl').controller('virtualMediaController', [
+     '$scope', '$cookies', 'APIUtils', 'toastService', 'dataService',
+-    'nbdServerService',
++    'nbdServerService', '$log', '$q',
+     function(
+         $scope, $cookies, APIUtils, toastService, dataService,
+-        nbdServerService) {
++        nbdServerService, $log, $q) {
+       $scope.devices = [];
+ 
+       // Only one Virtual Media WebSocket device is currently available.
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-02-04 08:30:34.912119148 +0000
++++ b/app/server-control/directives/kvm-console.js	2021-02-04 08:32:54.814336995 +0000
+@@ -89,6 +89,10 @@
+               };
+ 
+               scope.openWindow = function() {
++                if (rfb) {
++                   rfb.disconnect();
++                }
++
+                 window.open(
+                     '#/server-control/kvm-window', 'Kvm Window',
+                     'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=1125,height=900');

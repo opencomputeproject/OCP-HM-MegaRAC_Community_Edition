@@ -1,0 +1,261 @@
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-03-25 14:15:09.623932488 +0000
++++ b/app/common/services/api-utils.js	2021-03-25 14:16:56.787343248 +0000
+@@ -2002,6 +2002,15 @@
+ 		return response.data;
+             });
+         },
++        setBIOSMode: function() {
++          return $http({
++            method: 'POST',
++            url: DataService.getHost() +
++                '/xyz/openbmc_project/VirtualMedia/Kvm/kvm0/action/BIOSMode',
++            withCredentials: true,
++            data: JSON.stringify({'data': []})
++          });
++	},
+       };
+       return SERVICE;
+     }
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-03-25 14:15:09.623932488 +0000
++++ b/app/common/services/dataService.js	2021-03-25 14:17:52.998798822 +0000
+@@ -12,7 +12,9 @@
+ 
+   angular.module('app.common.services').service('dataService', [
+     'Constants','nbdServerService','$rootScope',
+-    function(Constants,nbdServerService,$rootScope) {
++    '$interval', '$q',
++    function(Constants,nbdServerService,$rootScope,
++             $interval, $q) {	    
+       this.server_health = Constants.SERVER_HEALTH.unknown;
+       this.server_state = 'Unreachable';
+       this.LED_state = Constants.LED_STATE_TEXT.off;
+@@ -207,6 +209,25 @@
+       // Create a KVM Window Object,
+       // for handling the kvm window at the time of logout.
+       this.KVM_window_obj = null;
++
++      this.checkHostStatus = function
++          (statusType, timeout = 300000, error = 'Time out.') {
++            const deferred = $q.defer();
++            const start = new Date();
++            const checkHostStatusInverval = $interval(() => {
++              let now = new Date();
++              let timePassed = now.getTime() - start.getTime();
++              if (timePassed > timeout) {
++                deferred.reject(error);
++                $interval.cancel(checkHostStatusInverval);
++              }
++              if (this.server_state === statusType) {
++                deferred.resolve();
++                $interval.cancel(checkHostStatusInverval);
++              }
++            }, Constants.POLL_INTERVALS.POWER_OP);
++            return deferred.promise;
++      };
+     }
+   ]);
+ })(window.angular);
+diff -Naur a/app/server-control/controllers/power-operations-controller.js b/app/server-control/controllers/power-operations-controller.js
+--- a/app/server-control/controllers/power-operations-controller.js	2021-03-25 14:15:09.627932786 +0000
++++ b/app/server-control/controllers/power-operations-controller.js	2021-03-25 14:18:52.898198874 +0000
+@@ -37,33 +37,33 @@
+       const powerOperations =
+           {WARM_REBOOT: 0, COLD_REBOOT: 1, WARM_SHUTDOWN: 2, COLD_SHUTDOWN: 3};
+ 
+-      /**
+-       * Checks the host status provided by the dataService using an
+-       * interval timer
+-       * @param {string} statusType : host status type to check for
+-       * @param {number} timeout : timeout limit, defaults to 5 minutes
+-       * @param {string} error : error message, defaults to 'Time out'
+-       * @returns {Promise} : returns a deferred promise that will be fulfilled
+-       * if the status is met or be rejected if the timeout is reached
+-       */
+-      const checkHostStatus =
+-          (statusType, timeout = 300000, error = 'Time out.') => {
+-            const deferred = $q.defer();
+-            const start = new Date();
+-            const checkHostStatusInverval = $interval(() => {
+-              let now = new Date();
+-              let timePassed = now.getTime() - start.getTime();
+-              if (timePassed > timeout) {
+-                deferred.reject(error);
+-                $interval.cancel(checkHostStatusInverval);
+-              }
+-              if (dataService.server_state === statusType) {
+-                deferred.resolve();
+-                $interval.cancel(checkHostStatusInverval);
+-              }
+-            }, Constants.POLL_INTERVALS.POWER_OP);
+-            return deferred.promise;
+-          };
++//      /**
++//       * Checks the host status provided by the dataService using an
++//       * interval timer
++//       * @param {string} statusType : host status type to check for
++//       * @param {number} timeout : timeout limit, defaults to 5 minutes
++//       * @param {string} error : error message, defaults to 'Time out'
++//       * @returns {Promise} : returns a deferred promise that will be fulfilled
++//       * if the status is met or be rejected if the timeout is reached
++//       */
++//      const checkHostStatus =
++//          (statusType, timeout = 300000, error = 'Time out.') => {
++//            const deferred = $q.defer();
++//            const start = new Date();
++//            const checkHostStatusInverval = $interval(() => {
++//              let now = new Date();
++//              let timePassed = now.getTime() - start.getTime();
++//              if (timePassed > timeout) {
++//                deferred.reject(error);
++//                $interval.cancel(checkHostStatusInverval);
++//              }
++//              if (dataService.server_state === statusType) {
++//                deferred.resolve();
++//                $interval.cancel(checkHostStatusInverval);
++//              }
++//            }, Constants.POLL_INTERVALS.POWER_OP);
++//            return deferred.promise;
++//          };
+ 
+       /**
+        * Initiate Orderly reboot
+@@ -75,13 +75,13 @@
+         APIUtils.hostReboot()
+             .then(() => {
+               // Check for off state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.off, Constants.TIMEOUT.HOST_OFF,
+                   Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
+             })
+             .then(() => {
+               // Check for on state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.on, Constants.TIMEOUT.HOST_ON,
+                   Constants.MESSAGES.POLL.HOST_ON_TIMEOUT);
+             })
+@@ -105,7 +105,7 @@
+         APIUtils.chassisPowerOff()
+             .then(() => {
+               // Check for off state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.off,
+                   Constants.TIMEOUT.HOST_OFF_IMMEDIATE,
+                   Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
+@@ -115,7 +115,7 @@
+             })
+             .then(() => {
+               // Check for on state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.on, Constants.TIMEOUT.HOST_ON,
+                   Constants.MESSAGES.POLL.HOST_ON_TIMEOUT);
+             })
+@@ -139,7 +139,7 @@
+         APIUtils.hostPowerOff()
+             .then(() => {
+               // Check for off state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.off, Constants.TIMEOUT.HOST_OFF,
+                   Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
+             })
+@@ -163,7 +163,7 @@
+         APIUtils.chassisPowerOff()
+             .then(() => {
+               // Check for off state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.off,
+                   Constants.TIMEOUT.HOST_OFF_IMMEDIATE,
+                   Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
+@@ -190,7 +190,7 @@
+         APIUtils.hostPowerOn()
+             .then(() => {
+               // Check for on state
+-              return checkHostStatus(
++              return dataService.checkHostStatus(
+                   Constants.HOST_STATE_TEXT.on, Constants.TIMEOUT.HOST_ON,
+                   Constants.MESSAGES.POLL.HOST_ON_TIMEOUT);
+             })
+diff -Naur a/app/server-control/directives/kvm-console.html b/app/server-control/directives/kvm-console.html
+--- a/app/server-control/directives/kvm-console.html	2021-03-25 14:15:09.627932786 +0000
++++ b/app/server-control/directives/kvm-console.html	2021-03-25 14:19:13.635313909 +0000
+@@ -15,4 +15,9 @@
+     class="btn btn-tertiary float-right">
+     Send Ctrl+Alt+Del
+   </button>
++  <button
++    ng-click="forceEnterBIOSsetup()"
++    class="btn btn-tertiary float-right">
++    Force-Enter BIOS Setup
++  </button>
+ </div>
+diff -Naur a/app/server-control/directives/kvm-console.js b/app/server-control/directives/kvm-console.js
+--- a/app/server-control/directives/kvm-console.js	2021-03-25 14:15:09.627932786 +0000
++++ b/app/server-control/directives/kvm-console.js	2021-03-25 14:20:33.363333114 +0000
+@@ -13,7 +13,9 @@
+ 
+   angular.module('app.serverControl').directive('kvmConsole', [
+     '$log', '$cookies', '$location', 'APIUtils', '$timeout', 'dataService',
+-    function($log, $cookies, $location, APIUtils, $timeout, dataService) {
++    'Constants', '$interval', '$q', 'toastService',
++    function($log, $cookies, $location, APIUtils, $timeout, dataService,
++             Constants, $interval, $q, toastService) {
+       return {
+         restrict: 'E', template: require('./kvm-console.html'),
+             scope: {newWindowBtn: '=?'}, link: function(scope, element) {
+@@ -30,6 +32,49 @@
+                 return false;
+               };
+ 
++              function doWarmReboot () {
++                dataService.setUnreachableState();
++                APIUtils.hostReboot()
++                   .then(() => {
++                     // Check for off state
++                     return dataService.checkHostStatus(
++                         Constants.HOST_STATE_TEXT.off, Constants.TIMEOUT.HOST_OFF,
++                         Constants.MESSAGES.POLL.HOST_OFF_TIMEOUT);
++                   })
++                   .then(() => {
++                     // Check for on state
++                        return dataService.checkHostStatus(
++                         Constants.HOST_STATE_TEXT.on, Constants.TIMEOUT.HOST_ON,
++                         Constants.MESSAGES.POLL.HOST_ON_TIMEOUT);
++                   })
++                   .catch(error => {
++                     console.log(error);
++                     toastService.error(
++                         Constants.MESSAGES.POWER_OP.WARM_REBOOT_FAILED);
++                   })
++                   .finally(() => {
++                     toastService.success(
++                         "\"Force-Enter BIOS Setup\" has been presed,\nHost is rebooting.\nIt will take some time to boot into BIOS Setup.");
++                     if (dataService.KVM_window_obj) {
++                     dataService.KVM_window_obj.toastService.success(
++                         "\"Force-Enter BIOS Setup\" has been presed,\nHost is rebooting.\nIt will take some time to boot into BIOS Setup.");
++                     }
++                   });
++              }
++
++              scope.forceEnterBIOSsetup = function() {
++                return APIUtils.setBIOSMode().then(
++                  function(response) {
++                     doWarmReboot();
++                  },
++                  function (error){
++                    toastService.error(
++                        'Unable to Set BIOS Setup Boot Mode');
++                    console.log(JSON.stringify(error));
++                      return $q.reject();
++                  });
++              }
++
+               function connected(e) {
+                 $log.debug('RFB Connected');
+               }

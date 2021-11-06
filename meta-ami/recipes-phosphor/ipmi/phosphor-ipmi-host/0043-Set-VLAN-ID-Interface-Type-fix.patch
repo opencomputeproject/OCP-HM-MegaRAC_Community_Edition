@@ -1,0 +1,24 @@
+--- a/transporthandler.cpp	2021-03-07 08:56:40.692418809 -0500
++++ b/transporthandler.cpp	2021-03-07 08:52:25.523402420 -0500
+@@ -1179,11 +1179,19 @@
+     setDHCPv6Property(bus, params, dhcp, false);
+     if (ifaddr4)
+     {
+-        createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix);
++	//Check if previous Interface IP4 is Static and create new Interface with Static IPv4
++        if (ifaddr4->origin == IP::AddressOrigin::Static)
++        {
++            createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix);
++        }
+     }
+     for (const auto& ifaddr6 : ifaddrs6)
+     {
+-        createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix);
++	//Check if previous Interface IPv6 is Static and create new Interface with Static IPv6
++        if(ifaddr6.origin == IP::AddressOrigin::Static)
++        {
++            createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix);
++        }
+     }
+     if (neighbor4)
+     {

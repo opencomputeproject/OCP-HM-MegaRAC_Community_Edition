@@ -1,0 +1,31 @@
+From d7a52b4bf92ba93ccf6fa3cf1ac0c30832ef6b2d Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 17 Feb 2021 14:01:57 -0500
+Subject: [PATCH] add to warm reset
+
+---
+ ipmb.service | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ipmb.service b/ipmb.service
+index 5e8c6cc..c4b571a 100644
+--- a/ipmb.service
++++ b/ipmb.service
+@@ -1,12 +1,14 @@
+ [Unit]
+ Description=IPMB bridge
+ After=phosphor-ipmi-host.service
++PartOf=phosphor-ipmi-warm-reset.target
+ 
+ [Service]
+ ExecStart=/usr/bin/ipmbbridged
+ SyslogIdentifier=ipmbbridged
+ Restart=always
+ Type=simple
++StartLimitIntervalSec=0
+ 
+ [Install]
+ WantedBy=basic.target
+-- 
+2.17.1
+

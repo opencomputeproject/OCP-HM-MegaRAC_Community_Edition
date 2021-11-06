@@ -1,0 +1,25 @@
+diff -Naur a/include/vm_websocket.hpp b/include/vm_websocket.hpp
+--- a/include/vm_websocket.hpp	2021-06-14 01:33:20.608461939 +0530
++++ b/include/vm_websocket.hpp	2021-06-16 11:15:29.009853216 +0530
+@@ -59,7 +59,7 @@
+ 	    }
+ 
+ 
+-     //proxy.wait();
++     proxy.wait();
+     }
+ 
+     void connect(int user_count, int media_instance, crow::websocket::Connection* websocket_sess)
+@@ -276,8 +276,10 @@
+ 				return;
+ 			}
+ 
+-
+-
++                       if(j == 0)
++                               sleep(2);
++                       else
++                               sleep(4);
+ 
+ 
+ 			//session = nullptr;

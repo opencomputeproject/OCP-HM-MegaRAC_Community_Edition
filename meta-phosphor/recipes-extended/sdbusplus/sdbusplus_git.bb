@@ -19,4 +19,7 @@ DEPENDS += " \
         systemd \
         "
 
-require conf/machine/include/unpack.inc
+EXTRA_OEMESON += " \
+        -Dtests=disabled \
+        -Dexamples=disabled \
+        "

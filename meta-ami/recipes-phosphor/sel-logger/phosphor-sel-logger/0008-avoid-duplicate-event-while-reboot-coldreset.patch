@@ -1,0 +1,300 @@
+diff -Naur a/include/discrete_event_monitor.hpp b/include/discrete_event_monitor.hpp
+--- a/include/discrete_event_monitor.hpp	2021-02-03 19:58:21.927522000 +0530
++++ b/include/discrete_event_monitor.hpp	2021-02-05 19:53:14.550043000 +0530
+@@ -163,7 +163,8 @@
+         std::string_view sensorName(msg.get_path());
+         sensorName.remove_prefix(
+             std::min(sensorName.find_last_of("/") + 1, sensorName.size()));
+-
++	std::string discreteSensorName;
++	discreteSensorName = sensorName;
+         std::string state;
+         std::string redfishMessageID =
+             "OpenBMC." + openBMCMessageRegistryVersion;
+@@ -191,6 +192,14 @@
+         //{
+          //  redfishMessageID += ".ActiveStateLow";
+         //}
++	
++       bool dupEvent = false;
++       dupEvent = isEventAvailable(sensorType,sensorNum,eventType,eventData,discreteSensorName);
++       if(dupEvent == true)
++       {
++               return;
++       }
++
+ 
+         std::string journalMsg(std::string(sensorName) + " sensor, " +
+                                state + ". Reading=" + std::to_string(sensorVal) + ".");
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2021-02-03 19:58:21.927522000 +0530
++++ b/include/sel_logger.hpp	2021-02-14 23:45:15.869522141 +0530
+@@ -16,6 +16,16 @@
+ 
+ #pragma once
+ #include <filesystem>
++#include <string_view>
++#include <variant>
++#include <iostream>
++#include <fstream>
++#include <vector>
++#include <boost/algorithm/string.hpp>
++#include <mutex>
++
++#include "sdrutils.hpp"
++std::mutex mtx;
+ 
+ static constexpr char const* ipmiSelObject = "xyz.openbmc_project.Logging.IPMI";
+ static constexpr char const* ipmiSelPath = "/xyz/openbmc_project/Logging/IPMI";
+@@ -38,10 +48,216 @@
+ static constexpr size_t selEvtDataMaxSize = 3;
+ static constexpr size_t selOemDataMaxSize = 13;
+ static constexpr uint8_t selEvtDataUnspecified = 0xFF;
++static constexpr uint8_t thresholdEventType = 0x01;
+ 
+ static const std::filesystem::path selLogDir = "/var/sellog";
+ static const std::string selLogFilename = "ipmi_sel";
+ 
++inline bool isEventAvailable(uint8_t selSensorType,uint8_t selSensorNum,uint8_t selEventType,std::vector<uint8_t> selEventData,std::string& selSensorName)
++{
++    std::string line,targetEntry;
++    std::vector<std::string> entryData,targetEntryFields;
++    static uint8_t logSensorType,logSensorNum,logEventType,logEventDataMsg,logEventTypeData;
++    std::vector<uint8_t> logEventData;
++    static int count = 0;
++    static bool eventDir = 0, logEventDir = 0;
++    mtx.lock();
++    std::ifstream file("/var/sellog/ipmi_sel");
++    if(file.is_open())
++    {
++        while (getline(file, line))
++        {
++                entryData.push_back(line);
++        }
++        file.close();
++    }
++    else
++    {
++        //file not present.
++        mtx.unlock();
++        return false;
++    }
++    /* Check Logs from Bottom to Top */
++    for (int i = entryData.size() - 1; i >= 0; i--)
++    {
++        targetEntry = entryData[i].c_str();
++        size_t space = targetEntry.find_first_of(" ");
++        if (space == std::string::npos)
++        {
++                mtx.unlock();
++                return false;
++        }
++        std::string entryTimestamp = targetEntry.substr(0, space);
++        // Then get the log contents
++        size_t entryStart = targetEntry.find_first_not_of(" ", space);
++        if (entryStart == std::string::npos)
++        {
++            mtx.unlock();
++            return false;
++        }
++        std::string_view entry = targetEntry;
++        entry.remove_prefix(entryStart);
++        // Use split to separate the entry into its fields
++        boost::split(targetEntryFields, entry, boost::is_any_of(","),
++                 boost::token_compress_on);
++        if (targetEntryFields.size() < 3)
++        {
++              mtx.unlock();
++              return false;
++        }
++        std::string& sensorTypeStr = targetEntryFields[5];
++        std::string& sensorNumStr = targetEntryFields[6];
++        std::string& eventEventStr = targetEntryFields[7];
++        std::string& eventDataMsgStr = targetEntryFields[8];
++
++        logEventDataMsg = std::stoul(eventDataMsgStr.substr(0,2), nullptr, 16);
++
++
++        //convert eventdata into string
++        /*std::string hexStr;
++        std::stringstream stream;
++        stream << std::hex << std::uppercase << std::setfill('0');
++        for (const int& v : eventData)
++        {
++            stream << std::setw(2) << v;
++        }
++        hexStr = stream.str();*/
++        // Get the sensorType
++        try
++        {
++            logSensorType = std::stoul(sensorTypeStr, nullptr, 16);
++        }
++        catch (const std::invalid_argument&)
++        {
++            std::cerr << "Invalid sensorType\n";
++            mtx.unlock();
++            return false;
++        }
++        // Get the sensorNum
++        try
++        {
++            logSensorNum = std::stoul(sensorNumStr, nullptr, 16);
++        }
++        catch (const std::invalid_argument&)
++        {
++            std::cerr << "Invalid sensorNum\n";
++            mtx.unlock();
++            return false;
++        }
++	std::string sensorPath,logSensorNameData;
++	sensorPath = getPathFromSensorNumber(logSensorNum);
++	if(sensorPath.empty())
++	{
++		continue;
++	}
++	std::string_view logSensorName(sensorPath);	
++        logSensorName.remove_prefix(
++            std::min(logSensorName.find_last_of("/") + 1, logSensorName.size()));
++	logSensorNameData = logSensorName;
++        // Get the eventtype
++        try
++        {
++            logEventType = std::stoul(eventEventStr, nullptr, 16);
++	    logEventTypeData = (logEventType & 0x7f);
++        }
++        catch (const std::invalid_argument&)
++        {
++            std::cerr << "Invalid eventtype\n";
++            mtx.unlock();
++            return false;
++        }
++
++        // Get the event direction
++        try
++        {
++            eventDir = ( selEventType & (1 << 7) ) ? 1 : 0;
++        }
++        catch (const std::invalid_argument&)
++        {
++            std::cerr << "Invalid Event Direction\n";
++	    mtx.unlock();
++	    return false;
++        }
++
++        // Get the event direction from logfile
++        try
++        {
++            logEventDir = ( logEventType & (1 << 7) ) ? 1 : 0;
++        }
++        catch (const std::invalid_argument&)
++        {
++            std::cerr << "Invalid Event Direction\n";
++	    mtx.unlock();
++	    return false;
++        }
++
++        //if((logSensorType == sensorType) && (logSensorNum == sensorNum))
++	if((logSensorNameData == selSensorName) && (logSensorType == selSensorType))
++        {
++                if(logEventDir == eventDir)
++                {	//Check threshold event logs
++			if(logEventTypeData == thresholdEventType)
++                        {
++                                if(logEventDataMsg == selEventData[0])
++                                {
++                                        logEventData.clear();
++                                        entryData.clear();
++					count = 0;
++                                        mtx.unlock();
++                                        return true;
++                                }
++                                else
++                                {
++					count++;
++                                        if(count == 2)
++                                        {
++						count = 0;
++						logEventData.clear();
++                                        	entryData.clear();
++                                                mtx.unlock();
++                                                return false;
++                                        }
++                                        continue;
++                                }
++
++                        }
++                        else //Check discrete event logs
++                        {
++                                if(logEventDataMsg == selEventData[0])
++                                {
++					count = 0;
++                                        logEventData.clear();
++                                        entryData.clear();
++                                        mtx.unlock();
++                                        return true;
++                                }
++                                else
++                                {
++					count = 0;
++					logEventData.clear();
++                                        entryData.clear();
++                                        mtx.unlock();
++                                        return false;
++                                }
++                        }
++                }
++                else
++                {
++			count = 0;
++			logEventData.clear();
++                        entryData.clear();
++                        mtx.unlock();
++                        return false;
++                }
++        }
++    }
++    logEventData.clear();
++    entryData.clear();
++    count = 0;
++    mtx.unlock();
++    return false;
++}
++
+ template <typename... T>
+ static uint16_t
+     selAddSystemRecord(const std::string& message, const std::string& path,
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2021-02-03 19:58:21.927522000 +0530
++++ b/include/threshold_event_monitor.hpp	2021-02-12 17:30:50.121670473 +0530
+@@ -56,7 +56,7 @@
+         std::string sensorName;
+         std::string thresholdInterface;
+         std::string event;
+-	uint8_t sensorType,eventType;
++	uint8_t sensorType = 0,eventType = 0,sensorNum = 0;
+         bool assert;
+         double assertValue;
+         try
+@@ -277,7 +277,7 @@
+             eventData[2] = selEvtDataUnspecified;
+         }
+       // uint8_t sensorType = getSensorTypeFromPath(msg.get_path());
+-       uint8_t sensorNum = getSensorNumberFromPath(msg.get_path());
++       sensorNum = getSensorNumberFromPath(msg.get_path());
+       // uint8_t eventType = getSensorEventTypeFromPath(msg.get_path());
+ 
+         std::string threshold;
+@@ -341,6 +341,13 @@
+             }
+         }
+ 
++       bool dupEvent = false;
++       dupEvent = isEventAvailable(sensorType,sensorNum,eventType,eventData,sensorName);
++       if(dupEvent == true)
++       {
++               return;
++       }
++
+         std::string journalMsg(std::string(sensorName) + " sensor crossed a " +
+                                threshold + " threshold going " + direction +
+                                ". Reading=" + std::to_string(assertValue) +

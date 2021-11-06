@@ -1,0 +1,48 @@
+--- a/ethernet_interface.cpp	2021-04-28 16:03:47.629607404 -0400
++++ b/ethernet_interface.cpp	2021-04-28 16:06:06.217689762 -0400
+@@ -1018,33 +1018,20 @@
+             // insert address entries.
+             stream << "[Address]\n";
+             stream << "Address=" << address << "\n";
+-        }
+-    }
+-
+-    stream << "[Route]\n";
+-    auto gateway = EthernetInterfaceIntf::defaultGateway();
+-    if (!gateway.empty())
+-    {
+-        stream << "Gateway=" << gateway << "\n";
+-    }
+ 
+-    auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
+-    if (!gateway6.empty())
+-    {
+-        stream << "Gateway=" << gateway6 << "\n";
+-    }
++            auto gateway = EthernetInterfaceIntf::defaultGateway();
++            if (!gateway.empty())
++            {
++                stream << "[Route]\n";
++                stream << "Gateway=" << gateway << "\n";
++            }
+ 
+-    if (manager.getSystemConf())
+-    {
+-        const auto& gateway = manager.getSystemConf()->defaultGateway();
+-        if (!gateway.empty())
+-        {
+-            stream << "Gateway=" << gateway << "\n";
+-        }
+-        const auto& gateway6 = manager.getSystemConf()->defaultGateway6();
+-        if (!gateway6.empty())
+-        {
+-            stream << "Gateway=" << gateway6 << "\n";
++            auto gateway6 = EthernetInterfaceIntf::defaultGateway6();
++            if (!gateway6.empty())
++            {
++                stream << "[Route]\n";
++                stream << "Gateway=" << gateway6 << "\n";
++            }
+         }
+     }
+ 

@@ -1,0 +1,170 @@
+--- a/network_manager.hpp	2021-04-13 05:27:52.169698630 -0400
++++ b/network_manager.hpp	2021-04-13 05:32:58.947087497 -0400
+@@ -62,6 +62,10 @@
+      */
+     void writeToConfigurationFile();
+ 
++    /** @brief write the network conf file with the in-memory objects.
++     */
++    void writeToConfigurationFile(IntfName interfaceName);
++
+     /** @brief Fetch the interface and the ipaddress details
+      *         from the system and create the ethernet interraces
+      *         dbus object.
+--- a/network_manager.cpp	2021-04-13 05:28:18.147208381 -0400
++++ b/network_manager.cpp	2021-04-13 05:32:52.234715638 -0400
+@@ -200,6 +200,16 @@
+ // Need to merge the below function with the code which writes the
+ // config file during factory reset.
+ // TODO openbmc/openbmc#1751
++void Manager::writeToConfigurationFile(IntfName interfaceName)
++{
++    // write all the static ip address in the systemd-network conf file
++    interfaces[interfaceName]->writeConfigurationFile();
++    restartTimers();
++}
++
++// Need to merge the below function with the code which writes the
++// config file during factory reset.
++// TODO openbmc/openbmc#1751
+ void Manager::writeToConfigurationFile()
+ {
+     // write all the static ip address in the systemd-network conf file
+--- a/ethernet_interface.cpp	2021-04-13 05:28:06.070507543 -0400
++++ b/ethernet_interface.cpp	2021-04-13 07:20:54.935037346 -0400
+@@ -317,7 +317,7 @@
+                             bus, objectPath.c_str(), *this, protType, ipaddress,
+                             origin, prefixLength, gateway));
+ 
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return objectPath;
+ }
+ 
+@@ -345,7 +345,7 @@
+                             std::make_shared<phosphor::network::Neighbor>(
+                                 bus, objectPath.c_str(), *this, iPAddress,
+                                 mACAddress, Neighbor::State::Permanent));
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return objectPath;
+ }
+ 
+@@ -454,7 +454,7 @@
+         return;
+     }
+     this->addrs.erase(it);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+ }
+ 
+ void EthernetInterface::deleteStaticNeighborObject(const std::string& iPAddress)
+@@ -467,7 +467,7 @@
+         return;
+     }
+     staticNeighbors.erase(it);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+ }
+ 
+ void EthernetInterface::deleteVLANFromSystem(const std::string& interface)
+@@ -519,7 +519,7 @@
+     // delete the interface
+     vlanInterfaces.erase(it);
+ 
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+ }
+ 
+ std::string EthernetInterface::generateObjectPath(
+@@ -554,7 +554,7 @@
+         return value;
+     }
+     EthernetInterfaceIntf::iPv6AcceptRA(value);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return value;
+ }
+ 
+@@ -566,7 +566,7 @@
+     }
+ 
+     EthernetInterfaceIntf::dHCPEnabled(value);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return value;
+ }
+ 
+@@ -835,7 +835,7 @@
+ 
+     this->vlanInterfaces.emplace(vlanInterfaceName, std::move(vlanIntf));
+     // write the new vlan device entry to the configuration(network) file.
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+ 
+     return path;
+ }
+@@ -1106,7 +1106,7 @@
+         //      through https://github.com/systemd/systemd/issues/6696
+         execute("/sbin/ip", "ip", "link", "set", "dev", interface.c_str(),
+                 "down");
+-        manager.writeToConfigurationFile();
++        manager.writeToConfigurationFile(interfaceName());
+     }
+ 
+ #ifdef HAVE_UBOOT_ENV
+@@ -1134,7 +1134,7 @@
+ 
+     // clear all the ip on the interface
+     addrs.clear();
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+ }
+ 
+ std::string EthernetInterface::defaultGateway(std::string gateway)
+@@ -1153,7 +1153,7 @@
+                               Argument::ARGUMENT_VALUE(gateway.c_str()));
+     }
+     gw = EthernetInterfaceIntf::defaultGateway(gateway);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return gw;
+ }
+ 
+@@ -1173,7 +1173,7 @@
+                               Argument::ARGUMENT_VALUE(gateway.c_str()));
+     }
+     gw = EthernetInterfaceIntf::defaultGateway6(gateway);
+-    manager.writeToConfigurationFile();
++    manager.writeToConfigurationFile(interfaceName());
+     return gw;
+ }
+ } // namespace network
+--- a/system_configuration.cpp	2021-04-13 05:27:39.504959538 -0400
++++ b/system_configuration.cpp	2021-04-13 05:33:05.531451959 -0400
+@@ -36,25 +36,8 @@
+     bus(bus), manager(parent)
+ {
+     auto name = getHostNameFromSystem();
+-    route::Table routingTable;
+ 
+     SystemConfigIntf::hostName(name);
+-    auto gatewayList = routingTable.getDefaultGateway();
+-    auto gateway6List = routingTable.getDefaultGateway6();
+-    // Assign first entry of gateway list
+-    std::string gateway;
+-    std::string gateway6;
+-    if (!gatewayList.empty())
+-    {
+-        gateway = gatewayList.begin()->second;
+-    }
+-    if (!gateway6List.empty())
+-    {
+-        gateway6 = gateway6List.begin()->second;
+-    }
+-
+-    SystemConfigIntf::defaultGateway(gateway);
+-    SystemConfigIntf::defaultGateway6(gateway6);
+ 
+     this->emit_object_added();
+ }

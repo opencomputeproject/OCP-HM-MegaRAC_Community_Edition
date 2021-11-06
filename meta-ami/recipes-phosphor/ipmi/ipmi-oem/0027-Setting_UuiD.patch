@@ -1,0 +1,240 @@
+--- a/include/GUID.hpp	2021-01-12 13:36:22.260393810 -0500
++++ b/include/GUID.hpp	2021-01-12 13:35:05.384483006 -0500
+@@ -0,0 +1,33 @@
++#define CLOCK_SEQ         0xD7  // Addition of ASCII Characters "AMI" for clockSeq seed
++#define GUID_GEN_VERSION  0x01  // "Time based" GUID Generation
++
++#pragma pack(push, 1)
++struct GUIDData
++{
++    uint8_t node1;
++    uint8_t node2;
++    uint8_t node3;
++    uint8_t node4;
++    uint8_t node5;
++    uint8_t node6;
++    uint8_t clock1;
++    uint8_t clock2;
++    uint8_t timeHigh1;
++    uint8_t timeHigh2;
++    uint8_t timeMid1;
++    uint8_t timeMid2;
++    uint8_t timeLow1;
++    uint8_t timeLow2;
++    uint8_t timeLow3;
++    uint8_t timeLow4;
++};
++
++static void GetSystemTime(GUIDData *data);
++static void GetDefaultSystemNodeID(GUIDData* data);
++static void GetSystemNodeID(GUIDData* data);
++static void CreateClockSeq(GUIDData *data);
++void setUuid();
++
++namespace fs = std::filesystem;
++
++
+--- a/guid.service.in	2021-01-13 14:59:12.352004878 -0500
++++ b/guid.service.in	2021-01-13 14:58:47.350705292 -0500
+@@ -0,0 +1,12 @@
++[Unit]
++Description=Generate GUID
++
++[Service]
++ExecReload=kill -s HUP $MAINPID
++ExecStart=@CMAKE_INSTALL_PREFIX@/bin/guid
++Type=simple
++WorkingDirectory=/home/root
++
++[Install]
++WantedBy=multi-user.target
++
+--- a/src/GUID.cpp	2021-01-22 14:54:40.378203407 -0500
++++ b/src/GUID.cpp	2021-01-22 14:50:19.472714920 -0500
+@@ -0,0 +1,166 @@
++#include <netinet/in.h>
++#include <net/if.h>
++#include <sys/types.h>
++#include <fcntl.h>
++#include <string.h>
++#include <arpa/inet.h>
++#include <sys/ioctl.h>
++#include <sys/socket.h>
++#include <netdb.h>
++#include <stdlib.h>
++#include <sys/time.h>
++#include <unistd.h>
++#include <filesystem>
++#include <fstream>
++#include <nlohmann/json.hpp>
++#include <iostream>
++#include <phosphor-logging/log.hpp>
++#include "GUID.hpp"
++
++static void GetDefaultSystemNodeID(GUIDData* data)
++{
++    data->node1=0x0a;
++    data->node2=0x0b;
++    data->node3=0x0c;
++    data->node4=0x0d;
++    data->node5=0x0e;
++    data->node6=0x0f;
++}
++
++static void GetSystemNodeID(GUIDData* data)
++{
++    int r;
++    struct protoent *proto;
++    int sock;
++    struct ifreq ifr;
++    static constexpr const char *ifname = "eth0";
++
++    proto = getprotobyname("tcp");
++    if(proto == NULL)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>("getprotobyname failed");
++        GetDefaultSystemNodeID(data);
++        return;
++    }
++    if((sock = socket(PF_INET,SOCK_STREAM,proto->p_proto))==0)
++    {       
++        phosphor::logging::log<phosphor::logging::level::ERR>("Socket failed");
++        GetDefaultSystemNodeID(data);
++        return;
++    }
++    memset(&ifr,0,sizeof(struct ifreq));
++    if(snprintf(ifr.ifr_name,sizeof(ifr.ifr_name),"%s",ifname)>=(signed)sizeof(ifr.ifr_name))
++    phosphor::logging::log<phosphor::logging::level::INFO>("GetSystemNodeIDsource buffer truncated");
++    r = ioctl(sock,SIOCGIFHWADDR,&ifr);
++    if(r != 0)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>("Couldn't get mac address");
++        GetDefaultSystemNodeID(data);
++        close(sock);
++        return;
++    }
++
++    data->node1= (uint8_t)ifr.ifr_hwaddr.sa_data[0];
++    data->node2= (uint8_t)ifr.ifr_hwaddr.sa_data[1];
++    data->node3= (uint8_t)ifr.ifr_hwaddr.sa_data[2];
++    data->node4= (uint8_t)ifr.ifr_hwaddr.sa_data[3];
++    data->node5= (uint8_t)ifr.ifr_hwaddr.sa_data[4];
++    data->node6= (uint8_t)ifr.ifr_hwaddr.sa_data[5];
++
++    close(sock);
++
++  return;
++}
++
++static void CreateClockSeq(GUIDData *data)
++{
++    uint16_t clockSeq = (((uint16_t) CLOCK_SEQ) + getpid()) | 0x80 ;
++    data->clock1 = clockSeq & 0xFF;
++    data->clock2 = (clockSeq >> 8) & 0xFF;
++}
++
++static void GetSystemTime(GUIDData *data)
++{
++    struct timeval tp;
++    uint64_t time;
++
++    gettimeofday(&tp, (struct timezone *)0);
++
++    /* Offset between UUID formatted times and Unix formatted times.
++       UUID UTC base time is October 15, 1582.
++       Unix base time is January 1, 1970.*/
++    time = ((uint64_t)tp.tv_sec * 10000000)
++        + ((uint64_t)tp.tv_usec * 10)
++         +(((uint64_t)0x01B21DD2)<<32) + ((uint64_t)0X13814000);
++
++    data->timeLow4 = time & 0xFF;
++    data->timeLow3 = (time >> 8) & 0xFF;
++    data->timeLow2 = (time >> 16) & 0xFF;
++    data->timeLow1 = (time >> 24) & 0xFF;
++    data->timeMid2 = (time >> 32) & 0xFF;
++    data->timeMid1 = (time >> 40) & 0xFF;
++    data->timeHigh2 = (time >> 48) & 0xFF;
++    data->timeHigh1 = (time >> 56) & 0x0F;
++    data->timeHigh1 |= (((uint8_t)GUID_GEN_VERSION) << 4);
++
++}
++
++void CreateGUID(std::string *Guid)
++{
++    static constexpr size_t safeBufferLength = 50;
++    char buf[safeBufferLength] = {0};
++    GUIDData data = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
++
++    GetSystemTime(&data);
++    //Read IEEE Mac address
++
++    GetSystemNodeID(&data);
++
++    CreateClockSeq(&data);
++
++    snprintf(
++        buf, safeBufferLength,
++        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
++        data.timeLow4, data.timeLow3, data.timeLow2, data.timeLow1,
++        data.timeMid2, data.timeMid1, data.timeHigh2, data.timeHigh1,
++        data.clock2, data.clock1, data.node6, data.node5, data.node4,
++        data.node3, data.node2, data.node1);
++    // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
++    *Guid = buf;
++
++    return;
++}
++
++void setUuid()
++{
++   static constexpr const char* filename = "/home/root/bmcweb_persistent_data.json";
++
++   std::string systemUuid;
++   std::string deviceUuid;
++
++   std::ifstream in(filename);
++
++   if(in.is_open())
++	return;
++
++   CreateGUID(&systemUuid);
++   CreateGUID(&deviceUuid);
++
++   std::ofstream persistentFile(filename);
++   phosphor::logging::log<phosphor::logging::level::INFO>("Creating a json file");
++   //set the permission of the file to 640
++   fs::perms permission = fs::perms::owner_read | fs::perms::owner_write |
++                               fs::perms::group_read;
++   fs::permissions(filename, permission);
++
++   nlohmann::json jdata{{"system_uuid", systemUuid},
++    			{"device_uuid", deviceUuid}};
++   persistentFile << jdata;
++   return;
++}
++
++int main()
++{
++	setUuid();
++	return 0;
++}
+--- a/CMakeLists.txt	2021-04-12 14:21:19.563508366 -0400
++++ b/CMakeLists.txt	2021-04-12 14:28:17.645461196 -0400
+@@ -138,6 +138,17 @@
+     -DUSING_ENTITY_MANAGER_DECORATORS>
+ )
+ 
++add_executable (guid src/GUID.cpp include/GUID.hpp)
++target_link_libraries (guid -lsystemd)
++target_link_libraries (guid phosphor_logging)
++target_link_libraries (guid sdbusplus)
++install (TARGETS guid DESTINATION bin)
++
++configure_file (guid.service.in guid.service)
++pkg_get_variable (SYSTEMD_SYSTEMUNITDIR systemd systemdsystemunitdir)
++install (FILES ${PROJECT_BINARY_DIR}/guid.service DESTINATION
++               ${SYSTEMD_SYSTEMUNITDIR})
++
+ # Code Coverage
+ if (NOT YOCTO)
+     # non-Debug build may generate misleading code coverage results.

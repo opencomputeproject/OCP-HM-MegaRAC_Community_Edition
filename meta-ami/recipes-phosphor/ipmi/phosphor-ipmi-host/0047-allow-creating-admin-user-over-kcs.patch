@@ -1,0 +1,150 @@
+From 7ecd517f2c5e47c3e2d536794d2150f5dc37b5db Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 7 Apr 2021 13:36:22 -0400
+Subject: [PATCH] allow creating admin user over kcs
+
+---
+ Makefile.am                  |   3 +-
+ host-ipmid-whitelist.conf    |   1 +
+ user_channel/oemcommands.cpp | 106 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 109 insertions(+), 1 deletion(-)
+ create mode 100644 user_channel/oemcommands.cpp
+
+diff --git a/Makefile.am b/Makefile.am
+index 650fbcd..66da889 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -141,7 +141,8 @@ libusercmds_la_LIBADD = \
+ 	user_channel/libuserlayer.la \
+ 	user_channel/libchannellayer.la
+ libusercmds_la_SOURCES = \
+-	user_channel/usercommands.cpp
++	user_channel/usercommands.cpp \
++	user_channel/oemcommands.cpp
+ libusercmds_la_LDFLAGS = \
+ 	$(PHOSPHOR_LOGGING_LIBS) \
+ 	$(libmapper_LIBS) \
+diff --git a/host-ipmid-whitelist.conf b/host-ipmid-whitelist.conf
+index 507df40..6c09189 100644
+--- a/host-ipmid-whitelist.conf
++++ b/host-ipmid-whitelist.conf
+@@ -50,3 +50,4 @@
+ 0x2C:0x06    //<Group Extension>:<Get Asset Tag>
+ 0x2C:0x07    //<Group Extension>:<Get Sensor Info>
+ 0x2C:0x10    //<Group Extension>:<Get Temperature Readings>
++0x34:0x01    //<AMI General>:<KCS Create Admin User>
+diff --git a/user_channel/oemcommands.cpp b/user_channel/oemcommands.cpp
+new file mode 100644
+index 0000000..f450630
+--- /dev/null
++++ b/user_channel/oemcommands.cpp
+@@ -0,0 +1,106 @@
++#include "channel_layer.hpp"
++#include "user_layer.hpp"
++
++#include <ipmid/api.hpp>
++#include <ipmid/api-types.hpp>
++#include <phosphor-logging/log.hpp>
++
++namespace ipmi
++{
++namespace ami
++{
++    static constexpr NetFn netFnGeneral = netFnOemThree;
++
++namespace general
++{
++    static constexpr Cmd cmdKCSCreateAdminUser = 0x01;
++} // namespace general
++} // namespace ami
++
++ipmi::RspType<> ipmiKCSCreateAdminUser(ipmi::Context::ptr ctx,
++                                       uint6_t userId,
++                                       uint2_t reserved,
++                                       std::vector<uint8_t> userName)
++{
++    ChannelInfo chInfo;
++    ipmi::Cc rc;
++
++    try
++    {
++        getChannelInfo(ctx->channel, chInfo);
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "ipmiKCSCreateAdminUser: Failed to get Channel Info",
++            phosphor::logging::entry("MSG: %s", e.description()));
++        return ipmi::responseUnspecifiedError();
++    }
++    if (chInfo.mediumType !=
++        static_cast<uint8_t>(EChannelMediumType::systemInterface))
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "ipmiKCSCreateAdminUser: Error - supported only in KCS "
++            "interface");
++        return ipmi::responseCommandNotAvailable();
++    }
++
++    if (reserved)
++    {
++        return ipmi::responseInvalidFieldRequest();
++    }
++
++    // reserve user name
++    if (!ipmiUserIsValidUserId(static_cast<uint8_t>(userId)))
++    {
++        return ipmi::responseParmOutOfRange();
++    }
++
++    if (userName.size() != 0)
++    {
++        std::string user;
++        user.assign(reinterpret_cast<const char *>(userName.data()),
++                    userName.size());
++        rc = ipmi::ipmiUserSetUserName(static_cast<uint8_t>(userId), user);
++        if (rc != ipmi::ccSuccess)
++        {
++            return ipmi::response(rc);
++        }
++    }
++    else
++    {
++        return ipmi::responseReqDataLenInvalid();
++    }
++
++    // set privileges on all channels
++    PrivAccess access = {0};
++    access.ipmiEnabled = 1;
++    access.linkAuthEnabled = 1;
++    access.accessCallback = 1;
++    access.privilege = static_cast<uint8_t>(ipmi::Privilege::Admin);
++
++    for (uint8_t i = 0; i < ipmiMaxChannels; i++)
++    {
++        if (getChannelSessionSupport(i) != EChannelSessSupported::none)
++        {
++            rc = ipmiUserSetPrivilegeAccess(static_cast<uint8_t>(userId), i,
++                                            access, true);
++            if (rc != ipmi::ccSuccess)
++            {
++                return ipmi::response(rc);
++            }
++        }
++    }
++
++    return ipmi::response(ipmiUserUpdateEnabledState(static_cast<uint8_t>(userId),
++                                                     true));
++}
++
++void registerUserOemFunctions() __attribute__((constructor));
++void registerUserOemFunctions()
++{
++    registerHandler(ipmi::prioOpenBmcBase, ami::netFnGeneral,
++                    ami::general::cmdKCSCreateAdminUser,
++                    ipmi::Privilege::Callback, ipmiKCSCreateAdminUser);
++}
++} // namespace ipmi
+-- 
+2.17.1
+

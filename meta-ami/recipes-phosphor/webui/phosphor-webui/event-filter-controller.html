@@ -1,0 +1,149 @@
+<loader loading="loading"></loader>
+<div id="configuration-alertpolicy" class="page">
+  <h1 class="page-title">Event Filter</h1>
+  <section class="section">
+    <p class="section-content">
+      Configure the Event Filter Settings.
+    </p>
+  </section>
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Event FilterTable</h2>
+    </div>
+
+    <form name ="alert_policy_form" class="alert-policy__form" role="form" action="">
+        <fieldset class="alert-policy__fieldset pad20 row column" ng-repeat="data in event_filter_table | orderBy:'custom_entry'"> 
+            <div class="row column"> <h2 class="subhead"> Event Filter - {{data.custom_entry}}</h2> </div>
+
+            <div class="column small-12 large-3">
+              <label class="control-check ldap__control-check">
+                <input type="checkbox" ng-disabled="dataService.isNotAdmin()" ng-click="data.FilterConfig = data.FilterConfig == 1 ? 0 : 1" ng-checked="data.FilterConfig == 1" ng-model="data.FilterConfig" aria-labelledby="event-enable-label"/>
+                <span class="control__indicator"></span>
+                <span id="event-enable-label" class="control__label">
+                  <strong>Enable this Filter</strong>
+                </span>
+              </label>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label class="control-check ldap__control-check">
+                  <input type="checkbox" ng-disabled="dataService.isNotAdmin()" ng-click="data.EvtFilterAction = data.EvtFilterAction == 1 ? 0 : 1"  ng-checked="data.EvtFilterAction == 1" ng-model="data.EvtFilterAction" aria-labelledby="event-filter-action-label"/>
+                  <span class="control__indicator"></span>
+                  <span id="event-filter-action-label" class="control__label">
+                    <strong>Event Filter Action</strong>
+                  </span>
+                </label>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="power-action-label">Power Action</label>
+                <select name="power-action-label" ng-model="data.custom_EvtFilterPowerAction" ng-options="number for number in ['None','Power Down', 'Power Cycle', 'Reset']" ng-disabled="dataService.isNotAdmin()">
+                </select>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="alert-policy_num">Event Severity</label>
+                <select name="alert-policy_num" ng-model="data.custom_EventSeverity" ng-options="number for number in ['Any severity', 'New monitor state', 'New information', 'Normal state', 'Non-Critical state', 'Critical state', 'Non-Recoverable state']" ng-disabled="dataService.isNotAdmin()">
+                </select>
+            </div>
+
+            <div class="column small-12 large-3">
+              <label for="alert-policy_num">Alert Policy Group Number</label>
+              <select name="channel_number" ng-model="data.AlertPolicyNum" ng-options="num_ac for num_ac in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]" ng-disabled="dataService.isNotAdmin()">
+                <option class="courier-bold" value="" >--Select--</option>
+              </select>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="genid1-label">Generator ID 1</label>
+                <input id="genid1-label" name="genid1-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.GenIDByte1"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="genid2-label">Generator ID 2</label>
+                <input id="genid2-label" name="genid2-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.GenIDByte2"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-trigger-label">Event Trigger</label>
+                <input id="event-trigger-label" name="event-trigger-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventTrigger"/>
+            </div>
+
+            <div class="column small-12 large-3">
+              <label for="alert-channel_dest">Sensor Type</label>
+              <select name="channel_number" ng-model="data.custom_sensor_type_name" ng-change="change_sensor_type(data.custom_sensor_type_name, data.custom_index_for_update)" ng-options="sen_type for sen_type in data.custom_sensor_type_array" ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            <div class="column small-12 large-3">
+              <label for="alert-channel_dest">Sensor Name</label>
+              <select name="channel_number" ng-model="data.custom_sensor_name" ng-change="add_selected_sensor(data.custom_sensor_name, data.custom_index_for_update)" ng-options="sens_name for sens_name in data.custom_sensor_name_array" ng-disabled="dataService.isNotAdmin()">
+                <option class="courier-bold" value="255" >All Sensor</option>
+              </select>
+            </div>
+
+            <div class="column small-12 large-3">
+              <label for="alert-channel_dest">Event Options</label>
+              <select name="channel_number" ng-model="ev_op" ng-options="ev_op for ev_op in ['All Events']" ng-disabled="dataService.isNotAdmin()">
+              </select>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data1andmask-label">Event Data 1 AND Mask</label>
+                <input id="event-data1andmask-label" name="event-data1andmask-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData1ANDMask"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data1andc1-label">Event Data 1 Compare 1</label>
+                <input id="event-data1andc1-label" name="event-data1andc1-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData1Cmp1"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data1andc2-label">Event Data 1 Compare 2</label>
+                <input id="event-data1andc2-label" name="event-data1andc2-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData1Cmp2"/>
+            </div>
+
+            <!-- <div class="column small-12 large-3">
+                <label for="event-data1andoffsetmask-label">Event Data 1 and Offset Mask</label>
+                <input id="event-data1andoffsetmask-label" name="event-data1andoffsetmask-label" type="number" min="1" max="65535" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData1OffsetMask"/>
+            </div> -->
+
+            <div class="column small-12 large-3">
+                <label for="event-data2andmask-label">Event Data 2 AND Mask</label>
+                <input id="event-data2andmask-label" name="event-data2andmask-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData2ANDMask"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data2andc1-label">Event Data 2 Compare 1</label>
+                <input id="event-data2andc1-label" name="event-data2andc1-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData2Cmp1"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data2andc2-label">Event Data 2 Compare 2</label>
+                <input id="event-data2andc2-label" name="event-data2andc2-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData2Cmp2"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data3andmask-label">Event Data 3 AND Mask</label>
+                <input id="event-data3andmask-label" name="event-data3andmask-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData3ANDMask"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data3andc1-label">Event Data 3 Compare 1</label>
+                <input id="event-data3andc1-label" name="event-data3andc1-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData3Cmp1"/>
+            </div>
+
+            <div class="column small-12 large-3">
+                <label for="event-data3andc2-label">Event Data 2 Compare 2</label>
+                <input id="event-data3andc2-label" name="event-data3andc2-label" type="number" min="0" max="255" ng-disabled="dataService.isNotAdmin()" ng-model="data.EventData3Cmp2"/>
+            </div>
+
+            <div class="column small-12 large-offset-9 large-3">
+                <button type="button" class="btn eventfiltersavebtn btn-primary" ng-click="saveEventFilterData(data);" ng-disabled="dataService.isNotAdmin()">Save</button>
+            </div>
+
+        </fieldset>
+    </form>
+
+  </section>
+</div>

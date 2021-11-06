@@ -1,0 +1,108 @@
+diff -Naur a/app/watchdog.cpp b/app/watchdog.cpp
+--- a/app/watchdog.cpp	2021-02-16 12:46:25.348128488 -0500
++++ b/app/watchdog.cpp	2021-02-16 12:56:05.204954619 -0500
+@@ -41,9 +41,21 @@
+ 
+ ipmi::RspType<> ipmiAppResetWatchdogTimer()
+ {
++	uint16_t presentCountdown = 0;
++	uint8_t  pretimeout = 0;
+     try
+     {
+         WatchdogService wd_service;
++		WatchdogService::Properties wd_prop = wd_service.getProperties();
++		presentCountdown = htole16(wd_prop.timeRemaining / 100);
++		pretimeout = wd_prop.preTimeoutInterval; 
++		if (presentCountdown != 0)
++		{
++			if (presentCountdown < pretimeout)
++			{
++				return ipmi::responseCommandNotAvailable();
++			}
++		}
+ 
+         // Notify the caller if we haven't initialized our timer yet
+         // so it can configure actions and timeouts
+@@ -219,6 +231,7 @@
+ 
+     timerNotLogFlags = dontLog;
+     timerPreTimeoutInterrupt = preTimeoutInterrupt;
++	uint8_t ReqRreTimeoutInterrupt = (static_cast<uint8_t>(timerPreTimeoutInterrupt) << 4) & 0xF0;
+ 
+     try
+     {
+@@ -246,6 +259,8 @@
+         const uint64_t interval = initialCountdown * 100;
+         wd_service.setInterval(interval);
+         wd_service.resetTimeRemaining(false);
++		wd_service.setPreTimeoutInterval(preTimeoutInterval);
++		wd_service.setPreTimeoutInterrupt(ReqRreTimeoutInterrupt);
+ 
+         // Mark as initialized so that future resets behave correctly
+         wd_service.setInitialized(true);
+@@ -411,7 +426,8 @@
+         }
+ 
+         // TODO: Do something about having pretimeout support
+-        pretimeout = 0;
++        //pretimeout = 0;
++		pretimeout = wd_prop.preTimeoutInterval; 
+ 
+         lastCallSuccessful = true;
+         return ipmi::responseSuccess(
+diff -Naur a/app/watchdog_service.cpp b/app/watchdog_service.cpp
+--- a/app/watchdog_service.cpp	2021-02-16 12:46:25.348128488 -0500
++++ b/app/watchdog_service.cpp	2021-02-16 12:56:37.416603240 -0500
+@@ -70,7 +70,7 @@
+     }
+     try
+     {
+-        std::map<std::string, std::variant<bool, uint64_t, std::string>>
++        std::map<std::string, std::variant<bool, uint64_t, std::string, uint8_t>>
+             properties;
+         response.read(properties);
+         Properties wd_prop;
+@@ -86,6 +86,8 @@
+         wd_prop.interval = std::get<uint64_t>(properties.at("Interval"));
+         wd_prop.timeRemaining =
+             std::get<uint64_t>(properties.at("TimeRemaining"));
++		wd_prop.preTimeoutInterval = std::get<uint8_t>(properties.at("PreTimeoutInterval"));
++		wd_prop.preTimeoutInterrupt = std::get<uint8_t>(properties.at("PreTimeoutInterrupt"));
+         return wd_prop;
+     }
+     catch (const std::exception& e)
+@@ -198,3 +200,11 @@
+ {
+     setProperty("Interval", interval);
+ }
++void WatchdogService::setPreTimeoutInterval(uint8_t pretimeoutInterval)
++{
++    setProperty("PreTimeoutInterval", pretimeoutInterval);
++}
++void WatchdogService::setPreTimeoutInterrupt(uint8_t preTimeoutInterrupt)
++{
++    setProperty("PreTimeoutInterrupt", preTimeoutInterrupt);
++}
+diff -Naur a/app/watchdog_service.hpp b/app/watchdog_service.hpp
+--- a/app/watchdog_service.hpp	2021-02-16 12:46:25.348128488 -0500
++++ b/app/watchdog_service.hpp	2021-02-16 12:57:11.097781477 -0500
+@@ -38,6 +38,8 @@
+         TimerUse expiredTimerUse;
+         uint64_t interval;
+         uint64_t timeRemaining;
++		uint8_t preTimeoutInterval;
++		uint8_t preTimeoutInterrupt;
+     };
+ 
+     /** @brief Retrieves a copy of the currently set properties on the
+@@ -92,6 +94,10 @@
+      */
+     void setInterval(uint64_t interval);
+ 
++	void setPreTimeoutInterval(uint8_t pretimeoutInterval);
++
++	void setPreTimeoutInterrupt(uint8_t preTimeoutInterrupt);
++
+   private:
+     /** @brief sdbusplus handle */
+     sdbusplus::bus::bus bus;

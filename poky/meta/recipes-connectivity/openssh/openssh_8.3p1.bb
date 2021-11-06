@@ -27,6 +27,10 @@ SRC_URI = "http://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${PV}.tar
            "
 SRC_URI[sha256sum] = "f2befbe0472fe7eb75d23340eb17531cb6b3aac24075e2066b41f814e12387b2"
 
+# This CVE is specific to OpenSSH server, as used in Fedora and Red Hat Enterprise Linux 7
+# and when running in a Kerberos environment. As such it is not relevant to OpenEmbedded
+CVE_CHECK_WHITELIST += "CVE-2014-9278"
+
 PAM_SRC_URI = "file://sshd"
 
 inherit manpages useradd update-rc.d update-alternatives systemd
@@ -42,11 +46,14 @@ SYSTEMD_SERVICE_${PN}-sshd = "sshd.socket"
 
 inherit autotools-brokensep ptest
 
-PACKAGECONFIG ??= ""
+PACKAGECONFIG ??= "rng-tools"
 PACKAGECONFIG[kerberos] = "--with-kerberos5,--without-kerberos5,krb5"
 PACKAGECONFIG[ldns] = "--with-ldns,--without-ldns,ldns"
 PACKAGECONFIG[libedit] = "--with-libedit,--without-libedit,libedit"
 PACKAGECONFIG[manpages] = "--with-mantype=man,--with-mantype=cat"
+
+# Add RRECOMMENDS to rng-tools for sshd package
+PACKAGECONFIG[rng-tools] = ""
 
 EXTRA_AUTORECONF += "--exclude=aclocal"
 
@@ -149,7 +156,10 @@ FILES_${PN}-keygen = "${bindir}/ssh-keygen"
 
 RDEPENDS_${PN} += "${PN}-scp ${PN}-ssh ${PN}-sshd ${PN}-keygen"
 RDEPENDS_${PN}-sshd += "${PN}-keygen ${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'pam-plugin-keyinit pam-plugin-loginuid', '', d)}"
-RRECOMMENDS_${PN}-sshd_append_class-target = " rng-tools"
+RRECOMMENDS_${PN}-sshd_append_class-target = "\
+    ${@bb.utils.filter('PACKAGECONFIG', 'rng-tools', d)} \
+"
+
 # gdb would make attach-ptrace test pass rather than skip but not worth the build dependencies
 RDEPENDS_${PN}-ptest += "${PN}-sftp ${PN}-misc ${PN}-sftp-server make sed sudo coreutils"
 

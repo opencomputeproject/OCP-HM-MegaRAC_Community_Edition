@@ -11,7 +11,7 @@ DEPENDS = " \
     intltool-native \
     libxslt-native \
     libnl \
-    libgudev \
+    udev \
     util-linux \
     libndp \
     libnewt \
@@ -45,6 +45,10 @@ EXTRA_OECONF = " \
     --with-tests \
     --with-nmtui=yes \
     --with-udev-dir=${nonarch_base_libdir}/udev \
+    --with-dhclient=no \
+    --with-dhcpcd=no \
+    --with-dhcpcanon=no \
+    --with-netconfig=no \
 "
 
 # stolen from https://github.com/void-linux/void-packages/blob/master/srcpkgs/NetworkManager/template
@@ -58,7 +62,7 @@ do_compile_prepend() {
     export GIR_EXTRA_LIBS_PATH="${B}/libnm/.libs:${B}/libnm-glib/.libs:${B}/libnm-util/.libs"
 }
 
-PACKAGECONFIG ??= "nss ifupdown dhclient dnsmasq \
+PACKAGECONFIG ??= "nss ifupdown dnsmasq \
     ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'systemd', bb.utils.contains('DISTRO_FEATURES', 'x11', 'consolekit', '', d), d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'bluez5', '', d)} \
     ${@bb.utils.filter('DISTRO_FEATURES', 'wifi polkit', d)} \
@@ -73,8 +77,6 @@ PACKAGECONFIG[bluez5] = "--enable-bluez5-dun,--disable-bluez5-dun,bluez5"
 PACKAGECONFIG[consolekit] = "--with-session-tracking=consolekit,,consolekit,consolekit"
 PACKAGECONFIG[modemmanager] = "--with-modem-manager-1=yes,--with-modem-manager-1=no,modemmanager"
 PACKAGECONFIG[ppp] = "--enable-ppp,--disable-ppp,ppp,ppp"
-# Use full featured dhcp client instead of internal one
-PACKAGECONFIG[dhclient] = "--with-dhclient=${base_sbindir}/dhclient,,,dhcp-client"
 PACKAGECONFIG[dnsmasq] = "--with-dnsmasq=${bindir}/dnsmasq"
 PACKAGECONFIG[nss] = "--with-crypto=nss,,nss"
 PACKAGECONFIG[resolvconf] = "--with-resolvconf=${base_sbindir}/resolvconf,,,resolvconf"
@@ -85,6 +87,7 @@ PACKAGECONFIG[qt4-x11-free] = "--enable-qt,--disable-qt,qt4-x11-free"
 PACKAGECONFIG[cloud-setup] = "--with-nm-cloud-setup=yes,--with-nm-cloud-setup=no"
 
 PACKAGES =+ " \
+  ${PN}-nmcli ${PN}-nmcli-doc \
   ${PN}-nmtui ${PN}-nmtui-doc \
   ${PN}-adsl ${PN}-cloud-setup \
 "
@@ -132,6 +135,14 @@ FILES_${PN}-dev += " \
     ${libdir}/pppd/*/*.la \
     ${libdir}/NetworkManager/*.la \
     ${libdir}/NetworkManager/${PV}/*.la \
+"
+
+FILES_${PN}-nmcli = " \
+    ${bindir}/nmcli \
+"
+
+FILES_${PN}-nmcli-doc = " \
+    ${mandir}/man1/nmcli* \
 "
 
 FILES_${PN}-nmtui = " \

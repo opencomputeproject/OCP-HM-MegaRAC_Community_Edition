@@ -1,0 +1,34 @@
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-04-29 06:12:38.296421397 +0530
++++ b/src/storagecommands.cpp	2021-04-29 06:33:12.471023178 +0530
+@@ -112,6 +112,10 @@
+     "xyz.openbmc_project.FruDevice";
+ constexpr static const char* entityManagerServiceName =
+     "xyz.openbmc_project.EntityManager";
++constexpr static const char* pefService = "xyz.openbmc_project.pef.alerting";
++constexpr static const char* pefObjPath = "/xyz/openbmc_project/pef/alerting";
++constexpr static const char* pefIface = "xyz.openbmc_project.pef.pefTask";
++constexpr static const char* pefTaskMethod = "doPefTask";
+ constexpr static const size_t writeTimeoutSeconds = 10;
+ constexpr static const char* chassisTypeRackMount = "23";
+ 
+@@ -1693,6 +1697,19 @@
+ 		intel_oem::ipmi::sel::checkRedfishHooks(
+ 	        recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+         	sensorNum, eventType, eventData1, eventData2, eventData3);
++
++		//Do PEF Action
++		std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++    		auto startPefTask = dbus->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
++    		startPefTask.append(recordID,sensorType,sensorNum,eventType,eventData1,eventData2,eventData3,generatorID);
++    		try
++    		{
++         		dbus->call(startPefTask);
++    		}
++    		catch (sdbusplus::exception_t&)
++    		{
++         		std::cerr << "Failed to call doPefTask\n";
++    		}
+ 	}
+ 	else if (recordType >= intel_oem::ipmi::sel::oemTsEventFirst &&
+              recordType <= intel_oem::ipmi::sel::oemTsEventLast)

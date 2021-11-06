@@ -1,10 +1,11 @@
-LINUX_VERSION = "5.4.53"
+#KBRANCH ?= "dev-5.8"
+LINUX_VERSION ?= "5.4.85"
+
+#SRCREV="7ee2d5b4d43403537df38d43c29f2a1bcb4dbce4"
+
 require linux-aspeed.inc
 
-addtask cpy_kernel_src before do_kernel_checkout after do_unpack
-
-# Copy kernel source code to ${S} which is needed by kernel checkout function
-do_cpy_kernel_src() {
-        cp -r ${TOPDIR}/../openbmc_modules/linux/* ${S}/
+python () {
+    d.setVar('S', '${WORKDIR}/linux-5.4.85')
 }
 

@@ -1,0 +1,2226 @@
+diff -Naur a/redfish-core/include/error_messages.hpp b/redfish-core/include/error_messages.hpp
+--- a/redfish-core/include/error_messages.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/include/error_messages.hpp	2021-02-17 09:51:36.791404021 +0000
+@@ -968,6 +968,10 @@
+  * @param[in] arg2 Parameter of message that will replace %2 in its body.
+  *
+  * @returns Message DelayInActionCompletion formatted to JSON */
++nlohmann::json delayInActionCompletion(const std::string& arg1,
++                                       const std::string& arg2);
++
++
+ void delayInActionCompletion(crow::Response& res, const std::string& arg1,
+                              const std::string& arg2);
+ 
+@@ -977,6 +981,8 @@
+  *
+  *
+  * @returns Message NoContent formatted to JSON */
++nlohmann::json noContent(void);
++
+ void noContent(crow::Response& res);
+ 
+ 
+@@ -988,6 +994,8 @@
+  * @param[in] arg1 Parameter of message that will replace %1 in its body.
+  *
+  * @returns Message InstanceInUse formatted to JSON */
++nlohmann::json instanceInUse(const std::string& arg1);
++
+ void instanceInUse(crow::Response& res,const std::string& arg1);
+ 
+ 
+@@ -1000,6 +1008,8 @@
+  * @param[in] arg1 Parameter of message that will replace %1 in its body.
+  *
+  * @returns Message InstanceNotInUse formatted to JSON */
++nlohmann::json instanceNotInUse(const std::string& arg1);
++
+ void instanceNotInUse(crow::Response& res,const std::string& arg1);
+ 
+ } // namespace messages
+diff -Naur a/redfish-core/include/registries/base_message_registry.hpp b/redfish-core/include/registries/base_message_registry.hpp
+--- a/redfish-core/include/registries/base_message_registry.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/include/registries/base_message_registry.hpp	2021-02-17 09:54:09.882387530 +0000
+@@ -23,9 +23,9 @@
+ namespace redfish::message_registries::base
+ {
+ const Header header = {
+-    "Copyright 2014-2020 DMTF. All rights reserved.",
+-    "#MessageRegistry.v1_4_0.MessageRegistry",
+-    "Base.1.8.1",
++    "Copyright 2014-2019 DMTF. All rights reserved.",
++    "#MessageRegistry.v1_3_1.MessageRegistry",
++    "Base.1.7.0",    
+     "Base Message Registry",
+     "en",
+     "This registry defines the base messages for Redfish",
+@@ -34,7 +34,7 @@
+     "DMTF",
+ };
+ constexpr const char* url =
+-    "https://redfish.dmtf.org/registries/Base.1.8.1.json";
++    "https://redfish.dmtf.org/registries/Base.1.7.0.json";    
+ 
+ constexpr std::array<MessageEntry, 78> registry = {
+     MessageEntry{
+@@ -1146,6 +1146,7 @@
+            "with requested instance. ",
+             "The media has successfully mounted to Host machine.",
+             "OK",
++            "OK",
+             0,
+             {},
+             "None",
+@@ -1156,6 +1157,7 @@
+             "Indicates that Media has been ejected successfully",
+             "The media has successfully unmounted to Host machine.",
+             "OK",
++            "OK",
+             0,
+             {},
+             "None",
+@@ -1169,6 +1171,7 @@
+             "The change to the requested Instance failed because the "
+             "Instance is in use or in transition.",
+             "Warning",
++            "Warning",
+             0,
+             {},
+             "Try with another Instance or Eject the Media for this "
+@@ -1183,6 +1186,7 @@
+             "The change to the requested Instance failed because the "
+             "Instance is not in use or not in transition.",
+             "Warning",
++            "Warning",
+             0,
+             {},
+             "Try with another Instance or Check the Status for this "
+diff -Naur a/redfish-core/include/registries/openbmc_message_registry.hpp b/redfish-core/include/registries/openbmc_message_registry.hpp
+--- a/redfish-core/include/registries/openbmc_message_registry.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/include/registries/openbmc_message_registry.hpp	2021-02-17 09:55:53.136497373 +0000
+@@ -20,7 +20,7 @@
+ {
+ const Header header = {
+     "Copyright 2018 OpenBMC. All rights reserved.",
+-    "#MessageRegistry.v1_4_0.MessageRegistry",
++    "#MessageRegistry.v1_3_1.MessageRegistry",
+     "OpenBMC.0.1.0",
+     "OpenBMC Message Registry",
+     "en",
+diff -Naur a/redfish-core/include/registries/task_event_message_registry.hpp b/redfish-core/include/registries/task_event_message_registry.hpp
+--- a/redfish-core/include/registries/task_event_message_registry.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/include/registries/task_event_message_registry.hpp	2021-02-17 09:56:53.581762068 +0000
+@@ -23,19 +23,19 @@
+ namespace redfish::message_registries::task_event
+ {
+ const Header header = {
+-    "Copyright 2014-2020 DMTF in cooperation with the Storage Networking "
++    "Copyright 2014-2018 DMTF in cooperation with the Storage Networking "
+     "Industry Association (SNIA). All rights reserved.",
+-    "#MessageRegistry.v1_4_0.MessageRegistry",
+-    "TaskEvent.1.0.2",
++    "#MessageRegistry.v1_3_1.MessageRegistry",
++    "TaskEvent.1.0.1",
+     "Task Event Message Registry",
+     "en",
+     "This registry defines the messages for task related events.",
+     "TaskEvent",
+-    "1.0.2",
++    "1.0.1",
+     "DMTF",
+ };
+ constexpr const char* url =
+-    "https://redfish.dmtf.org/registries/TaskEvent.1.0.2.json";
++    "https://redfish.dmtf.org/registries/TaskEvent.1.0.1.json";
+ 
+ constexpr std::array<MessageEntry, 9> registry = {
+     MessageEntry{"TaskAborted",
+diff -Naur a/redfish-core/include/utils/fw_utils.hpp b/redfish-core/include/utils/fw_utils.hpp
+--- a/redfish-core/include/utils/fw_utils.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/include/utils/fw_utils.hpp	2021-02-17 09:57:51.907000301 +0000
+@@ -5,6 +5,8 @@
+ #include <string>
+ #include <variant>
+ #include <vector>
++#include <algorithm>
++#include <vector>
+ 
+ namespace redfish
+ {
+diff -Naur a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+--- a/redfish-core/lib/account_service.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/lib/account_service.hpp	2021-02-17 10:21:01.018726317 +0000
+@@ -59,6 +59,7 @@
+     std::string uri{};
+     std::string bindDN{};
+     std::string baseDN{};
++    std::string bindDNPassword{};    
+     std::string searchScope{};
+     std::string serverType{};
+     bool serviceEnabled = false;
+@@ -135,14 +136,14 @@
+                "xyz.openbmc_project.User.Common.Error.UserNameExists") == 0)
+     {
+         messages::resourceAlreadyExists(asyncResp->res,
+-                                        "#ManagerAccount.v1_4_0.ManagerAccount",
++                                        "#ManagerAccount.v1_5_0.ManagerAccount",
+                                         "UserName", newUser);
+     }
+     else if (strcmp(errorMessage, "xyz.openbmc_project.User.Common.Error."
+                                   "UserNameDoesNotExist") == 0)
+     {
+         messages::resourceNotFound(
+-            asyncResp->res, "#ManagerAccount.v1_4_0.ManagerAccount", username);
++            asyncResp->res, "#ManagerAccount.v1_5_0.ManagerAccount", username);
+     }
+     else if ((strcmp(errorMessage,
+                      "xyz.openbmc_project.Common.Error.InvalidArgument") ==
+@@ -186,6 +187,15 @@
+             {"GroupsAttribute", confData.groupAttribute}}}}},
+     };
+ 
++  if (confData.bindDNPassword.empty())
++    {
++        json_response[ldapType]["PasswordSet"] = false;
++    }
++    else
++    {
++        json_response[ldapType]["PasswordSet"] = true;
++    }
++    
+     json_response[ldapType].update(ldap);
+ 
+     nlohmann::json& roleMapArray = json_response[ldapType]["RemoteRoleMapping"];
+@@ -515,6 +525,11 @@
+                                     {
+                                         confData.serverType = *strValue;
+                                     }
++                                    else if (property.first ==
++                                            "LDAPBindDNPassword")
++                                    {
++                                        confData.bindDNPassword = *strValue;
++                                    }
+                                 }
+                             }
+                             else if (interface.first ==
+@@ -1133,12 +1148,15 @@
+         res.jsonValue = {
+             {"@odata.id", "/redfish/v1/AccountService"},
+             {"@odata.type", "#AccountService."
+-                            "v1_5_0.AccountService"},
++                            "v1_7_0.AccountService"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "AccountService.AccountService"},	    
+             {"Id", "AccountService"},
+             {"Name", "Account Service"},
+             {"Description", "Account Service"},
+             {"ServiceEnabled", true},
+             {"MaxPasswordLength", 20},
++            {"AccountLockoutCounterResetEnabled", true},	    
+             {"Accounts",
+              {{"@odata.id", "/redfish/v1/AccountService/Accounts"}}},
+             {"Roles", {{"@odata.id", "/redfish/v1/AccountService/Roles"}}},
+@@ -1192,6 +1210,8 @@
+                         {
+                             asyncResp->res.jsonValue["AccountLockoutDuration"] =
+                                 *value;
++                            asyncResp->res.jsonValue["AccountLockoutCounterResetAfter"] =
++                                *value;			    
+                         }
+                     }
+                     if (property.first == "MaxLoginAttemptBeforeLockout")
+@@ -1221,6 +1241,10 @@
+ 
+         getLDAPConfigData("LDAP", callback);
+         getLDAPConfigData("ActiveDirectory", callback);
++
++        res.jsonValue["Status"]["State"] = "Enabled";
++        res.jsonValue["Status"]["Health"] = "OK";
++	
+ 	res.addHeader(boost::beast::http::field::allow,
+ 		                redfish::Header::GetAllowHeaders("AccountService_v1.xml"));
+     }
+@@ -1231,6 +1255,7 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+ 
+         std::optional<uint32_t> unlockTimeout;
++        std::optional<uint32_t> unlockResetTimeout;	
+         std::optional<uint16_t> lockoutThreshold;
+         std::optional<uint16_t> minPasswordLength;
+         std::optional<uint16_t> maxPasswordLength;
+@@ -1243,7 +1268,9 @@
+                 "AccountLockoutThreshold", lockoutThreshold,
+                 "MaxPasswordLength", maxPasswordLength, "MinPasswordLength",
+                 minPasswordLength, "LDAP", ldapObject, "ActiveDirectory",
+-                activeDirectoryObject, "Oem", oemObject))
++                activeDirectoryObject, "Oem", oemObject,
++               "AccountLockoutCounterResetAfter", unlockResetTimeout))
++		
+         {
+             return;
+         }
+@@ -1285,8 +1312,16 @@
+                             "ActiveDirectory");
+         }
+ 
+-        if (unlockTimeout)
++        if (unlockTimeout || unlockResetTimeout)		
+         {
++            std::optional<uint32_t> CounterTimeoutVal;
++            if (unlockTimeout) {
++                CounterTimeoutVal = unlockTimeout;
++            }
++            else if (unlockResetTimeout) {
++                CounterTimeoutVal = unlockResetTimeout;
++            }
++
+             crow::connections::systemBus->async_method_call(
+                 [asyncResp](const boost::system::error_code ec) {
+                     if (ec)
+@@ -1299,7 +1334,7 @@
+                 "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
+                 "org.freedesktop.DBus.Properties", "Set",
+                 "xyz.openbmc_project.User.AccountPolicy",
+-                "AccountUnlockTimeout", std::variant<uint32_t>(*unlockTimeout));
++                "AccountUnlockTimeout", std::variant<uint32_t>(*CounterTimeoutVal));	    
+         }
+         if (lockoutThreshold)
+         {
+@@ -1354,6 +1389,9 @@
+         res.jsonValue = {{"@odata.id", "/redfish/v1/AccountService/Accounts"},
+                          {"@odata.type", "#ManagerAccountCollection."
+                                          "ManagerAccountCollection"},
++                         {"@odata.context", "/redfish/v1/$metadata#"
++                                            "ManagerAccountCollection."
++                                            "ManagerAccountCollection"},			 
+                          {"Name", "Accounts Collection"},
+                          {"Description", "BMC User Accounts"}};
+ 
+@@ -1587,7 +1625,9 @@
+                 }
+ 
+                 asyncResp->res.jsonValue = {
+-                    {"@odata.type", "#ManagerAccount.v1_4_0.ManagerAccount"},
++                    {"@odata.type", "#ManagerAccount.v1_5_0.ManagerAccount"},
++                    {"@odata.context", "/redfish/v1/$metadata#"
++                                      "ManagerAccount.ManagerAccount"},
+                     {"Name", "User Account"},
+                     {"Description", "User Account"},
+                     {"Password", nullptr},
+@@ -1785,7 +1825,7 @@
+                 if (!rc)
+                 {
+                     messages::resourceNotFound(
+-                        asyncResp->res, "#ManagerAccount.v1_4_0.ManagerAccount",
++                        asyncResp->res, "#ManagerAccount.v1_5_0.ManagerAccount",
+                         username);
+                     return;
+                 }
+@@ -1798,7 +1838,7 @@
+                     {
+                         messages::resourceNotFound(
+                             asyncResp->res,
+-                            "#ManagerAccount.v1_4_0.ManagerAccount", username);
++                            "#ManagerAccount.v1_5_0.ManagerAccount", username);
+                     }
+                     else if (retval == PAM_AUTHTOK_ERR)
+                     {
+@@ -1920,7 +1960,7 @@
+                 if (ec)
+                 {
+                     messages::resourceNotFound(
+-                        asyncResp->res, "#ManagerAccount.v1_4_0.ManagerAccount",
++                        asyncResp->res, "#ManagerAccount.v1_5_0.ManagerAccount",
+                         username);
+                     return;
+                 }
+diff -Naur a/redfish-core/lib/certificate_service.hpp b/redfish-core/lib/certificate_service.hpp
+--- a/redfish-core/lib/certificate_service.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/certificate_service.hpp	2021-02-17 10:29:08.494481940 +0000
+@@ -73,7 +73,9 @@
+                const std::vector<std::string>&) override
+     {
+         res.jsonValue = {
+-            {"@odata.type", "#CertificateService.v1_0_0.CertificateService"},
++            {"@odata.type", "#CertificateService.v1_0_2.CertificateService"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "CertificateService.CertificateService"},	    
+             {"@odata.id", "/redfish/v1/CertificateService"},
+             {"Id", "CertificateService"},
+             {"Name", "Certificate Service"},
+@@ -602,10 +604,12 @@
+             }
+             asyncResp->res.jsonValue = {
+                 {"@odata.id", certURL},
+-                {"@odata.type", "#Certificate.v1_0_0.Certificate"},
++                {"@odata.type", "#Certificate.v1_1_1.Certificate"},
++                {"@odata.context", "/redfish/v1/$metadata#Certificate.Certificate"},
+                 {"Id", std::to_string(certId)},
+                 {"Name", name},
+-                {"Description", name}};
++                {"Description", name},
++                {"CertificateType", "PEM"}};
+             for (const auto& property : properties)
+             {
+                 if (property.first == "CertificateString")
+@@ -883,6 +887,8 @@
+         res.jsonValue = {
+             {"@odata.id",
+              "/redfish/v1/Managers/bmc/NetworkProtocol/HTTPS/Certificates"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "CertificateCollection.CertificateCollection"},	    
+             {"@odata.type", "#CertificateCollection.CertificateCollection"},
+             {"Name", "HTTPS Certificates Collection"},
+             {"Description", "A Collection of HTTPS certificate instances"}};
+@@ -999,8 +1005,10 @@
+         res.jsonValue = {
+             {"@odata.id",
+              "/redfish/v1/CertificateService/CertificateLocations"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "CertificateLocations.CertificateLocations"},	    
+             {"@odata.type",
+-             "#CertificateLocations.v1_0_0.CertificateLocations"},
++             "#CertificateLocations.v1_0_2.CertificateLocations"},
+             {"Name", "Certificate Locations"},
+             {"Id", "CertificateLocations"},
+             {"Description",
+@@ -1088,6 +1096,8 @@
+     {
+         res.jsonValue = {
+             {"@odata.id", "/redfish/v1/AccountService/LDAP/Certificates"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "CertificateCollection.CertificateCollection"},	    
+             {"@odata.type", "#CertificateCollection.CertificateCollection"},
+             {"Name", "LDAP Certificates Collection"},
+             {"Description", "A Collection of LDAP certificate instances"}};
+@@ -1160,6 +1170,10 @@
+                 std::string certURL =
+                     "/redfish/v1/AccountService/LDAP/Certificates/" +
+                     std::to_string(certId);
++
++                asyncResp->res.addHeader(boost::beast::http::field::allow,
++                                         redfish::Header::GetAllowHeaders("CertificateCollection_v1.xml"));		
++
+                 getCertificateProperties(asyncResp, objectPath,
+                                          certs::ldapServiceName, certId,
+                                          certURL, "LDAP Certificate");
+@@ -1234,6 +1248,8 @@
+     {
+         res.jsonValue = {
+             {"@odata.id", "/redfish/v1/Managers/bmc/Truststore/Certificates/"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "CertificateCollection.CertificateCollection"},	    
+             {"@odata.type", "#CertificateCollection.CertificateCollection"},
+             {"Name", "TrustStore Certificates Collection"},
+             {"Description",
+diff -Naur a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+--- a/redfish-core/lib/chassis.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/chassis.hpp	2021-02-17 14:55:56.437133364 +0000
+@@ -24,6 +24,7 @@
+ #include <utils/collection.hpp>
+ 
+ #include <variant>
++#include <utils/systemd_utils.hpp>
+ 
+ namespace redfish
+ {
+@@ -106,7 +107,7 @@
+ 
+             const std::string* status = std::get_if<std::string>(&value);
+ 
+-            if (status == nullptr)
++            if (status == nullptr || *status == "unknown")	    
+             {
+                 BMCWEB_LOG_ERROR << "intrusion status read error \n";
+                 return;
+@@ -116,7 +117,7 @@
+                 {"IntrusionSensorNumber", 1}, {"IntrusionSensor", *status}};
+         },
+         service, objPath, "org.freedesktop.DBus.Properties", "Get",
+-        "xyz.openbmc_project.Chassis.Intrusion", "Status");
++        "xyz.openbmc_project.Sensor.Value", "Status");    
+ }
+ 
+ /**
+@@ -181,6 +182,8 @@
+                const std::vector<std::string>&) override
+     {
+         res.jsonValue["@odata.type"] = "#ChassisCollection.ChassisCollection";
++        res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#"
++                                          "ChassisCollection.ChassisCollection";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/Chassis";
+         res.jsonValue["Name"] = "Chassis Collection";
+ 
+@@ -290,7 +293,9 @@
+                     }
+ 
+                     asyncResp->res.jsonValue["@odata.type"] =
+-                        "#Chassis.v1_14_0.Chassis";
++                        "#Chassis.v1_11_0.Chassis";
++                    asyncResp->res.jsonValue["@odata.context"] =
++                       "/redfish/v1/$metadata#Chassis.Chassis";		    
+                     asyncResp->res.jsonValue["@odata.id"] =
+                         "/redfish/v1/Chassis/" + chassisId;
+                     asyncResp->res.jsonValue["Name"] = "Chassis Collection";
+@@ -305,6 +310,8 @@
+                         {"@odata.id",
+                          "/redfish/v1/Systems/system/PCIeDevices"}};
+ 
++                    asyncResp->res.jsonValue["UUID"] = systemd_utils::getUuid();
++
+                     const std::string& connectionName =
+                         connectionNames[0].first;
+ 
+@@ -314,6 +321,20 @@
+                         "xyz.openbmc_project.Inventory.Item.Panel",
+                         "xyz.openbmc_project.Inventory.Item.Board.Motherboard"};
+ 
++                    crow::connections::systemBus->async_method_call(
++                         [asyncResp](const boost::system::error_code ec,
++                                  std::variant<std::string>& resp) {
++                             if (ec)
++                             {
++                                 return; // no AssestTag
++                             }
++                            std::string *AssetTag = std::get_if<std::string>(&resp);
++                             asyncResp->res.jsonValue["AssetTag"] = std::move(*AssetTag);
++                         },
++                         connectionName, path, "org.freedesktop.DBus.Properties",
++                        "Get",
++                         "xyz.openbmc_project.Inventory.Decorator.AssetTag", "AssetTag");
++
+                     for (const char* interface : hasIndicatorLed)
+                     {
+                         if (std::find(interfaces2.begin(), interfaces2.end(),
+@@ -354,6 +375,7 @@
+                             }
+                             asyncResp->res.jsonValue["Name"] = chassisId;
+                             asyncResp->res.jsonValue["Id"] = chassisId;
++                            asyncResp->res.jsonValue["Description"] = "Chassis Bmc";			    
+                             asyncResp->res.jsonValue["Thermal"] = {
+                                 {"@odata.id", "/redfish/v1/Chassis/" +
+                                                   chassisId + "/Thermal"}};
+@@ -372,8 +394,14 @@
+                             asyncResp->res
+                                 .jsonValue["Links"]["ComputerSystems"] = {
+                                 {{"@odata.id", "/redfish/v1/Systems/system"}}};
++                            asyncResp->res.jsonValue["Links"]
++                                    ["ComputerSystems@odata.count"] = 1;
++			    
+                             asyncResp->res.jsonValue["Links"]["ManagedBy"] = {
+                                 {{"@odata.id", "/redfish/v1/Managers/bmc"}}};
++                            asyncResp->res.jsonValue["Links"]
++                                    ["ManagedBy@odata.count"] = 1;
++
+                             getChassisState(asyncResp);
+ 			    asyncResp->res.addHeader(boost::beast::http::field::allow,
+                 	                             redfish::Header::GetAllowHeaders("Chassis_v1.xml"));
+@@ -386,14 +414,17 @@
+ 
+                 // Couldn't find an object with that name.  return an error
+                 messages::resourceNotFound(
+-                    asyncResp->res, "#Chassis.v1_14_0.Chassis", chassisId);
++                    asyncResp->res, "#Chassis.v1_11_0.Chassis", chassisId);
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+             "xyz.openbmc_project.ObjectMapper", "GetSubTree",
+             "/xyz/openbmc_project/inventory", 0, interfaces);
+ 
+-        getPhysicalSecurityData(asyncResp);
++//        getPhysicalSecurityData(asyncResp);
++          getIntrusionByService(asyncResp,
++                  "xyz.openbmc_project.IntrusionSensor",
++                  "/xyz/openbmc_project/sensors/Intrusion/Chassis_Intrusion");	
+     }
+ 
+     void doPatch(crow::Response& res, const crow::Request& req,
+@@ -508,7 +539,7 @@
+                 }
+ 
+                 messages::resourceNotFound(
+-                    asyncResp->res, "#Chassis.v1_14_0.Chassis", chassisId);
++                    asyncResp->res, "#Chassis.v1_11_0.Chassis", chassisId);
+             },
+             "xyz.openbmc_project.ObjectMapper",
+             "/xyz/openbmc_project/object_mapper",
+@@ -664,6 +695,8 @@
+         res.jsonValue = {{"@odata.type", "#ActionInfo.v1_1_2.ActionInfo"},
+                          {"@odata.id", "/redfish/v1/Chassis/" + chassisId +
+                                            "/ResetActionInfo"},
++                         {"@odata.context", "/redfish/v1/$metadata#"
++                                           "ActionInfo.ActionInfo"},			 
+                          {"Name", "Reset Action Info"},
+                          {"Id", "ResetActionInfo"},
+                          {"Parameters",
+diff -Naur a/redfish-core/lib/cpudimm.hpp b/redfish-core/lib/cpudimm.hpp
+--- a/redfish-core/lib/cpudimm.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/cpudimm.hpp	2021-02-17 10:43:14.412268905 +0000
+@@ -67,6 +67,8 @@
+ 
+ 			res.jsonValue["@odata.type"] =
+ 				"#ProcessorCollection.ProcessorCollection";
++                        res.jsonValue["@odata.context"] =
++                                "/redfish/v1/$metadata#ProcessorCollection.ProcessorCollection";			
+ 			res.jsonValue["Name"] = "Processor Collection";
+ 			res.jsonValue["@odata.context"] =
+ 				"/redfish/v1/$metadata#ProcessorCollection.ProcessorCollection";
+@@ -421,6 +423,8 @@
+ 	(void) req;
+ 	(void) params;
+ 	res.jsonValue["@odata.type"] = "#MemoryCollection.MemoryCollection";
++        res.jsonValue["@odata.context"] =
++          "/redfish/v1/$metadata#MemoryCollection.MemoryCollection";	
+ 	res.jsonValue["Name"] = "Memory Module Collection";
+ 	res.jsonValue["@odata.context"] =
+ 		"/redfish/v1/$metadata#MemoryCollection.MemoryCollection";
+@@ -526,6 +530,8 @@
+ 	res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#Memory.Memory";
+ 	res.jsonValue["@odata.id"] =
+ 		"/redfish/v1/Systems/system/Memory/" + dimmName;
++        res.jsonValue["@odata.context"] =
++                "/redfish/v1/$metadata#Memory.Memory";	
+ 	//getDimmData(asyncResp, dimmId);
+ 	//added new code
+ 
+diff -Naur a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+--- a/redfish-core/lib/ethernet.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/ethernet.hpp	2021-02-17 10:56:48.418119116 +0000
+@@ -129,6 +129,7 @@
+     std::string default_gateway;
+     std::string ipv6_default_gateway;
+     std::string mac_address;
++    std::string linkLocal;
+     std::vector<std::uint32_t> vlan_id;
+     std::vector<std::string> nameServers;
+     std::vector<std::string> staticNameServers;
+@@ -142,6 +143,7 @@
+     std::optional<bool> useNTPServers;
+     std::optional<bool> useUseDomainName;
+     std::optional<std::string> dhcpv6OperatingMode;
++    std::optional<std::string> fallbackAddress;
+ };
+ 
+ // Helper function that changes bits netmask notation (i.e. /24)
+@@ -266,7 +268,49 @@
+ 
+ ////// 
+ 
++inline std::string
++    translateLinkLocalDbusToRedfish(const std::string &inputLinkLocal)
++{
++    if (inputLinkLocal ==
++        "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.fallback")
++    {
++        return "AutoConfig";
++    }
++    else if (inputLinkLocal ==
++             "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.none")
++    {
++        return "None";
++    }
++    else if (inputLinkLocal ==
++             "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.both")
++    {
++        return "Static";
++    }
+ 
++    return "None";
++}
++
++inline std::string
++    translateLinkLocalRedfishToDbus(const std::string &inputLinkLocal)
++{
++    if (inputLinkLocal == "AutoConfig")
++    {
++        return "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf."
++               "fallback";
++    }
++    else if (inputLinkLocal == "None")
++    {
++        return "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf."
++               "none";
++    }
++    else if (inputLinkLocal == "Static")
++    {
++        return "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf."
++               "both";
++    }
++
++    return "";
++}
+ 
+ inline bool extractEthernetInterfaceData(const std::string& ethiface_id,
+                                          GetManagedObjects& dbus_data,
+@@ -393,6 +437,17 @@
+                                 ethData.domainnames = *domainNames;
+                             }
+                         }
++                        else if (propertyPair.first == "LinkLocalAutoConf")
++                        {
++                            const std::string *linkLocalConf =
++                                std::get_if<std::string>(&propertyPair.second);
++                            if (linkLocalConf != nullptr)
++                            {
++                                ethData.linkLocal =
++                                    translateLinkLocalDbusToRedfish(
++                                        *linkLocalConf);
++                            }
++                        }
+                     }
+                 }
+             }
+@@ -1084,6 +1139,8 @@
+     {
+         res.jsonValue["@odata.type"] =
+             "#EthernetInterfaceCollection.EthernetInterfaceCollection";
++        res.jsonValue["@odata.context"] =
++           "/redfish/v1/$metadata#EthernetInterfaceCollection.EthernetInterfaceCollection";	
+         res.jsonValue["@odata.id"] =
+             "/redfish/v1/Managers/bmc/EthernetInterfaces";
+         res.jsonValue["Name"] = "Ethernet Network Interface Collection";
+@@ -1314,6 +1371,33 @@
+             std::variant<bool>{value});
+     }
+ 
++    void setDHCPFallback(const std::string &ifaceId, const std::string &value,
++                         const std::shared_ptr<AsyncResp> asyncResp)
++    {
++        std::string linkLocalConf = translateLinkLocalRedfishToDbus(value);
++        if (linkLocalConf.empty())
++        {
++            messages::propertyValueNotInList(asyncResp->res, value,
++                                             "FallbackAddress");
++            return;
++        }
++
++        crow::connections::systemBus->async_method_call(
++            [asyncResp](const boost::system::error_code ec) {
++                if (ec)
++                {
++                    BMCWEB_LOG_ERROR << "D-Bus responses error: " << ec;
++                    messages::internalError(asyncResp->res);
++                    return;
++                }
++            },
++            "xyz.openbmc_project.Network",
++            "/xyz/openbmc_project/network/" + ifaceId,
++            "org.freedesktop.DBus.Properties", "Set",
++            "xyz.openbmc_project.Network.EthernetInterface",
++            "LinkLocalAutoConf", std::variant<std::string>(linkLocalConf));
++    }
++
+     void setDHCPv4Config(const std::string& propertyName, const bool& value,
+                          const std::shared_ptr<AsyncResp>& asyncResp)
+     {
+@@ -1444,6 +1528,12 @@
+         setDHCPv4Config("NTPEnabled", nextNTP, asyncResp);
+         BMCWEB_LOG_DEBUG << "set HostNameEnabled...";
+         setDHCPv4Config("HostNameEnabled", nextUseDomain, asyncResp);
++        setDHCPv4Config("HostNameEnabled", nextUseDomain, asyncResp);
++        if (v4dhcpParms.fallbackAddress)
++        {
++             BMCWEB_LOG_DEBUG << "set DHCPFallbackAddress...";
++             setDHCPFallback(ifaceId,*v4dhcpParms.fallbackAddress,asyncResp);
++        }
+     }
+ 
+     boost::container::flat_set<IPv4AddressData>::const_iterator
+@@ -1829,6 +1919,7 @@
+         jsonResponse["MACAddress"] = ethData.mac_address;
+         jsonResponse["DHCPv4"]["DHCPEnabled"] =
+             translateDHCPEnabledToBool(ethData.DHCPEnabled, true);
++        jsonResponse["DHCPv4"]["FallbackAddress"] = ethData.linkLocal;
+         jsonResponse["DHCPv4"]["UseNTPServers"] = ethData.NTPEnabled;
+         jsonResponse["DHCPv4"]["UseDNSServers"] = ethData.DNSEnabled;
+         jsonResponse["DHCPv4"]["UseDomainName"] = ethData.HostNameEnabled;
+@@ -1943,7 +2034,9 @@
+                 }
+ 
+                 asyncResp->res.jsonValue["@odata.type"] =
+-                    "#EthernetInterface.v1_4_1.EthernetInterface";
++                    "#EthernetInterface.v1_5_1.EthernetInterface";
++                asyncResp->res.jsonValue["@odata.context"] =
++                   "/redfish/v1/$metadata#EthernetInterface.EthernetInterface";		    
+                 asyncResp->res.jsonValue["Name"] = "Manager Ethernet Interface";
+                 asyncResp->res.jsonValue["Description"] =
+                     "Management Network Interface";
+@@ -1997,7 +2090,8 @@
+                                      v4dhcpParms.dhcpv4Enabled, "UseDNSServers",
+                                      v4dhcpParms.useDNSServers, "UseNTPServers",
+                                      v4dhcpParms.useNTPServers, "UseDomainName",
+-                                     v4dhcpParms.useUseDomainName))
++                                     v4dhcpParms.useUseDomainName,"FallbackAddress",
++                                     v4dhcpParms.fallbackAddress))		    
+             {
+                 return;
+             }
+@@ -2182,6 +2276,8 @@
+         const std::string& ifaceId = params[1];
+         res.jsonValue["@odata.type"] =
+             "#VLanNetworkInterface.v1_1_0.VLanNetworkInterface";
++        res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#VLanNetworkInterface.VLanNetworkInterface";	
+         res.jsonValue["Name"] = "VLAN Network Interface";
+ 
+         if (!verifyNames(parentIfaceId, ifaceId))
+@@ -2417,6 +2513,9 @@
+                 asyncResp->res.jsonValue["@odata.type"] =
+                     "#VLanNetworkInterfaceCollection."
+                     "VLanNetworkInterfaceCollection";
++                asyncResp->res.jsonValue["@odata.context"] =
++                    "/redfish/v1/$metadata#"
++                    "VLanNetworkInterfaceCollection.VLanNetworkInterfaceCollection";		
+                 asyncResp->res.jsonValue["Name"] =
+                     "VLAN Network Interface Collection";
+ 
+diff -Naur a/redfish-core/lib/event_service.hpp b/redfish-core/lib/event_service.hpp
+--- a/redfish-core/lib/event_service.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/event_service.hpp	2021-02-17 10:58:50.386886134 +0000
+@@ -58,6 +58,7 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+         res.jsonValue = {
+             {"@odata.type", "#EventService.v1_5_0.EventService"},
++            {"@odata.context", "/redfish/v1/$metadata#EventService.EventService"},	    
+             {"Id", "EventService"},
+             {"Name", "Event Service"},
+             {"Subscriptions",
+@@ -207,6 +208,7 @@
+         res.jsonValue = {
+             {"@odata.type",
+              "#EventDestinationCollection.EventDestinationCollection"},
++	    {"@odata.context", "/redfish/v1/$metadata#EventDestinationCollection.EventDestinationCollection"},
+             {"@odata.id", "/redfish/v1/EventService/Subscriptions"},
+             {"Name", "Event Destination Collections"}};
+ 
+@@ -510,6 +512,8 @@
+         res.jsonValue = {
+             {"@odata.type", "#EventDestination.v1_7_0.EventDestination"},
+             {"Protocol", "Redfish"}};
++        asyncResp->res.jsonValue["@odata.context"] =
++           "/redfish/v1/$metadata#EventDestination.EventDestination";	
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/EventService/Subscriptions/" + id;
+         asyncResp->res.jsonValue["Id"] = id;
+diff -Naur a/redfish-core/lib/led.hpp b/redfish-core/lib/led.hpp
+--- a/redfish-core/lib/led.hpp	2021-02-17 09:47:16.434890705 +0000
++++ b/redfish-core/lib/led.hpp	2021-02-17 11:00:39.295559784 +0000
+@@ -34,6 +34,12 @@
+ inline void getIndicatorLedState(const std::shared_ptr<AsyncResp>& aResp)
+ {
+     BMCWEB_LOG_DEBUG << "Get led groups";
++    aResp->res.jsonValue["IndicatorLED@Redfish.AllowableValues"] =
++               {
++                 "Lit",
++                 "Blinking",
++                 "Off"
++               };    
+     crow::connections::systemBus->async_method_call(
+         [aResp](const boost::system::error_code ec,
+                 const std::variant<bool> asserted) {
+diff -Naur a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/log_services.hpp	2021-02-17 11:21:36.658221689 +0000
+@@ -924,6 +924,8 @@
+         // it has a duplicate entry for members
+         asyncResp->res.jsonValue["@odata.type"] =
+             "#LogServiceCollection.LogServiceCollection";
++        asyncResp->res.jsonValue["@odata.context"] =
++           "/redfish/v1/$metadata#LogServiceCollection.LogServiceCollection";	
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices";
+         asyncResp->res.jsonValue["Name"] = "System Log Services Collection";
+@@ -1003,11 +1005,22 @@
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/EventLog";
+         asyncResp->res.jsonValue["@odata.type"] =
+-            "#LogService.v1_1_0.LogService";
++            "#LogService.v1_1_3.LogService";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#LogService.LogService";	
+         asyncResp->res.jsonValue["Name"] = "Event Log Service";
+         asyncResp->res.jsonValue["Description"] = "System Event Log Service";
+         asyncResp->res.jsonValue["Id"] = "EventLog";
+         asyncResp->res.jsonValue["OverWritePolicy"] = "WrapsWhenFull";
++        std::string DateTime = crow::utility::dateTimeNow();
++        asyncResp->res.jsonValue["DateTime"] = DateTime;
++        asyncResp->res.jsonValue["DateTimeLocalOffset"] =
++                                 DateTime.substr(DateTime.rfind("+"));	
++        asyncResp->res.jsonValue["LogEntryType"] = "Event";
++        asyncResp->res.jsonValue["MaxNumberOfRecords"] = 150;	
++        asyncResp->res.jsonValue["ServiceEnabled"] = true;
++        asyncResp->res.jsonValue["Status"]["Health"] = "OK";
++        asyncResp->res.jsonValue["Status"]["State"] = "Enabled";	
+         asyncResp->res.jsonValue["Entries"] = {
+             {"@odata.id",
+              "/redfish/v1/Systems/system/LogServices/EventLog/Entries"}};
+@@ -1217,7 +1230,7 @@
+ 
+     // Fill in the log entry with the gathered data
+     logEntryJson = {
+-        {"@odata.type", "#LogEntry.v1_4_0.LogEntry"},
++        {"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
+         {"@odata.id",
+          "/redfish/v1/Systems/system/LogServices/EventLog/Entries/" +
+              logEntryID},
+@@ -1266,6 +1279,8 @@
+         // it has a duplicate entry for members
+         asyncResp->res.jsonValue["@odata.type"] =
+             "#LogEntryCollection.LogEntryCollection";
++        asyncResp->res.jsonValue["@odata.context"] =
++           "/redfish/v1/$metadata#LogEntryCollection.LogEntryCollection";	
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/EventLog/Entries";
+         asyncResp->res.jsonValue["Name"] = "System Event Log Entries";
+@@ -1814,7 +1829,9 @@
+     {
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+         asyncResp->res.jsonValue["@odata.type"] =
+-            "#LogService.v1_1_0.LogService";
++            "#LogService.v1_1_3.LogService";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#LogService.LogService";	
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Managers/bmc/LogServices/Journal";
+         asyncResp->res.jsonValue["Name"] = "Open BMC Journal Log Service";
+@@ -1875,7 +1892,7 @@
+ 
+     // Fill in the log entry with the gathered data
+     bmcJournalLogEntryJson = {
+-        {"@odata.type", "#LogEntry.v1_4_0.LogEntry"},
++        {"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
+         {"@odata.id", "/redfish/v1/Managers/bmc/LogServices/Journal/Entries/" +
+                           bmcJournalLogEntryID},
+         {"Name", "BMC Journal Entry"},
+@@ -1926,8 +1943,8 @@
+             "#LogEntryCollection.LogEntryCollection";
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Managers/bmc/LogServices/Journal/Entries";
+-        asyncResp->res.jsonValue["@odata.id"] =
+-            "/redfish/v1/Managers/bmc/LogServices/Journal/Entries";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#LogEntryCollection.LogEntryCollection";	
+         asyncResp->res.jsonValue["Name"] = "Open BMC Journal Entries";
+         asyncResp->res.jsonValue["Description"] =
+             "Collection of BMC Journal Entries";
+@@ -2281,9 +2298,11 @@
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/Dump";
+         asyncResp->res.jsonValue["@odata.type"] =
+-            "#LogService.v1_2_0.LogService";
++            "#LogService.v1_1_3.LogService";
+         asyncResp->res.jsonValue["Name"] = "Dump LogService";
+         asyncResp->res.jsonValue["Description"] = "System Dump LogService";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#LogService.LogService";	
+         asyncResp->res.jsonValue["Id"] = "Dump";
+         asyncResp->res.jsonValue["OverWritePolicy"] = "WrapsWhenFull";
+         asyncResp->res.jsonValue["Entries"] = {
+@@ -2327,6 +2346,8 @@
+             "#LogEntryCollection.LogEntryCollection";
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/Dump/Entries";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#LogEntryCollection.LogEntryCollection";	
+         asyncResp->res.jsonValue["Name"] = "System Dump Entries";
+         asyncResp->res.jsonValue["Description"] =
+             "Collection of System Dump Entries";
+@@ -2456,7 +2477,7 @@
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/Crashdump";
+         asyncResp->res.jsonValue["@odata.type"] =
+-            "#LogService.v1_1_0.LogService";
++            "#LogService.v1_1_3.LogService";
+         asyncResp->res.jsonValue["Name"] = "Open BMC Oem Crashdump Service";
+         asyncResp->res.jsonValue["Description"] = "Oem Crashdump Service";
+         asyncResp->res.jsonValue["Id"] = "Oem Crashdump";
+@@ -2564,7 +2585,7 @@
+             std::string crashdumpURI =
+                 "/redfish/v1/Systems/system/LogServices/Crashdump/Entries/" +
+                 logID + "/" + filename;
+-            logEntryJson = {{"@odata.type", "#LogEntry.v1_4_0.LogEntry"},
++            logEntryJson = {{"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
+                             {"@odata.id", "/redfish/v1/Systems/system/"
+                                           "LogServices/Crashdump/Entries/" +
+                                               logID},
+@@ -3103,7 +3124,7 @@
+ 
+         asyncResp->res.jsonValue = {
+             {"@odata.id", "/redfish/v1/Systems/system/LogServices/PostCodes"},
+-            {"@odata.type", "#LogService.v1_1_0.LogService"},
++            {"@odata.type", "#LogService.v1_1_3.LogService"},
+             {"Name", "POST Code Log Service"},
+             {"Description", "POST Code Log Service"},
+             {"Id", "BIOS POST Code Log"},
+@@ -3262,7 +3283,7 @@
+         // add to AsyncResp
+         logEntryArray.push_back({});
+         nlohmann::json& bmcLogEntry = logEntryArray.back();
+-        bmcLogEntry = {{"@odata.type", "#LogEntry.v1_4_0.LogEntry"},
++        bmcLogEntry = {{"@odata.type", "#LogEntry.v1_5_1.LogEntry"},
+                        {"@odata.id", "/redfish/v1/Systems/system/LogServices/"
+                                      "PostCodes/Entries/" +
+                                          postcodeEntryID},
+@@ -3499,7 +3520,7 @@
+                              << params[0];
+         }
+ 
+-        asyncResp->res.jsonValue["@odata.type"] = "#LogEntry.v1_4_0.LogEntry";
++        asyncResp->res.jsonValue["@odata.type"] = "#LogEntry.v1_5_1.LogEntry";
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/PostCodes/"
+             "Entries";
+diff -Naur a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+--- a/redfish-core/lib/managers.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/managers.hpp	2021-02-17 11:30:10.620995502 +0000
+@@ -1711,7 +1711,8 @@
+                const std::vector<std::string>&) override
+     {
+         res.jsonValue["@odata.id"] = "/redfish/v1/Managers/bmc";
+-        res.jsonValue["@odata.type"] = "#Manager.v1_9_0.Manager";
++        res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#Manager.Manager";
++        res.jsonValue["@odata.type"] = "#Manager.v1_7_0.Manager";	
+         res.jsonValue["Id"] = "bmc";
+         res.jsonValue["Name"] = "OpenBmc Manager";
+         res.jsonValue["Description"] = "Baseboard Management Controller";
+@@ -1736,6 +1737,10 @@
+ 
+         res.jsonValue["SerialInterfaces"] = {
+             {"@odata.id", "/redfish/v1/Managers/bmc/SerialInterface"}};
++
++        res.jsonValue["RemoteAccountService"] = {
++            {"@odata.id", "/redfish/v1/AccountService"}};
++
+         // default oem data
+ /*        nlohmann::json& oem = res.jsonValue["Oem"];
+         nlohmann::json& oemOpenbmc = oem["OpenBmc"];
+@@ -1765,7 +1770,9 @@
+             "/redfish/v1/Managers/bmc/Actions/Manager.ResetToDefaults";
+         resetToDefaults["ResetType@Redfish.AllowableValues"] = {"ResetAll"};
+ 
+-        res.jsonValue["DateTime"] = crow::utility::dateTimeNow();
++        std::string DateTime = crow::utility::dateTimeNow();
++        res.jsonValue["DateTime"] = DateTime;
++        res.jsonValue["DateTimeLocalOffset"] = DateTime.substr(DateTime.rfind("+"));	
+ 
+         // Fill in SerialConsole info
+         res.jsonValue["SerialConsole"]["ServiceEnabled"] = true;
+@@ -1775,7 +1782,7 @@
+ #ifdef BMCWEB_ENABLE_KVM
+         // Fill in GraphicalConsole info
+         res.jsonValue["GraphicalConsole"]["ServiceEnabled"] = true;
+-        res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = 4;
++        res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = 1;	
+         res.jsonValue["GraphicalConsole"]["ConnectTypesSupported"] = {"KVMIP"};
+ #endif // BMCWEB_ENABLE_KVM
+ 
+@@ -1792,7 +1799,11 @@
+         fw_util::populateFirmwareInformation(asyncResp, fw_util::bmcPurpose,
+                                              "FirmwareVersion", true);
+ 
+-        getLastResetTime(asyncResp);
++        /**
++         * Commenting "LastResetTime" Property,
++         * as using Manager.v1_7_0.Manager
++         */
++        //getLastResetTime(asyncResp);	
+ 
+ //        auto pids = std::make_shared<GetPIDValues>(asyncResp);
+ //        pids->run();
+@@ -2187,6 +2198,48 @@
+         }
+     }
+ 
++    void getBoardiDetails(std::shared_ptr<AsyncResp> aResp)
++    {
++        BMCWEB_LOG_DEBUG << "Getting Manager Board Details";
++
++        crow::connections::systemBus->async_method_call(
++            [aResp](const boost::system::error_code ec,
++                    const std::vector<std::pair<std::string,
++                         VariantType>>& propertiesList) {
++                   for (const std::pair<std::string, VariantType>&
++                                     property : propertiesList)
++                    {
++                        const std::string& propertyName =
++                                  property.first;
++                       const std::string* value =
++                                  std::get_if<std::string>(
++                                  &property.second);
++                       std::string key = "";
++
++                       if (propertyName == "BOARD_MANUFACTURER")
++                       {
++                           key = "Manufacturer";
++                       }
++                       else if (propertyName == "BOARD_PART_NUMBER")
++                       {
++                           key = "PartNumber";
++                       }
++                       else if (propertyName == "BOARD_SERIAL_NUMBER")
++                       {
++                           key = "SerialNumber";
++                       }
++
++                       if(value != nullptr && !(key.empty()))
++                       {
++                           aResp->res.jsonValue[key] = *value;
++                       }
++                    }
++            },
++            "xyz.openbmc_project.FruDevice", "/xyz/openbmc_project/FruDevice/S2600WFT",
++            "org.freedesktop.DBus.Properties", "GetAll",
++            "xyz.openbmc_project.FruDevice");
++    }
++
+     std::string uuid;
+ };
+ 
+@@ -2212,6 +2265,7 @@
+         // because it has a duplicate entry for members
+         res.jsonValue["@odata.id"] = "/redfish/v1/Managers";
+         res.jsonValue["@odata.type"] = "#ManagerCollection.ManagerCollection";
++	res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#ManagerCollection.ManagerCollection";
+         res.jsonValue["Name"] = "Manager Collection";
+         res.jsonValue["Members@odata.count"] = 1;
+         res.jsonValue["Members"] = {
+diff -Naur a/redfish-core/lib/message_registries.hpp b/redfish-core/lib/message_registries.hpp
+--- a/redfish-core/lib/message_registries.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/message_registries.hpp	2021-02-17 11:32:24.681732206 +0000
+@@ -56,6 +56,8 @@
+             {"@odata.type",
+              "#MessageRegistryFileCollection.MessageRegistryFileCollection"},
+             {"@odata.id", "/redfish/v1/Registries"},
++            {"@odata.context",
++             "/redfish/v1/$metadata#MessageRegistryFileCollection.MessageRegistryFileCollection"},	    
+             {"Name", "MessageRegistryFile Collection"},
+             {"Description", "Collection of MessageRegistryFiles"},
+             {"Members@odata.count", 4},
+@@ -126,7 +128,7 @@
+         else
+         {
+             messages::resourceNotFound(
+-                res, "#MessageRegistryFile.v1_1_0.MessageRegistryFile",
++                res, "#MessageRegistryFile.v1_1_3.MessageRegistryFile",
+                 registry);
+             res.end();
+             return;
+@@ -134,7 +136,9 @@
+ 
+         res.jsonValue = {
+             {"@odata.id", "/redfish/v1/Registries/" + registry},
+-            {"@odata.type", "#MessageRegistryFile.v1_1_0.MessageRegistryFile"},
++            {"@odata.type", "#MessageRegistryFile.v1_1_3.MessageRegistryFile"},
++            {"@odata.context",
++             "/redfish/v1/$metadata#MessageRegistryFile.MessageRegistryFile"},	    
+             {"Name", registry + " Message Registry File"},
+             {"Description",
+              dmtf + registry + " Message Registry File Location"},
+diff -Naur a/redfish-core/lib/network_protocol.hpp b/redfish-core/lib/network_protocol.hpp
+--- a/redfish-core/lib/network_protocol.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/network_protocol.hpp	2021-02-17 11:47:28.711955537 +0000
+@@ -60,7 +60,8 @@
+ const static boost::container::flat_map<const char*, std::string>
+     protocolToDBus{{"SSH", "dropbear"},
+                    {"HTTPS", "bmcweb"},
+-                   {"IPMI", "phosphor-ipmi-net"}};
++                   {"IPMI", "phosphor-ipmi-net"},
++                   {"KVMIP", "start-ipkvm"}};
+ 
+ inline void
+     extractNTPServersAndDomainNamesData(const GetManagedObjects& dbus_data,
+@@ -204,6 +205,8 @@
+             "#ManagerNetworkProtocol.v1_5_0.ManagerNetworkProtocol";
+         asyncResp->res.jsonValue["@odata.id"] =
+             "/redfish/v1/Managers/bmc/NetworkProtocol";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#ManagerNetworkProtocol.ManagerNetworkProtocol";	
+         asyncResp->res.jsonValue["Id"] = "NetworkProtocol";
+         asyncResp->res.jsonValue["Name"] = "Manager Network Protocol";
+         asyncResp->res.jsonValue["Description"] = "Manager Network Service";
+@@ -217,7 +220,7 @@
+         // compliant
+         asyncResp->res.jsonValue["HTTP"]["Port"] = 0;
+         asyncResp->res.jsonValue["HTTP"]["ProtocolEnabled"] = false;
+-
++	
+         for (auto& protocol : protocolToDBus)
+         {
+             asyncResp->res.jsonValue[protocol.first]["Port"] =
+@@ -225,6 +228,11 @@
+             asyncResp->res.jsonValue[protocol.first]["ProtocolEnabled"] = false;
+         }
+ 
++        // Add Virtual Media details manually,
++        // as it dont use any service socket.
++        asyncResp->res.jsonValue["VirtualMedia"]["Port"] = 443;
++        asyncResp->res.jsonValue["VirtualMedia"]["ProtocolEnabled"] = true;
++
+         std::string hostName = getHostName();
+ 
+         asyncResp->res.jsonValue["HostName"] = hostName;
+@@ -276,7 +284,11 @@
+                         std::get<NET_PROTO_UNIT_NAME>(unit);
+                     if (!boost::ends_with(unitName, ".socket"))
+                     {
+-                        continue;
++                        if (unitName != "start-ipkvm.service")
++                        {
++                             continue;
++                        }
++			
+                     }
+ 
+                     for (auto& kv : protocolToDBus)
+@@ -298,61 +310,71 @@
+                             (unitState == "running") ||
+                             (unitState == "listening");
+ 
+-                        crow::connections::systemBus->async_method_call(
+-                            [asyncResp,
+-                             rfServiceKey{std::string(rfServiceKey)}](
+-                                const boost::system::error_code ec,
+-                                const std::variant<std::vector<std::tuple<
+-                                    std::string, std::string>>>& resp) {
+-                                if (ec)
+-                                {
+-                                    messages::internalError(asyncResp->res);
+-                                    return;
+-                                }
+-                                const std::vector<
+-                                    std::tuple<std::string, std::string>>*
+-                                    responsePtr = std::get_if<std::vector<
+-                                        std::tuple<std::string, std::string>>>(
+-                                        &resp);
+-                                if (responsePtr == nullptr ||
+-                                    responsePtr->size() < 1)
+-                                {
+-                                    return;
+-                                }
+-
+-                                const std::string& listenStream =
+-                                    std::get<NET_PROTO_LISTEN_STREAM>(
+-                                        (*responsePtr)[0]);
+-                                std::size_t lastColonPos =
+-                                    listenStream.rfind(':');
+-                                if (lastColonPos == std::string::npos)
+-                                {
+-                                    // Not a port
+-                                    return;
+-                                }
+-                                std::string portStr =
+-                                    listenStream.substr(lastColonPos + 1);
+-                                if (portStr.empty())
+-                                {
++                        if (std::string("KVMIP").compare(rfServiceKey))
++                        {
++                            crow::connections::systemBus->async_method_call(
++                                [asyncResp,
++                                 rfServiceKey{std::string(rfServiceKey)}](
++                                    const boost::system::error_code ec,
++                                    const std::variant<std::vector<std::tuple<
++                                        std::string, std::string>>>& resp) {
++                                    if (ec)
++                                    {
++                                        messages::internalError(asyncResp->res);
++                                        return;
++                                    }
++                                    const std::vector<
++                                        std::tuple<std::string, std::string>>*
++                                        responsePtr = std::get_if<std::vector<
++                                            std::tuple<std::string, std::string>>>(
++                                            &resp);
++                                    if (responsePtr == nullptr ||
++                                        responsePtr->size() < 1)
++                                    {
++                                        return;
++                                    }
++
++                                    const std::string& listenStream =
++                                        std::get<NET_PROTO_LISTEN_STREAM>(
++                                            (*responsePtr)[0]);
++                                    std::size_t lastColonPos =
++                                        listenStream.rfind(":");
++                                    if (lastColonPos == std::string::npos)
++                                    {
++                                        // Not a port
++                                        return;
++                                    }
++                                    std::string portStr =
++                                        listenStream.substr(lastColonPos + 1);
++                                    if (portStr.empty())
++                                    {
++                                        return;
++                                    }
++                                    char* endPtr = nullptr;
++                                    errno = 0;
++                                    // Use strtol instead of stroi to avoid
++                                    // exceptions
++                                    long port =
++                                        std::strtol(portStr.c_str(), &endPtr, 10);
++                                    if ((errno == 0) && (*endPtr == '\0'))
++                                    {
++                                        asyncResp->res
++                                            .jsonValue[rfServiceKey]["Port"] = port;
++                                    }
+                                     return;
+-                                }
+-                                char* endPtr = nullptr;
+-                                errno = 0;
+-                                // Use strtol instead of stroi to avoid
+-                                // exceptions
+-                                long port =
+-                                    std::strtol(portStr.c_str(), &endPtr, 10);
+-                                if ((errno == 0) && (*endPtr == '\0'))
+-                                {
+-                                    asyncResp->res
+-                                        .jsonValue[rfServiceKey]["Port"] = port;
+-                                }
+-                                return;
+-                            },
+-                            "org.freedesktop.systemd1", socketPath,
+-                            "org.freedesktop.DBus.Properties", "Get",
+-                            "org.freedesktop.systemd1.Socket", "Listen");
+-
++                                },
++                                "org.freedesktop.systemd1", socketPath,
++                                "org.freedesktop.DBus.Properties", "Get",
++                                "org.freedesktop.systemd1.Socket", "Listen");
++                        }
++                        else
++                        {
++                            // As KVM runs with libvncserver port,
++                            // so dont have seperate socket file,
++                            // so add the Port manaully.
++                            asyncResp->res
++                                .jsonValue[rfServiceKey]["Port"] = 5900;
++                        }				    
+                         // We found service, break the inner loop.
+                         break;
+                     }
+diff -Naur a/redfish-core/lib/pcie.hpp b/redfish-core/lib/pcie.hpp
+--- a/redfish-core/lib/pcie.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/pcie.hpp	2021-02-17 11:52:27.759946853 +0000
+@@ -97,9 +97,10 @@
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+         asyncResp->res.jsonValue = {
+             {"@odata.type", "#PCIeDeviceCollection.PCIeDeviceCollection"},
++	    {"@odata.context", "/redfish/v1/$metadata#PCIeDeviceCollection.PCIeDeviceCollection"},
+             {"@odata.id", "/redfish/v1/Systems/system/PCIeDevices"},
+             {"Name", "PCIe Device Collection"},
+-            {"Description", "Collection of PCIe Devices"},
++            {"Description", "The Collection of PCIe Devices"},
+             {"Members", nlohmann::json::array()},
+             {"Members@odata.count", 0}};
+         getPCIeDeviceList(asyncResp, "Members");
+@@ -161,11 +162,13 @@
+                 }
+ 
+                 asyncResp->res.jsonValue = {
++                    {"@odata.context", "/redfish/v1/$metadata#PCIeDevice.PCIeDevice"},			
+                     {"@odata.type", "#PCIeDevice.v1_4_0.PCIeDevice"},
+                     {"@odata.id",
+                      "/redfish/v1/Systems/system/PCIeDevices/" + device},
+-                    {"Name", "PCIe Device"},
+-                    {"Id", device}};
++                    {"Name", device + " PCIe Device"},
++                    {"Id", device},
++                    {"Description", device + " PCIe Device"}};		    
+ 
+                 if (std::string* property = std::get_if<std::string>(
+                         &pcieDevProperties["Manufacturer"]);
+@@ -185,6 +188,9 @@
+                     {"@odata.id", "/redfish/v1/Systems/system/PCIeDevices/" +
+                                       device + "/PCIeFunctions"}};
+ 
++                asyncResp->res.jsonValue["Status"]["Health"] = "OK";
++                asyncResp->res.jsonValue["Status"]["State"] = "Enabled";
++		
+ 		asyncResp->res.addHeader(boost::beast::http::field::allow,
+         	                         redfish::Header::GetAllowHeaders("PCIeDevice_v1.xml"));
+             };
+@@ -227,12 +233,14 @@
+         }
+         const std::string& device = params[0];
+         asyncResp->res.jsonValue = {
++            {"@odata.context",
++             "/redfish/v1/$metadata#PCIeFunctionCollection.PCIeFunctionCollection"},		
+             {"@odata.type", "#PCIeFunctionCollection.PCIeFunctionCollection"},
+             {"@odata.id", "/redfish/v1/Systems/system/PCIeDevices/" + device +
+                               "/PCIeFunctions"},
+             {"Name", "PCIe Function Collection"},
+             {"Description",
+-             "Collection of PCIe Functions for PCIe Device " + device}};
++             "The Collection of PCIe Functions for PCIe Device " + device}};	
+ 
+         auto getPCIeDeviceCallback =
+             [asyncResp,
+@@ -359,10 +367,12 @@
+             }
+ 
+             asyncResp->res.jsonValue = {
+-                {"@odata.type", "#PCIeFunction.v1_2_0.PCIeFunction"},
++                {"@odata.context", "/redfish/v1/$metadata#PCIeFunction.PCIeFunction"},
++                {"@odata.type", "#PCIeFunction.v1_2_3.PCIeFunction"},		
+                 {"@odata.id", "/redfish/v1/Systems/system/PCIeDevices/" +
+                                   device + "/PCIeFunctions/" + function},
+-                {"Name", "PCIe Function"},
++                {"Name", "PCIe Function " + function},
++                {"Description", "The PCIe Function " + function},		
+                 {"Id", function},
+                 {"FunctionId", std::stoi(function)},
+                 {"Links",
+@@ -370,6 +380,9 @@
+                    {{"@odata.id",
+                      "/redfish/v1/Systems/system/PCIeDevices/" + device}}}}}};
+ 
++            asyncResp->res.jsonValue["Status"] ["Health"] = "OK";
++            asyncResp->res.jsonValue["Status"] ["State"] = "Enabled";	    
++
+             if (std::string* property = std::get_if<std::string>(
+                     &pcieDevProperties["Function" + function + "DeviceId"]);
+                 property)
+diff -Naur a/redfish-core/lib/power.hpp b/redfish-core/lib/power.hpp
+--- a/redfish-core/lib/power.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/power.hpp	2021-02-17 11:53:29.714551244 +0000
+@@ -234,11 +234,12 @@
+                         // Mandatory properties odata.id and MemberId
+                         // A warning without a odata.type
+                         tempArray.push_back(
+-                            {{"@odata.type", "#Power.v1_0_0.PowerControl"},
++                            {{"@odata.type", "#Power.v1_6_0.PowerControl"},
+                              {"@odata.id", "/redfish/v1/Chassis/" +
+                                                sensorAsyncResp->chassisId +
+                                                "/Power#/PowerControl/0"},
+                              {"Name", "Chassis Power Control"},
++			     {"PhysicalContext", "Intake"},
+                              {"MemberId", "0"}});
+                     }
+ 
+diff -Naur a/redfish-core/lib/redfish_sessions.hpp b/redfish-core/lib/redfish_sessions.hpp
+--- a/redfish-core/lib/redfish_sessions.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/redfish_sessions.hpp	2021-02-17 11:57:43.899537365 +0000
+@@ -65,6 +65,8 @@
+         res.jsonValue["Name"] = "User Session";
+         res.jsonValue["Description"] = "Manager User Session";
+         res.jsonValue["ClientOriginIPAddress"] = session->clientIp;
++        res.jsonValue["Password"] = nullptr;
++        res.jsonValue["SessionType"] = "Redfish";	
+ #ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
+         res.jsonValue["Oem"]["OpenBMC"]["@odata.type"] =
+             "#OemSession.v1_0_0.Session";
+@@ -164,6 +166,7 @@
+         }
+         res.jsonValue["Members@odata.count"] = sessionIds.size();
+         res.jsonValue["@odata.type"] = "#SessionCollection.SessionCollection";
++	res.jsonValue["@odata.context"] = "/redfish/v1/$metadata#SessionCollection.SessionCollection";
+         res.jsonValue["@odata.id"] = "/redfish/v1/SessionService/Sessions/";
+         res.jsonValue["Name"] = "Session Collection";
+         res.jsonValue["Description"] = "Session Collection";
+@@ -277,8 +280,12 @@
+     void doGet(crow::Response& res, const crow::Request&,
+                const std::vector<std::string>&) override
+     {
+-        res.jsonValue["@odata.type"] = "#SessionService.v1_0_2.SessionService";
++        res.jsonValue["@odata.context"] =
++          "/redfish/v1/$metadata#Session.Session";
++        res.jsonValue["@odata.type"] = "#Session.v1_1_6.Session";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/SessionService/";
++        res.jsonValue["@odata.context"] =
++          "/redfish/v1/$metadata#SessionService.SessionService";	
+         res.jsonValue["Name"] = "Session Service";
+         res.jsonValue["Id"] = "SessionService";
+         res.jsonValue["Description"] = "Session Service";
+@@ -286,6 +293,9 @@
+             persistent_data::SessionStore::getInstance().getTimeoutInSeconds();
+         res.jsonValue["ServiceEnabled"] = true;
+ 
++       res.jsonValue["Status"]["Health"] = "OK";
++       res.jsonValue["Status"]["State"] = "Enabled";	
++
+         res.jsonValue["Sessions"] = {
+             {"@odata.id", "/redfish/v1/SessionService/Sessions"}};
+ 
+diff -Naur a/redfish-core/lib/roles.hpp b/redfish-core/lib/roles.hpp
+--- a/redfish-core/lib/roles.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/roles.hpp	2021-02-17 11:58:46.161412777 +0000
+@@ -105,7 +105,9 @@
+         }
+ 
+         res.jsonValue = {
+-            {"@odata.type", "#Role.v1_2_2.Role"},
++            {"@odata.type", "#Role.v1_2_4.Role"},
++            {"@odata.context", "/redfish/v1/$metadata#"
++                               "Role.Role"},	    
+             {"Name", "User Role"},
+             {"Description", roleId + " User Role"},
+             {"OemPrivileges", nlohmann::json::array()},
+@@ -141,6 +143,8 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+         res.jsonValue = {{"@odata.id", "/redfish/v1/AccountService/Roles"},
+                          {"@odata.type", "#RoleCollection.RoleCollection"},
++                         {"@odata.context", "/redfish/v1/$metadata#"
++                                            "RoleCollection.RoleCollection"},			 
+                          {"Name", "Roles Collection"},
+                          {"Description", "BMC User Roles"}};
+ 
+diff -Naur a/redfish-core/lib/sensors.hpp b/redfish-core/lib/sensors.hpp
+--- a/redfish-core/lib/sensors.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/sensors.hpp	2021-02-17 12:10:52.070248404 +0000
+@@ -28,6 +28,7 @@
+ #include <utility>
+ #include <variant>
+ #include "headers.hpp"
++#include <intel-ipmi-oem/sdrutils.hpp>
+ namespace redfish
+ {
+ 
+@@ -36,13 +37,15 @@
+               std::vector<std::pair<std::string, std::vector<std::string>>>>>;
+ 
+ using SensorVariant =
+-    std::variant<int64_t, double, uint32_t, bool, std::string>;
++    std::variant<int64_t, double, uint32_t, bool, std::string, uint8_t>;
+ 
+ using ManagedObjectsVectorType = std::vector<std::pair<
+     sdbusplus::message::object_path,
+     boost::container::flat_map<
+         std::string, boost::container::flat_map<std::string, SensorVariant>>>>;
+ 
++constexpr char const *SensorObjPath = "/xyz/openbmc_project/sensors/";
++
+ namespace sensors
+ {
+ namespace node
+@@ -465,18 +468,24 @@
+         if (chassisSubNode == sensors::node::power)
+         {
+             sensorsAsyncResp->res.jsonValue["@odata.type"] =
+-                "#Power.v1_5_2.Power";
++                "#Power.v1_6_0.Power";
++            sensorsAsyncResp->res.jsonValue["@odata.context"] =
++                "/redfish/v1/$metadata#Power.Power";	    
+         }
+         else if (chassisSubNode == sensors::node::thermal)
+         {
+             sensorsAsyncResp->res.jsonValue["@odata.type"] =
+-                "#Thermal.v1_4_0.Thermal";
++                "#Thermal.v1_6_0.Thermal";
++            sensorsAsyncResp->res.jsonValue["@odata.context"] =
++                "/redfish/v1/$metadata#Thermal.Thermal";	    
+             sensorsAsyncResp->res.jsonValue["Fans"] = nlohmann::json::array();
+             sensorsAsyncResp->res.jsonValue["Temperatures"] =
+                 nlohmann::json::array();
+         }
+         else if (chassisSubNode == sensors::node::sensors)
+         {
++            sensorsAsyncResp->res.jsonValue["@odata.context"] =
++                "/redfish/v1/$metadata#SensorCollection.SensorCollection";		
+             sensorsAsyncResp->res.jsonValue["@odata.type"] =
+                 "#SensorCollection.SensorCollection";
+             sensorsAsyncResp->res.jsonValue["Description"] =
+@@ -840,6 +849,41 @@
+         sensor_json["Name"] = boost::replace_all_copy(sensorName, "_", " ");
+     }
+ 
++    // Get the SensorNumber from SDR,
++    // Check for the type of the sensor and set the object path accordingly,
++    // Send the sensor object path to the ipmi-oem/getSensorNumberFromPath()
++    // And add the sensor number in decimal format.
++    if (sensorType == "voltage")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("voltage/") + sensorName);
++    }
++    else if (sensorType == "temperature")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("temperature/") + sensorName);
++    }
++    else if (sensorType == "fan")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("fan/") + sensorName);
++    }
++    else if (sensorType == "fan_tach")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("fan_tach/") + sensorName);
++    }
++    else if (sensorType == "fan_pwm")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("fan_pwm/") + sensorName);
++    }
++    else if (sensorType == "power")
++    {
++        sensor_json["SensorNumber"] = getSensorNumberFromPath (SensorObjPath +
++                                         std::string("power/") + sensorName);
++    }
++
+     sensor_json["Status"]["State"] = getState(inventoryItem);
+     sensor_json["Status"]["Health"] =
+         getHealth(sensor_json, interfacesDict, inventoryItem);
+@@ -852,7 +896,7 @@
+     nlohmann::json::json_pointer unit("/Reading");
+     if (sensorsAsyncResp->chassisSubNode == sensors::node::sensors)
+     {
+-        sensor_json["@odata.type"] = "#Sensor.v1_0_0.Sensor";
++        sensor_json["@odata.type"] = "#Sensor.v1_1_0.Sensor";
+         if (sensorType == "power")
+         {
+             sensor_json["ReadingUnits"] = "Watts";
+@@ -869,7 +913,8 @@
+     else if (sensorType == "temperature")
+     {
+         unit = "/ReadingCelsius"_json_pointer;
+-        sensor_json["@odata.type"] = "#Thermal.v1_3_0.Temperature";
++        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Temperature";
++        sensor_json["PhysicalContext"] = "Intake";	
+         // TODO(ed) Documentation says that path should be type fan_tach,
+         // implementation seems to implement fan
+     }
+@@ -877,7 +922,8 @@
+     {
+         unit = "/Reading"_json_pointer;
+         sensor_json["ReadingUnits"] = "RPM";
+-        sensor_json["@odata.type"] = "#Thermal.v1_3_0.Fan";
++        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
++        sensor_json["PhysicalContext"] = "Fan";	
+         setLedState(sensor_json, inventoryItem);
+         forceToInt = true;
+     }
+@@ -885,7 +931,8 @@
+     {
+         unit = "/Reading"_json_pointer;
+         sensor_json["ReadingUnits"] = "Percent";
+-        sensor_json["@odata.type"] = "#Thermal.v1_3_0.Fan";
++        sensor_json["@odata.type"] = "#Thermal.v1_6_0.Fan";
++        sensor_json["PhysicalContext"] = "Fan";	
+         setLedState(sensor_json, inventoryItem);
+         forceToInt = true;
+     }
+@@ -893,6 +940,8 @@
+     {
+         unit = "/ReadingVolts"_json_pointer;
+         sensor_json["@odata.type"] = "#Power.v1_0_0.Voltage";
++        sensor_json["@odata.type"] = "#Power.v1_6_0.Voltage";
++        sensor_json["PhysicalContext"] = "VoltageRegulator";	
+     }
+     else if (sensorType == "power")
+     {
+@@ -901,7 +950,7 @@
+ 
+         if (!sensorName.compare("total_power"))
+         {
+-            sensor_json["@odata.type"] = "#Power.v1_0_0.PowerControl";
++            sensor_json["@odata.type"] = "#Power.v1_6_0.PowerControl";
+             // Put multiple "sensors" into a single PowerControl, so have
+             // generic names for MemberId and Name. Follows Redfish mockup.
+             sensor_json["MemberId"] = "0";
+@@ -916,6 +965,8 @@
+         {
+             unit = "/PowerOutputWatts"_json_pointer;
+         }
++
++        sensor_json["PhysicalContext"] = "Intake";	    
+     }
+     else
+     {
+@@ -985,6 +1036,10 @@
+                                 "/MaxReadingRange"_json_pointer);
+     }
+ 
++    // Adding the owenrLUN property as oem implementation.
++    properties.emplace_back("xyz.openbmc_project.Sensor.Value", "OwnerLun",
++                           "/OwnerLUN"_json_pointer);
++   
+     for (const std::tuple<const char*, const char*,
+                           nlohmann::json::json_pointer>& p : properties)
+     {
+@@ -1005,11 +1060,19 @@
+ 
+                 const double* doubleValue = std::get_if<double>(&valueVariant);
+                 const uint32_t* uValue = std::get_if<uint32_t>(&valueVariant);
++		const uint8_t* ByteValue = std::get_if<uint8_t>(&valueVariant);
+                 double temp = 0.0;
++		std::string PropertyName = std::get<1>(p);
+                 if (int64Value != nullptr)
+                 {
+                     temp = static_cast<double>(*int64Value);
+                 }
++                else if (ByteValue != nullptr)
++                {
++                   sensor_json["Oem"]["Ami"] = {
++                       {"@odata.type","#OemAMIChassisPowerThermal.v1_0_0.OemAMIChassisPowerThermal"},
++                       {"OwnerLUN", *ByteValue}};
++                }		
+                 else if (doubleValue != nullptr)
+                 {
+                     temp = *doubleValue;
+@@ -1024,17 +1087,18 @@
+                         << "Got value interface that wasn't int or double";
+                     continue;
+                 }
+-                temp = temp * std::pow(10, scaleMultiplier);
+-                if (forceToInt)
+-                {
+-                    sensor_json[key] = static_cast<int64_t>(temp);
+-                }
+-                else
+-                {
+-		    double rounded = static_cast<int> (temp * 1000.0)/1000.0;
+-                    sensor_json[key] = rounded;
+-                    //sensor_json[key] = temp;
+ 
++                if(PropertyName != "OwnerLun")
++                {
++                     temp = temp * std::pow(10, scaleMultiplier);
++                     if (forceToInt)
++                     {
++                         sensor_json[key] = static_cast<int64_t>(temp);
++                     }
++                     else
++                     {
++                        sensor_json[key] = temp;
++                     }
+                 }
+             }
+         }
+diff -Naur a/redfish-core/lib/serial_interface.hpp b/redfish-core/lib/serial_interface.hpp
+--- a/redfish-core/lib/serial_interface.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/serial_interface.hpp	2021-02-17 12:12:01.271574381 +0000
+@@ -218,7 +218,7 @@
+ 	asyncResp->res.jsonValue["Id"] =
+ 	    SerialInstance; 
+ 	asyncResp->res.jsonValue["InterfaceEnabled"] =
+-	    "true";
++	    true;
+         asyncResp->res.jsonValue["Name"] =
+             SerialInstance;
+ 
+diff -Naur a/redfish-core/lib/service_root.hpp b/redfish-core/lib/service_root.hpp
+--- a/redfish-core/lib/service_root.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/service_root.hpp	2021-02-17 13:29:48.483171662 +0000
+@@ -42,8 +42,10 @@
+     void doGet(crow::Response& res, const crow::Request&,
+                const std::vector<std::string>&) override
+     {
+-        res.jsonValue["@odata.type"] = "#ServiceRoot.v1_5_0.ServiceRoot";
+-        res.jsonValue["@odata.id"] = "/redfish/v1";
++        res.jsonValue["@odata.type"] = "#ServiceRoot.v1_6_0.ServiceRoot";
++        res.jsonValue["@odata.context:"] =
++                      "/redfish/v1/$metadata#ServiceRoot.ServiceRoot";
++        res.jsonValue["@odata.id"] = "/redfish/v1/";	
+         res.jsonValue["Id"] = "RootService";
+         res.jsonValue["Name"] = "Root Service";
+         res.jsonValue["RedfishVersion"] = "1.9.0";
+@@ -69,6 +71,9 @@
+         res.jsonValue["Tasks"] = {{"@odata.id", "/redfish/v1/TaskService"}};
+         res.jsonValue["EventService"] = {
+             {"@odata.id", "/redfish/v1/EventService"}};
++        res.jsonValue["Description"] = "The service root for all Redfish requests on this host.";
++        res.jsonValue["Product"] = "AMI OSP Redfish Server";
++        res.jsonValue["Vendor"] = "AMI";	
+ 	res.addHeader(boost::beast::http::field::allow, redfish::Header::GetAllowHeaders("ServiceRoot_v1.xml"));
+         res.end();
+     }
+diff -Naur a/redfish-core/lib/storage.hpp b/redfish-core/lib/storage.hpp
+--- a/redfish-core/lib/storage.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/storage.hpp	2021-02-17 13:31:56.991329422 +0000
+@@ -44,6 +44,8 @@
+                const std::vector<std::string>&) override
+     {
+         res.jsonValue["@odata.type"] = "#StorageCollection.StorageCollection";
++        res.jsonValue["@odata.context"] =
++                 "/redfish/v1/$metadata#StorageCollection.StorageCollection";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Storage";
+         res.jsonValue["Name"] = "Storage Collection";
+         res.jsonValue["Members"] = {
+@@ -74,6 +76,8 @@
+                const std::vector<std::string>&) override
+     {
+         res.jsonValue["@odata.type"] = "#Storage.v1_7_1.Storage";
++        res.jsonValue["@odata.context"] =
++                 "/redfish/v1/$metadata#Storage.Storage";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Storage/1";
+         res.jsonValue["Name"] = "Storage";
+         res.jsonValue["Id"] = "1";
+@@ -336,6 +340,8 @@
+                     connectionNames = object2->second;
+ 
+                 asyncResp->res.jsonValue["@odata.type"] = "#Drive.v1_7_0.Drive";
++                asyncResp->res.jsonValue["@odata.context"] =
++                    "/redfish/v1/$metadata#Drive.Drive";		
+                 asyncResp->res.jsonValue["@odata.id"] =
+                     "/redfish/v1/Systems/system/Storage/1/Drives/" + driveId;
+                 asyncResp->res.jsonValue["Name"] = driveId;
+@@ -356,6 +362,7 @@
+                         aRsp->res.jsonValue["Links"]["Chassis"] = {
+                             {"@odata.id", "/redfish/v1/Chassis/" + chassisId}};
+                     });
++                    aRsp->res.jsonValue["Links"]["Chassis@odata.count"] = 1;
+ 
+                 const std::string& connectionName = connectionNames[0].first;
+                 crow::connections::systemBus->async_method_call(
+diff -Naur a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+--- a/redfish-core/lib/systems.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/systems.hpp	2021-02-17 13:39:23.499912894 +0000
+@@ -623,8 +623,11 @@
+                 const std::variant<std::string>& hostState) {
+             if (ec)
+             {
++                aResp->res.jsonValue["PowerState"] = "Off";
++                aResp->res.jsonValue["Status"]["State"] = "Disabled";
++	    
+                 BMCWEB_LOG_DEBUG << "DBUS response error " << ec;
+-                messages::internalError(aResp->res);
++                //messages::internalError(aResp->res);
+                 return;
+             }
+ 
+@@ -918,6 +921,9 @@
+ 
+             // TODO (Santosh): Do we need to support override mode?
+             aResp->res.jsonValue["Boot"]["BootSourceOverrideMode"] = "Legacy";
++            aResp->res.jsonValue["Boot"]["BootSourceOverrideMode@"
++                                        "Redfish.AllowableValues"] =
++                                               {"Legacy", "UEFI"};	    
+             aResp->res.jsonValue["Boot"]["BootSourceOverrideTarget@Redfish."
+                                          "AllowableValues"] = {
+                 "None", "Pxe", "Hdd", "Cd", "Diags", "BiosSetup", "Usb"};
+@@ -967,6 +973,10 @@
+     aResp->res.jsonValue["Boot"]["BootSourceOverrideEnabled"] =
+         (oneTimeEnabled) ? "Once" : "Continuous";
+ 
++    aResp->res.jsonValue["Boot"] ["BootSourceOverrideEnabled@"
++                                 "Redfish.AllowableValues"] =
++          {"Disabled", "Once", "Continuous"};
++
+     crow::connections::systemBus->async_method_call(
+         [aResp, bootDbusObj](const boost::system::error_code ec,
+                              const std::variant<std::string>& bootSource) {
+@@ -1862,6 +1872,8 @@
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+         res.jsonValue["@odata.type"] =
+             "#ComputerSystemCollection.ComputerSystemCollection";
++        res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#ComputerSystemCollection.ComputerSystemCollection";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/Systems";
+         res.jsonValue["Name"] = "Computer System Collection";
+ 
+@@ -2078,7 +2090,9 @@
+     void doGet(crow::Response& res, const crow::Request&,
+                const std::vector<std::string>&) override
+     {
+-        res.jsonValue["@odata.type"] = "#ComputerSystem.v1_13_0.ComputerSystem";
++        res.jsonValue["@odata.type"] = "#ComputerSystem.v1_10_0.ComputerSystem";
++        res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#ComputerSystem.ComputerSystem";	
+         res.jsonValue["Name"] = "system";
+         res.jsonValue["Id"] = "system";
+         res.jsonValue["SystemType"] = "Physical";
+@@ -2110,6 +2124,7 @@
+ 
+         res.jsonValue["Links"]["ManagedBy"] = {
+             {{"@odata.id", "/redfish/v1/Managers/bmc"}}};
++	res.jsonValue["Links"]["ManagedBy@odata.count"] = 1;
+ 
+ 	//AMI implemented system inventory  data from BIOS
+ 	//starts here 
+@@ -2163,6 +2178,7 @@
+                                        const std::shared_ptr<AsyncResp>& aRsp) {
+             aRsp->res.jsonValue["Links"]["Chassis"] = {
+                 {{"@odata.id", "/redfish/v1/Chassis/" + chassisId}}};
++	    aRsp->res.jsonValue["Links"]["Chassis@odata.count"] = 1;		
+         });
+ 
+         getLocationIndicatorActive(asyncResp);
+@@ -2176,7 +2192,11 @@
+         getHostWatchdogTimer(asyncResp);
+         getPowerRestorePolicy(asyncResp);
+         getAutomaticRetry(asyncResp);
+-        getLastResetTime(asyncResp);
++        /**
++         * Commenting "LastResetTime" Property,
++         * as using ComputerSystem.v1_10_0.ComputerSystem
++         */
++         //getLastResetTime(asyncResp);	
+ #ifdef BMCWEB_ENABLE_REDFISH_PROVISIONING_FEATURE
+         getProvisioningStatus(asyncResp);
+ #endif
+diff -Naur a/redfish-core/lib/task.hpp b/redfish-core/lib/task.hpp
+--- a/redfish-core/lib/task.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/task.hpp	2021-02-17 13:41:09.711819446 +0000
+@@ -142,6 +142,7 @@
+             std::string uri = "/redfish/v1/TaskService/Tasks/" + strIdx;
+             res.jsonValue = {{"@odata.id", uri},
+                              {"@odata.type", "#Task.v1_4_3.Task"},
++			     {"@odata.context", "/redfish/v1/$metadata#Task.Task"},
+                              {"Id", strIdx},
+                              {"TaskState", state},
+                              {"TaskStatus", status}};
+@@ -425,6 +426,8 @@
+         std::shared_ptr<task::TaskData>& ptr = *find;
+ 
+         asyncResp->res.jsonValue["@odata.type"] = "#Task.v1_4_3.Task";
++        asyncResp->res.jsonValue["@odata.context"] =
++             "/redfish/v1/$metadata#Task.Task";	
+         asyncResp->res.jsonValue["Id"] = strParam;
+         asyncResp->res.jsonValue["Name"] = "Task " + strParam;
+         asyncResp->res.jsonValue["TaskState"] = ptr->state;
+@@ -479,6 +482,8 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+         asyncResp->res.jsonValue["@odata.type"] =
+             "#TaskCollection.TaskCollection";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#TaskCollection.TaskCollection";	
+         asyncResp->res.jsonValue["@odata.id"] = "/redfish/v1/TaskService/Tasks";
+         asyncResp->res.jsonValue["Name"] = "Task Collection";
+         asyncResp->res.jsonValue["Members@odata.count"] = task::tasks.size();
+@@ -522,6 +527,8 @@
+         auto asyncResp = std::make_shared<AsyncResp>(res);
+         asyncResp->res.jsonValue["@odata.type"] =
+             "#TaskService.v1_1_4.TaskService";
++        asyncResp->res.jsonValue["@odata.context"] =
++            "/redfish/v1/$metadata#TaskService.TaskService";	
+         asyncResp->res.jsonValue["@odata.id"] = "/redfish/v1/TaskService";
+         asyncResp->res.jsonValue["Name"] = "Task Service";
+         asyncResp->res.jsonValue["Id"] = "TaskService";
+diff -Naur a/redfish-core/lib/update_service.hpp b/redfish-core/lib/update_service.hpp
+--- a/redfish-core/lib/update_service.hpp	2021-02-17 09:47:16.438890768 +0000
++++ b/redfish-core/lib/update_service.hpp	2021-02-17 13:46:09.936761372 +0000
+@@ -22,6 +22,7 @@
+ 
+ #include <variant>
+ #include "headers.hpp"
++#include <sys/statvfs.h>
+ namespace redfish
+ {
+ 
+@@ -365,6 +366,30 @@
+         });
+ }
+ 
++
++/**
++ * Get the Free Ram size for the /tmp dir
++ * and update the MaxImageSizeBytes property value.
++ */
++inline void getMemorySize(std::shared_ptr<AsyncResp> asyncResp)
++{
++    int ret;
++    uint64_t upload_t;
++    uint64_t keep_block = 1024;
++    struct statvfs stat_buf;
++
++    ret = statvfs("/tmp", &stat_buf);
++    if (ret != 0) {
++      // error happens, just quits here
++      BMCWEB_LOG_ERROR <<
++           "Unable to get the MaxImageSizeBytes";
++      return;
++    }
++
++    upload_t = (stat_buf.f_bavail - keep_block) * stat_buf.f_bsize;
++    asyncResp->res.jsonValue ["MaxImageSizeBytes"] = upload_t;
++}
++
+ /**
+  * UpdateServiceActionsSimpleUpdate class supports handle POST method for
+  * SimpleUpdate action.
+@@ -518,7 +543,9 @@
+                const std::vector<std::string>&) override
+     {
+         std::shared_ptr<AsyncResp> aResp = std::make_shared<AsyncResp>(res);
+-        res.jsonValue["@odata.type"] = "#UpdateService.v1_4_0.UpdateService";
++        res.jsonValue["@odata.type"] = "#UpdateService.v1_8_0.UpdateService";
++        res.jsonValue["@odata.context"] =
++               "/redfish/v1/$metadata#UpdateService.UpdateService";	
+         res.jsonValue["@odata.id"] = "/redfish/v1/UpdateService";
+         res.jsonValue["Id"] = "UpdateService";
+         res.jsonValue["Description"] = "Service for Software Update";
+@@ -526,6 +553,11 @@
+         res.jsonValue["HttpPushUri"] = "/redfish/v1/UpdateService";
+         // UpdateService cannot be disabled
+         res.jsonValue["ServiceEnabled"] = true;
++        res.jsonValue["Status"] ["Health"] = "OK";
++        res.jsonValue["Status"] ["State"] = "Enabled";
++        //Get the MaxImageSizeBytes
++        getMemorySize(aResp);
++
+         res.jsonValue["FirmwareInventory"] = {
+             {"@odata.id", "/redfish/v1/UpdateService/FirmwareInventory"}};
+ #ifdef BMCWEB_INSECURE_ENABLE_REDFISH_FW_TFTP_UPDATE
+@@ -707,6 +739,8 @@
+         std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
+         res.jsonValue["@odata.type"] =
+             "#SoftwareInventoryCollection.SoftwareInventoryCollection";
++        res.jsonValue["@odata.context"] =
++           "/redfish/v1/$metadata#SoftwareInventoryCollection.SoftwareInventoryCollection";	
+         res.jsonValue["@odata.id"] =
+             "/redfish/v1/UpdateService/FirmwareInventory";
+         res.jsonValue["Name"] = "Software Inventory Collection";
+@@ -953,7 +987,7 @@
+                     return;
+                 }
+                 asyncResp->res.jsonValue["@odata.type"] =
+-                    "#SoftwareInventory.v1_1_0.SoftwareInventory";
++                    "#SoftwareInventory.v1_2_3.SoftwareInventory";
+                 asyncResp->res.jsonValue["Name"] = "Software Inventory";
+                 asyncResp->res.jsonValue["Status"]["HealthRollup"] = "OK";
+ 
+diff -Naur a/redfish-core/src/error_messages.cpp b/redfish-core/src/error_messages.cpp
+--- a/redfish-core/src/error_messages.cpp	2021-02-17 09:47:16.442890831 +0000
++++ b/redfish-core/src/error_messages.cpp	2021-02-17 14:37:32.182888284 +0000
+@@ -2154,20 +2154,25 @@
+  * See header file for more information
+  * @endinternal
+  */
+-void delayInActionCompletion(crow::Response& res,const std::string& arg1,const std::string& arg2)
++nlohmann::json delayInActionCompletion(const std::string& arg1,
++                                      const std::string& arg2)
++{
++    return nlohmann::json{
++        {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
++        {"MessageId", "Base.1.4.0.DelayInActionCompletion"},
++        {"Message", arg1 + " InsertMedia action has been initiated successfully."
++            "Please allow upto 4-5 secs and verify the value of Redirection Status property in "
++            +arg2},
++        {"MessageArgs", {arg1, arg2}},
++        {"Severity", "OK"},
++        {"Resolution", "Check the property value update after 4-5 seconds"}};
++}
++
++void delayInActionCompletion(crow::Response& res, const std::string& arg1,
++                            const std::string& arg2)
+ {
+     res.result(boost::beast::http::status::ok);
+-    addMessageToJsonRoot(
+-        res.jsonValue,
+-        nlohmann::json{
+-            {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
+-            {"MessageId", "Base.1.4.0.DelayInActionCompletion"},
+-            {"Message", arg1 + " InsertMedia action has been initiated successfully."
+-                "Please allow upto 4-5 secs and verify the value of Redirection Status property in "
+-                +arg2},
+-            {"MessageArgs", {arg1, arg2}},
+-            {"Severity", "OK"},
+-            {"Resolution", "Check the property value update after 4-5 seconds"}});
++    addMessageToErrorJson(res.jsonValue, delayInActionCompletion(arg1, arg2));
+ }
+ 
+ /**
+@@ -2177,11 +2182,15 @@
+  * See header file for more information
+  * @endinternal
+  */
++nlohmann::json noContent(void)
++{
++    return nlohmann::json{0,0,0,0,0,0};
++}
++
+ void noContent(crow::Response& res)
+ {
+     res.result(boost::beast::http::status::no_content);
+-    addMessageToJsonRoot(
+-        res.jsonValue,nlohmann::json{0,0,0,0,0,0});
++    addMessageToErrorJson(res.jsonValue, noContent());
+ }
+ 
+ /**
+@@ -2191,19 +2200,22 @@
+  * See header file for more information
+  * @endinternal
+  */
+-void instanceInUse(crow::Response& res,const std::string& arg1)
++nlohmann::json instanceInUse(const std::string& arg1)
++{
++    return nlohmann::json{
++           {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
++           {"MessageId", "Base.1.4.0.InstanceInUse"},
++           {"Message", "Virtual Media Redirection for Instance " +arg1+ " is already in running state."},
++           {"MessageArgs", {arg1}},
++           {"Severity", "Warning"},
++           {"Resolution", "Please try with another Instnace or"
++                          "Eject the Media for " +arg1+ " and try again."}};
++}
++
++void instanceInUse(crow::Response& res, const std::string& arg1)
+ {
+     res.result(boost::beast::http::status::service_unavailable);
+-    addMessageToErrorJson(
+-        res.jsonValue,
+-        nlohmann::json{
+-            {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
+-            {"MessageId", "Base.1.4.0.InstanceInUse"},
+-            {"Message", "Virtual Media Redirection for Instance " +arg1+ " is already in running state."},
+-            {"MessageArgs", {arg1}},
+-            {"Severity", "Warning"},
+-            {"Resolution", "Please try with another Instnace or"
+-                          "Eject the Media for " +arg1+ " and try again."}});
++    addMessageToErrorJson(res.jsonValue, instanceInUse(arg1));
+ }
+ 
+ /**
+@@ -2213,20 +2225,23 @@
+  * See header file for more information
+  * @endinternal
+  */
++nlohmann::json instanceNotInUse(const std::string& arg1)
++{
++    return nlohmann::json{
++           {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
++           {"MessageId", "Base.1.4.0.InstanceIsNotInUse"},
++           {"Message", "Eject Media Action has been failed because "
++                      "Virtual Media Redirection is not running for the requested Instance " +arg1+
++                      ". Please Check the Status for " +arg1+ " using /redfish/v1/Managers/Self/VirtualMedia/" +arg1},
++           {"MessageArgs", {arg1}},
++           {"Severity", "Warning"},
++           {"Resolution", "Please try with another Instnace or first perform InsertMedia Action and try again"}};
++}
++
+ void instanceNotInUse(crow::Response& res,const std::string& arg1)
+ {
+     res.result(boost::beast::http::status::bad_request);
+-    addMessageToErrorJson(
+-        res.jsonValue,
+-        nlohmann::json{
+-            {"@odata.type", "/redfish/v1/$metadata#Message.v1_0_0.Message"},
+-            {"MessageId", "Base.1.4.0.InstanceIsNotInUse"},
+-            {"Message", "Eject Media Action has been failed because "
+-                       "Virtual Media Redirection is not running for the requested Instance " +arg1+
+-                       ". Please Check the Status for " +arg1+ " using /redfish/v1/Managers/Self/VirtualMedia/" +arg1},
+-            {"MessageArgs", {arg1}},
+-            {"Severity", "Warning"},
+-            {"Resolution", "Please try with another Instnace or first perform InsertMedia Action and try again"}});
++    addMessageToErrorJson(res.jsonValue, instanceNotInUse(arg1));
+ }
+ 
+ 
+diff -Naur a/scripts/update_schemas.py b/scripts/update_schemas.py
+--- a/scripts/update_schemas.py	2021-02-17 09:47:16.442890831 +0000
++++ b/scripts/update_schemas.py	2021-02-17 14:38:59.598083581 +0000
+@@ -139,6 +139,12 @@
+     metadata_index.write("        <edmx:Include Namespace=\"OemSession.v1_0_0\"/>\n")
+     metadata_index.write("    </edmx:Reference>\n")
+ 
++    metadata_index.write(
++        "    <edmx:Reference Uri=\"/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml\">\n")
++    metadata_index.write("        <edmx:Include Namespace=\"OemAMIChassisPowerThermal\"/>\n")
++    metadata_index.write("        <edmx:Include Namespace=\"OemAMIChassisPowerThermal.v1_0_0\"/>\n")
++    metadata_index.write("    </edmx:Reference>\n")
++
+     metadata_index.write("</edmx:Edmx>\n")
+ 
+ schema_files = {}
+diff -Naur a/static/redfish/v1/JsonSchemas/OemAMIChassisPowerThermal/index.json b/static/redfish/v1/JsonSchemas/OemAMIChassisPowerThermal/index.json
+--- a/static/redfish/v1/JsonSchemas/OemAMIChassisPowerThermal/index.json	1970-01-01 00:00:00.000000000 +0000
++++ b/static/redfish/v1/JsonSchemas/OemAMIChassisPowerThermal/index.json	2021-02-17 14:41:03.414079463 +0000
+@@ -0,0 +1,34 @@
++{
++  "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_1_0.json",
++  "title": "#OemAMIChassisPowerThermal.v1_0_0.OemAMIChassisPowerThermal",
++  "$ref": "#/definitions/OemAMIChassisPowerThermal",
++  "definitions": {
++    "OemAMIChassisPowerThermal": {
++      "type": "object",
++      "patternProperties": {
++        "^([a-zA-Z_][a-zA-Z0-9_]*)?@(odata|Redfish|Message|Privileges)\\.[a-zA-Z_][a-zA-Z0-9_.]+$": {
++          "type": [
++            "array",
++            "boolean",
++            "number",
++            "null",
++            "object",
++            "string"
++          ],
++          "description": "This property shall specify a valid odata or Redfish property."
++        }
++      },
++      "additionalProperties": false,
++      "properties": {
++		    "@odata.type": {
++          "$ref": "http://redfish.dmtf.org/schemas/v1/odata.4.0.0.json#/definitions/type"
++        },
++		    "OwnerLUN":{
++			    "type": "number",
++			    "description": "This property shall specify the LUN number of a Temperature/Fan/Voltage Sensor."
++		    }
++      }
++    }
++  }
++}
++
+diff -Naur a/static/redfish/v1/$metadata/index.xml b/static/redfish/v1/$metadata/index.xml
+--- a/static/redfish/v1/$metadata/index.xml	2021-02-17 09:47:16.442890831 +0000
++++ b/static/redfish/v1/$metadata/index.xml	2021-02-17 14:46:22.346320825 +0000
+@@ -2718,4 +2718,8 @@
+         <edmx:Include Namespace="OemSession"/>
+         <edmx:Include Namespace="OemSession.v1_0_0"/>
+     </edmx:Reference>
++    <edmx:Reference Uri="/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml">
++        <edmx:Include Namespace="OemAMIChassisPowerThermal"/>
++        <edmx:Include Namespace="OemAMIChassisPowerThermal.v1_0_0"/>
++    </edmx:Reference>    
+ </edmx:Edmx>
+diff -Naur a/static/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml b/static/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml
+--- a/static/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml	1970-01-01 00:00:00.000000000 +0000
++++ b/static/redfish/v1/schema/OemAMIChassisPowerThermal_v1.xml	2021-02-17 14:42:48.537074930 +0000
+@@ -0,0 +1,55 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!---->
++<!--################################################################################       -->
++<!--# Redfish Schema:  OemAMIChassisPowerThermal  v1.0.0                                              -->
++<!--#                                                                                      -->
++<!--# Copyright American Megatrends, Inc. (AMI).                                           -->
++<!--################################################################################       -->
++<!---->
++<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
++	<edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Core.V1.xml">
++    	<edmx:Include Namespace="Org.OData.Core.V1" Alias="OData"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Capabilities.V1.xml">
++    	<edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Capabilities"/>
++	</edmx:Reference>
++	<edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/Resource_v1.xml">
++		<edmx:Include Namespace="Resource"/>
++		<edmx:Include Namespace="Resource.v1_0_0"/>
++	</edmx:Reference>
++	<edmx:DataServices>
++		<Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="OemAMIChassisPowerThermal">
++			<EntityType Name="OemAMIChassisPowerThermal" Bool="false">
++				<Annotation Term="OData.Description" String="This is the schema definition for the OEM section under Chassis Power/Thermal URIs."/>
++				<Annotation Term="OData.LongDescription" String="This resource shall be used to represent the OEM attributes available under Chassis Power/Thermal URIs"/>
++				<Record>
++				    <PropertyValue Property="Insertable" Bool="false"/>
++				</Record>
++				</Annotation>
++				<Annotation Term="Capabilities.UpdateRestrictions">
++				<Record>
++			    	<PropertyValue Property="Updatable" Bool="false"/>
++				</Record>
++				</Annotation>
++				<Annotation Term="Capabilities.DeleteRestrictions">
++				<Record>
++				    <PropertyValue Property="Deletable" Bool="false"/>
++				</Record>
++				</Annotation>
++			</EntityType>
++		</Schema>
++		<Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="OemAMIChassisPowerThermal.v1_0_0">
++			<Annotation Term="Redfish.OwningEntity" String="AMI"/>
++			<EntityType Name="OemAMIChassisPowerThermal" BaseType="OemAMIChassisPowerThermal.OemAMIChassisPowerThermal">
++				<Annotation Term="OData.Description" String="This property shall specify a valid odata or Redfish property."/>
++				<Annotation Term="OData.LongDescription" String="This property shall specify a valid odata or Redfish property."/>
++				<Property Name="OwnerLUN" Type="Edm.Int64" Nullable="false">
++					<Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++					<Annotation Term="OData.Description" String="The LUN number of a Temperature/Fan/Voltage Sensor."/>
++					<Annotation Term="OData.LongDescription" String="The value of this property shall specify the LUN number of a Temperature/Fan/Voltage Sensor."/>
++				</Property>
++			</EntityType>
++		</Schema>
++	</edmx:DataServices>
++</edmx:Edmx>
++

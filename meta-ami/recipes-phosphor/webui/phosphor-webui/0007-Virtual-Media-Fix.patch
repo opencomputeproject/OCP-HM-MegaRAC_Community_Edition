@@ -1,0 +1,232 @@
+diff -Naur a/app/common/directives/app-header.js b/app/common/directives/app-header.js
+--- a/app/common/directives/app-header.js	2021-02-03 10:33:19.095065064 +0000
++++ b/app/common/directives/app-header.js	2021-02-03 11:19:45.889795117 +0000
+@@ -2,8 +2,8 @@
+   'use strict';
+ 
+   angular.module('app.common.directives').directive('appHeader', [
+-    'APIUtils',
+-    function(APIUtils) {
++    'APIUtils','dataService',
++    function(APIUtils,dataService) {
+       return {
+         'restrict': 'E',
+         'template': require('./app-header.html'),
+@@ -126,15 +126,51 @@
+ 
+             loadData();
+ 
++            function do_LogOut() {
++               userModel.logout(function(status, error) {
++                                 if (status) {
++                                     $location.path('/logout');
++                                 } else {
++                                     console.log(error);
++                                 }
++                                });
++            }
++
+             $scope.logout = function() {
+-              userModel.logout(function(status, error) {
+-                if (status) {
+-                  $location.path('/logout');
+-                } else {
+-                  console.log(error);
+-                }
+-              });
+-            };
++               var ret;
++               if ((dataService.KVM_window_obj != null) && (sessionStorage.getItem('VM_State') == 2))
++               {
++                   ret = window.confirm ("KVM and Virtual Media Sesions are running, If you logout the Web Session then both the Sessions will also gets closed!\nDo you want to logout or continue ?");
++                   if (ret == true) {
++                       dataService.KVM_window_obj.close();
++                       dataService.KVM_window_obj = null;
++                       sessionStorage.setItem("KVM_Win_State",0);
++                       dataService.getLoggedOutVM();
++                       do_LogOut();
++		   }	       
++               }
++               else if (dataService.KVM_window_obj != null)
++               {
++                    ret = window.confirm ("KVM Sesion is running, If you logout the Web Session then KVM Session will also gets closed!\nDo you want to logout or continue ?");
++                    if (ret == true) {
++                        dataService.KVM_window_obj.close();
++                        dataService.KVM_window_obj = null;
++                        sessionStorage.setItem("KVM_Win_State",0);
++                        do_LogOut();
++                    }
++               }
++               else if (sessionStorage.getItem('VM_State') == 2)
++               {
++                    ret = window.confirm ("Virtual Media Session is running, If you logout the Web Session then Virtual Media session will also gets closed\nDo you want to logout or continue ?");
++                    if (ret == true){
++                        dataService.getLoggedOutVM();
++                        do_LogOut();
++                    }
++               }
++               else{
++                    do_LogOut();
++               }
++           };
+ 
+             $scope.refresh = function() {
+               // reload current page controllers and header
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-02-03 10:33:19.095065064 +0000
++++ b/app/common/services/api-utils.js	2021-02-03 10:40:08.313373891 +0000
+@@ -1849,6 +1849,17 @@
+             data: JSON.stringify({'data': instance})
+           })
+         },
++        getUserRole: function(username) {
++          return $http({
++            method: 'GET',
++            url: DataService.getHost() + '/redfish/v1/AccountService/Accounts/' + username,
++            withCredentials: true
++            })
++            .then(
++              function(response) {
++                sessionStorage.setItem("ROLE", response.data["RoleId"]);
++            });
++        },
+       };
+       return SERVICE;
+     }
+diff -Naur a/app/common/services/dataService.js b/app/common/services/dataService.js
+--- a/app/common/services/dataService.js	2021-02-03 10:33:19.095065064 +0000
++++ b/app/common/services/dataService.js	2021-02-03 11:20:36.874626441 +0000
+@@ -11,8 +11,8 @@
+   'use strict';
+ 
+   angular.module('app.common.services').service('dataService', [
+-    'Constants',
+-    function(Constants) {
++    'Constants','nbdServerService','$rootScope',
++    function(Constants,nbdServerService,$rootScope) {
+       this.server_health = Constants.SERVER_HEALTH.unknown;
+       this.server_state = 'Unreachable';
+       this.LED_state = Constants.LED_STATE_TEXT.off;
+@@ -112,6 +112,38 @@
+       this.setSystemName = function(sysName) {
+         this.systemName = sysName;
+       };
++
++      this.getLoggedOutVM = function(){
++       var vmDevice = {};
++       this.devices = [];
++       vmDevice.id = 0;
++       vmDevice.deviceName = 'Virtual media device';
++       this.findExistingConnectionService(vmDevice);
++       this.devices.push(vmDevice);
++       this.devices[sessionStorage.getItem('VM_Index')].isActive = false;
++       var server = this.devices[sessionStorage.getItem('VM_Index')].nbdServer;
++       server.stop();
++       this.devices[sessionStorage.getItem('VM_Index')].file = '';
++      }
++
++     this.findExistingConnectionService = function(vmDevice) {
++        // Checks with existing connections kept in nbdServerService for an open
++        // Websocket connection.
++        var existingConnectionsMap = nbdServerService.getExistingConnections();
++        if (existingConnectionsMap.hasOwnProperty(vmDevice.id)) {
++          // Open ws will have a ready state of 1
++          if (existingConnectionsMap[vmDevice.id].server.ws.readyState === 1) {
++            vmDevice.isActive = true;
++            vmDevice.file = existingConnectionsMap[vmDevice.id].file;
++            vmDevice.nbdServer = existingConnectionsMap[vmDevice.id].server;
++          }
++        }
++        return vmDevice;
++     }
++
++      // Create a KVM Window Object,
++      // for handling the kvm window at the time of logout.
++      this.KVM_window_obj = null;
+     }
+   ]);
+ })(window.angular);
+diff -Naur a/app/common/services/userModel.js b/app/common/services/userModel.js
+--- a/app/common/services/userModel.js	2021-02-03 10:33:19.095065064 +0000
++++ b/app/common/services/userModel.js	2021-02-03 10:43:29.484652353 +0000
+@@ -20,6 +20,7 @@
+                 (response.status == APIUtils.API_RESPONSE.SUCCESS_STATUS ||
+                  response.status === undefined)) {
+               sessionStorage.setItem('LOGIN_ID', username);
++              APIUtils.getUserRole(username);
+               callback(true);
+             } else if (
+                 response && response.data && response.data.data &&
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-02-03 10:33:19.095065064 +0000
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-02-03 11:02:54.757890833 +0000
+@@ -30,9 +30,16 @@
+       $scope.devices.push(vmDevice);
+ 
+       $scope.startVM = function(index) {
++       if(sessionStorage.getItem('ROLE') != "Administrator"){
++          if ($scope.devices[index].isActive == true){
++               $scope.devices[index].isActive = false;}
++          window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
++       }
++       else {
+         APIUtils.getNBDInstance().then(
+           function(instance){
+             if(instance == false) {
++               sessionStorage.setItem("VM_Index",index);		    
+                $scope.devices[index].isActive = true;
+                var file = $scope.devices[index].file;
+                var id = $scope.devices[index].id;
+@@ -54,7 +61,8 @@
+             $log.error(JSON.stringify(error));
+             return $q.reject();
+           });
+-      };
++      }};
++
+       $scope.stopVM = function(index) {
+         $scope.devices[index].isActive = false;
+         var server = $scope.devices[index].nbdServer;
+@@ -85,6 +93,7 @@
+            });
+       }
+ 
++/*	    
+       function findExistingConnection(vmDevice) {
+         // Checks with existing connections kept in nbdServerService for an open
+         // Websocket connection.
+@@ -98,6 +107,9 @@
+           }
+         }
+         return vmDevice;
++      }*/
++      function findExistingConnection(vmDevice) {
++              return dataService.findExistingConnectionService(vmDevice);
+       }
+     }
+   ]);
+@@ -147,6 +159,7 @@
+     this.ws = new WebSocket(this.endpoint, [token]);
+     this.state = NBD_STATE_OPEN;
+     this.ws.binaryType = 'arraybuffer';
++    sessionStorage.setItem("VM_State",this.state);	  
+     this.ws.onmessage = this._on_ws_message.bind(this);
+     this.ws.onopen = this._on_ws_open.bind(this);
+     this.ws.onclose = this._on_ws_close.bind(this);
+@@ -164,12 +177,14 @@
+ 
+   this._on_ws_close = function(ev) {
+     /* Check if the user has directly ejected the
+-    * image from the Host Machine.*/
++     * image from the Host Machine.*/
++    this.state = NBD_STATE_UNKNOWN;
++    sessionStorage.setItem("VM_State",this.state);
+     var scope = angular.element(document.getElementById('VmWrap')).scope();
+     scope.$apply(function(){
+       scope.isEjected(0);
+     });
+-    this.state = NBD_STATE_UNKNOWN;
++//  this.state = NBD_STATE_UNKNOWN;
+     console.log(
+         'vm/0/' + id + ' closed with code: ' + ev.code +
+         ' reason: ' + ev.reason);

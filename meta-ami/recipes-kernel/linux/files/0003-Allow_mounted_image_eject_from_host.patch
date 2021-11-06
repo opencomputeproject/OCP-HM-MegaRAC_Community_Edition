@@ -1,0 +1,18 @@
+diff -Naur a/drivers/usb/gadget/function/storage_common.c b/drivers/usb/gadget/function/storage_common.c
+--- a/drivers/usb/gadget/function/storage_common.c	2021-06-13 23:07:54.089665944 +0530
++++ b/drivers/usb/gadget/function/storage_common.c	2021-06-13 23:06:58.037705122 +0530
+@@ -448,10 +448,10 @@
+ {
+ 	int		rc = 0;
+ 
+-	if (curlun->prevent_medium_removal && fsg_lun_is_open(curlun)) {
+-		LDBG(curlun, "eject attempt prevented\n");
+-		return -EBUSY;				/* "Door is locked" */
+-	}
++//	if (curlun->prevent_medium_removal && fsg_lun_is_open(curlun)) {
++//		LDBG(curlun, "eject attempt prevented\n");
++//		return -EBUSY;				/* "Door is locked" */
++//	}
+ 
+ 	/* Remove a trailing newline */
+ 	if (count > 0 && buf[count-1] == '\n')

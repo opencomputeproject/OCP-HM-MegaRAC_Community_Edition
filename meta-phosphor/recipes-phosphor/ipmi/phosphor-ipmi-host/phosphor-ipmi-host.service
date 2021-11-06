@@ -12,7 +12,6 @@ After=mapper-wait@-xyz-openbmc_project-control-host0-restriction_mode.service
 Wants=clear-once.service
 After=clear-once.service
 After=org.openbmc.HostIpmi.service
-PartOf=phosphor-ipmi-warm-reset.target
 
 [Service]
 Restart=always
@@ -23,8 +22,6 @@ RuntimeDirectoryPreserve = yes
 StateDirectory = ipmi
 Type=dbus
 BusName=xyz.openbmc_project.Control.Host
-StartLimitIntervalSec=0
-SuccessExitStatus=6
 
 [Install]
 WantedBy=multi-user.target

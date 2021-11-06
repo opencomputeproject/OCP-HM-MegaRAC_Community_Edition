@@ -1,22 +1,32 @@
-diff -Naur b/CMakeLists.txt a/CMakeLists.txt
---- b/CMakeLists.txt	2020-08-11 14:18:09.160138347 +0530
-+++ a/CMakeLists.txt	2020-08-11 13:19:34.712826823 +0530
-@@ -189,6 +189,7 @@
-     -Wdouble-promotion \
-     -Wformat=2 \
-     -Wno-unused-parameter \
-+    -Wno-missing-field-initializers \
- "
+diff -Naur b/meson.build a/meson.build
+--- b/meson.build       2021-01-29 12:10:54.136352683 +0530
++++ a/meson.build       2021-01-29 12:12:27.074568826 +0530
+@@ -125,6 +125,9 @@
+   '-Wconversion',
+   '-Wsign-conversion',
+   '-Wno-attributes',
++  '-Wno-missing-field-initializers',
++  '-Wno-unused-parameter',
++  '-Wno-unused-result',
+   ]),
+   language: 'cpp'
  )
- 
-@@ -206,6 +207,7 @@
-             -Wdouble-promotion \
-             -Wformat=2 \
-             -Wno-unused-parameter \
-+	    -Wno-missing-field-initializers \
-         "
-         )
-     endif (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0)
+@@ -143,7 +146,6 @@
+     '-Wno-weak-vtables',
+     '-Wno-documentation',
+     '-Wno-padded',
+-    '-Wunused-parameter',
+     '-Wcovered-switch-default',
+     '-Wcomma',
+     '-Wextra-semi',
+@@ -170,7 +172,6 @@
+      '-Wduplicated-cond',
+      '-Wduplicated-branches',
+      '-Wlogical-op',
+-     '-Wunused-parameter',
+      '-Wnull-dereference',
+      '-Wdouble-promotion',
+      '-Wformat=2',
 diff -Naur b/redfish-core/lib/ethernet.hpp a/redfish-core/lib/ethernet.hpp
 --- b/redfish-core/lib/ethernet.hpp	2020-08-11 14:16:51.399381886 +0530
 +++ a/redfish-core/lib/ethernet.hpp	2020-08-11 13:54:54.257382945 +0530

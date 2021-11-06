@@ -1,0 +1,210 @@
+diff -Naur a/include/types.hpp b/include/types.hpp
+--- a/include/types.hpp	2021-03-03 08:52:17.086454093 +0530
++++ b/include/types.hpp	2021-03-03 09:11:30.150452939 +0530
+@@ -30,7 +30,7 @@
+ 
+ using DbusVariant =
+     std::variant<std::string, bool, uint8_t, uint16_t, int16_t, uint32_t,
+-                 int32_t, uint64_t, int64_t, double, std::vector<Association>>;
++                 int32_t, uint64_t, int64_t, double, std::vector<std::uint8_t> ,std::vector<Association>>;
+ 
+ using GetSubTreeType = std::vector<
+     std::pair<std::string,
+diff -Naur a/include/variantvisitors.hpp b/include/variantvisitors.hpp
+--- a/include/variantvisitors.hpp	2021-03-03 08:52:17.086454093 +0530
++++ b/include/variantvisitors.hpp	2021-03-03 09:12:12.895396436 +0530
+@@ -23,5 +23,6 @@
+ {
+ 
+ using DbusVariant = std::variant<std::string, bool, uint8_t, uint16_t, int16_t,
+-                                 uint32_t, int32_t, uint64_t, int64_t, double>;
++                                 uint32_t, int32_t, uint64_t, int64_t, double, std::vector<std::uint8_t>>;
++
+ } // namespace ipmi
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2021-03-03 08:52:08.758441666 +0530
++++ b/src/sensorcommands.cpp	2021-03-03 10:40:44.043860375 +0530
+@@ -460,14 +460,49 @@
+         }
+     }
+ 
++    uint8_t thresholds = 0;
++
++    //Check Digital Sensor
++    /*auto SensorUnitObj = sensorObject->second.find("Unit");
++    std::string sensorUnitStr;
++    if (SensorUnitObj != sensorObject->second.end())
++    {
++         sensorUnitStr= std::get<std::string>(SensorUnitObj->second);
++    }
++    std::cout<< "sensorUnitStr : " << sensorUnitStr;*/
++
++    auto SensorTypeObj = sensorObject->second.find("EventType");
++    uint8_t sensorTypeInt;
++    if (SensorTypeObj != sensorObject->second.end())
++    {
++         sensorTypeInt= std::get<uint8_t>(SensorTypeObj->second);
++    }
++
++    uint8_t DigitalSenStart = 0x02, DigitalSenEnd = 0x0C, SensorSpecific = 0x6f;
++    if(((sensorTypeInt >= DigitalSenStart) && (sensorTypeInt <= DigitalSenEnd)) || (sensorTypeInt == SensorSpecific))
++    {
++         uint8_t res;
++
++         auto stateObject =
++             sensorMap.find("xyz.openbmc_project.Sensor.Discrete.State");
++     if (stateObject != sensorMap.end())
++         {
++            auto alarmState = stateObject->second.find("ActiveAlarmState");
++            if (alarmState != stateObject->second.end())
++             {
++		     uint8_t s = std::get<uint8_t>(alarmState->second);
++                     return ipmi::responseSuccess(value, operation, s,0);
++             }
++        }
++     return ipmi::responseSuccess(value, operation, res,0);
++    }
++
+     if (notReading)
+     {
+         operation |= static_cast<uint8_t>(
+             IPMISensorReadingByte2::readingStateUnavailable);
+     }
+ 
+-    uint8_t thresholds = 0;
+-
+     auto warningObject =
+         sensorMap.find("xyz.openbmc_project.Sensor.Threshold.Warning");
+     if (warningObject != sensorMap.end())
+@@ -1185,6 +1220,13 @@
+         SensorType = std::visit(VariantToUnsignedIntVisitor(), SensorTypeobj->second);
+     }
+ 
++    auto EventTypeobj = sensorObject->second.find("EventType");
++    uint8_t EventType ;
++    if (EventTypeobj != sensorObject->second.end())
++    {
++        EventType = std::visit(VariantToUnsignedIntVisitor(), EventTypeobj->second);
++    }
++
+     auto SensorUnit2obj = sensorObject->second.find("SensorUnit2");
+     uint8_t SensorUnit2 ;
+     if (SensorUnit2obj != sensorObject->second.end())
+@@ -1233,22 +1275,12 @@
+         record.body.sensor_initialization = SensorInit;
+         record.body.sensor_capabilities = SensorCap; // auto rearm - todo hysteresis
+         record.body.sensor_type = SensorType;
++	record.body.event_reading_type =  EventType;
+         record.body.sensor_units_2_base = SensorUnit2;
+         record.body.nominal_reading = NominalReading;
+         record.body.normal_max = NormalMax;
+         record.body.normal_min = NormalMin;
+ 
+-        std::string type = getSensorTypeStringFromPath(path);
+-        auto typeCstr = type.c_str();
+-        auto findUnits = sensorUnits.find(typeCstr);
+-        if (findUnits != sensorUnits.end())
+-        {
+-            record.body.sensor_units_2_base =
+-                static_cast<uint8_t>(findUnits->second);
+-        } // else default 0x0 unspecified
+-
+-        record.body.event_reading_type = getSensorEventTypeFromPath(path);
+-
+         // follow the association chain to get the parent board's entityid and
+         // entityInstance
+         updateIpmiFromAssociation(path, sensorMap, EntityId, EntityInstance);
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-03-03 08:52:08.754441660 +0530
++++ b/src/storagecommands.cpp	2021-03-03 10:27:38.470475498 +0530
+@@ -36,6 +36,7 @@
+ #include <iostream>
+ #include <stdexcept>
+ #include <string_view>
++#include<unistd.h>
+ 
+ static constexpr bool DEBUG = false;
+ 
+@@ -1131,6 +1132,73 @@
+     return ipmi::responseSuccess(responseID);
+ }
+ 
++void genevent(){
++
++    static constexpr auto SEN_SEL_SERVICE =
++        "xyz.openbmc_project.Eventsensor";
++    static constexpr auto SEN_SEL_ROOT =
++        "/xyz/openbmc_project/sensors/event_logging_disabled/SEL";
++    static constexpr auto SEN_SEL_INTERFACE =
++        "xyz.openbmc_project.Sensor.Discrete.State";
++    static constexpr auto SEN_SET_INTERFACE = "org.freedesktop.DBus.Properties";
++    static constexpr auto SEN_SEL_STATPROP = "ActiveAlarmState";
++    static constexpr auto SEN_SEL_DATAPROP = "EventData";
++
++    std::vector<uint8_t> d = {0x02, 0xFF, 0xFF};
++    uint8_t al = 0x04;
++
++    std::shared_ptr<sdbusplus::asio::connection> eventbus = getSdBus();
++
++    for(int  i = 0; i < 0x1fff; i++){
++      //to reload rsyslog.service
++    }
++    try
++    {
++       d = {0xff, 0xff, 0xff};
++       al = 0x00;
++        auto method =
++            eventbus->new_method_call(SEN_SEL_SERVICE, SEN_SEL_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_SEL_INTERFACE,SEN_SEL_DATAPROP,std::variant<std::vector<std::uint8_t>>{d});
++        eventbus->call_noreply(method);
++       phosphor::logging::log<phosphor::logging::level::INFO>(
++        "Set DATAPROP 0\n");
++
++        method =
++            eventbus->new_method_call(SEN_SEL_SERVICE, SEN_SEL_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_SEL_INTERFACE,SEN_SEL_STATPROP,std::variant<uint8_t>{al});
++        eventbus->call_noreply(method);
++       phosphor::logging::log<phosphor::logging::level::INFO>(
++        "Set STATEPROP 0\n");
++
++       d = {0x02, 0xff, 0xff};
++       al = 0x04;
++        method =
++            eventbus->new_method_call(SEN_SEL_SERVICE, SEN_SEL_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_SEL_INTERFACE,SEN_SEL_DATAPROP,std::variant<std::vector<uint8_t>>{d});
++        eventbus->call_noreply(method);
++       phosphor::logging::log<phosphor::logging::level::INFO>(
++        "Set DATAPROP 02\n");
++
++       method =
++            eventbus->new_method_call(SEN_SEL_SERVICE, SEN_SEL_ROOT,
++                                SEN_SET_INTERFACE, "Set");
++        method.append(SEN_SEL_INTERFACE,SEN_SEL_STATPROP,std::variant<uint8_t>{al});
++        eventbus->call_noreply(method);
++       phosphor::logging::log<phosphor::logging::level::INFO>(
++        "Set STATEPROP 04\n");
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::INFO>(
++        "Set clear prop error\n");
++        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++    }
++
++}
++
+ ipmi::RspType<uint8_t> ipmiStorageClearSEL(ipmi::Context::ptr ctx,
+                                            uint16_t reservationID,
+                                            const std::array<uint8_t, 3>& clr,
+@@ -1193,6 +1261,8 @@
+         phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+     }
+ 
++    genevent();
++
+     return ipmi::responseSuccess(ipmi::sel::eraseComplete);
+ }
+ 

@@ -1,0 +1,48 @@
+--- a/ethernet_interface.cpp	2021-04-06 21:01:24.068021501 -0400
++++ b/ethernet_interface.cpp	2021-04-06 20:53:08.408173977 -0400
+@@ -953,27 +953,25 @@
+ 					// insert address entries.
+ 					stream << "[Address]\n";
+ 					stream << "Address=" << address << "\n";
+-			  }
+-			
+-		}
++					if (manager.getSystemConf())
++					  {
++					    const auto& gateway = manager.getSystemConf()->defaultGateway();
++					    if (!gateway.empty())
++					      {
++						stream << "[Route]\n";
++						stream << "Gateway=" << gateway << "\n";
++					      }
++					    const auto& gateway6 = manager.getSystemConf()->defaultGateway6();
++					    if (!gateway6.empty())
++					      {
++						stream << "[Route]\n";
++						stream << "Gateway=" << gateway6 << "\n";
++					      }
++					  }
++	      }
++			 
++	}
+     }
+-
+-    if (manager.getSystemConf())
+-    {
+-        const auto& gateway = manager.getSystemConf()->defaultGateway();
+-        if (!gateway.empty())
+-        {
+-            stream << "[Route]\n";
+-            stream << "Gateway=" << gateway << "\n";
+-        }
+-        const auto& gateway6 = manager.getSystemConf()->defaultGateway6();
+-        if (!gateway6.empty())
+-        {
+-            stream << "[Route]\n";
+-            stream << "Gateway=" << gateway6 << "\n";
+-        }
+-    }
+-
+     // Write the neighbor sections
+     for (const auto& neighbor : staticNeighbors)
+     {

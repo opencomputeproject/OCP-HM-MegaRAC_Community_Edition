@@ -1,0 +1,55 @@
+--- a/src/sel_logger.cpp	2021-05-10 07:09:46.835245204 -0400
++++ b/src/sel_logger.cpp	2021-05-10 07:08:06.522889664 -0400
+@@ -30,6 +30,7 @@
+ #include <iomanip>
+ #include <iostream>
+ #include <sstream>
++#include <intel-ipmi-oem/storagecommands.hpp>
+ 
+ struct DBusInternalError final : public sdbusplus::exception_t
+ {
+@@ -137,6 +138,7 @@
+                        const std::vector<uint8_t>& selData, const bool& assert,
+                        const uint16_t& genId, T&&... metadata)
+ {
++    mtx.lock(); 
+     // Only 3 bytes of SEL event data are allowed in a system record
+     if (selData.size() > selEvtDataMaxSize)
+     {
+@@ -144,8 +146,10 @@
+     }
+     std::string selDataStr;
+     toHexStr(selData, selDataStr);
+-    unsigned int recordId = getNewRecordId();
++
++    unsigned int recordId = getNewRecordId();    
+     sd_journal_send("MESSAGE=%s", message.c_str(), std::forward<T>(metadata)..., NULL);
++    
+     //Do PEF Action
+     boost::asio::io_service io;
+     auto conn = std::make_shared<sdbusplus::asio::connection>(io);
+@@ -159,6 +163,8 @@
+     {
+          std::cerr << "Failed to call doPefTask\n";
+     }
++
++    mtx.unlock();
+     return recordId;
+ }
+ 
+@@ -166,6 +172,7 @@
+                                 const std::vector<uint8_t>& selData,
+                                 const uint8_t& recordType)
+ {
++    mtx.lock();
+     // A maximum of 13 bytes of SEL event data are allowed in an OEM record
+     if (selData.size() > selOemDataMaxSize)
+     {
+@@ -180,6 +187,7 @@
+                     recordId, "IPMI_SEL_RECORD_TYPE=%x", recordType,
+                     "IPMI_SEL_DATA=%s", selDataStr.c_str(), NULL);
+ 
++    mtx.unlock();
+     return recordId;
+ }
+ 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Stop the watchdog when ipmi is online
+After=phosphor-ipmi-host.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/watchdog-reset
+RemainAfterExit=false
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,250 @@
+diff -Naur a/app/server-control/controllers/virtual-media-controller.html b/app/server-control/controllers/virtual-media-controller.html
+--- a/app/server-control/controllers/virtual-media-controller.html	2021-02-19 16:17:31.279260962 +0530
++++ b/app/server-control/controllers/virtual-media-controller.html	2021-02-19 16:18:50.818048050 +0530
+@@ -4,15 +4,16 @@
+   <p ng-if="devices.length < 1">
+     There are no Virtual Media devices available.
+   </primary>
+-  <div ng-repeat="device in devices track by $index" class="vm__upload" id="VmWrap">	  
+-    <h2 class="h3">{{device.deviceName}}</h2>
++  <!-- CD Media Starts-->
++  <div ng-repeat="device in devices track by $index" class="vm__upload" id="VmWrap">
++    <h2 class="h3">{{device.deviceName}} - CD</h2>
+     <div class="vm__upload-chooser">
+       <!-- name and error message -->
+       <div class="vm__upload-content">
+         <div class="vm__upload-controls">
+           <!-- Button -->
+           <label class="vm__upload-choose-label">
+-            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive" accept=".nrg,.iso,.img,.ima,.ISO,.NRG,.IMG,.IMA"/>	    
++            <input id="file-upload" type="file" file="device.file" class="hide" ng-disabled="device.isActive || dataService.isNotAdmin()" accept=".nrg,.iso,.ISO,.NRG"/>
+             <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:device.isActive}">Choose file</span>
+           </label>
+           <div class="vm__upload-name">
+@@ -31,8 +32,44 @@
+         </div>
+       </div>
+       <div class="vm__upload-start">
+-        <input type="button" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM($index) : startVM($index)"/>
++        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!device.file}" class="btn btn-primary" ng-click="device.isActive? stopVM('cd', $index) : startVM($index)"/>
+       </div>
+     </div>
+   </div>
++  <!-- CD Media Ends-->
++
++  <!-- HD Media starts-->
++  <div ng-repeat="hd_device in HD_devices track by $index" class="vm__upload" id="VmWrapHD">
++    <h2 class="h3">{{hd_device.deviceName}} - HD</h2>
++    <div class="vm__upload-chooser">
++      <!-- name and error message -->
++      <div class="vm__upload-content">
++        <div class="vm__upload-controls">
++          <!-- Button -->
++          <label class="vm__upload-choose-label">
++            <input id="hd-file-upload" type="file" file="hd_device.file" class="hide" ng-disabled="hd_device.isActive || dataService.isNotAdmin()" accept=".img,.ima,.IMG,.IMA"/>
++            <span class="vm__upload-choose-button btn btn-secondary" ng-class="{disabled:hd_device.isActive}">Choose file</span>
++          </label>
++          <div class="vm__upload-name">
++            <span ng-if="!hd_device.file">No file selected</span>
++            <span ng-if="hd_device.file.name !== undefined">{{hd_device.file.name}}</span>
++            <span class="icon__exit" ng-if="hd_device.file && !hd_device.isActive" ng-click="resetFile($index);">
++              <icon file="icon-close.svg"></icon>
++            </span>
++          </div>
++        </div>
++        <div class="vm__active-text vm__active-border" ng-if="hd_device.isActive">
++          <span>Active Session</span>
++        </div>
++        <div class="vm__active-text vm__error-border" ng-if="hd_device.hasError">
++          <span>Error in connecting to the selected file</span>
++        </div>
++      </div>
++      <div class="vm__upload-start">
++        <input type="button" ng-disabled="dataService.isNotAdmin()" ng-value="hd_device.isActive ? 'Stop' : 'Start'" ng-class="{disabled:!hd_device.file}" class="btn btn-primary" ng-click="hd_device.isActive? stopVM('hd',$index) : startVMHD($index)"/>
++      </div>
++    </div>
++  </div>
++  <!--HD Media Ends-->
++
+ </div>
+diff -Naur a/app/server-control/controllers/virtual-media-controller.js b/app/server-control/controllers/virtual-media-controller.js
+--- a/app/server-control/controllers/virtual-media-controller.js	2021-02-19 16:17:31.279260962 +0530
++++ b/app/server-control/controllers/virtual-media-controller.js	2021-02-19 16:18:50.818048050 +0530
+@@ -16,6 +16,7 @@
+         $scope, $cookies, APIUtils, toastService, dataService,
+         nbdServerService, $log, $q) {
+       $scope.devices = [];
++      $scope.HD_devices = [];
+ 
+       // Only one Virtual Media WebSocket device is currently available.
+       // Path is /vm/0/0.
+@@ -26,23 +27,45 @@
+       // device IDs and names.
+       vmDevice.id = 0;
+       vmDevice.deviceName = 'Virtual media device';
+-      findExistingConnection(vmDevice);
++
++      var vmDeviceHD = {};
++      vmDeviceHD.id = 1;
++      vmDeviceHD.deviceName = 'Virtual media device';
++
++
++     // findExistingConnection(vmDevice);
++      // getInterfaceName();
+       $scope.devices.push(vmDevice);
++      $scope.HD_devices.push(vmDeviceHD);
+ 
+       $scope.startVM = function(index) {
+-       if(sessionStorage.getItem('ROLE') != "Administrator"){
+-          if ($scope.devices[index].isActive == true){
+-               $scope.devices[index].isActive = false;}
+-          window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
+-       }
+-       else {
+-        APIUtils.getNBDInstance().then(
+-          function(instance){
+-            if(instance == false) {
+-               sessionStorage.setItem("VM_Index",index);		    
++	if(sessionStorage.getItem('ROLE') != "Administrator"){
++	  if ($scope.devices[index].isActive == true){
++      $scope.devices[index].isActive = false;
++    }
++	   window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
++	}
++	else {
++	       sessionStorage.setItem("VM_Index",index);
+                $scope.devices[index].isActive = true;
+-               var file = $scope.devices[index].file;
+-               var id = $scope.devices[index].id;
++
++         var file = $scope.devices[index].file;
++
++	       var validate_file_name = document.getElementById('file-upload').value;
++
++       	       //console.log(' validate_file_name : ' + validate_file_name);
++	       var reg = /(.*?)\.(nrg|iso|ISO|NRG)$/;
++	       if(!validate_file_name.match(reg))
++       	       {
++                   toastService.error('File_Name "' + validate_file_name +
++                                  '" It is not supported format, Please browse valid type of file..');
++    	       	$scope.resetFile('cd',index);
++	       	$scope.stopVM('cd',index);
++       	       }	
++
++	       else {
++          //getInterfaceName();
++	       var id = $scope.devices[index].id;
+                var host = dataService.getHost().replace('https://', '');
+                var token = $cookies.get('XSRF-TOKEN');
+                var server =
+@@ -50,29 +73,73 @@
+                $scope.devices[index].nbdServer = server;
+                nbdServerService.addConnection(id, server, file);
+                server.start();
+-            }
+-            else {
+-               window.alert('WARNING! Already Master Virtual Media Session is running.\n'
+-               + 'Please try after some time.');
+-               $scope.resetFile(index);
+-            }
+-          },
+-          function(error) {
+-            $log.error(JSON.stringify(error));
+-            return $q.reject();
+-          });
+-      }};
+-
+-      $scope.stopVM = function(index) {
+-        $scope.devices[index].isActive = false;
+-        var server = $scope.devices[index].nbdServer;
++		}
++		
++            
++	}
++      };
++
++      $scope.startVMHD = function(index) {
++        if(sessionStorage.getItem('ROLE') != "Administrator"){
++          if ($scope.HD_devices[index].isActive == true){
++            $scope.HD_devices[index].isActive = false;
++          }
++           window.alert("Vmedia can't access in  " + sessionStorage.getItem('ROLE'));
++        }
++        else {
++               sessionStorage.setItem("VM_Index",index);
++                     $scope.HD_devices[index].isActive = true;
++      
++               var file = $scope.HD_devices[index].file;
++      
++               var validate_file_name = document.getElementById('hd-file-upload').value;
++      
++                      //console.log(' validate_file_name : ' + validate_file_name);
++               var reg = /(.*?)\.(img|ima|IMG|IMA)$/;
++               if(!validate_file_name.match(reg))
++                      {
++                         toastService.error('File_Name "' + validate_file_name +
++                                        '" It is not supported format, Please browse valid type of file..');
++                     $scope.resetFile('hd',index);
++                 $scope.stopVM('hd',index);
++                      }	
++      
++               else {
++                //getInterfaceName();
++               var id = $scope.HD_devices[index].id;
++                     var host = dataService.getHost().replace('https://', '');
++                     var token = $cookies.get('XSRF-TOKEN');
++                     var server =
++                         new NBDServer('wss://' + host + '/vm/0/' + id, token, file, id);
++                     $scope.HD_devices[index].nbdServer = server;
++                     nbdServerService.addConnection(id, server, file);
++                     server.start();
++          }
++          
++                  
++        }
++            };
++
++      $scope.stopVM = function(type,index) {
++        if(type == 'cd'){
++          $scope.devices[index].isActive = false;
++          var server = $scope.devices[index].nbdServer;
++        }else{
++          $scope.HD_devices[index].isActive = false;
++          var server = $scope.HD_devices[index].nbdServer;
++        }
+         server.stop();
+-        $scope.resetFile(index);	      
++	$scope.resetFile(type,index);
+       };
+ 
+-      $scope.resetFile = function(index) {
+-        document.getElementById('file-upload').value = '';
+-        $scope.devices[index].file = '';
++      $scope.resetFile = function(type,index) {
++        if(type == 'cd'){
++          document.getElementById('file-upload').value = '';
++          $scope.devices[index].file = '';
++        }else{
++          document.getElementById('hd-file-upload').value = '';
++          $scope.HD_devices[index].file = '';
++        }
+       };
+ 
+       $scope.isEjected = function(index) {
+@@ -86,14 +153,14 @@
+                 $scope.resetFile(index);
+                 APIUtils.setEjectStatus(false).then(
+                   function(data) {
+-                    toastService.warn('Image' +
++                    toastService.error('Image' +
+                                        ' has been Ejected from Host Machine.');
+                   });
+              }
+            });
+       }
+ 
+-/*	    
++/*
+       function findExistingConnection(vmDevice) {
+         // Checks with existing connections kept in nbdServerService for an open
+         // Websocket connection.

@@ -1,0 +1,1715 @@
+diff -Naur "a/configurations/Flextronics S-1100ADU00-201 PSU.json" "b/configurations/Flextronics S-1100ADU00-201 PSU.json"
+--- "a/configurations/Flextronics S-1100ADU00-201 PSU.json"	2021-02-16 15:21:19.126734283 +0530
++++ "b/configurations/Flextronics S-1100ADU00-201 PSU.json"	2021-02-17 19:16:50.563843418 +0530
+@@ -18,6 +18,8 @@
+                     "PSU$ADDRESS % 4 + 1 Fan Speed 1"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1 Fan 1",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++                "EvStat": 162,
+                 "NegativeHysteresis": 2.0,
+                 "OutLimitMax": 100.0,
+                 "OutLimitMin": 30.0,
+@@ -31,7 +33,33 @@
+                 "Type": "Pid",
+                 "Zones": [
+                     "PSU"
+-                ]
++                ],
++		"SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ]
+             },
+             {
+                 "Class": "temp",
+@@ -44,6 +72,8 @@
+                     "PSU$ADDRESS % 4 + 1 Temperature"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1 Temperature",
++		"Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++                "EvStat": 162,
+                 "NegativeHysteresis": 5.0,
+                 "OutLimitMax": 100,
+                 "OutLimitMin": 30,
+@@ -56,7 +86,33 @@
+                 "Type": "Pid",
+                 "Zones": [
+                     "PSU"
+-                ]
++                ],
++		"SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ]
+             },
+             {
+                 "Class": "Floor",
+@@ -92,6 +148,32 @@
+                     "fan1"
+                 ],
+                 "Name": "PSU$ADDRESS % 4 + 1",
++		"SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+                 "Thresholds": [
+                     {
+                         "Direction": "greater than",
+@@ -149,4 +231,4 @@
+             "SerialNumber": "$PRODUCT_SERIAL_NUMBER"
+         }
+     }
+-]
+\ No newline at end of file
++]
+diff -Naur "a/configurations/R1000 Chassis.json" "b/configurations/R1000 Chassis.json"
+--- "a/configurations/R1000 Chassis.json"	2021-02-16 15:21:07.994759417 +0530
++++ "b/configurations/R1000 Chassis.json"	2021-02-17 19:16:43.143775096 +0530
+@@ -4,6 +4,34 @@
+             "BindConnector": "1U System Fan connector 1",
+             "Index": 0,
+             "Name": "Fan 1a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -24,6 +52,8 @@
+             "BindConnector": "1U System Fan connector 1",
+             "Index": 1,
+             "Name": "Fan 1b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -44,6 +74,34 @@
+             "BindConnector": "1U System Fan connector 2",
+             "Index": 2,
+             "Name": "Fan 2a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -64,6 +122,34 @@
+             "BindConnector": "1U System Fan connector 2",
+             "Index": 3,
+             "Name": "Fan 2b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -84,6 +170,34 @@
+             "BindConnector": "1U System Fan connector 3",
+             "Index": 4,
+             "Name": "Fan 3a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	     "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -104,6 +218,34 @@
+             "BindConnector": "1U System Fan connector 3",
+             "Index": 5,
+             "Name": "Fan 3b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -124,6 +266,34 @@
+             "BindConnector": "1U System Fan connector 4",
+             "Index": 6,
+             "Name": "Fan 4a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -144,6 +314,36 @@
+             "BindConnector": "1U System Fan connector 4",
+             "Index": 7,
+             "Name": "Fan 4b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++            "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -164,6 +364,34 @@
+             "BindConnector": "1U System Fan connector 5",
+             "Index": 8,
+             "Name": "Fan 5a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -184,6 +412,34 @@
+             "BindConnector": "1U System Fan connector 5",
+             "Index": 9,
+             "Name": "Fan 5b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -204,6 +460,34 @@
+             "BindConnector": "1U System Fan connector 6",
+             "Index": 10,
+             "Name": "Fan 6a",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -224,6 +508,34 @@
+             "BindConnector": "1U System Fan connector 6",
+             "Index": 11,
+             "Name": "Fan 6b",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x04",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 52,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "less than",
+@@ -267,10 +579,38 @@
+             "AlphaF": 4.352,
+             "AlphaS": 0.512,
+             "Name": "Exit Air Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
+             "PowerFactorMax": 1.0,
+             "PowerFactorMin": 0.4,
+             "QMax": 88,
+             "QMin": 15,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -628,4 +968,4 @@
+         "AssetTag": "$PRODUCT_ASSET_TAG"
+     },
+     "xyz.openbmc_project.Inventory.Item.System": {}
+-}
+\ No newline at end of file
++}
+diff -Naur "a/configurations/WFT Baseboard.json" "b/configurations/WFT Baseboard.json"
+--- "a/configurations/WFT Baseboard.json"	2021-02-16 15:20:58.890780042 +0530
++++ "b/configurations/WFT Baseboard.json"	2021-02-17 19:16:26.339619619 +0530
+@@ -3,8 +3,37 @@
+         {
+             "Index": 0,
+             "Name": "Baseboard 12Volt",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++	    "EvStat": 231,
+             "PowerState": "On",
+             "ScaleFactor": 0.1124,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -36,6 +65,35 @@
+         {
+             "Index": 4,
+             "Name": "P0V83_LAN_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -67,6 +125,35 @@
+         {
+             "Index": 3,
+             "Name": "P105_PCH_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -98,7 +185,36 @@
+         {
+             "Index": 5,
+             "Name": "P12V_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "ScaleFactor": 0.1124,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -130,7 +246,36 @@
+         {
+             "Index": 6,
+             "Name": "P1V8_PCH",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "ScaleFactor": 0.7505,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -162,8 +307,37 @@
+         {
+             "Index": 1,
+             "Name": "P3V3",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
+             "ScaleFactor": 0.4107,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -201,7 +375,36 @@
+             ],
+             "Index": 7,
+             "Name": "P3VBAT",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "ScaleFactor": 0.3333,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -234,8 +437,37 @@
+             "CPURequired": 1,
+             "Index": 8,
+             "Name": "PVCCIN_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
+             "ScaleFactor": 0.7505,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -268,8 +500,37 @@
+             "CPURequired": 2,
+             "Index": 9,
+             "Name": "PVCCIN_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
+             "ScaleFactor": 0.7505,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -302,7 +563,36 @@
+             "CPURequired": 1,
+             "Index": 14,
+             "Name": "PVCCIO_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -335,7 +625,36 @@
+             "CPURequired": 2,
+             "Index": 15,
+             "Name": "PVCCIO_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -368,7 +687,36 @@
+             "CPURequired": 1,
+             "Index": 10,
+             "Name": "PVDQ_ABC_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -401,7 +749,36 @@
+             "CPURequired": 2,
+             "Index": 12,
+             "Name": "PVDQ_ABC_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -434,7 +811,36 @@
+             "CPURequired": 1,
+             "Index": 11,
+             "Name": "PVDQ_DEF_CPU1",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -467,7 +873,36 @@
+             "CPURequired": 2,
+             "Index": 13,
+             "Name": "PVDQ_DEF_CPU2",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
+             "PowerState": "On",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -499,6 +934,35 @@
+         {
+             "Index": 2,
+             "Name": "PVNN_PCH_AUX",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x02",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 38,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -683,7 +1147,37 @@
+             "Address": "0x8",
+             "Class": "METemp",
+             "Name": "SSB Temp",
++	    "Status": "disabled",
++            "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++	    "EvStat": 231,
+             "PowerState": "BiosPost",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -717,6 +1211,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU1 P12V PVCCIO VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -750,6 +1273,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU1 P12V PVCCIN VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -783,6 +1335,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU1 VR Mem ABC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -816,6 +1397,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU1 VR Mem DEF Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -849,6 +1459,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU2 P12V PVCCIO VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -882,6 +1521,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU2 P12V PVCCIN VR Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -915,6 +1583,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU2 VR Mem ABC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -948,6 +1645,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "CPU2 VR Mem DEF Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -981,6 +1707,35 @@
+             "Class": "PxeBridgeTemp",
+             "HostSMbusIndex": 3,
+             "Name": "VR P1V05 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1432,7 +2187,36 @@
+             "Address": "0x4D",
+             "Bus": 6,
+             "Name": "Right Rear Board Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
+             "Name1": "Right Rear TMP421 Internal Temp",
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1465,6 +2249,35 @@
+             "Address": "0x4D",
+             "Bus": 8,
+             "Name": "BMC Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++            "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1497,6 +2310,35 @@
+             "Address": "0x49",
+             "Bus": 6,
+             "Name": "Left Rear Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1529,6 +2371,35 @@
+             "Address": "0x48",
+             "Bus": 6,
+             "Name": "VR 1 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",
+@@ -1561,6 +2432,35 @@
+             "Address": "0x4B",
+             "Bus": 6,
+             "Name": "VR 2 Temp",
++	    "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
++            "EvStat": 231,
++	    "SdrInfo": [
++                {
++                        "SdrVersion": "0x51",
++                        "RecordType": "0x01",
++                        "RecordLen": 0,
++                        "OwnerId": 0,
++                        "OwnerLun": "0x20",
++                        "EntityId": 0,
++                        "EntityInstance": 1,
++                        "SensorInit": "0xF7",
++                        "SensorCap": "0x48",
++                        "SensorType" : "0x01",
++                        "EventType" : "0x01",
++                        "SensorUnit1" : 0,
++                        "SensorUnit2" : 35,
++                        "ModifierUnit": 0,
++                        "Linearization": 0,
++                        "NominalReading": "0x97",
++                        "NormalMax" : "0xC5",
++                        "NormalMin" : "0x8b",
++                        "MaxReading" : "0xff",
++                        "MinReading" : 0,
++                        "PositiveHysteris" : 0,
++                        "NegativeHysteresis" : 0,
++                        "IdStringLen" : 0
++                }
++            ],
+             "Thresholds": [
+                 {
+                     "Direction": "greater than",

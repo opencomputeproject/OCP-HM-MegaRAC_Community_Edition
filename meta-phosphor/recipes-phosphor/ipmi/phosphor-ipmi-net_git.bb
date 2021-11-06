@@ -15,18 +15,12 @@ DEPENDS += "phosphor-mapper"
 DEPENDS += "systemd"
 DEPENDS += "phosphor-ipmi-host"
 
-#Add run time dependent package list
-RDEPENDS_${PN} = " ipmi-oem "
+RRECOMMENDS_${PN} = "pam-ipmi"
 
-#SRC_URI += "git://github.com/openbmc/phosphor-net-ipmid"
-#SRCREV = "ecb32fbc699aaacee4d6a42bb986575c4c5780dc"
+SRC_URI += "git://github.com/openbmc/phosphor-net-ipmid"
+SRCREV = "07bb095158b39cedb49dae0972e489a6a2776faf"
 
-#S = "${WORKDIR}/git"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/phosphor-net-ipmid"
-SRC_URI = "file://phosphor-net-ipmid"
-SRCPV = "${AUTOREV}"
+S = "${WORKDIR}/git"
 
 FILES_${PN} += " \
         ${systemd_system_unitdir}/${PN}@.service \

@@ -1,0 +1,109 @@
+--- a/redfish-core/lib/account_service.hpp	2021-05-19 18:43:36.205819705 -0400
++++ b/redfish-core/lib/account_service.hpp	2021-05-19 18:42:49.017306870 -0400
+@@ -251,21 +251,12 @@
+ }
+ 
+ 
+-inline int changePasswordPolicy(int passPolicy,char passHistory)
++inline int changePasswordPolicy(int passPolicy,int passPolicyType)
+ {
+   std::fstream pamfile;
+   std::string line[64];
+   int i=0,j=0;
+ 
+-  if((passPolicy > 5) || (passPolicy < 1) )
+-    {
+-      return -1;
+-    }
+-  if((passHistory > '5') || (passHistory < '1'))
+-    {
+-      return -1;
+-    }
+-
+   pamfile.open(pamPasswordFile,std::ios::in | std::ios::out);
+   if(pamfile.is_open() != 1)
+     {
+@@ -280,24 +271,38 @@
+   pamfile.close();
+   pamfile.open(pamPasswordFile,std::ios::out);
+ 
+-  for(j=0;j<i;++j)
++  if(passPolicyType == 0)
+     {
+-          //Update password History
+-        if(line[j].find("remember=") != std::string::npos)
+-        {
+-          line[j].replace(line[j].find("remember=")+9,1,1,passHistory);
+-          pamfile << line[j] << std::endl;
+-        } //Update password Complexity
+-        else if(line[j].find("pam_cracklib") != std::string::npos)
+-        {
+-            pamfile << passPolicyComp[passPolicy] << std::endl;
+-        } // Keep the rest
+-        else
+-        {
+-            pamfile << line[j] << std::endl;
+-        }
+-
+-      }
++      //Update password History
++      passPolicy = 0x30 | passPolicy; //change to ascii digital
++      for(j=0;j<i;++j)
++	{
++	  if(line[j].find("remember=") != std::string::npos)
++	    {
++	      line[j].replace(line[j].find("remember=")+9,1,1,static_cast<char>(passPolicy));
++	      pamfile << line[j] << std::endl;
++	    } // Keep the rest
++	  else
++	    {
++	      pamfile << line[j] << std::endl;
++	    }
++	}
++    }
++  else
++    {
++      //Update password Complexity
++      for(j=0;j<i;++j)
++	{
++	  if(line[j].find("pam_cracklib") != std::string::npos)
++	    {
++	      pamfile << passPolicyComp[passPolicy] << std::endl;
++	    } // Keep the rest
++	  else
++	    {
++	      pamfile << line[j] << std::endl;
++	    }
++	}
++    }
+   pamfile.close();
+   return 0;
+ }
+@@ -1319,15 +1324,23 @@
+ 		    * is not defined in AccountService 1.7.0 version in DMTF 2019.4 Version.
+ 		    */
+ 		   #if 0
+-                   if (property.first == "PasswordPolicy")
++		    if (property.first == "PasswordPolicyHistory")
++                    {
++                        const uint8_t* value =
++                            std::get_if<uint8_t>(&property.second);
++                        if (value != nullptr)
++                        {
++                          changePasswordPolicy(*value,0);
++                          BMCWEB_LOG_DEBUG << "password Policy";
++                        }
++                    }
++                   if (property.first == "PasswordPolicyComplexity")
+                     {
+                         const uint8_t* value =
+                             std::get_if<uint8_t>(&property.second);
+                         if (value != nullptr)
+                         {
+-			  char passHistory = static_cast<char>(((0xF0 & *value)>>1) | 0x30); //get the history and change it to ascii
+-                          int passPolicy = 0xF & *value;  //get the complexity
+-                          changePasswordPolicy(passPolicy,passHistory);
++                          changePasswordPolicy(*value,1);
+                           BMCWEB_LOG_DEBUG << "password Policy";
+                         }
+                     }

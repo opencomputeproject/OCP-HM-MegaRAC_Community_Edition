@@ -4,9 +4,9 @@
  		}
  		*fan_num = (unsigned char)strtol( argv[ ++i ], NULL, 10);
  		*rpm_value = (unsigned int)strtol( argv[ ++i ], NULL, 10);
-+		if(*rpm_value < 0 || *rpm_value > 255)
++		if(*rpm_value < 0 || *rpm_value > 19)
 +		{
-+			printf("set-pwm-dutycycle-value should be 0 to 255 \n");
++			printf("set-pwm-dutycycle-value should be 0 to 19 \n");
 +			return -1;
 +		}
  		action = SET_PWM_DUTYCYCLE_VALUE;

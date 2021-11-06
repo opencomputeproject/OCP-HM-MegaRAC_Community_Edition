@@ -1,0 +1,293 @@
+--- a/include/vm_websocket.hpp	2021-06-11 07:02:51.411395198 +0530
++++ b/include/vm_websocket.hpp	2021-06-11 07:03:54.967228621 +0530
+@@ -12,23 +12,20 @@
+ namespace obmc_vm
+ {
+ 
+-static crow::websocket::Connection* session = nullptr;
+ 
+ // The max network block device buffer size is 128kb plus 16bytes
+ // for the message header:
+ // https://github.com/NetworkBlockDevice/nbd/blob/master/doc/proto.md#simple-reply-message
+ static constexpr auto nbdBufferSize = 262176;
+ 
+-int Media_instance_processID[4][2]={0};
+-crow::websocket::Connection* websocket_session_conn[4][2]={0};
+ static int user_session;
+ static int endpoint;
+ 
+ class Handler : public std::enable_shared_from_this<Handler>
+ {
+   public:
+-    Handler(const std::string& mediaIn, boost::asio::io_context& ios) :
+-        pipeOut(ios), pipeIn(ios), media(mediaIn), doingWrite(false),
++    Handler(const std::string& mediaIn,boost::asio::io_context& ios) :
++        pipeOut(ios), pipeIn(ios),media(mediaIn),doingWrite(false),session(nullptr),
+         outputBuffer(new boost::beast::flat_static_buffer<nbdBufferSize>),
+         inputBuffer(new boost::beast::flat_static_buffer<nbdBufferSize>)
+     {}
+@@ -36,63 +33,31 @@
+     ~Handler() = default;
+ 
+ 
+-    void update_mediasession()
++    void update_mediasession(int user_count)
+     {
+-
+-	    int i;
+-	    for( i=0; i<=3 ; i++)
+-	    {
+-
+-		    if( (Media_instance_processID[i][0] == 0)  && (Media_instance_processID[i][1] == 0)  )
+-		    {
+-			    std::ofstream fileWriter;
+-			    fileWriter.open("/etc/nbd-proxy/mediasession", std::ios::out | std::ios::trunc);
+-			    if(fileWriter)
+-			    {
+-				    fileWriter << i;
+-				    fileWriter.close();
+-			    }
+-	    		if(i==3)
+-		    		BMCWEB_LOG_ERROR << "Media session reached Max number of users ...!!! " ;
+-			    break;
+-		    }
+-	    }
++		 
++	 std::ofstream fileWriter;
++	 fileWriter.open("/etc/nbd-proxy/mediasession", std::ios::out | std::ios::trunc);
++	 if(fileWriter)
++	 {
++	    fileWriter << user_count;
++	    fileWriter.close();
++	 }
+ 
+     }
+ 
+-    void doClose(crow::websocket::Connection* websocket_sess)
++    void doClose( )
+     {
+ 	    // boost::process::child::terminate uses SIGKILL, need to send SIGTERM
+ 	    // to allow the proxy to stop nbd-client and the USB device gadget.
+ 
+-	    for(int i=0; i<3 ; i++)
++	    int rc = kill(proxy.id(), SIGTERM);
++	    if (rc)
+ 	    {
+-		    for(int j=0; j<2 ; j++)
+-		    {
+-
+-			    if(websocket_session_conn[i][j] == websocket_sess)
+-			    {
+-
+-				    int rc = kill(Media_instance_processID[i][j], SIGTERM);
+-				    if (rc)
+-				    {
+-					    BMCWEB_LOG_ERROR << "Couldn't found Child PID to send SIGTERM signal";
+-					    return;
+-				    }
+-
+-
+-				    Media_instance_processID[i][j] = 0;
+-				    websocket_session_conn[i][j] = 0;
+-				    update_mediasession();
+-				    goto abc;
+-
+-			    }
+-
+-		    }
+-
++		    BMCWEB_LOG_ERROR << "Couldn't found Child PID to send SIGTERM signal";
++		    return;
+ 	    }
+ 
+-abc: ;
+ 
+      //proxy.wait();
+     }
+@@ -114,9 +79,6 @@
+ 		    return;
+ 	    }
+ 
+-	    Media_instance_processID[user_count][media_instance]=proxy.id();
+-	    websocket_session_conn[user_count][media_instance]=websocket_sess;
+-	    update_mediasession();
+ 
+ 	    doWrite();
+ 	    doRead();
+@@ -141,12 +103,13 @@
+             inputBuffer->data(),
+             [this, self(shared_from_this())](boost::beast::error_code ec,
+                                              std::size_t bytesWritten) {
+-                BMCWEB_LOG_DEBUG << "Wrote " << bytesWritten << "bytes";
++                BMCWEB_LOG_DEBUG << "Wrote " << bytesWritten << "bytes,session"<<session;
+                 doingWrite = false;
+                 inputBuffer->consume(bytesWritten);
+ 
+                 if (session == nullptr)
+                 {
++		     BMCWEB_LOG_ERROR << "Session closed it is set to null " << ec;
+                     return;
+                 }
+                 if (ec == boost::asio::error::eof)
+@@ -173,7 +136,7 @@
+             [this, self(shared_from_this())](
+                 const boost::system::error_code& ec, std::size_t bytesRead) {
+                 BMCWEB_LOG_DEBUG << "Read done.  Read " << bytesRead
+-                                 << " bytes";
++                                 << " bytes, session-" << session ;
+                 if (ec)
+                 {
+                     BMCWEB_LOG_ERROR << "Couldn't read from VM port: " << ec;
+@@ -204,6 +167,7 @@
+     boost::process::child proxy;
+     std::string media;
+     bool doingWrite;
++    crow::websocket::Connection* session; 
+ 
+     std::unique_ptr<boost::beast::flat_static_buffer<nbdBufferSize>>
+         outputBuffer;
+@@ -211,7 +175,7 @@
+         inputBuffer;
+ };
+ 
+-static std::shared_ptr<Handler> handler;
++static std::shared_ptr<Handler> g_handler [4][2]={0};
+ 
+ inline void requestRoutes(App& app)
+ {
+@@ -256,16 +220,30 @@
+ 				   return;
+ 				   }
+ 				   */
+-				session = &conn;
+ 
+ 				// media is the last digit of the endpoint /vm/0/0. A future
+ 				// enhancement can include supporting different endpoint values.
+ 
+ 				//const char* media = "0";
+ 				std::string media = std::to_string((2*user_session)+endpoint);
++				std::shared_ptr<Handler> handler;
+ 
+-				handler = std::make_shared<Handler>(media, conn.getIoContext());
++				handler = std::make_shared<Handler>(media,conn.getIoContext());
++				g_handler[user_session][endpoint]= handler;
++				handler->session = &conn;
+ 				handler->connect(user_session,endpoint,&conn);
++				int i;
++				for(i=0;i<=3;i++)
++				{
++					if(g_handler[i][0]== 0 && g_handler[i][1] == 0)
++					{
++	    					handler->update_mediasession(i);
++	    					if(i==3)
++		    					BMCWEB_LOG_ERROR << "Media session reached Max number of users ...!!! " ;
++
++						break;
++					}
++				}
+ 		})
+ 	.onclose([](crow::websocket::Connection& conn,
+ 				const std::string& /*reason*/) {
+@@ -274,36 +252,84 @@
+ 			  return;
+ 			  } */
+ 
+-			session = nullptr;
+-			handler->doClose(&conn);
+-			int i;
+-			for(i=0; i<3 ; i++)
++			std::shared_ptr<Handler> handler;
++			int i,j;
++			for (i=0; i<3; i++)
+ 			{
+-				for(int j=0;j<2;j++)
+-				{
+-
+-					if(Media_instance_processID[i][j] != 0)
+-					goto abc;
++			   for (j=0; j<2 ;j++)
++			   {
++				if(g_handler[i][j]->session == &conn)
++				{	
++				   handler=g_handler[i][j];
++			           g_handler[i][j]= 0;
++			           goto handler_found;
+ 				}	
+-
++			   }  	
+ 			}
+-		abc:
++handler_found:
+ 			if(i==3)
+ 			{
+-				handler->inputBuffer->clear();
+-				handler->outputBuffer->clear();
+-				handler.reset();
++
++				BMCWEB_LOG_ERROR << "Handler not found for connection - "<< &conn;
++				return;
+ 			}
+ 
++
++
++
++
++			//session = nullptr;
++			handler->doClose( );
++			handler->session->close("VM socket port closed");
++			handler->session=nullptr;
++			BMCWEB_LOG_DEBUG << "Connection " << &conn << " closed";
++			g_handler[i][j]=0;
++			for(i=0;i<=3;i++)
++			{
++				if(g_handler[i][0] == 0 && g_handler[i][1] == 0)
++				{
++	  				handler->update_mediasession(i);
++	    				if(i==3)
++		    				BMCWEB_LOG_ERROR << "Media session reached Max number of users ...!!! " ;
++
++					break;
++				}
++			}
++
++
+ 	})
+ 	.onmessage([](crow::websocket::Connection& conn,
+ 				const std::string& data, bool) {
++
++			std::shared_ptr<Handler> handler;
++			int i,j;
++			for (i=0; i<3; i++)
++			{
++			  for (j=0; j<2 ;j++)
++			  {
++				if(g_handler[i][j]->session == &conn)
++				{	
++				  handler=g_handler[i][j];
++				  BMCWEB_LOG_ERROR << "###### under on_message fun def handler_onmessgae is ==>  "<< handler << "\n";
++				  goto handler_found;
++				}
++			  }  
++			}
++handler_found:
++			if(i==3)
++			{
++				BMCWEB_LOG_ERROR << "No handler found with connection - " << &conn;
++				return;
++			}
++
++
++
++
+ 			if (data.length() > handler->inputBuffer->capacity())
+ 			{
+-			BMCWEB_LOG_ERROR << "Buffer overrun when writing "
+-			<< data.length() << " bytes";
+-			conn.close("Buffer overrun");
+-			return;
++			  BMCWEB_LOG_ERROR << "Buffer overrun when writing "<< data.length() << " bytes";
++			  conn.close("Buffer overrun");
++			  return;
+ 			}
+ 
+ 			boost::asio::buffer_copy(handler->inputBuffer->prepare(data.size()),

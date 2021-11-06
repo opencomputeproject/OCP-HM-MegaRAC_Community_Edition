@@ -1,0 +1,12 @@
+--- a/chassishandler.cpp	2021-05-05 12:45:48.379351080 +0530
++++ b/chassishandler.cpp	2021-05-05 13:05:47.781029866 +0530
+@@ -1179,6 +1179,9 @@
+             break;
+ 
+         case CMD_PULSE_DIAGNOSTIC_INTR:
++
++	     return ipmi::responseInvalidCommand();
++
+             rc = setNmiProperty(true);
+             break;
+ 

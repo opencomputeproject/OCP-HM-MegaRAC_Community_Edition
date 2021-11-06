@@ -1,0 +1,26 @@
+--- a/src/storagecommands.cpp	2021-06-15 09:48:22.591964607 -0400
++++ b/src/storagecommands.cpp	2021-06-15 09:45:53.756381888 -0400
+@@ -1291,10 +1291,10 @@
+         }
+     }
+ 	
+-	if (access(selrotatepath, F_OK) == 0) 
++	if (access(selrotateflag, F_OK) == 0) 
+ 	{
+ 		sleep(1);
+-		if (access(selrotatepath, F_OK) == 0)
++		if (access(selrotateflag, F_OK) == 0)
+ 			return ipmi::responseBusy();
+ 	}
+ 	
+--- a/include/redfish_map.hpp	2021-06-15 09:48:21.243895924 -0400
++++ b/include/redfish_map.hpp	2021-06-15 09:41:51.320032484 -0400
+@@ -15,7 +15,7 @@
+ static int rotateflag=0;
+ 
+ std::string selbusyflag="/tmp/sel_busy";
+-const char *selrotatepath ="/tmp/selrotate";
++const char *selrotateflag ="/tmp/selrotate";
+ 
+ struct SELInfo_T
+ {

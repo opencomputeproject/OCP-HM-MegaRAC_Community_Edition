@@ -1,9 +1,9 @@
-diff -Naur c/redfish-core/include/error_messages.hpp d/redfish-core/include/error_messages.hpp
---- c/redfish-core/include/error_messages.hpp	2020-08-14 19:10:49.491303371 +0530
-+++ d/redfish-core/include/error_messages.hpp	2020-08-13 14:39:11.002988270 +0530
-@@ -787,6 +787,49 @@
- void invalidUpload(crow::Response& res, const std::string& arg1,
-                    const std::string& arg2);
+diff -Naur a/redfish-core/include/error_messages.hpp b/redfish-core/include/error_messages.hpp
+--- a/redfish-core/include/error_messages.hpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/include/error_messages.hpp	2021-02-16 08:15:06.176352704 +0000
+@@ -959,6 +959,49 @@
+ void mutualExclusiveProperties(crow::Response& res, const std::string& arg1,
+                                const std::string& arg2);
  
 +/**
 + * @brief Formats DelayInActionCompletion message into JSON
@@ -51,20 +51,20 @@ diff -Naur c/redfish-core/include/error_messages.hpp d/redfish-core/include/erro
  } // namespace messages
  
  } // namespace redfish
-diff -Naur c/redfish-core/include/redfish.hpp d/redfish-core/include/redfish.hpp
---- c/redfish-core/include/redfish.hpp	2020-08-14 19:10:49.495303311 +0530
-+++ d/redfish-core/include/redfish.hpp	2020-08-13 14:40:29.469583447 +0530
-@@ -37,9 +37,7 @@
+diff -Naur a/redfish-core/include/redfish.hpp b/redfish-core/include/redfish.hpp
+--- a/redfish-core/include/redfish.hpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/include/redfish.hpp	2021-02-16 08:17:00.940484914 +0000
+@@ -38,9 +38,7 @@
  #include "../lib/task.hpp"
  #include "../lib/thermal.hpp"
  #include "../lib/update_service.hpp"
 -#ifdef BMCWEB_ENABLE_VM_NBDPROXY
  #include "../lib/virtual_media.hpp"
 -#endif // BMCWEB_ENABLE_VM_NBDPROXY
- #include "../lib/serial_interface.hpp"
  #include "../lib/hypervisor_ethernet.hpp"
- #include "webserver_common.hpp"
-@@ -153,13 +151,14 @@
+ #include "../lib/serial_interface.hpp"
+ 
+@@ -161,18 +159,17 @@
          nodes.emplace_back(std::make_unique<SystemResetActionInfo>(app));
          nodes.emplace_back(std::make_unique<BiosService>(app));
          nodes.emplace_back(std::make_unique<BiosReset>(app));
@@ -75,30 +75,33 @@ diff -Naur c/redfish-core/include/redfish.hpp d/redfish-core/include/redfish.hpp
 -            std::make_unique<VirtualMediaActionInsertMedia>(app));
 -        nodes.emplace_back(std::make_unique<VirtualMediaActionEjectMedia>(app));
 -#endif // BMCWEB_ENABLE_VM_NBDPROXY
-+
-+	nodes.emplace_back(std::make_unique<VirtualMediaCollection>(app));
+ #ifdef BMCWEB_ENABLE_REDFISH_DBUS_LOG_ENTRIES
+         nodes.emplace_back(std::make_unique<DBusLogServiceActionsClear>(app));
+         nodes.emplace_back(std::make_unique<DBusEventLogEntryCollection>(app));
+         nodes.emplace_back(std::make_unique<DBusEventLogEntry>(app));
+ #endif
++        nodes.emplace_back(std::make_unique<VirtualMediaCollection>(app));
 +        nodes.emplace_back(std::make_unique<VirtualMediaInstance>(app));
 +        nodes.emplace_back(std::make_unique<VirtualMediaInsertMediaActionInfo>(app));
 +        nodes.emplace_back(std::make_unique<VirtualMediaEjectMediaActionInfo>(app));
 +        nodes.emplace_back(std::make_unique<VirtualMediaInsertMediaAction>(app));
 +        nodes.emplace_back(std::make_unique<VirtualMediaEjectMediaAction>(app));
-+
- #ifdef BMCWEB_ENABLE_REDFISH_DBUS_LOG_ENTRIES
-         nodes.emplace_back(std::make_unique<DBusLogServiceActionsClear>(app));
-         nodes.emplace_back(std::make_unique<DBusEventLogEntryCollection>(app));
-diff -Naur c/redfish-core/include/registries/base_message_registry.hpp d/redfish-core/include/registries/base_message_registry.hpp
---- c/redfish-core/include/registries/base_message_registry.hpp	2020-08-14 19:10:49.491303371 +0530
-+++ d/redfish-core/include/registries/base_message_registry.hpp	2020-08-13 14:38:59.627205123 +0530
+ 
+         nodes.emplace_back(
+             std::make_unique<MessageRegistryFileCollection>(app));
+diff -Naur a/redfish-core/include/registries/base_message_registry.hpp b/redfish-core/include/registries/base_message_registry.hpp
+--- a/redfish-core/include/registries/base_message_registry.hpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/include/registries/base_message_registry.hpp	2021-02-16 08:21:14.748965030 +0000
 @@ -36,7 +36,7 @@
  constexpr const char* url =
      "https://redfish.dmtf.org/registries/Base.1.8.1.json";
  
--constexpr std::array<MessageEntry, 73> registry = {
-+constexpr std::array<MessageEntry, 77> registry = {
+-constexpr std::array<MessageEntry, 74> registry = {
++constexpr std::array<MessageEntry, 78> registry = {
      MessageEntry{
          "AccessDenied",
          {
-@@ -1123,5 +1123,54 @@
+@@ -1139,5 +1139,54 @@
              {},
              "Correct the request body and resubmit the request if it failed.",
          }},
@@ -153,25 +156,24 @@ diff -Naur c/redfish-core/include/registries/base_message_registry.hpp d/redfish
 +        }},
  };
  } // namespace redfish::message_registries::base
-diff -Naur c/redfish-core/lib/managers.hpp d/redfish-core/lib/managers.hpp
---- c/redfish-core/lib/managers.hpp	2020-08-14 19:10:49.495303311 +0530
-+++ d/redfish-core/lib/managers.hpp	2020-08-14 19:14:56.780224598 +0530
-@@ -1696,10 +1696,8 @@
+diff -Naur a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+--- a/redfish-core/lib/managers.hpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/lib/managers.hpp	2021-02-16 08:22:35.789158900 +0000
+@@ -1727,10 +1727,8 @@
          res.jsonValue["EthernetInterfaces"] = {
              {"@odata.id", "/redfish/v1/Managers/bmc/EthernetInterfaces"}};
  
 -#ifdef BMCWEB_ENABLE_VM_NBDPROXY
--        res.jsonValue["VirtualMedia"] = {
-+	res.jsonValue["VirtualMedia"] = {
+         res.jsonValue["VirtualMedia"] = {
              {"@odata.id", "/redfish/v1/Managers/bmc/VirtualMedia"}};
 -#endif // BMCWEB_ENABLE_VM_NBDPROXY
  
          res.jsonValue["SerialInterfaces"] = {
              {"@odata.id", "/redfish/v1/Managers/bmc/SerialInterface"}};
-diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media.hpp
---- c/redfish-core/lib/virtual_media.hpp	2020-08-14 19:10:49.495303311 +0530
-+++ d/redfish-core/lib/virtual_media.hpp	2020-08-14 19:16:53.879111605 +0530
-@@ -16,1122 +16,777 @@
+diff -Naur a/redfish-core/lib/virtual_media.hpp b/redfish-core/lib/virtual_media.hpp
+--- a/redfish-core/lib/virtual_media.hpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/lib/virtual_media.hpp	2021-02-16 09:38:07.072764951 +0000
+@@ -16,1172 +16,779 @@
  #pragma once
  
  #include <boost/container/flat_map.hpp>
@@ -185,11 +187,36 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
  #include <utils/json_utils.hpp>
 -// for GetObjectType and ManagedObjectType
 -#include <account_service.hpp>
+-#include <boost/url/url_view.hpp>
 +#include <variant>
  
- namespace redfish
--
+-namespace redfish
+ 
++namespace redfish
  {
+-/**
+- * @brief Function extracts transfer protocol name from URI.
+- */
+-static std::string getTransferProtocolTypeFromUri(const std::string& imageUri)
+-{
+-    try
+-    {
+-        std::string_view scheme = boost::urls::url_view(imageUri).scheme();
+-        if (scheme == "smb")
+-        {
+-            return "CIFS";
+-        }
+-        else if (scheme == "https")
+-        {
+-            return "HTTPS";
+-        }
+-    }
+-    catch (std::exception& p)
+-    {
+-        BMCWEB_LOG_ERROR << p.what();
+-    }
+-    return "None";
+-}
  
  /**
 - * @brief Read all known properties from VM object interfaces
@@ -265,19 +292,46 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -        else
 -        {
 -            // Legacy mode
--            const auto imageUrlProperty =
--                mountPointIface->second.find("ImageURL");
--            if (imageUrlProperty != processIface->second.cend())
+-            for (const auto& property : mountPointIface->second)
 -            {
--                const std::string* imageUrlValue =
--                    std::get_if<std::string>(&imageUrlProperty->second);
--                if (imageUrlValue && !imageUrlValue->empty())
+-                if (property.first == "ImageURL")
 -                {
--                    aResp->res.jsonValue["ImageName"] = *imageUrlValue;
--                    aResp->res.jsonValue["Inserted"] = *activeValue;
--                    if (*activeValue == true)
+-                    const std::string* imageUrlValue =
+-                        std::get_if<std::string>(&property.second);
+-                    if (imageUrlValue && !imageUrlValue->empty())
 -                    {
--                        aResp->res.jsonValue["ConnectedVia"] = "URI";
+-                        std::filesystem::path filePath = *imageUrlValue;
+-                        if (!filePath.has_filename())
+-                        {
+-                            // this will handle https share, which not
+-                            // necessarily has to have filename given.
+-                            aResp->res.jsonValue["ImageName"] = "";
+-                        }
+-                        else
+-                        {
+-                            aResp->res.jsonValue["ImageName"] =
+-                                filePath.filename();
+-                        }
+-
+-                        aResp->res.jsonValue["Image"] = *imageUrlValue;
+-                        aResp->res.jsonValue["Inserted"] = *activeValue;
+-                        aResp->res.jsonValue["TransferProtocolType"] =
+-                            getTransferProtocolTypeFromUri(*imageUrlValue);
+-
+-                        if (*activeValue == true)
+-                        {
+-                            aResp->res.jsonValue["ConnectedVia"] = "URI";
+-                        }
+-                    }
+-                }
+-                else if (property.first == "WriteProtected")
+-                {
+-                    const bool* writeProtectedValue =
+-                        std::get_if<bool>(&property.second);
+-                    if (writeProtectedValue)
+-                    {
+-                        aResp->res.jsonValue["WriteProtected"] =
+-                            *writeProtectedValue;
 -                    }
 -                }
 -            }
@@ -302,15 +356,9 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -    item["@odata.type"] = "#VirtualMedia.v1_3_0.VirtualMedia";
 -    item["Name"] = "Virtual Removable Media";
 -    item["Id"] = resName;
--    item["Image"] = nullptr;
--    item["Inserted"] = nullptr;
--    item["ImageName"] = nullptr;
 -    item["WriteProtected"] = true;
--    item["ConnectedVia"] = "NotConnected";
 -    item["MediaTypes"] = {"CD", "USBStick"};
 -    item["TransferMethod"] = "Stream";
--    item["TransferProtocolType"] = nullptr;
--    item["Oem"]["OpenBmc"]["WebSocketEndpoint"] = nullptr;
 -    item["Oem"]["OpenBMC"]["@odata.type"] =
 -        "#OemVirtualMedia.v1_0_0.VirtualMedia";
 -
@@ -349,29 +397,28 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -        [name, aResp{std::move(aResp)}](const boost::system::error_code ec,
 -                                        ManagedObjectType& subtree) {
 -            if (ec)
+-            {
+-                BMCWEB_LOG_DEBUG << "DBUS response error";
+-                return;
+-            }
+-            nlohmann::json& members = aResp->res.jsonValue["Members"];
+-            members = nlohmann::json::array();
 +    std::ifstream fileWriter;
 +    fileWriter.open(redfish::virtualmedia::virtual_media_user_dir);
 +    const std::string temp_buf = "username=";
 +    static std::string username;
-+
+ 
+-            for (const auto& object : subtree)
 +    if(fileWriter)
 +    {
 +         while(std::getline(fileWriter,username))
 +         {
 +            if(username.find(temp_buf) != std::string::npos)
              {
--                BMCWEB_LOG_DEBUG << "DBUS response error";
--                return;
--            }
--            nlohmann::json& members = aResp->res.jsonValue["Members"];
--            members = nlohmann::json::array();
--
--            for (const auto& object : subtree)
--            {
 -                nlohmann::json item;
 -                const std::string& path =
 -                    static_cast<const std::string&>(object.first);
--                std::size_t lastIndex = path.rfind("/");
+-                std::size_t lastIndex = path.rfind('/');
 -                if (lastIndex == std::string::npos)
 -                {
 -                    continue;
@@ -420,7 +467,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                const std::string& path =
 -                    static_cast<const std::string&>(item.first);
 -
--                std::size_t lastItem = path.rfind("/");
+-                std::size_t lastItem = path.rfind('/');
 -                if (lastItem == std::string::npos)
 -                {
 -                    continue;
@@ -467,13 +514,13 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +class VirtualMediaCollection : public Node
  {
    public:
--    VirtualMediaActionInsertMedia(CrowApp& app) :
+-    VirtualMediaActionInsertMedia(App& app) :
 -        Node(app,
 -             "/redfish/v1/Managers/<str>/VirtualMedia/<str>/Actions/"
 -             "VirtualMedia.InsertMedia",
 -             std::string(), std::string())
-+    template <typename CrowApp>
-+    VirtualMediaCollection(CrowApp &app) :
++    template <typename App>
++    VirtualMediaCollection(App &app) :
 +        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/")
      {
          entityPrivileges = {
@@ -493,58 +540,16 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
      /**
 -     * @brief Transfer protocols supported for InsertMedia action.
 -     *
--     */
++     * Functions triggers appropriate requests on DBus
+      */
 -    enum class TransferProtocol
--    {
++    void doGet(crow::Response &res, const crow::Request &req,
++               const std::vector<std::string> &params) override
+     {
 -        https,
 -        smb,
 -        invalid
 -    };
--
--    /**
--     * @brief Function extracts transfer protocol type from URI.
--     *
--     */
--    std::optional<TransferProtocol>
--        getTransferProtocolFromUri(const std::string& imageUri)
--    {
--        if (imageUri.find("smb://") != std::string::npos)
--        {
--            return TransferProtocol::smb;
--        }
--        else if (imageUri.find("https://") != std::string::npos)
--        {
--            return TransferProtocol::https;
--        }
--        else if (imageUri.find("://") != std::string::npos)
--        {
--            return TransferProtocol::invalid;
--        }
--        else
--        {
--            return {};
--        }
--    }
--
--    /**
--     * @brief Function convert transfer protocol from string param.
--     *
-+     * Functions triggers appropriate requests on DBus
-      */
--    std::optional<TransferProtocol> getTransferProtocolFromParam(
--        const std::optional<std::string>& transferProtocolType)
-+    void doGet(crow::Response &res, const crow::Request &req,
-+               const std::vector<std::string> &params) override
-     {
--        if (transferProtocolType == std::nullopt)
--        {
--            return {};
--        }
--
--        if (*transferProtocolType == "CIFS")
--        {
--            return TransferProtocol::smb;
--        }
 +        res.jsonValue["@odata.type"] =
 +            "#VirtualMediaCollection.VirtualMediaCollection";
 +        res.jsonValue["@odata.context"] =
@@ -568,9 +573,32 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                    return;
 +                }
  
--        if (*transferProtocolType == "HTTPS")
+-    /**
+-     * @brief Function extracts transfer protocol type from URI.
+-     *
+-     */
+-    std::optional<TransferProtocol>
+-        getTransferProtocolFromUri(const std::string& imageUri)
+-    {
+-        try
 -        {
--            return TransferProtocol::https;
+-            std::string_view scheme = boost::urls::url_view(imageUri).scheme();
+-            if (scheme == "smb")
+-            {
+-                return TransferProtocol::smb;
+-            }
+-            else if (scheme == "https")
+-            {
+-                return TransferProtocol::https;
+-            }
+-            else if (!scheme.empty())
+-            {
+-                return TransferProtocol::invalid;
+-            }
+-        }
+-        catch (std::exception& p)
+-        {
+-            BMCWEB_LOG_ERROR << p.what();
 -        }
 +                nlohmann::json& memberArray =
 +                    asyncResp->res.jsonValue["Members"];
@@ -595,7 +623,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                }
 +                asyncResp->res.jsonValue["Members@odata.count"] = InstanceCount;
  
--        return TransferProtocol::invalid;
+-        return {};
 +            },
 +            redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
 +            redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
@@ -603,13 +631,47 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +};
  
 -    /**
+-     * @brief Function convert transfer protocol from string param.
+-     *
+-     */
+-    std::optional<TransferProtocol> getTransferProtocolFromParam(
+-        const std::optional<std::string>& transferProtocolType)
+-    {
+-        if (transferProtocolType == std::nullopt)
+-        {
+-            return {};
+-        }
+-
+-        if (*transferProtocolType == "CIFS")
+-        {
+-            return TransferProtocol::smb;
+-        }
+-
+-        if (*transferProtocolType == "HTTPS")
+-        {
+-            return TransferProtocol::https;
+-        }
+ 
+-        return TransferProtocol::invalid;
+-    }
+-
+-    /**
 -     * @brief Function extends URI with transfer protocol type.
 -     *
 -     */
 -    const std::string
 -        getUriWithTransferProtocol(const std::string& imageUri,
 -                                   const TransferProtocol& transferProtocol)
--    {
++/**
++ * VirtualMedia Instance derived class for delivering Virtual Media Schema
++ */
++class VirtualMediaInstance : public Node
++{
++  public:
++    template <typename App>
++    VirtualMediaInstance(App& app) :
++        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/", std::string())
+     {
 -        if (transferProtocol == TransferProtocol::smb)
 -        {
 -            return "smb://" + imageUri;
@@ -621,7 +683,14 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -        }
 -
 -        return imageUri;
--    }
++        entityPrivileges = {
++            {boost::beast::http::verb::get, {{"Login"}}},
++            {boost::beast::http::verb::head, {{"Login"}}},
++            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
++            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
+     }
  
 -    /**
 -     * @brief Function validate parameters of insert media request.
@@ -631,16 +700,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                        const std::optional<bool>& inserted,
 -                        const std::optional<std::string>& transferMethod,
 -                        const std::optional<std::string>& transferProtocolType)
-+/**
-+ * VirtualMedia Instance derived class for delivering Virtual Media Schema
-+ */
-+class VirtualMediaInstance : public Node
-+{
-+  public:
-+    template <typename CrowApp>
-+    VirtualMediaInstance(CrowApp& app) :
-+        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/", std::string())
-     {
+-    {
 -        BMCWEB_LOG_DEBUG << "Validation started";
 -        // required param imageUrl must not be empty
 -        if (imageUrl.empty())
@@ -690,7 +750,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                                "(smb, https).";
 -
 -            messages::resourceAtUriInUnknownFormat(res, imageUrl);
--
+ 
 -            return false;
 -        }
 -
@@ -738,15 +798,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                return false;
 -            }
 -        }
-+        entityPrivileges = {
-+            {boost::beast::http::verb::get, {{"Login"}}},
-+            {boost::beast::http::verb::head, {{"Login"}}},
-+            {boost::beast::http::verb::patch, {{"ConfigureComponents"}}},
-+            {boost::beast::http::verb::put, {{"ConfigureComponents"}}},
-+            {boost::beast::http::verb::delete_, {{"ConfigureComponents"}}},
-+            {boost::beast::http::verb::post, {{"ConfigureComponents"}}}};
-+    }
- 
+-
 -        // validation passed
 -        // add protocol to URI if needed
 -        if (uriTransferProtocolType == std::nullopt)
@@ -754,7 +806,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -            imageUrl = getUriWithTransferProtocol(imageUrl,
 -                                                  *paramTransferProtocolType);
 -        }
- 
+-
 -        return true;
 -    }
 +  private:
@@ -771,13 +823,13 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +               const std::vector<std::string>& params) override
      {
 -        auto aResp = std::make_shared<AsyncResp>(res);
--
+ 
 -        if (params.size() != 2)
 -        {
 -            messages::internalError(res);
 -            return;
 -        }
- 
+-
 -        // take resource name from URL
 -        const std::string& resName = params[1];
 +        auto asyncResp = std::make_shared<AsyncResp>(res);
@@ -839,7 +891,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                asyncResp->res.jsonValue = {
 +                    {"@odata.context",
 +                     "/redfish/v1/$metadata#VirtualMedia.VirtualMedia"},
-+                    {"@odata.type", "#VirtualMedia.v1_3_1.VirtualMedia"},
++                    {"@odata.type", "#VirtualMedia.v1_3_2.VirtualMedia"},
 +                    {"Name", "Virtual Media Interface " + instanceName},
 +                    {"Description", "Virtual Media Instance redirected to host via this Manager"},
 +                    {"TransferMethod", "Stream"},
@@ -857,16 +909,37 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                            const std::string& path =
 -                                static_cast<const std::string&>(object.first);
 -
--                            std::size_t lastIndex = path.rfind("/");
+-                            std::size_t lastIndex = path.rfind('/');
 -                            if (lastIndex == std::string::npos)
 +                            if (property.first == "ImageUrl")
                              {
 -                                continue;
 -                            }
+-
+-                            lastIndex += 1;
+-
+-                            if (path.substr(lastIndex) == resName)
+-                            {
+-                                lastIndex = path.rfind("Proxy");
+-                                if (lastIndex != std::string::npos)
+-                                {
+-                                    // Not possible in proxy mode
+-                                    BMCWEB_LOG_DEBUG << "InsertMedia not "
+-                                                        "allowed in proxy mode";
+-                                    messages::resourceNotFound(
+-                                        aResp->res, "VirtualMedia.InsertMedia",
+-                                        resName);
+-
+-                                    return;
+-                                }
 +                                const std::string* imageUrl =
 +                                   std::get_if<std::string>(&property.second);
  
--                            lastIndex += 1;
+-                                lastIndex = path.rfind("Legacy");
+-                                if (lastIndex == std::string::npos)
+-                                {
+-                                    continue;
+-                                }
 +                               /* Check if ImageUrl Property Set or Not */
 +                                const std::string imageName = *imageUrl;
 +                               std::size_t lastIndex = imageName.rfind("/");
@@ -897,27 +970,6 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                               }
 +                           }
  
--                            if (path.substr(lastIndex) == resName)
--                            {
--                                lastIndex = path.rfind("Proxy");
--                                if (lastIndex != std::string::npos)
--                                {
--                                    // Not possible in proxy mode
--                                    BMCWEB_LOG_DEBUG << "InsertMedia not "
--                                                        "allowed in proxy mode";
--                                    messages::resourceNotFound(
--                                        aResp->res, "VirtualMedia.InsertMedia",
--                                        resName);
--
--                                    return;
--                                }
--
--                                lastIndex = path.rfind("Legacy");
--                                if (lastIndex == std::string::npos)
--                                {
--                                    continue;
--                                }
--
 -                                // Legacy mode
 -                                std::string imageUrl;
 -                                std::optional<std::string> userName;
@@ -960,6 +1012,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                                    imageUrl, !(*writeProtected),
 -                                    std::move(*userName), std::move(*password));
 +               asyncResp->res.jsonValue["UserName"] = UserName;
++               asyncResp->res.jsonValue["Password"] = nullptr;
 +               asyncResp->res.jsonValue["MediaTypes"] = { "CD" ,
 +                                                          "USBStick"};
 +                asyncResp->res.jsonValue["@odata.id"] =
@@ -1006,7 +1059,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +class VirtualMediaInsertMediaActionInfo : public Node
 +{
 +  public:
-+    VirtualMediaInsertMediaActionInfo(CrowApp &app) :
++    VirtualMediaInsertMediaActionInfo(App &app) :
 +        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/InsertMediaActionInfo/", std::string())
      {
 -        auto raw = const_cast<typename T::value_type*>(value.data());
@@ -1116,7 +1169,8 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -        {
 -            return credentials.password();
 -        }
--
++                auto instanceIt = instances.begin();
+ 
 -        SecureBuffer pack(const FormatterFunc formatter)
 -        {
 -            SecureBuffer packed{new Buffer{}};
@@ -1182,8 +1236,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -        boost::process::async_pipe impl;
 -        Buffer buffer;
 -    };
-+                auto instanceIt = instances.begin();
- 
+-
 -    /**
 -     * @brief Function transceives data with dbus directly.
 -     *
@@ -1232,8 +1285,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -
 -            // Pass secret over pipe
 -            secretPipe->async_write(
--                [asyncResp](const boost::system::error_code& ec,
--                            std::size_t size) {
+-                [asyncResp](const boost::system::error_code& ec, std::size_t) {
 -                    if (ec)
 +                for (; instanceIt != instances.end(); instanceIt++)
 +                {
@@ -1313,12 +1365,12 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +class VirtualMediaEjectMediaActionInfo : public Node
  {
    public:
--    VirtualMediaActionEjectMedia(CrowApp& app) :
+-    VirtualMediaActionEjectMedia(App& app) :
 -        Node(app,
 -             "/redfish/v1/Managers/<str>/VirtualMedia/<str>/Actions/"
 -             "VirtualMedia.EjectMedia",
 -             std::string(), std::string())
-+    VirtualMediaEjectMediaActionInfo(CrowApp &app) :
++    VirtualMediaEjectMediaActionInfo(App &app) :
 +        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/EjectMediaActionInfo/", std::string())
      {
          entityPrivileges = {
@@ -1405,7 +1457,8 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                        if (ec)
 -                        {
 -                            BMCWEB_LOG_DEBUG << "DBUS response error";
--
++                auto instanceIt = instances.begin();
+ 
 -                            return;
 -                        }
 -
@@ -1413,9 +1466,8 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                        {
 -                            const std::string& path =
 -                                static_cast<const std::string&>(object.first);
-+                auto instanceIt = instances.begin();
- 
--                            std::size_t lastIndex = path.rfind("/");
+-
+-                            std::size_t lastIndex = path.rfind('/');
 -                            if (lastIndex == std::string::npos)
 -                            {
 -                                continue;
@@ -1484,9 +1536,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                    const std::string& service, const std::string& name,
 -                    bool legacy)
 -    {
-+            redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
-+            redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
- 
+-
 -        // Legacy mount requires parameter with image
 -        if (legacy)
 -        {
@@ -1510,7 +1560,9 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                    if (ec)
 -                    {
 -                        BMCWEB_LOG_ERROR << "Bad D-Bus request error: " << ec;
--
++            redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
++            redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
+ 
 -                        messages::internalError(asyncResp->res);
 -                        return;
 -                    }
@@ -1534,9 +1586,9 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -    /*
 -     * Default Constructor
 -     */
--    VirtualMediaCollection(CrowApp& app) :
+-    VirtualMediaCollection(App& app) :
 -        Node(app, "/redfish/v1/Managers/<str>/VirtualMedia/", std::string())
-+    VirtualMediaInsertMediaAction(CrowApp &app) :
++    VirtualMediaInsertMediaAction(App &app) :
 +        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/Actions/VirtualMedia.InsertMedia", std::string())
      {
          entityPrivileges = {
@@ -1556,7 +1608,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -    /**
 -     * Functions triggers appropriate requests on DBus
 -     */
--    void doGet(crow::Response& res, const crow::Request& req,
+-    void doGet(crow::Response& res, const crow::Request&,
 -               const std::vector<std::string>& params) override
 +    void doPost(crow::Response &res, const crow::Request &req,
 +                const std::vector<std::string> &params) override
@@ -1606,8 +1658,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                                               instanceName);
 +                    return;
 +                }
- 
--        const std::string& name = params[0];
++
 +               /* Check if already Image is inserted or not */
 +                for (const auto& interface : instanceIt->second)
 +                {
@@ -1621,9 +1672,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                                const std::string* imageUrl =
 +                                    std::get_if<std::string>(&property.second);
  
--        if (name != "bmc")
--        {
--            messages::resourceNotFound(asyncResp->res, "VirtualMedia", name);
+-        const std::string& name = params[0];
 +                               //Check if with the requested instance
 +                               //media is already mounted or free
 +                                if (!imageUrl->empty())
@@ -1640,11 +1689,14 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +        redfish::virtualmedia::virtualmediaServiceName, redfish::virtualmedia::virtualmedia_ObjectPath,
 +        redfish::virtualmedia::dbusObjManagerIntf , "GetManagedObjects");
  
+-        if (name != "bmc")
 +       //Reading the requested data
 +        if (!json_util::readJson(
 +                req, asyncResp->res, "Image", image, "TransferProtocolType", transferprotocoltype,
 +               "UserName", username, "Password", password))
-+        {
+         {
+-            messages::resourceNotFound(asyncResp->res, "VirtualMedia", name);
+-
              return;
          }
  
@@ -1652,7 +1704,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -            "#VirtualMediaCollection.VirtualMediaCollection";
 -        res.jsonValue["Name"] = "Virtual Media Services";
 -        res.jsonValue["@odata.id"] =
--            "/redfish/v1/Managers/" + name + "/VirtualMedia/";
+-            "/redfish/v1/Managers/" + name + "/VirtualMedia";
 +       //Validate the requested data
 +       size_t startIndex = image.find("//");
 +       if(((startIndex == std::string::npos) && (startIndex != 0))
@@ -1698,9 +1750,9 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +                                              "Password");
 +             return;
 +       }
-+
-+       std::string InstanceObjectPath = std::string("/xyz/openbmc_project/VirtualMedia/") + "Legacy/" + Instance;
  
++       std::string InstanceObjectPath = std::string("/xyz/openbmc_project/VirtualMedia/") + "Legacy/" + Instance;
++
 +       /* Call the Mount Method */
          crow::connections::systemBus->async_method_call(
 -            [asyncResp, name](const boost::system::error_code ec,
@@ -1719,7 +1771,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -                BMCWEB_LOG_DEBUG << "GetObjectType: " << service;
  
 -                getVmResourceList(asyncResp, service, name);
-+               messages::delayInActionCompletion(asyncResp->res, Instance,
++                messages::delayInActionCompletion(asyncResp->res, Instance,
 +                                                  "/redfish/v1/Managers/bmc/VirtualMedia" +Instance);
 +
              },
@@ -1747,10 +1799,10 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -    /*
 -     * Default Constructor
 -     */
--    VirtualMedia(CrowApp& app) :
+-    VirtualMedia(App& app) :
 -        Node(app, "/redfish/v1/Managers/<str>/VirtualMedia/<str>/",
 -             std::string(), std::string())
-+    VirtualMediaEjectMediaAction(CrowApp &app) :
++    VirtualMediaEjectMediaAction(App &app) :
 +        Node(app, "/redfish/v1/Managers/bmc/VirtualMedia/<str>/Actions/VirtualMedia.EjectMedia", std::string())
      {
          entityPrivileges = {
@@ -1770,7 +1822,7 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 -    /**
 -     * Functions triggers appropriate requests on DBus
 -     */
--    void doGet(crow::Response& res, const crow::Request& req,
+-    void doGet(crow::Response& res, const crow::Request&,
 -               const std::vector<std::string>& params) override
 +    void doPost(crow::Response &res, const crow::Request &req,
 +                const std::vector<std::string> &params) override
@@ -1886,11 +1938,11 @@ diff -Naur c/redfish-core/lib/virtual_media.hpp d/redfish-core/lib/virtual_media
 +}; // VirtualMediaEjectMediaAction
  
  } // namespace redfish
-diff -Naur c/redfish-core/src/error_messages.cpp d/redfish-core/src/error_messages.cpp
---- c/redfish-core/src/error_messages.cpp	2020-08-14 19:10:49.495303311 +0530
-+++ d/redfish-core/src/error_messages.cpp	2020-08-13 14:41:17.416796485 +0530
-@@ -1750,6 +1750,88 @@
-         {"Resolution", "None."}};
+diff -Naur a/redfish-core/src/error_messages.cpp b/redfish-core/src/error_messages.cpp
+--- a/redfish-core/src/error_messages.cpp	2021-02-16 08:12:29.668291733 +0000
++++ b/redfish-core/src/error_messages.cpp	2021-02-16 08:23:43.037331154 +0000
+@@ -2147,6 +2147,89 @@
+     addMessageToErrorJson(res.jsonValue, mutualExclusiveProperties(arg1, arg2));
  }
  
 +/**
@@ -1974,6 +2026,7 @@ diff -Naur c/redfish-core/src/error_messages.cpp d/redfish-core/src/error_messag
 +            {"Severity", "Warning"},
 +            {"Resolution", "Please try with another Instnace or first perform InsertMedia Action and try again"}});
 +}
++
 +
  } // namespace messages
  

@@ -1,0 +1,20 @@
+--- a/transporthandler.cpp	2021-04-12 03:57:40.301312610 -0400
++++ b/transporthandler.cpp	2021-04-27 06:31:32.139868155 -0400
+@@ -583,7 +583,7 @@
+     getGatewayProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
+ {
+     auto gatewayStr = std::get<std::string>(getDbusProperty(
+-        bus, params.service, PATH_SYSTEMCONFIG, INTF_SYSTEMCONFIG,
++        bus, params.service, params.logicalPath, INTF_ETHERNET,
+         AddrFamily<family>::propertyGateway));
+     if (gatewayStr.empty())
+     {
+@@ -910,7 +910,7 @@
+         neighbor = findStaticNeighbor<family>(bus, params, *gateway, neighbors);
+     }
+ 
+-    setDbusProperty(bus, params.service, PATH_SYSTEMCONFIG, INTF_SYSTEMCONFIG,
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET,
+                     AddrFamily<family>::propertyGateway,
+                     addrToString<family>(address));
+ 

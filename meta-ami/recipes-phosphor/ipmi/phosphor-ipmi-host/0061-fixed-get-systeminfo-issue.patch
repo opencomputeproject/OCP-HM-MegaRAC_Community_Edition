@@ -1,0 +1,22 @@
+diff -Naur a/apphandler.cpp b/apphandler.cpp
+--- a/apphandler.cpp	2021-05-13 21:55:36.952313866 +0530
++++ b/apphandler.cpp	2021-05-13 21:54:10.116907123 +0530
+@@ -1435,13 +1435,14 @@
+     {
+         return ipmi::responseParmNotSupported();
+     }
+-    if (req.size() != SYSTEMINFOLEN )
+-    {
+-        return ipmi::responseReqDataLenInvalid();
+-    }
+ 
+     if (paramSelector == 0)
+     {
++	 if (req.size() != SYSTEMINFOLEN )
++    	 {
++            return ipmi::responseReqDataLenInvalid();
++         }
++
+         // attempt to set the 'set in progress' value (in parameter #0)
+         // when not in the set complete state.
+         if ((transferStatus != setComplete) && (data1 == setInProgress))

@@ -8,13 +8,13 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 
 inherit autotools pkgconfig
 
-inherit phosphor-pid-control
 inherit obmc-phosphor-ipmiprovider-symlink
 inherit systemd
 
 S = "${WORKDIR}/git"
 SRC_URI = "git://github.com/openbmc/phosphor-pid-control"
-SRCREV = "4b36f265a10048127d93e4b70916c181827c9af2"
+#SRCREV = "ca791156e2594ce7d25b42793a0a1b60d922fefd"
+SRCREV = "18d5bb18dcb4ebf7340b0b7a0b39daa887d530ce"
 
 # Each platform will need a service file that starts
 # at an appropriate time per system.  For instance, if
@@ -51,4 +51,7 @@ FILES_${PN}-dev_append = " ${libdir}/ipmid-providers/lib*${SOLIBSDEV} ${libdir}/
 
 HOSTIPMI_PROVIDER_LIBRARY += "libmanualcmds.so"
 
-require conf/machine/include/unpack.inc
+config_datadir="${datadir}/swampd/"
+# config_path is the location swampd expects to find a json configuration.
+# the file is expected to be named config.json
+config_path="${config_datadir}config.json"

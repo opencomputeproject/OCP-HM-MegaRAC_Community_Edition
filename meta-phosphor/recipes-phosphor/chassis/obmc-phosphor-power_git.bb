@@ -12,13 +12,7 @@ DEPENDS += "phosphor-logging"
 DEPENDS += "nlohmann-json"
 DEPENDS += "gpioplus"
 
-#S = "${WORKDIR}/git"
+S = "${WORKDIR}/git"
 
-#SRC_URI = "git://github.com/openbmc/phosphor-power-control"
-#SRCREV = "4d209a24588d112dfd61158b2e01dd973d99961e"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/phosphor-power-control"
-SRC_URI = "file://phosphor-power-control"
-SRCPV = "${AUTOREV}"
-
+SRC_URI = "git://github.com/openbmc/phosphor-power-control"
+SRCREV = "4d209a24588d112dfd61158b2e01dd973d99961e"

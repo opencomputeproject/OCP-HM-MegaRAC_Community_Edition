@@ -1,0 +1,19 @@
+diff -Naru a/xyz/openbmc_project/Network/ARPControl.interface.yaml b/xyz/openbmc_project/Network/ARPControl.interface.yaml
+--- a/xyz/openbmc_project/Network/ARPControl.interface.yaml	1969-12-31 19:00:00.000000000 -0500
++++ b/xyz/openbmc_project/Network/ARPControl.interface.yaml	2021-04-30 11:44:37.089577238 -0400
+@@ -0,0 +1,15 @@
++description: >
++    This defines ARP Control configuration.
++properties:
++    - name: ARPResponse
++      type: boolean
++      description: >
++          if true then the ARP Response Message send to received ARP requests Message
++    - name: GratuitousARP
++      type: boolean
++      description: >
++          if true then the gratuitous ARP service start to broadcast gratuitous ARP Message
++    - name: GratuitousARPInterval
++      type: uint64
++      description: >
++          Controls the interval between two gratuitous ARP Messages.By default the value is 2000 milliseconds

@@ -11,6 +11,7 @@ SECTION = "base"
 
 LIC_FILES_CHKSUM = "file://COPYING;md5=a6f89e2100d9b6cdffcea4f398e37343 \
                     file://libkmod/COPYING;md5=a6f89e2100d9b6cdffcea4f398e37343 \
+                    file://tools/COPYING;md5=751419260aa954499f7abaabaa882bbe \
                    "
 inherit autotools gtk-doc pkgconfig manpages
 
@@ -31,5 +32,7 @@ EXTRA_OECONF +=" --enable-tools --with-zlib"
 PACKAGECONFIG[debug] = "--enable-debug,--disable-debug"
 PACKAGECONFIG[logging] = " --enable-logging,--disable-logging"
 PACKAGECONFIG[manpages] = "--enable-manpages, --disable-manpages, libxslt-native xmlto-native"
+PACKAGECONFIG[xz] = "--with-xz,--without-xz,xz"
+PACKAGECONFIG[openssl] = "--with-openssl,--without-openssl,openssl"
 
 GTKDOC_DOCDIR = "${S}/libkmod/docs"

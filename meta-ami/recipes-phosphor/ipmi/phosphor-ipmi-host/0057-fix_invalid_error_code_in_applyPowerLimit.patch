@@ -1,0 +1,12 @@
+diff -Nuar a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-05-07 16:48:51.377909428 +0530
++++ b/dcmihandler.cpp	2021-05-07 16:49:14.301651264 +0530
+@@ -521,7 +521,7 @@
+     if(requestData->reserved != 0)
+       {
+         log<level::ERR>("DCMI Power Activate/Deactivate reserved bytes must be 0x00!");
+-        return IPMI_CC_INVALID;
++        return IPMI_CC_INVALID_FIELD_REQUEST;
+       }
+     // powerLimitAction can only be 0 or 1
+     if((requestData->powerLimitAction < 0) || (requestData->powerLimitAction > 1))

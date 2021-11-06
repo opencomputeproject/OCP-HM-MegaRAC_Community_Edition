@@ -17,13 +17,10 @@ DEPENDS += "protobuf"
 
 S = "${WORKDIR}/git"
 SRC_URI = "git://github.com/openbmc/phosphor-ipmi-blobs-binarystore"
-SRCREV = "e496b2bb477e2af1a9755fbe6ac891e82ff73eb6"
+SRCREV = "c3abe753fca211f49eb68f7d34e37bfc9eb5d4c4"
 
 FILES_${PN}_append = " ${libdir}/ipmid-providers/lib*${SOLIBS}"
 FILES_${PN}_append = " ${libdir}/blob-ipmid/lib*${SOLIBS}"
 FILES_${PN}-dev_append = " ${libdir}/ipmid-providers/lib*${SOLIBSDEV} ${libdir}/ipmid-providers/*.la"
 
 BLOBIPMI_PROVIDER_LIBRARY += "libbinarystore.so"
-
-require conf/machine/include/unpack.inc
-

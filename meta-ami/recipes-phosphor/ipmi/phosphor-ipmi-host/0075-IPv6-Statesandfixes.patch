@@ -1,0 +1,692 @@
+--- a/transporthandler.cpp	2021-06-10 00:55:55.809233026 -0400
++++ b/transporthandler.cpp	2021-06-18 08:28:30.049310080 -0400
+@@ -154,14 +154,20 @@
+     IP::AddressOrigin::SLAAC,
+ };
+ 
++/** @brief Valid address origins for IPv4/IPv6 LinkLocal*/
++const std::unordered_set<IP::AddressOrigin> originsLinkLocal = {
++    IP::AddressOrigin::LinkLocal};
++
+ /** @brief Interface IP Address configuration parameters */
+ template <int family>
+ struct IfAddr
+ {
++    uint8_t id;
+     std::string path;
+     typename AddrFamily<family>::addr address;
+     IP::AddressOrigin origin;
+     uint8_t prefix;
++    IP::AddressStates states;
+     bool active;
+ };
+ 
+@@ -382,7 +388,7 @@
+     return EthernetInterface::convertDHCPConfFromString(dhcpstr);
+ }
+ 
+-/** @brief Sets the DHCP v6 state on the given interface
++/** @brief Sets the IPv6AcceptRA state on the given interface
+  *
+  *  @param[in] bus           - The bus object used for lookups
+  *  @param[in] params        - The parameters for the channel
+@@ -396,6 +402,18 @@
+                     "IPv6AcceptRA", IPv6AcceptRA);
+ }
+ 
++/** @brief gets the IPv6AcceptRA state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ */
++bool getIPv6AcceptRA(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    return (std::get<bool>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ETHERNET, "IPv6AcceptRA")));
++}
++
++
+ /** @brief Sets the DHCP v4/v6 state on the given interface
+  *
+  *  @param[in] bus           - The bus object used for lookups
+@@ -411,6 +429,7 @@
+ {
+     EthernetInterface::DHCPConf currentDhcp = getDHCPProperty(bus, params);
+     EthernetInterface::DHCPConf nextDhcp = EthernetInterface::DHCPConf::none;
++    auto iPv6AcceptRA = getIPv6AcceptRA(bus, params);
+ 
+     if (((currentDhcp == EthernetInterface::DHCPConf::v6) ||
+         (currentDhcp == EthernetInterface::DHCPConf::none) ||
+@@ -418,6 +437,7 @@
+         (requestedDhcp == EthernetInterface::DHCPConf::v4))
+     {
+         nextDhcp = EthernetInterface::DHCPConf::v4;
++        iPv6AcceptRA = false;
+     }
+     else if (((currentDhcp == EthernetInterface::DHCPConf::v4) ||
+             (currentDhcp == EthernetInterface::DHCPConf::none) ||
+@@ -425,6 +445,7 @@
+             (requestedDhcp == EthernetInterface::DHCPConf::v6))
+     {
+         nextDhcp = EthernetInterface::DHCPConf::v6;
++        iPv6AcceptRA = true;
+     }
+     else if (((currentDhcp == EthernetInterface::DHCPConf::v4) ||
+             (currentDhcp == EthernetInterface::DHCPConf::none) ||
+@@ -432,6 +453,7 @@
+             (requestedDhcp == EthernetInterface::DHCPConf::both))
+     {
+         nextDhcp = EthernetInterface::DHCPConf::both;
++        iPv6AcceptRA = true;
+     }
+     else if (((currentDhcp == EthernetInterface::DHCPConf::v4) ||
+             (currentDhcp == EthernetInterface::DHCPConf::both) ||
+@@ -439,6 +461,7 @@
+             (requestedDhcp == EthernetInterface::DHCPConf::none))
+     {
+         nextDhcp = EthernetInterface::DHCPConf::none;
++        iPv6AcceptRA = false;
+     }
+     else
+     {
+@@ -449,6 +472,7 @@
+             nextDhcp);
+     setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET,
+                     "DHCPEnabled", newDhcp);
++    setIPv6AcceptRA(bus, params, iPv6AcceptRA);
+ }
+ 
+ /** @brief Sets the DHCP v4 state on the given interface
+@@ -466,31 +490,32 @@
+ {
+     EthernetInterface::DHCPConf currentDhcp = getDHCPProperty(bus, params);
+     EthernetInterface::DHCPConf nextDhcp = EthernetInterface::DHCPConf::none;
++    auto iPv6AcceptRA = getIPv6AcceptRA(bus, params);
+ 
+     if ((currentDhcp == EthernetInterface::DHCPConf::v6) &&
+         (requestedDhcp == EthernetInterface::DHCPConf::v4))
+     {
+         nextDhcp = EthernetInterface::DHCPConf::both;
+-        setIPv6AcceptRA(bus, params, true);
++        iPv6AcceptRA = true;
+     }
+     else if ((currentDhcp == EthernetInterface::DHCPConf::none) &&
+              (requestedDhcp == EthernetInterface::DHCPConf::v4))
+ 
+     {
+         nextDhcp = requestedDhcp;
+-        setIPv6AcceptRA(bus, params, false);
++        iPv6AcceptRA = false;
+     }
+     else if (requestedDhcp == EthernetInterface::DHCPConf::none)
+     {
+         if (currentDhcp == EthernetInterface::DHCPConf::both)
+         {
+            nextDhcp = EthernetInterface::DHCPConf::v6;        
+-           setIPv6AcceptRA(bus, params, true);
++           iPv6AcceptRA = true;
+         }
+         else if (currentDhcp == EthernetInterface::DHCPConf::v4)
+         {
+             nextDhcp = EthernetInterface::DHCPConf::none;
+-            setIPv6AcceptRA(bus, params, false);
++            iPv6AcceptRA = false;
+         }
+     }
+     else
+@@ -502,6 +527,7 @@
+             nextDhcp);
+     setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET,
+                     "DHCPEnabled", newDhcp);
++    setIPv6AcceptRA(bus, params, iPv6AcceptRA);
+ }
+ 
+ /** @brief Sets the DHCP v6 state on the given interface
+@@ -518,6 +544,7 @@
+ {
+     EthernetInterface::DHCPConf currentDhcp = getDHCPProperty(bus, params);
+     EthernetInterface::DHCPConf nextDhcp = EthernetInterface::DHCPConf::none;
++    auto iPv6AcceptRA = getIPv6AcceptRA(bus, params);
+ 
+     if (defaultMode)
+     {
+@@ -525,22 +552,26 @@
+             (requestedDhcp == EthernetInterface::DHCPConf::v6))
+         {
+             nextDhcp = EthernetInterface::DHCPConf::both;
++            iPv6AcceptRA = true;
+         }
+         else if ((currentDhcp == EthernetInterface::DHCPConf::none) &&
+                  (requestedDhcp == EthernetInterface::DHCPConf::v6))
+ 
+         {
+             nextDhcp = requestedDhcp;
++            iPv6AcceptRA = true;
+         }
+         else if (requestedDhcp == EthernetInterface::DHCPConf::none)
+         {
+             if (currentDhcp == EthernetInterface::DHCPConf::both)
+             {
+                 nextDhcp = EthernetInterface::DHCPConf::v4;
++                iPv6AcceptRA = false;
+             }
+             else if (currentDhcp == EthernetInterface::DHCPConf::v6)
+             {
+                 nextDhcp = EthernetInterface::DHCPConf::none;
++                iPv6AcceptRA = false;
+             }
+         }
+         else
+@@ -559,6 +590,7 @@
+             nextDhcp);
+     setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET,
+                     "DHCPEnabled", newDhcp);
++    setIPv6AcceptRA(bus, params, iPv6AcceptRA);
+ }
+ 
+ /** @brief Converts a human readable MAC string into MAC bytes
+@@ -795,19 +827,22 @@
+         {
+             continue;
+         }
+-
+-        if (idx > 0)
++        auto id = std::get<uint8_t>(properties.at("Id"));
++        if (idx != id)
+         {
+-            idx--;
+             continue;
+         }
+ 
+         IfAddr<family> ifaddr;
++        ifaddr.id = id;
+         ifaddr.path = path;
+         ifaddr.address = *addr;
+         ifaddr.prefix = std::get<uint8_t>(properties.at("PrefixLength"));
+         ifaddr.origin = origin;
+         ifaddr.active = std::get<bool>(properties.at("Active"));
++        ifaddr.states = IP::convertAddressStatesFromString(
++			std::get<std::string>(properties.at("States")));
++
+         return std::move(ifaddr);
+     }
+ 
+@@ -877,7 +912,7 @@
+ template <int family>
+ void createIfAddr(sdbusplus::bus::bus& bus, const ChannelParams& params,
+                   const typename AddrFamily<family>::addr& address,
+-                  uint8_t prefix)
++                  uint8_t prefix, uint8_t idx)
+ {
+     auto newreq =
+         bus.new_method_call(params.service.c_str(), params.logicalPath.c_str(),
+@@ -885,7 +920,7 @@
+     std::string protocol =
+         sdbusplus::xyz::openbmc_project::Network::server::convertForMessage(
+             AddrFamily<family>::protocol);
+-    newreq.append(protocol, addrToString<family>(address), prefix, "");
++    newreq.append(protocol, addrToString<family>(address), prefix, "", idx);
+     bus.call_noreply(newreq);
+ }
+ 
+@@ -924,7 +959,7 @@
+         deleteObjectIfExists(bus, params.service, ifaddr->path);
+     }
+     createIfAddr<AF_INET>(bus, params, address.value_or(ifaddr->address),
+-                          prefix.value_or(fallbackPrefix));
++                          prefix.value_or(fallbackPrefix), 0);
+ }
+ 
+ template <int family>
+@@ -1052,47 +1087,35 @@
+     createNeighbor<family>(bus, params, *gateway, mac);
+ }
+ 
+-/** @brief Deconfigures the IPv4 address info configured for the interface
+- *
+- *  @param[in] bus     - The bus object used for lookups
+- *  @param[in] params  - The parameters for the channel
+- */
+-void deconfigureIfAddr4(sdbusplus::bus::bus& bus, const ChannelParams& params)
+-{
+-    auto ifaddr = getIfAddr4(bus, params);
+-    if (ifaddr)
+-    {
+-        deleteObjectIfExists(bus, params.service, ifaddr->path);
+-    }
+-}
+-
+-/** @brief Deconfigures the IPv6 address info configured for the interface
++/** @brief set status of the IPv6 address info configured for the interface
+  *
+  *  @param[in] bus     - The bus object used for lookups
+  *  @param[in] params  - The parameters for the channel
+  *  @param[in] idx     - The address index to operate on
++ *  @param[in] enable  - The status of IPv6
+  */
+-void deconfigureIfAddr6(sdbusplus::bus::bus& bus, const ChannelParams& params,
+-                        uint8_t idx)
++void activeIfAddr6(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                        uint8_t idx, bool enable)
+ {
+     auto ifaddr = getIfAddr<AF_INET6>(bus, params, idx, originsV6Static);
+     if (ifaddr)
+     {
+-        deleteObjectIfExists(bus, params.service, ifaddr->path);
++        setDbusProperty(bus, params.service, ifaddr->path, INTF_IP,
++                    "Active", enable);
+     }
+ }
+ 
+-/** @brief set status of the IPv6 address info configured for the interface
++/** @brief set status of the IPv4 address info configured for the interface
+  *
+  *  @param[in] bus     - The bus object used for lookups
+  *  @param[in] params  - The parameters for the channel
+  *  @param[in] idx     - The address index to operate on
+- *  @param[in] enable  - The status of IPv6
++ *  @param[in] enable  - The status of IPv4
+  */
+-void activeIfAddr6(sdbusplus::bus::bus& bus, const ChannelParams& params,
++void activeIfAddr4(sdbusplus::bus::bus& bus, const ChannelParams& params,
+                         uint8_t idx, bool enable)
+ {
+-    auto ifaddr = getIfAddr<AF_INET6>(bus, params, idx, originsV6Static);
++    auto ifaddr = getIfAddr<AF_INET>(bus, params, idx, originsV4);
+     if (ifaddr)
+     {
+         setDbusProperty(bus, params.service, ifaddr->path, INTF_IP,
+@@ -1100,17 +1123,18 @@
+     }
+ }
+ 
+-/** @brief set status of the IPv4 address info configured for the interface
++/** @brief set status of the LinkLocal IPv4/IPv6 address info configured for the interface
+  *
+  *  @param[in] bus     - The bus object used for lookups
+  *  @param[in] params  - The parameters for the channel
+  *  @param[in] idx     - The address index to operate on
+- *  @param[in] enable  - The status of IPv4
++ *  @param[in] enable  - The status of LinkLocal IP
+  */
+-void activeIfAddr4(sdbusplus::bus::bus& bus, const ChannelParams& params,
++template <int family>
++void activeIfAddrLinklocal(sdbusplus::bus::bus& bus, const ChannelParams& params,
+                         uint8_t idx, bool enable)
+ {
+-    auto ifaddr = getIfAddr<AF_INET>(bus, params, idx, originsV4);
++    auto ifaddr = getIfAddr<family>(bus, params, idx, originsLinkLocal);
+     if (ifaddr)
+     {
+         setDbusProperty(bus, params.service, ifaddr->path, INTF_IP,
+@@ -1135,6 +1159,19 @@
+                     "LinkLocalAutoConf", newLinkLocalConf);
+ }
+ 
++/** @brief get status of the LinkLocal AutoConf info configured for the interface
++ *
++ *  @param[in] bus     - The bus object used for lookups
++ *  @param[in] params  - The parameters for the channel
++ *  @param[in] idx     - The address index to operate on
++ */
++EthernetInterface::LinkLocalConf getLinkLocalAutoConf(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    std::string linkLocalConf =std::get<std::string>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ETHERNET, "LinkLocalAutoConf"));
++
++    return (EthernetInterface::convertLinkLocalConfFromString(linkLocalConf));
++}
+ /** @brief Reconfigures the IPv6 address info configured for the interface
+  *
+  *  @param[in] bus     - The bus object used for lookups
+@@ -1146,8 +1183,7 @@
+ void reconfigureIfAddr6(sdbusplus::bus::bus& bus, const ChannelParams& params,
+                         uint8_t idx, const in6_addr& address, uint8_t prefix)
+ {
+-    deconfigureIfAddr6(bus, params, idx);
+-    createIfAddr<AF_INET6>(bus, params, address, prefix);
++    createIfAddr<AF_INET6>(bus, params, address, prefix, idx);
+ }
+ 
+ /** @brief Converts the AddressOrigin into an IPv6Source
+@@ -1191,23 +1227,23 @@
+     bool enabled = false;
+     in6_addr addr{};
+     uint8_t prefix = AddrFamily<AF_INET6>::defaultPrefix;
+-    auto status = IPv6AddressStatus::Disabled;
++    uint8_t status = 1;
+ 
+     auto ifaddr = channelCall<getIfAddr<AF_INET6>>(channel, set, origins);
+     if (ifaddr)
+     {
+         source = originToSourceType(ifaddr->origin);
+-        enabled = true;
++        enabled = (ifaddr->states == IP::AddressStates::Active);
+         addr = ifaddr->address;
+         prefix = ifaddr->prefix;
+-        status = IPv6AddressStatus::Active;
++        status = static_cast<uint8_t>(ifaddr->states);
+     }
+ 
+     ret.pack(set);
+     ret.pack(static_cast<uint4_t>(source), uint3_t{}, enabled);
+     ret.pack(std::string_view(reinterpret_cast<char*>(&addr), sizeof(addr)));
+     ret.pack(prefix);
+-    ret.pack(static_cast<uint8_t>(status));
++    ret.pack(status);
+ }
+ 
+ /** @brief Gets the vlan ID configured on the interface
+@@ -1296,6 +1332,7 @@
+ 
+     // Clear out any settings on the lower physical interface
+     setDHCPv6Property(bus, params, EthernetInterface::DHCPConf::none, false);
++    setIPv6AcceptRA(bus, params, false);
+ }
+ 
+ /** @brief Creates a new VLAN on the specified interface
+@@ -1397,6 +1434,10 @@
+         ifaddrs6.push_back(std::move(*ifaddr6));
+     }
+     EthernetInterface::DHCPConf dhcp = getDHCPProperty(bus, params);
++    auto gateway = getGatewayProperty<AF_INET>(bus, params);
++    auto gateway6 = getGatewayProperty<AF_INET6>(bus, params);
++    //auto iPv6AcceptRA = getIPv6AcceptRA(bus, params);
++    //EthernetInterface::LinkLocalConf linklocal =  getLinkLocalAutoConf(bus, params);
+     ObjectLookupCache neighbors(bus, params, INTF_NEIGHBOR);
+     auto neighbor4 = findGatewayNeighbor<AF_INET>(bus, params, neighbors);
+     auto neighbor6 = findGatewayNeighbor<AF_INET6>(bus, params, neighbors);
+@@ -1416,18 +1457,27 @@
+         NCSI_EnableVLANCommand(bus, params);
+     }
+ 
+-    
++    activeIfAddr4(bus, params, 0, false);
+     deconfigureChannel(bus, params);
+     createVLAN(bus, params, vlan);
+ 
+     // Re-establish the saved settings
++    //setLinkLocalAutoConf(bus, params, linklocal);
++    //setIPv6AcceptRA(bus, params, iPv6AcceptRA);
+     setDHCPv6Property(bus, params, dhcp, false);
++
++    if(gateway)
++        setGatewayProperty<AF_INET>(bus, params, *gateway);
++
++    if(gateway6)
++        setGatewayProperty<AF_INET6>(bus, params, *gateway6);
++
+     if (ifaddr4)
+     {
+ 	//Check if previous Interface IP4 is Static and create new Interface with Static IPv4
+         if (ifaddr4->origin == IP::AddressOrigin::Static)
+         {
+-            createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix);
++            createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix, ifaddr4->id);
+         }
+     }
+     for (const auto& ifaddr6 : ifaddrs6)
+@@ -1435,7 +1485,7 @@
+ 	//Check if previous Interface IPv6 is Static and create new Interface with Static IPv6
+         if(ifaddr6.origin == IP::AddressOrigin::Static)
+         {
+-            createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix);
++            createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix, ifaddr6.id);
+         }
+     }
+     if (neighbor4)
+@@ -1830,7 +1880,7 @@
+             {
+                 return responseReqDataLenInvalid();
+             }
+-            if (rsvd)
++            if (rsvd || flag > 4)
+             {
+                 return responseInvalidFieldRequest();
+             }
+@@ -1859,7 +1909,7 @@
+                     return responseSuccess();
+                 }
+                 case IPSrc::Unspecified:
+-					return responseInvalidFieldRequest();
++		    return responseInvalidFieldRequest();
+                 case IPSrc::Static:
+                 {
+                     channelCall<setDHCPv4Property>(
+@@ -1918,6 +1968,10 @@
+             {
+                 return responseReqDataLenInvalid();
+             }
++            if (enables > 3)
++            {
++                return responseInvalidFieldRequest();
++            }
+             switch (static_cast<ARPControlEnables>(enables))
+             {
+                 case ARPControlEnables::BMCARPControlDisable:
+@@ -2087,6 +2141,10 @@
+             {
+                 return responseReqDataLenInvalid();
+             }
++            if (enables > 2)
++            {
++                return responseInvalidFieldRequest();
++            }
+             switch (static_cast<IPFamilyEnables>(enables))
+             {
+                 case IPFamilyEnables::DualStack:
+@@ -2095,6 +2153,8 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<activeIfAddrLinklocal<AF_INET>>(channel, 0, true);
++                    channelCall<activeIfAddrLinklocal<AF_INET6>>(channel, 0, true);
+                     channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::both);
+ 
+                     if (ifaddr4 && (ifaddr4->origin == IP::AddressOrigin::Static &&
+@@ -2102,7 +2162,6 @@
+                     {
+                         channelCall<activeIfAddr4>(channel, 0, true);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+-                        channelCall<setIPv6AcceptRA>(channel, true);
+ 
+                     }
+                     else if (ifaddr6_static && (ifaddr6_static->origin == IP::AddressOrigin::Static && !ifaddr4))
+@@ -2112,7 +2171,6 @@
+                              channelCall<activeIfAddr6>(channel, i, true);
+                         }
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v4);
+-                        channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     else if ((!ifaddr6_static && ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) && 
+                              (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static))
+@@ -2134,7 +2192,6 @@
+                              (!ifaddr4 && !ifaddr6 && !ifaddr6_static))
+                     {
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::both);
+-                        channelCall<setIPv6AcceptRA>(channel, true);
+                     }
+                     return responseSuccess();
+                 }
+@@ -2144,6 +2201,8 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<activeIfAddrLinklocal<AF_INET>>(channel, 0, true);
++                    channelCall<activeIfAddrLinklocal<AF_INET6>>(channel, 0, false);
+                     channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::v4);
+ 
+                     if (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static)
+@@ -2155,7 +2214,6 @@
+                         if(!ifaddr4)
+                         {
+                              channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v4);
+-                             channelCall<setIPv6AcceptRA>(channel, false);
+                         }
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static) &&
+@@ -2163,14 +2221,12 @@
+                     {
+                         channelCall<activeIfAddr4>(channel, 0, true);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::none);
+-                        channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
+                             (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) ||
+                             (!ifaddr4 && !ifaddr6 && !ifaddr6_static))
+                     {
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v4);
+-                        channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     return responseSuccess();
+                 }
+@@ -2180,6 +2236,8 @@
+                     auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+                     auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
+ 
++                    channelCall<activeIfAddrLinklocal<AF_INET>>(channel, 0, false);
++                    channelCall<activeIfAddrLinklocal<AF_INET6>>(channel, 0, true);
+                     channelCall<setLinkLocalAutoConf>(channel, EthernetInterface::LinkLocalConf::v6);
+ 
+                     if (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static)
+@@ -2188,18 +2246,17 @@
+                         if(!ifaddr6_static && !ifaddr6)
+                         {
+                              channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+-                             channelCall<setIPv6AcceptRA>(channel, true);
+                         }
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) &&
+                             (ifaddr6_static && ifaddr6_static->origin == IP::AddressOrigin::Static))
+                     {
++                        channelCall<activeIfAddr4>(channel, 0, false);
+                         for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
+                         {
+                              channelCall<activeIfAddr6>(channel, i, true);
+                         }
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::none);
+-                        channelCall<setIPv6AcceptRA>(channel, false);
+                     }
+                     else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
+                             (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP) ||
+@@ -2207,7 +2264,6 @@
+                     {
+                         channelCall<activeIfAddr4>(channel, 0, false);
+                         channelCall<setDHCPProperty>(channel, EthernetInterface::DHCPConf::v6);
+-                        channelCall<setIPv6AcceptRA>(channel, true);
+                     }
+                     return responseSuccess();
+                 }
+@@ -2242,6 +2298,11 @@
+                 return responseParmOutOfRange();
+             }	 
+             copyInto(ip, ipbytes);
++            std::string ipstring = addrToString<AF_INET6>(ip);
++            if (ipstring.compare("::") == 0)
++            {
++                return responseInvalidFieldRequest();
++            }
+             if (enabled)
+             {
+                 channelCall<reconfigureIfAddr6>(channel, set, ip, prefix);
+@@ -2249,7 +2310,21 @@
+             }
+             else
+             {
+-                channelCall<deconfigureIfAddr6>(channel, set);
++                channelCall<activeIfAddr6>(channel, set, false);
++                auto count_active = 0;
++
++                for (auto i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
++                {
++                    auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, i, originsV6Static);
++                    if (ifaddr6_static->active)
++		        count_active++;
++                }
++
++                if (count_active == 0)
++                {
++                    channelCall<setDHCPv6Property>(channel, EthernetInterface::DHCPConf::v6, true);
++                }
++                    
+             }
+             return responseSuccess();
+         }
+@@ -2376,7 +2451,6 @@
+     message::Payload ret;
+     constexpr uint8_t current_revision = 0x11;
+     ret.pack(current_revision);
+-        log<level::ERR>("Get Lan - Invalid field in request");
+ 
+     if (revOnly)
+     {
+@@ -2454,14 +2528,16 @@
+             EthernetInterface::DHCPConf dhcp =
+                 channelCall<getDHCPProperty>(channel);
+             auto ifaddr4 = channelCall<getIfAddr4>(channel);
+-            if ((dhcp == EthernetInterface::DHCPConf::v4) ||
+-                (dhcp == EthernetInterface::DHCPConf::both))
++            
++	    if ((dhcp == EthernetInterface::DHCPConf::v4) ||
++                (dhcp == EthernetInterface::DHCPConf::both) || 
++                (!ifaddr4 && (dhcp == EthernetInterface::DHCPConf::v6 ||
++		dhcp == EthernetInterface::DHCPConf::none)))
+             {
+                 src = IPSrc::DHCP;
+             }
+-            else if ((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
+-                     (dhcp == EthernetInterface::DHCPConf::v6 || dhcp == EthernetInterface::DHCPConf::none))
+-                src = IPSrc::Static;
++            else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::Static)){
++                src = IPSrc::Static;}
+ 
+             ret.pack(static_cast<uint4_t>(src), uint4_t{});
+ 
+@@ -2581,29 +2657,41 @@
+             auto ifaddr4 = channelCall<getIfAddr4>(channel);
+             auto ifaddr6_static = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Static);
+             auto ifaddr6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsV6Dynamic);
++            auto linkLocal6 = channelCall<getIfAddr<AF_INET6>>(channel, 0, originsLinkLocal);
++            auto linklocal4 = channelCall<getIfAddr<AF_INET>>(channel, 0, originsLinkLocal);
+ 
+             if (((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
+                 (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
+                 (((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) &&
+                 (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)) ||
+                 ((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) &&
+-                (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))))
++                (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))) || ((linklocal4 && linklocal4->active) &&
++	        (linkLocal6 && linkLocal6->active)))
+                 ret.pack(static_cast<uint8_t>(IPFamilyEnables::DualStack));
+-            else if (ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static)
+-                ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv4Only));
+-            else if (ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static)
+-                ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv6Only));
+-            else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) ||
++
++            else if ((ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP) &&
+                      (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP))
+             {
+                 EthernetInterface::DHCPConf dhcp = channelCall<getDHCPProperty>(channel);
++
+                 if (dhcp == EthernetInterface::DHCPConf::v4)
+                     ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv4Only));
+                 else if (dhcp == EthernetInterface::DHCPConf::v6)
+                     ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv6Only));
++
+                 else if (dhcp == EthernetInterface::DHCPConf::both)
+                     ret.pack(static_cast<uint8_t>(IPFamilyEnables::DualStack));
+             }
++            else if (((ifaddr4 && ifaddr4->active && ifaddr4->origin == IP::AddressOrigin::Static) ||
++		    (ifaddr4 && ifaddr4->origin == IP::AddressOrigin::DHCP)) || 
++                    ((linklocal4 && linklocal4->active) && (!linkLocal6 || (linkLocal6 && !linkLocal6->active))))
++                ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv4Only));
++
++            else if (((ifaddr6_static && ifaddr6_static->active && ifaddr6_static->origin == IP::AddressOrigin::Static) ||
++                    (ifaddr6 && ifaddr6->origin == IP::AddressOrigin::DHCP)) ||	
++		     ((linkLocal6 && linkLocal6->active) && (!linklocal4 || (linklocal4 && !linklocal4->active))))
++                ret.pack(static_cast<uint8_t>(IPFamilyEnables::IPv6Only));
++
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::IPv6Status:

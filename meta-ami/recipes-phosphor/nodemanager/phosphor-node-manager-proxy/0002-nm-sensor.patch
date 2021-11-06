@@ -19,19 +19,19 @@ diff -Naur a/NodeManagerProxy.cpp b/NodeManagerProxy.cpp
 -        std::make_unique<GlobalPowerCpu>(server, 0, 510, "power", "CPU_Power",
 -                                         globalPowerStats, cpuSubsystem, 0));
 +        server, 0, 2040, "power", "Total_Power",
-+	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 1, 0xF7, 0x48, 0x07, 0x01,
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 1, 0xF7, 0x48, 0x0B, 0x01,
 +	0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
 +       	globalPowerStats, entirePlatform, 0, conn));
 +    configuredSensors.push_back(std::make_unique<GlobalPowerCpu>(
 +	server, 0, 510, "power", "CPU_Power",
-+	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 2, 0xF7, 0x48, 0x07, 0x01,
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 2, 0xF7, 0x48, 0x0B, 0x01,
 +        0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
 +        globalPowerStats, cpuSubsystem, 0, conn));
      configuredSensors.push_back(std::make_unique<GlobalPowerMemory>(
 -        server, 0, 255, "power", "Memory_Power", globalPowerStats,
 -        memorySubsystem, 0));
 +        server, 0, 255, "power", "Memory_Power",
-+	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 3, 0xF7, 0x48, 0x07, 0x01,
++	162, 0x51, 0x01, 0, 0x20, 0, 0x09, 3, 0xF7, 0x48, 0x0B, 0x01,
 +        0, 0, 0, 6, 0, 0, 0x97, 0xc5, 0x8b, 0xff, 0, 0, 0, 0,
 +	globalPowerStats, memorySubsystem, 0, conn));
  }

@@ -12,6 +12,5 @@ inherit mrw-rev
 
 DEPENDS += "libmodule-build-perl-native mrw-api-native yaml-tiny-native"
 
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
 SRC_URI += "${MRW_TOOLS_SRC_URI}"
 SRCREV = "${MRW_TOOLS_SRCREV}"

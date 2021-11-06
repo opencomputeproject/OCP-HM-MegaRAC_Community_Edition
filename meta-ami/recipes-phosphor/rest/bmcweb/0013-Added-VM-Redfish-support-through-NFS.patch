@@ -1,0 +1,35 @@
+diff -Naur d/redfish-core/lib/virtual_media.hpp c/redfish-core/lib/virtual_media.hpp
+--- d/redfish-core/lib/virtual_media.hpp	2021-02-19 16:11:14.278942006 +0530
++++ c/redfish-core/lib/virtual_media.hpp	2021-02-19 16:55:05.409462696 +0530
+@@ -283,6 +283,10 @@
+                                         {
+                                            asyncResp->res.jsonValue["TransferProtocolType"] ="CIFS";
+                                         }
++					else if((lastIndex = imageName.find("nfs")) != std::string::npos)
++					{
++					   asyncResp->res.jsonValue["TransferProtocolType"] ="NFS";
++					}
+                                         else if((lastIndex = imageName.find("https")) != std::string::npos)
+                                         {
+                                            asyncResp->res.jsonValue["TransferProtocolType"] ="HTTPS";
+@@ -414,7 +418,8 @@
+                                                {"Name","WriteProtected"},
+                                                {"Required",false}},
+                                                {{"AllowableValues",{"CIFS",
+-                                                                    "HTTPS"}},
++                                                                    "HTTPS",
++								    "NFS"}},
+                                                 {"DataType","String"},
+                                                 {"Name","TransferProtocolType"},
+                                                 {"Required",true}},
+@@ -641,6 +646,10 @@
+        {
+            imagepath = "smb:" + image;
+        }
++       else if ((lastIndex = transferprotocoltype.compare("NFS")) == 0)
++       {
++           imagepath = "nfs:" + image;
++       }
+        else if ((lastIndex = transferprotocoltype.compare("HTTPS")) == 0)
+        {
+            imagepath = "https:" + image;

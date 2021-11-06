@@ -1,0 +1,292 @@
+From b54608b334199c4e83e17d1705650117f5d4829b Mon Sep 17 00:00:00 2001
+From: pranoygoru <gorumanip@amiindia.co.in>
+Date: Tue, 27 Apr 2021 17:15:39 +0530
+Subject: [PATCH] Added VM via https support
+
+---
+ virtual-media/src/main.cpp       | 164 +++++++++++++++++++++++++++++--
+ virtual-media/virtual-media.json |  17 +++-
+ 2 files changed, 168 insertions(+), 13 deletions(-)
+ mode change 100644 => 100755 virtual-media/src/main.cpp
+
+diff --git a/src/main.cpp b/src/main.cpp
+old mode 100644
+new mode 100755
+index dd8bc5e..34969dd
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -115,8 +115,8 @@ class DeviceMonitor
+                 std::unique_ptr<udev::udev_device, udev::deviceDeleter> device =
+                     std::unique_ptr<udev::udev_device, udev::deviceDeleter>(
+                         udev::udev_monitor_receive_device(monitor.get()));
+-//                if (device)
+-                if (0)
++                if (device)
++//                if (0)
+                 {
+                     const char* devAction =
+                         udev_device_get_action(device.get());
+@@ -217,7 +217,7 @@ class Process : public std::enable_shared_from_this<Process>
+     {
+         std::error_code ec;
+         child = boost::process::child(
+-            "/usr/sbin/nbd-client",
++            "/usr/sbin/nbdkit",
+             //"/sbin/nbd-client", "-N", "otherexport", "127.0.0.1", "/dev/nbd0",
+             //"-n",
+             boost::process::args(args),
+@@ -503,8 +503,10 @@ class Configuration
+         static std::vector<std::string> toArgs(const MountPoint& mp)
+         {
+             std::vector<std::string> args = {
++                "-t", "30", "-u", mp.unixSocket, "/dev/" + mp.nbdDevice, "-n"};
++/*            std::vector<std::string> args = {
+                 "-N",          "otherexport",          "-u",
+-                mp.unixSocket, "/dev/" + mp.nbdDevice, "-n"};
++                mp.unixSocket, "/dev/" + mp.nbdDevice, "-n"};*/
+             return args;
+         }
+     };
+@@ -740,6 +742,12 @@ class App
+                 Process::addProcess(entry.first);
+             }
+ 
++            if (entry.second.mode == Configuration::Mode::Legacy)
++            {
++                devMonitor.addDevice(entry.second.nbdDevice);
++                Process::addProcess(entry.first);
++            }
++
+             addMountPointInterface(entry.first, entry.second);
+ 
+             if (entry.second.mode == Configuration::Mode::Proxy)
+@@ -749,7 +757,7 @@ class App
+             }
+             else
+             {
+-                addLegacyInterface(entry.first);
++                addLegacyInterface(entry.first, entry.second);
+             }
+ 
+             paramMgr.addMountPoint(entry.first);
+@@ -1096,6 +1104,94 @@ class App
+         return std::string("");
+     }
+ 
++ 
++ 
++    int  mountHttpsUrlForLegcyMode(const std::string& name,
++                                 const std::string& imageUrl,
++                                 ParametersManager::Parameters* parameters,
++				 const Configuration::MountPoint& mp)
++    {
++
++	const std::string userName = getUserNameorPassWord("username");
++	const std::string passWord = getUserNameorPassWord("password");
++	if(userName.empty() || passWord.empty())
++	{
++            std::cerr << "Failed to get username or password\n";
++            return -1;
++	}
++
++	const std::string user = userName.substr(userName.find("=") + 1);
++
++        std::vector<std::string> params = {
++                // Use curl plugin ...
++                "curl",
++                "sslverify=false",
++                // ... to mount http resource at url
++                 imageUrl};
++
++	params.push_back("user=" + user);
++//	params.push_back("user=root");
++	params.push_back(passWord);
++
++	auto process = std::make_shared<Process>(ioc, name);
++
++	if (!process)
++	{
++		std::cerr << "Failed to create Process in spawnNbdKit\n ";
++		return -1;
++	}
++
++
++
++	// Cleanup of previous socket
++	if (fs::exists(mp.unixSocket))
++	{
++		if (!fs::remove(mp.unixSocket))
++		{
++			std::cerr << " Unable to remove pre-existing socket \n";
++			return -1;
++                }
++	}
++
++	std::string nbd_client =
++		"/usr/sbin/nbd-client " +
++		boost::algorithm::join(
++				Configuration::MountPoint::toArgs(mp), " ");
++
++
++
++	std::vector<std::string> args = {
++		// Listen for client on this unix socket...
++		"--unix",
++		mp.unixSocket,
++
++		// ... then connect nbd-client to served image
++		"--run",
++		nbd_client,
++
++	//	"--verbose", // swarm of debug logs - only for brave souls
++
++	};
++
++	args.insert(args.end(), params.begin(), params.end());
++
++
++	if (!process->spawn(
++			args, [ &mp = mp ](const std::string& name ){
++			std::cerr << " failed process ended. \n";
++			return -1;
++			}))
++	{
++                std::cerr << " Failed to spawn Process \n ";
++       //         return -1;
++	}
++
++	return 0;
++	
++
++    }
++
++
+     int mountCifsUrlForLegcyMode(const std::string& name,
+                                  const std::string& imageUrl,
+                                  ParametersManager::Parameters* parameters)
+@@ -1257,6 +1353,40 @@ class App
+         return result;
+     }
+ 
++    int umountHttpsUrlForLegcyMode(const std::string& name, const Configuration::MountPoint& mp)
++    {
++        int result = -1;
++
++        result = configureUsbGadget(mp.nbdDevice , StateChange::removed);
++        if (result != 0)
++        {
++            std::cerr << "Failed to unmount resource\n";
++            return result;
++        }
++	if(result == 0)
++	{
++		int ret = -1;
++		std::string cmd = "/usr/sbin/nbd-client -d /dev/" + mp.nbdDevice ;
++		ret = system(cmd.c_str());
++		if (ret !=0)
++		{
++			std::cerr << "Failed to stop nbd-client \n";
++            		return result;
++		}
++		
++	}
++	if (fs::exists(mp.unixSocket))
++        {
++		std::cerr << "unmount Removing previously mounted socket\n " ;
++		if (!fs::remove(mp.unixSocket))
++		{
++                        std::cerr << " Unable to remove pre-existing socket \n";
++                        return -1;
++		}
++	}
++        return result;
++    }
++
+     int SetBIOSMode(void)
+     {
+        int ret = -1;
+@@ -1284,13 +1414,13 @@ class App
+         }
+     }
+ 
+-    void addLegacyInterface(const std::string& name)
++    void addLegacyInterface(const std::string& name ,const Configuration::MountPoint& mp)
+     {
+         auto iface = objServer->add_interface(
+             "/xyz/openbmc_project/VirtualMedia/Legacy/" + name,
+             "xyz.openbmc_project.VirtualMedia.Legacy");
+         iface->register_method(
+-            "Mount", [this, name](const std::string& imageUrl) {
++            "Mount", [this, name, mp](const std::string& imageUrl) {
+                 auto parameters = paramMgr.getMountPoint(name);
+                 if (parameters == nullptr)
+                 {
+@@ -1323,6 +1453,15 @@ class App
+                             -result, "Failed to mount cifs url.");
+                     }
+                 }
++		else if (checkHttpsUrl(imageUrl))
++                {
++                      int result = mountHttpsUrlForLegcyMode(name, imageUrl, parameters , mp);
++                    if (result != 0)
++                    {
++                        throw sdbusplus::exception::SdBusError(
++                             -result,"Failed to mount https url.");
++                    }
++                }
+                 else
+                 {
+                     throw sdbusplus::exception::SdBusError(
+@@ -1331,7 +1470,7 @@ class App
+ 
+                 parameters->imageUrl = imageUrl;
+             });
+-        iface->register_method("Unmount", [this, name]() {
++        iface->register_method("Unmount", [this, name, mp]() {
+             auto parameters = paramMgr.getMountPoint(name);
+             if (parameters == nullptr)
+             {
+@@ -1363,6 +1502,15 @@ class App
+                         -result, "Failed to unmount cifs resource.");
+                 }
+             }
++	    else if (checkHttpsUrl(parameters->imageUrl))
++            {
++                int result = umountHttpsUrlForLegcyMode(name, mp);
++                if (result != 0)
++                {
++                    throw sdbusplus::exception::SdBusError(
++                        -result, "Failed to unmount https resource.");
++                }
++            }
+             else
+             {
+                 throw sdbusplus::exception::SdBusError(
+diff --git a/virtual-media.json b/virtual-media.json
+index 4f3aba1..3b63df3 100644
+--- a/virtual-media.json
++++ b/virtual-media.json
+@@ -20,11 +20,18 @@
+         "USB1": {
+             "EndpointId": "",
+             "Mode": 1,
+-            "NBDDevice": "",
+-            "UnixSocket": "",
+-            "Timeout": 0,
+-            "BlockSize": 0
++            "NBDDevice": "nbd2",
++            "UnixSocket": "/tmp/nbd2.sock",
++            "Timeout": 30,
++            "BlockSize": 512
++        },
++        "USB2": {
++            "EndpointId": "",
++            "Mode": 1,
++            "NBDDevice": "nbd3",
++            "UnixSocket": "/tmp/nbd3.sock",
++            "Timeout": 30,
++            "BlockSize": 512
+         }
+     }
+ }
+-

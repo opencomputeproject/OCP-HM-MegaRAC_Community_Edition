@@ -13,8 +13,8 @@ inherit mrw-rev
 
 DEPENDS += "libxml-simple-perl-native json-perl-native"
 
-#SRC_URI += "${MRW_API_SRC_URI}"
-#SRCREV = "${MRW_API_SRCREV}"
+SRC_URI += "${MRW_API_SRC_URI}"
+SRCREV = "${MRW_API_SRCREV}"
 
 do_install() {
     install -d ${D}${PERLLIBDIRS_class-native}/site_perl/${PERLVERSION}/mrw

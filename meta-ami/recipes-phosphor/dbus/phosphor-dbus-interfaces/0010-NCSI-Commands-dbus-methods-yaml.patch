@@ -1,0 +1,63 @@
+--- a/xyz/openbmc_project/Network/NCSIInterface.interface.yaml	1969-12-31 19:00:00.000000000 -0500
++++ b/xyz/openbmc_project/Network/NCSIInterface.interface.yaml	2021-05-28 06:57:44.085229896 -0400
+@@ -0,0 +1,60 @@
++description: >
++    Provides the API for sending NCSI Commands
++
++methods:
++    - name: NCSIClearInitState
++      description: >
++         The Clear Initial State command provides the mechanism for the Management Controller to acknowledge that it considers a channel to be in the Initial State.
++      returns:
++        - name: CompletionCode
++          type: byte
++          description: >
++              The Completion Code tells if the command was successfully executed or not.
++
++    - name: SetVlanFilter
++      description: >
++         The Set VLAN Filter command is used by the Management Controller to program one or more VLAN IDs that are used for VLAN filtering.          Incoming packets that match both a VLAN ID filter and a MAC address filter are forwarded to the Management Controller. 
++         Other packets may be dropped based on the VLAN filtering mode per the Enable VLAN command.
++      parameters: 
++        - name: VlanID
++          type: uint16
++          description: >
++                The VLAN ID value used in VLAN Filter
++        - name: UserPriority
++          type: byte
++          description: > 
++                The User Priority level
++        - name: Enable
++          type: byte
++          description: >
++                The Enable field is used to Enable/Disable a give VLAN Filter.
++        - name: FilterSelector
++          type: byte
++          description: >
++                Used to select a given VLAN filter.
++      returns:
++        - name: CompletionCode
++          type: byte
++          description: >
++              The Completion Code tells if the command was successfully executed or not.
++
++    - name: EnableVLAN
++      description: >
++          The Enable VLAN command may be used by the Management Controller to enable the channel to accept VLAN-tagged packets from the 
++          network for NC-SI Pass-through operation.
++      parameters:
++        - name: Mode
++          type: byte
++          description: >
++              The Mode field describes the modes for VLAN eg:- 
++              1) VLAN only :- Only VLAN-tagged packets that match the enabled VLAN Filter settings (and also match the MAC Address Filtering                              configuration) are accepted. Non-VLAN-tagged packets are not accepted.
++
++              2) VLAN + non-VLAN :- VLAN-tagged packets that match the enabled VLAN Filter setting (and also match the MAC Address Filtering                                    configuration) are accepted. 
++
++              3) Any VLAN + non-VLAN :- Any VLAN-tagged packets that also match the MAC Address Filtering configuration are accepted, 
++                                        regardless of the VLAN Filter settings. Non-VLAN-tagged packets are also accepted.
++      returns:
++        - name: CompletionCode
++          type: byte
++          description: >
++              The Completion Code tells if the command was successfully executed or not.

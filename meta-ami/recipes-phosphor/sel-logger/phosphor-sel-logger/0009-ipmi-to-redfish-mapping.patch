@@ -1,0 +1,92 @@
+diff -Naur a/include/discrete_event_monitor.hpp b/include/discrete_event_monitor.hpp
+--- a/include/discrete_event_monitor.hpp	2021-03-25 12:08:55.492920655 -0400
++++ b/include/discrete_event_monitor.hpp	2021-03-25 12:12:31.384058933 -0400
+@@ -207,7 +207,7 @@
+         selAddSystemRecord(
+             journalMsg, std::string(msg.get_path()), 0x02, 0x04,
+             sensorType, sensorNum, eventType, eventData, true,
+-            selBMCGenID, "REDFISH_MESSAGE_ID=%s", redfishMessageID.c_str(),
++            selBMCGenID,  "REDFISH_MESSAGE_ID=%x,%x,%x,%s", sensorType, sensorNum, eventType, redfishMessageID.c_str(),
+             "REDFISH_MESSAGE_ARGS=%.*s,%f,%f", sensorName.length(),
+             sensorName.data(), sensorVal, 0.00);
+     };
+
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2021-03-25 12:09:13.769863733 -0400
++++ b/include/sel_logger.hpp	2021-03-25 12:12:01.682526754 -0400
+@@ -51,7 +51,7 @@
+ static constexpr uint8_t thresholdEventType = 0x01;
+ 
+ static const std::filesystem::path selLogDir = "/var/sellog";
+-static const std::string selLogFilename = "ipmi_sel";
++static const std::string selLogFilename = "redfish";
+ 
+ inline bool isEventAvailable(uint8_t selSensorType,uint8_t selSensorNum,uint8_t selEventType,std::vector<uint8_t> selEventData,std::string& selSensorName)
+ {
+
+diff -Naur a/include/threshold_event_monitor.hpp b/include/threshold_event_monitor.hpp
+--- a/include/threshold_event_monitor.hpp	2021-03-25 12:08:43.604307196 -0400
++++ b/include/threshold_event_monitor.hpp	2021-03-25 12:12:15.903260351 -0400
+@@ -357,7 +357,7 @@
+         selAddSystemRecord(
+ 	    journalMsg, std::string(msg.get_path()), 0x02, 0x04,
+             sensorType, sensorNum, eventType, eventData, assert,
+-            selBMCGenID, "REDFISH_MESSAGE_ID=%s", redfishMessageID.c_str(),
++            selBMCGenID, "REDFISH_MESSAGE_ID=%x,%x,%x,%s", sensorType, sensorNum, eventType, redfishMessageID.c_str(),
+             "REDFISH_MESSAGE_ARGS=%.*s,%f,%f", sensorName.length(),
+             sensorName.data(), assertValue, thresholdVal);
+     };
+
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2021-03-25 12:08:22.499218131 -0400
++++ b/src/sel_logger.cpp	2021-03-25 12:26:18.098886094 -0400
+@@ -82,21 +82,22 @@
+         return selInvalidRecID;
+     }
+     std::string line;
++	uint16_t recordID=0;;
+     std::string newestEntry;
+     while (std::getline(logStream, line))
+     {
+-        newestEntry = line;
++        recordID++;
+     }
+ 
+-    std::vector<std::string> newestEntryFields;
++    /*std::vector<std::string> newestEntryFields;
+     boost::split(newestEntryFields, newestEntry, boost::is_any_of(" ,"),
+                  boost::token_compress_on);
+     if (newestEntryFields.size() < 4)
+     {
+         return selInvalidRecID;
+-    }
++    }*/
+ 
+-    return std::stoul(newestEntryFields[1],nullptr,16);
++    return recordID-1;
+ }
+ 
+ static uint16_t getNewRecordId(void)
+@@ -143,20 +144,8 @@
+     }
+     std::string selDataStr;
+     toHexStr(selData, selDataStr);
+-
+-    uint16_t  recordId = getNewRecordId();
+-    sd_journal_send("MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
+-                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%x",
+-                    recordId, "IPMI_SEL_RECORD_TYPE=%x", recType, 
+-                    "IPMI_SEL_GENERATOR_ID=%x", genId,
+-		    "IPMI_SEL_TIME_STAMP=%x",timestamp,
+-                    "IPMI_SEL_EVMREV=%x",evmRev,
+-                    "IPMI_SEL_SENSOR_TYPE=%x",senType,
+-                    "IPMI_SEL_SENSOR_NUM=%x",senNum,
+-                    "IPMI_SEL_EVENT_TYPE=%x",eveType,
+-                    "IPMI_SEL_SENSOR_PATH=%s", path.c_str(),
+-                    "IPMI_SEL_EVENT_DIR=%x", assert, "IPMI_SEL_DATA=%s",
+-                    selDataStr.c_str(), std::forward<T>(metadata)..., NULL);
++    unsigned int recordId = getNewRecordId();
++    sd_journal_send("MESSAGE=%s", message.c_str(), std::forward<T>(metadata)..., NULL);
+     return recordId;
+ }
+ 

@@ -1,0 +1,36 @@
+diff -Naur a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp	2021-03-25 11:37:47.655572764 +0000
++++ b/src/main.cpp	2021-03-25 11:39:12.183181274 +0000
+@@ -1228,6 +1228,17 @@
+         return result;
+     }
+ 
++    int SetBIOSMode(void)
++    {
++       int ret = -1;
++       ret = system("/etc/bios.sh");
++       if (ret !=0)
++       {
++           std::cerr << " SetBIOSMode failed to set BIOS Mode\n";
++       }
++       return ret;
++    }
++    
+     void prepareNBDFile(void)
+     {
+         std::ofstream fileWriter;
+@@ -1350,6 +1361,14 @@
+             "Active", bool(false),
+             [](const bool& req, bool& property) { return Process::setKvmInstance(req); },
+             [](const bool& property) { return Process::isKvmActive(); });
++        iface->register_method("BIOSMode", [this, name]() {
++           int result = SetBIOSMode();
++           if (result != 0)
++           {
++               throw sdbusplus::exception::SdBusError(
++                   -result, "Failed to set BIOS Mode.");
++           }
++        });
+         iface->initialize();
+     }
+ 

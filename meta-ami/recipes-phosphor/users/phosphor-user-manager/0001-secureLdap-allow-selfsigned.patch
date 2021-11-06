@@ -1,0 +1,11 @@
+--- a/phosphor-ldap-config/ldap_config.cpp	2021-05-07 14:02:42.901246542 -0400
++++ b/phosphor-ldap-config/ldap_config.cpp	2021-05-07 13:58:56.134887857 -0400
+@@ -227,7 +227,7 @@
+     if (secureLDAP == true)
+     {
+         confData << "ssl on\n";
+-        confData << "tls_reqcert hard\n";
++        confData << "tls_reqcert never\n";
+         if (fs::is_directory(tlsCacertFile.c_str()))
+         {
+             confData << "tls_cacertdir " << tlsCacertFile.c_str() << "\n";

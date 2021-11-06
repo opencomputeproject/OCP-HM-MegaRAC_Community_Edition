@@ -1,0 +1,329 @@
+--- a/ncsi_netlink_main.cpp	2021-05-28 06:30:43.381308583 -0400
++++ b/ncsi_netlink_main.cpp	2021-05-28 07:01:36.812748183 -0400
+@@ -35,6 +35,9 @@
+     int packageInt{};
+     int channelInt{};
+     int indexInt{};
++    uint8_t payload[2048] = {0};
++    short payload_length = 0, i = 0;
++    int opcode = 0;
+ 
+     // Parse out interface argument.
+     auto ifIndex = (options)["index"];
+@@ -84,6 +87,25 @@
+     {
+         channelInt = DEFAULT_VALUE;
+     }
++  
++    auto command_str = (options)["cmd"];
++    if(!command_str.empty())
++    {
++        try
++        {
++	    opcode = strtoul(command_str.c_str(), NULL, 0);
++            payload_length = argc - optind;
++            for (i = 0; i < payload_length; ++i)
++	    {
++                payload[i] = (int)strtoul(argv[i + optind], NULL, 0);
++	    }
++	    return ncsi::setCommand(indexInt, packageInt, channelInt, opcode, payload, payload_length);
++        }
++        catch (const std::exception& e)
++        {
++            std::cerr << "Error parsing command\n";
++        }
++    }
+ 
+     auto setCmd = (options)["set"];
+     if (setCmd == "true")
+@@ -103,6 +125,10 @@
+     {
+         return ncsi::clearInterface(indexInt);
+     }
++    else if ((options)["cmd"] == "true")
++    {
++        return ncsi::clearInterface(indexInt);
++    }
+     else
+     {
+         exitWithError("No Command specified", argv);
+--- a/ncsi_util.cpp	2021-05-28 06:30:43.381308583 -0400
++++ b/ncsi_util.cpp	2021-05-28 07:06:47.624029072 -0400
+@@ -1,14 +1,17 @@
++#include <stdint.h>
+ #include "ncsi_util.hpp"
+ 
+ #include <linux/ncsi.h>
+ #include <netlink/genl/ctrl.h>
+ #include <netlink/genl/genl.h>
+ #include <netlink/netlink.h>
+-
++#include <iomanip>
+ #include <iostream>
+ #include <phosphor-logging/elog-errors.hpp>
+ #include <phosphor-logging/log.hpp>
+ #include <xyz/openbmc_project/Common/error.hpp>
++#include <cstdio>
++
+ 
+ namespace phosphor
+ {
+@@ -16,10 +19,10 @@
+ {
+ namespace ncsi
+ {
++#define ETHERNET_HEADER_SIZE 16
+ 
+ using namespace phosphor::logging;
+ using namespace sdbusplus::xyz::openbmc_project::Common::Error;
+-
+ using CallBack = int (*)(struct nl_msg* msg, void* arg);
+ 
+ namespace internal
+@@ -28,6 +31,44 @@
+ using nlMsgPtr = std::unique_ptr<nl_msg, decltype(&::nlmsg_free)>;
+ using nlSocketPtr = std::unique_ptr<nl_sock, decltype(&::nl_socket_free)>;
+ 
++CallBack send_cb = [](struct nl_msg* msg, void* /*arg*/) {
++
++        struct nlmsghdr *hdr = nlmsg_hdr(msg);
++        struct nlattr *tb[NCSI_ATTR_MAX + 1] = {0};
++        int rc, data_len, i;
++        char *data;
++
++        static struct nla_policy ncsi_genl_policy[NCSI_ATTR_MAX + 1] = {
++                { type : NLA_U32 }, { type : NLA_NESTED },
++                { type : NLA_U32 }, { type : NLA_U32 },
++                { type : NLA_BINARY  }, { type : NLA_FLAG },
++                { type : NLA_U32 }, { type : NLA_U32 },
++        };
++
++
++        rc = genlmsg_parse(hdr, 0, tb, NCSI_ATTR_MAX, ncsi_genl_policy);
++        if (rc) {
++                std::cout << "Failed to parse ncsi cmd callback : " << rc << '\n';
++                return rc;
++        }
++
++        data_len = nla_len(tb[NCSI_ATTR_DATA]) - ETHERNET_HEADER_SIZE;
++        data = (char *)nla_data(tb[NCSI_ATTR_DATA]) + ETHERNET_HEADER_SIZE;
++
++
++        std::cout << "NC-SI Response Payload length = " << data_len << '\n';
++        std::cout << "Response Payload:\n";
++        for (i = 0; i < data_len; ++i) {
++                if (i && !(i%4))
++                        printf("\n%d: ", 16+i);
++                printf("0x%02x ", *(data+i));
++        }
++	printf("\n");
++
++        return (int)NL_SKIP;
++};
++
++
+ CallBack infoCallBack = [](struct nl_msg* msg, void* /*arg*/) {
+     using namespace phosphor::network::ncsi;
+     auto nlh = nlmsg_hdr(msg);
+@@ -177,8 +218,27 @@
+ 
+ int applyCmd(int ifindex, int cmd, int package = DEFAULT_VALUE,
+              int channel = DEFAULT_VALUE, int flags = NONE,
+-             CallBack function = nullptr)
++             CallBack function = nullptr, int type = NONE, uint8_t *payload = nullptr, short payload_len = NONE)
+ {
++    struct ncsi_pkt_hdr *hdr;
++    uint8_t *pData, *pCtrlPktPayload;
++
++    // allocate a  contiguous buffer space to hold ncsi message
++    //  (header + Control Packet payload)
++    pData = (uint8_t *) calloc(1, sizeof(struct ncsi_pkt_hdr) + payload_len);
++    if (!pData) {
++	 std::cerr << "Failed to allocate buffer for ctrl pkt\n";
++         return -1;
++    }
++
++    // prepare buffer to be copied to netlink msg
++    hdr = (struct ncsi_pkt_hdr *)pData;
++    pCtrlPktPayload = pData + sizeof(struct ncsi_pkt_hdr);
++
++    if(payload != nullptr)
++        memcpy(pCtrlPktPayload, payload, payload_len);
++
++    /* Create a Netlink socket */
+     nlSocketPtr socket(nl_socket_alloc(), &::nl_socket_free);
+     auto ret = genl_connect(socket.get());
+     if (ret < 0)
+@@ -187,6 +247,7 @@
+         return ret;
+     }
+ 
++    /* Get the DriverID from the kernel using the generic Netlink family name */
+     auto driverID = genl_ctrl_resolve(socket.get(), "NCSI");
+     if (driverID < 0)
+     {
+@@ -196,6 +257,7 @@
+ 
+     nlMsgPtr msg(nlmsg_alloc(), &::nlmsg_free);
+ 
++    /* Create Netlink message header */
+     auto msgHdr = genlmsg_put(msg.get(), 0, 0, driverID, 0, flags, cmd, 0);
+     if (!msgHdr)
+     {
+@@ -206,6 +268,7 @@
+ 
+     if (package != DEFAULT_VALUE)
+     {
++	/* Add NCSI Package to the Netlink message */
+         ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_PACKAGE_ID,
+                           package);
+         if (ret < 0)
+@@ -218,6 +281,7 @@
+ 
+     if (channel != DEFAULT_VALUE)
+     {
++	/* Add NCSI Channel to the Netlink message */
+         ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_CHANNEL_ID,
+                           channel);
+         if (ret < 0)
+@@ -228,6 +292,7 @@
+         }
+     }
+ 
++    /* Add Interface Index number to the Netlink message */
+     ret = nla_put_u32(msg.get(), ncsi_nl_attrs::NCSI_ATTR_IFINDEX, ifindex);
+     if (ret < 0)
+     {
+@@ -236,13 +301,26 @@
+         return ret;
+     }
+ 
++
++    if(payload != nullptr)
++    {
++        hdr->type = type;   // NC-SI command
++        hdr->length = htons(payload_len);  // NC-SI command payload length
++        ret = nla_put(msg.get(), NCSI_ATTR_DATA,
++                                sizeof(struct ncsi_pkt_hdr)+payload_len,
++                                (void *)pData);
++        if (ret)
++            std::cerr << "Failed to add netlink header" << '\n';
++    }
++
+     if (function)
+     {
+         // Add a callback function to the socket
+         nl_socket_modify_cb(socket.get(), NL_CB_VALID, NL_CB_CUSTOM, function,
+-                            nullptr);
++                            &ret);
+     }
+ 
++    /* Send the Netlink message */
+     ret = nl_send_auto(socket.get(), msg.get());
+     if (ret < 0)
+     {
+@@ -250,12 +328,14 @@
+         return ret;
+     }
+ 
++    /* Recieve the Netlink message */
+     ret = nl_recvmsgs_default(socket.get());
+     if (ret < 0)
+     {
+         std::cerr << "Failed to receive the message , RC : " << ret
+                   << std::endl;
+     }
++
+     return ret;
+ }
+ 
+@@ -270,6 +350,17 @@
+                               package, channel);
+ }
+ 
++
++int setCommand(int ifindex, int package, int channel, int opcode, uint8_t *payload, short payload_len)
++{
++    std::cout << "Set Command : " << std::hex << channel
++              << ", PACKAGE : " << std::hex << package
++              << ", IFINDEX :  " << std::hex << ifindex << std::endl;
++    return internal::applyCmd(ifindex, ncsi_nl_commands::NCSI_CMD_SEND_CMD,
++                              package, channel,NONE, internal::send_cb, opcode, payload, payload_len);
++}
++
++
+ int clearInterface(int ifindex)
+ {
+     std::cout << "ClearInterface , IFINDEX :" << std::hex << ifindex
+--- a/ncsi_util.hpp	2021-05-28 06:30:43.381308583 -0400
++++ b/ncsi_util.hpp	2021-05-28 07:13:02.130656713 -0400
+@@ -8,6 +8,17 @@
+ constexpr auto DEFAULT_VALUE = -1;
+ constexpr auto NONE = 0;
+ 
++struct ncsi_pkt_hdr {
++        unsigned char mc_id;        /* Management controller ID */
++        unsigned char revision;     /* NCSI version - 0x01      */
++        unsigned char reserved;     /* Reserved                 */
++        unsigned char id;           /* Packet sequence number   */
++        unsigned char type;         /* Packet type              */
++        unsigned char channel;      /* Network controller ID    */
++        unsigned short        length;       /* Payload length           */
++        int        reserved1[2]; /* Reserved                 */
++};
++
+ /* @brief  This function will ask underlying NCSI driver
+  *         to set a specific  package or package/channel
+  *         combination as the preferred choice.
+@@ -20,6 +31,20 @@
+  */
+ int setChannel(int ifindex, int package, int channel);
+ 
++
++/* @brief  This function will send the underlying NCSI driver
++ *         a given NCSI Command.
++ *         This function talks with the NCSI driver over
++ *         netlink messages.
++ * @param[in] ifindex - Interface Index.
++ * @param[in] package - NCSI Package.
++ * @param[in] channel - Channel number with in the package.
++ * @param[in] opcode - NCSI Command number.
++ * @param[in] payload - NCSI Command data.
++ * @param[in] payload_len - NCSI Command length.
++ * @returns 0 on success and negative value for failure.
++ */
++int setCommand(int ifindex, int package, int channel, int opcode, uint8_t *payload, short payload_len);
+ /* @brief  This function will ask underlying NCSI driver
+  *         to clear any preferred setting from the given
+  *         interface.
+--- a/argument.cpp	2021-05-28 06:30:43.381308583 -0400
++++ b/argument.cpp	2021-05-28 07:08:35.317367783 -0400
+@@ -38,6 +38,7 @@
+         }
+ 
+         auto i = &options[0];
++
+         while ((i->val != option) && (i->val != 0))
+         {
+             ++i;
+@@ -75,6 +76,7 @@
+     std::cerr << "    --package=<package>  Specify a package.\n";
+     std::cerr << "    --channel=<channel> Specify a channel.\n";
+     std::cerr << "    --index=<device index> Specify device ifindex.\n";
++    std::cerr << "    --cmd=<Command number> <Payload> \n";
+     std::cerr << std::flush;
+ }
+ 
+@@ -86,10 +88,11 @@
+     {"channel", required_argument, NULL, 'c'},
+     {"index", required_argument, NULL, 'x'},
+     {"help", no_argument, NULL, 'h'},
++    {"cmd", required_argument, NULL, 'o'},
+     {0, 0, 0, 0},
+ };
+ 
+-const char* ArgumentParser::optionStr = "i:s:r:p:c:x:h?";
++const char* ArgumentParser::optionStr = "o:i:s:r:p:c:x:h?";
+ 
+ const std::string ArgumentParser::trueString = "true";
+ const std::string ArgumentParser::emptyString = "";

@@ -1,0 +1,16 @@
+diff -Naur a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2021-03-14 23:33:50.652770082 +0530
++++ b/CMakeLists.txt	2021-03-14 23:34:43.129116866 +0530
+@@ -2,8 +2,10 @@
+ project (node-manager-proxy CXX)
+ set (CMAKE_CXX_STANDARD 17)
+ set (CMAKE_CXX_STANDARD_REQUIRED ON)
+-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-rtti")
++# Temporarily disable rtti
++# See https://github.com/chriskohlhoff/asio/issues/533
++#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
++#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-rtti")
+ 
+ include_directories (${CMAKE_CURRENT_SOURCE_DIR})
+ find_package (Boost REQUIRED)

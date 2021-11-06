@@ -1,0 +1,14 @@
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-06-11 23:44:40.810989721 +0530
++++ b/src/storagecommands.cpp	2021-06-11 23:46:44.442286607 +0530
+@@ -1625,8 +1625,8 @@
+     }
+ 	
+ 	map<uint8_t, std::string>::iterator ptr;
+-    map<uint8_t, map<uint8_t, std::string> >::iterator itr;
+-	
++        map<uint8_t, map<uint8_t, std::string> >::iterator itr;
++	eventType = eventType & 0x7F;
+ 
+ 	pos = eventDataStr0.find(redfishMessageID);
+ 	

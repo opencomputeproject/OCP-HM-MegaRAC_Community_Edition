@@ -1,0 +1,22 @@
+From 18787f0c8d2af8b5f13841a202a752d655dc179e Mon Sep 17 00:00:00 2001
+From: pranoygoru <gorumanip@amiindia.co.in>
+Date: Fri, 26 Mar 2021 11:17:43 +0530
+Subject: [PATCH] Enabled tls support
+
+---
+ include/sessions.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/sessions.hpp b/include/sessions.hpp
+index aecaed4..2dd77dc 100644
+--- a/include/sessions.hpp
++++ b/include/sessions.hpp
+@@ -146,7 +146,7 @@ struct AuthConfigMethods
+     bool cookie = true;
+     bool sessionToken = true;
+     bool basic = true;
+-    bool tls = false;
++    bool tls = true;
+ 
+     void fromJson(const nlohmann::json& j)
+     {

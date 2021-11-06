@@ -55,14 +55,9 @@ FILES_phosphor-rsyslog-config += " \
 "
 
 SRC_URI += "git://github.com/openbmc/phosphor-logging"
-SRCREV = "3477ce94b366e6968296377598122a2060f4bed2"
+SRCREV = "7f6789050cd65ccc8c7431c9b44886eecf950dc5"
 
 S = "${WORKDIR}/git"
-
-FILESPATH =. "${TOPDIR}/../openbmc_modules:"
-S = "${WORKDIR}/phosphor-logging"
-SRC_URI = "file://phosphor-logging"
-SRCPV = "${AUTOREV}"
 
 # Do not DEPEND on the specified packages for native build
 # as they will not be available in host machine

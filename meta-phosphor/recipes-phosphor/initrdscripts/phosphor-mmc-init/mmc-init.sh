@@ -17,11 +17,23 @@ mount sys sys -tsysfs
 mount proc proc -tproc
 mount tmpfs run -t tmpfs -o mode=755,nodev
 
+# Wait up to 5s for the mmc device to appear. Continue even if the count is
+# exceeded. A failure will be caught later like in the mount command.
+mmcdev="/dev/mmcblk0"
+count=0
+while [ $count -lt 5 ]; do
+    if [ -e "${mmcdev}" ]; then
+        break
+    fi
+    sleep 1
+    count=$((count + 1))
+done
+
 # Move the secondary GPT to the end of the device if needed. Look for the GPT
 # header signature "EFI PART" located 512 bytes from the end of the device.
-magic=$(tail -c 512 /dev/mmcblk0 | hexdump -C -n 8 | grep "EFI PART")
+magic=$(tail -c 512 "${mmcdev}" | hexdump -C -n 8 | grep "EFI PART")
 if test -z "${magic}"; then
-    sgdisk -e /dev/mmcblk0
+    sgdisk -e "${mmcdev}"
     partprobe
 fi
 
@@ -36,7 +48,10 @@ mkdir -p $rodir
 if ! mount /dev/disk/by-partlabel/"$(get_root)" $rodir -t ext4 -o ro; then
     /bin/sh
 fi
-if ! mount /dev/disk/by-partlabel/rwfs $rodir/var -t ext4 -o rw; then
+
+rwfsdev="/dev/disk/by-partlabel/rwfs"
+fsck.ext4 -p "${rwfsdev}"
+if ! mount "${rwfsdev}" $rodir/var -t ext4 -o rw; then
     /bin/sh
 fi
 

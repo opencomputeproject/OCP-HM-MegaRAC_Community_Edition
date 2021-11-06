@@ -1,0 +1,153 @@
+diff -Naur a/src/appcommands.cpp b/src/appcommands.cpp
+--- a/src/appcommands.cpp	2021-03-25 10:16:09.625104959 +0530
++++ b/src/appcommands.cpp	2021-03-25 10:17:37.852506760 +0530
+@@ -20,6 +20,7 @@
+ #include <ipmid/utils.hpp>
+ #include <nlohmann/json.hpp>
+ #include <phosphor-logging/log.hpp>
++#include <boost/algorithm/string.hpp>
+ 
+ #include <fstream>
+ #include <regex>
+@@ -288,13 +289,21 @@
+     static bool bmcStateInitialized = false;
+     const char* filename = "/usr/share/ipmi-providers/dev_id.json";
+     const char* prodIdFilename = "/var/cache/private/prodID";
++    static uint8_t fwMaj,fwMin;
++    static uint32_t fwAux;
+     if (!fwVerInitialized)
+     {
+         std::string versionString;
+         if (!getActiveSoftwareVersionInfo(ctx, versionPurposeBMC,
+                                           versionString))
+         {
+-            std::optional<MetaRevision> rev =
++	    std::vector<std::string> devFwVersion;
++	    boost::split(devFwVersion, versionString, boost::is_any_of("."),boost::token_compress_on);
++
++            fwMaj = static_cast<uint8_t>(std::stoi(devFwVersion[0].c_str()));
++            fwMin = static_cast<uint8_t>(std::stoi(devFwVersion[1].c_str()));
++            fwAux = static_cast<uint32_t>(std::stoi(devFwVersion[2].c_str()));
++            /*std::optional<MetaRevision> rev =
+                 convertIntelVersion(versionString);
+             if (rev.has_value())
+             {
+@@ -317,7 +326,7 @@
+                         "Failed to convert git hash",
+                         phosphor::logging::entry("ERROR=%s", e.what()));
+                 }
+-            }
++            }*/
+         }
+     }
+ 
+@@ -331,11 +340,17 @@
+             {
+                 devId.id = data.value("id", 0);
+                 devId.revision = data.value("revision", 0);
+-				devId.fwMajor = data.value("fw0", 0);
+-				devId.fwMinor = data.value("fw1", 0);
++		devId.fwMajor = data.value("fw0", 0);
++		devId.fwMinor = data.value("fw1", 0);
+                 devId.addnDevSupport = data.value("addn_dev_support", 0);
+                 devId.manufId = data.value("manuf_id", 0);
+-				devId.aux = data.value("aux", 0);
++		devId.aux = data.value("aux", 0);
++		if((devId.fwMajor != fwMaj) || (devId.fwMinor != fwMin) || (devId.aux != fwAux))
++		{
++			devId.fwMajor = fwMaj;
++                	devId.fwMinor = fwMin;
++			devId.aux = fwAux;
++		}
+             }
+             else
+             {
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2021-03-24 18:14:14.248239943 +0530
++++ b/src/sensorcommands.cpp	2021-03-24 18:11:01.277634867 +0530
+@@ -377,6 +377,10 @@
+         return ipmi::responseReqDataLenInvalid();
+     }
+ 
++    intel_oem::ipmi::sel::checkSelHooks(0, 0x02, 0,
++                          generatorID, evmRev, sensorType, sensorNum, eventType,
++                          eventData1, eventData2.value_or(0xFF), eventData3.value_or(0xFF));
++
+     // Send this request to the Redfish hooks to log it as a Redfish message
+     // instead.  There is no need to add it to the SEL, so just return success.
+     intel_oem::ipmi::sel::checkRedfishHooks(
+@@ -867,6 +871,62 @@
+                                  upperNonRecoverable);
+ }
+ 
++/** @brief implements the Get Sensor Type command
++ *  @returns the sensor type value and Event/Reading type code
++ */
++
++ipmi::RspType< uint8_t,     //sensor type
++	       uint8_t >    //event/reading type code
++
++ipmiGetSensorTypeCmd(ipmi::Context::ptr ctx,int8_t SensorNum)
++{
++    std::string sensorPath;
++    uint8_t sensorTyp;
++    uint8_t eventTyp;
++    sensorPath = getPathFromSensorNumber(SensorNum);
++
++    std::string connection;
++    std::string path;
++    
++    auto status = getSensorConnection(ctx, SensorNum, connection, sensorPath);
++    if (status)
++    {
++        return ipmi::response(status);
++    }
++
++    SensorMap sensorMap;
++    if (!getSensorMap(ctx->yield, connection, sensorPath, sensorMap))
++    {
++        return ipmi::responseResponseError();
++    }
++
++    auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
++
++    auto SensorTypeObj = sensorObject->second.find("SensorType");
++    if (SensorTypeObj != sensorObject->second.end())
++    {
++        sensorTyp =  std::get<uint8_t>(SensorTypeObj->second);
++
++    }
++    else
++    {
++	sensorTyp = getSensorTypeFromPath(sensorPath);
++    }
++    
++    auto SensorEventTypeObj = sensorObject->second.find("EventType");
++    if (SensorEventTypeObj != sensorObject->second.end())
++    {
++        eventTyp =  std::get<uint8_t>(SensorEventTypeObj->second);
++
++    }
++    else
++    {
++        eventTyp = getSensorEventTypeFromPath(sensorPath);
++    }
++    return ipmi::responseSuccess(sensorTyp,eventTyp);
++}
++
++
+ /** @brief implements the get Sensor event enable command
+  *  @param sensorNumber - sensor number
+  *
+@@ -1793,6 +1853,11 @@
+                           ipmi::sensor_event::cmdPlatformEvent,
+                           ipmi::Privilege::Operator, ipmiSenPlatformEvent);
+ 
++    // <Get Sensor Type>
++    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
++		          ipmi::sensor_event::cmdGetSensorType,
++                          ipmi::Privilege::User, ipmiGetSensorTypeCmd);
++    
+     // <Get Sensor Reading>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetSensorReading,

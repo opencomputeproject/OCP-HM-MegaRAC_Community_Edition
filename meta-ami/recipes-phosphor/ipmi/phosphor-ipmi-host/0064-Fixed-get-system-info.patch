@@ -1,0 +1,18 @@
+diff -Naur a/apphandler.cpp b/apphandler.cpp
+--- a/apphandler.cpp	2021-05-28 14:46:02.934469223 +0530
++++ b/apphandler.cpp	2021-05-28 14:51:24.200261044 +0530
+@@ -1416,11 +1416,12 @@
+     std::tuple<bool, std::string> ret =
+         sysInfoParamStore->lookup(paramSelector);
+     bool found = std::get<0>(ret);
++    std::string& paramString = std::get<1>(ret);
+     if (!found)
+     {
+-        return ipmi::responseSensorInvalid();
++	    paramString="";
++    //    return ipmi::responseSensorInvalid();
+     }
+-    std::string& paramString = std::get<1>(ret);
+     std::vector<uint8_t> configData;
+     size_t count = 0;
+     if (setSelector == 0)

@@ -1,0 +1,230 @@
+diff -Naur a/redfish-core/include/registries/openbmc_message_registry.hpp b/redfish-core/include/registries/openbmc_message_registry.hpp
+--- a/redfish-core/include/registries/openbmc_message_registry.hpp	2021-05-01 15:43:00.567001109 +0530
++++ b/redfish-core/include/registries/openbmc_message_registry.hpp	2021-05-01 15:56:08.935960016 +0530
+@@ -29,7 +29,7 @@
+     "0.1.0",
+     "OpenBMC",
+ };
+-constexpr std::array<MessageEntry, 272> registry = {
++constexpr std::array<MessageEntry, 284> registry = {
+     MessageEntry{
+         "ADDDCCorrectable",
+         {
+@@ -3170,8 +3170,8 @@
+                  }},
+      MessageEntry{"ConfigurationError",
+                  {
+-                     "Indicates that a memory type sensor logged a Configuration Error",
+-                     "%1 sensor of type Memory logged a Memory logged a Configuration Error",
++                     "Indicates that a Memory/Processor type sensor logged a Configuration Error",
++                     "%1 sensor of type Memory/Processor logged a Memory logged a Configuration Error",
+                      "Critical",
+                      "Critical",
+                      1,
+@@ -3309,16 +3309,150 @@
+                      {"string"},
+                      "None.",
+                  }},
+-    MessageEntry{"ActiveStateLow",
+-                 {
+-                     "Indicates that a Sensor state is deasserted.",
+-                     "%1 deasserted",
+-                     "OK",
+-                     "OK",
+-                     1,
+-                     {"string"},
+-                     "None.",
+-                 }},
+ 
++    	MessageEntry{"ActiveStateLow",
++    	             {
++    	                 "Indicates that a Sensor state is deasserted.",
++    	                 "%1 deasserted",
++    	                 "OK",
++    	                 "OK",
++    	                 1,
++    	                 {"string"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"Ierr",
++    	             {
++    	                 "Indicates that the sensor of type Processor logged Interntal Error",
++    	                 "%1 sensor of type Processor asserted indicating an internal error "
++        	    	 "condition.",
++    	                 "Warning",
++    	                 "Warning",
++    	                 1,
++    	                 {"string"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"ThermalTrip",
++    	             {
++    	                 "Indicates that the sensor of type Processor ThermTrip has been asserted",
++    	                 "Processor sensor %1 Thermal Trip has been asserted.",
++    	                 "Critical",
++    	                 "Critical",
++    	                 1,
++    	                 {"number"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"Frb1",
++    	             {
++    	                 "Indicates that the sensor of type Processor logged FRB1/BIST failure",
++    	                 "Processor sensor %1 indicates that FRB level 1 is intended to recover "
++    	    	         "from a BIST failure detected during POST.",
++    	                 "Critical",
++    	                 "Critical",
++    	                 1,
++    	                 {"number"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"Frb2",
++    	             {
++    	                 "Indicates that the sensor of type Processor logged FRB2/Hang "
++    	    	         "in POST failure",
++    	                 "Processor sensor %1 indicates that FRB level 2 is intended to recover "
++    	    	         "from a watchdog timeout during POST.",
++    	                 "Critical",
++    	                 "Critical",
++    	                 1,
++    	                 {"number"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"Frb3",
++    	             {
++    	                 "Indicates that the sensor of type Processor logged FRB3/Processor "
++    	    	          "Startup/Init failure.",
++    	                 "Processor sensor %1 indicates that FRB level 3 is intended to recover "
++    	    	         "from a watchdog timeout on hard reset or power-up.",
++    	                 "Critical",
++    	                 "Critical",
++    	                 1,
++    	                 {"number"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"UncorrectableCpuComplexError",
++    	             {
++    	                 "Indicates that a sensor of type Processor logged SM BIOS  "
++    	                 "Uncorrectable CPU-Complex Error.",
++    	                 "%1 sensor of type Processor indicating that SM BIOS "
++    	    	         "Uncorrectable CPU complex error has asserted",
++    	                 "Critical",
++    	                 "Critical",
++    	                 1,
++    	                 {"string"},
++    	                 "None.",
++    	             }},
++    	MessageEntry{"ProcessorPresenceDetected",
++    	            {
++    	                "Indicates that a Processor type sensor logged a Presence Detected",
++    	                "%1 sensor of type Processor has logged a Presence Detected",
++    	                "Warning",
++    	                "Warning",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
++    	MessageEntry{"ProcessorDisabled",
++    	            {
++    	                "Indicates that a Processor type sensor logged a Processor Disabled",
++    	                "%1 sensor of type Processor has logged a Processor Disabled",
++    	                "Critical",
++    	                "Critical",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
++    	MessageEntry{"TerminatorPresenceDetected",
++    	            {
++    	                "Indicates that a Processor type sensor logged a Terminator "
++    	   	     	"Presence Detected",
++    	                "%1 sensor of type Processor has logged a Terminator Presence Detected",
++    	                "Warning",
++    	                "Warning",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
++    	MessageEntry{"ProcessorAutomaticallyThrottled",
++    	            {
++    	                "Indicates that a Processor type sensor logged a Automatic Throttled",
++    	                "%1 sensor of type Processor has logged a Automatic Throttled.",
++    	                "Warning",
++    	                "Warning",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
++    	MessageEntry{"MachineCheckException",
++    	            {
++    	                "Indicates that a Processor type sensor throttling triggered by a "
++    	   	        "hardware-based mecahnism operating independent from system software "
++    	   	        "such as automatic thermal throttling or throttling to linit power "
++    	   	        "consumption.",
++    	                "%1 sensor of type Processor has logged a Automatic Throttled.",
++    	                "Warning",
++    	                "Warning",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
++    	MessageEntry{"CorrectableMachineCheck",
++    	            {
++    	                "Indicates that a Processor type sensor logged a Correctable "
++    	   	     	"Machine Check Error.",
++    	                "%1 sensor of type Processor has logged a Correctable Machine "
++    	   	     	"Check Error.",
++    	                "Warning",
++    	                "Warning",
++    	                1,
++    	                {"string"},
++    	                "None.",
++    	            }},
+ };
+ } // namespace redfish::message_registries::openbmc
+diff -Naur a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+--- a/redfish-core/lib/log_services.hpp	2021-05-01 15:43:00.575001134 +0530
++++ b/redfish-core/lib/log_services.hpp	2021-05-01 15:47:07.827607045 +0530
+@@ -1631,11 +1631,13 @@
+ 		for (auto it = logEntryVector.begin()+static_cast<int>(required_index); it < logEntryVector.end();
+              it++, i++)
+ 			 {
++				#if 0
+ 				if ((logEntryVector[required_index+i].substr(logEntryVector[required_index+i].find("OpenBMC."),logEntryVector[required_index+i].substr(logEntryVector[required_index+i].find("OpenBMC.")).find(",")).compare("OpenBMC.0.1")) == 0)
+ 				{
+ 				     BMCWEB_LOG_DEBUG << "Entry with Empty MessageId & Message found, Ignoring! ";
+ 				     continue;
+ 				}
++				#endif
+ 
+ 				std::string idStr;
+                                 if(rec_id == 0xFFFF)
+@@ -2073,11 +2075,13 @@
+                        {
+                                if (record_id == linecount)
+                                {
++				       #if 0
+                                        if ((databuf.substr(databuf.find("OpenBMC."),databuf.substr(databuf.find("OpenBMC.")).find(",")).compare("OpenBMC.0.1")) == 0)
+                                        {
+                                             BMCWEB_LOG_DEBUG << "Entry with Empty MessageId & Message found, Ignoring! ";
+                                             continue;
+                                        }
++				       #endif
+ 
+                                        if (fillEventLogEntryJson(targetID, databuf, asyncResp->res.jsonValue) != 0)
+                                        {
+@@ -2100,11 +2104,14 @@
+                        {
+                                if (record_id == linecount)
+                                {
++				       #if 0
+                                        if ((databuf.substr(databuf.find("OpenBMC."),databuf.substr(databuf.find("OpenBMC.")).find(",")).compare("OpenBMC.0.1")) == 0)
+                                        {
+                                             BMCWEB_LOG_DEBUG << "Entry with Empty MessageId & Message found, Ignoring! ";
+                                             continue;
+                                        }
++				       #endif
++
+                                        if (fillEventLogEntryJson(targetID, databuf, asyncResp->res.jsonValue) != 0)
+                                        {
+                                                messages::internalError(asyncResp->res);

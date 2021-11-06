@@ -1,0 +1,19 @@
+diff -Nuar a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2021-03-30 21:45:59.988682990 +0530
++++ b/transporthandler.cpp	2021-03-30 21:46:48.342089192 +0530
+@@ -1926,13 +1926,13 @@
+         }
+         case LanParam::AuthSupport:
+         {
+-            std::bitset<6> support;
++            std::bitset<6> support = 0x04;
+             ret.pack(support, uint2_t{});
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::AuthEnables:
+         {
+-            std::bitset<6> enables;
++            std::bitset<6> enables = 0x04;
+             ret.pack(enables, uint2_t{}); // Callback
+             ret.pack(enables, uint2_t{}); // User
+             ret.pack(enables, uint2_t{}); // Operator

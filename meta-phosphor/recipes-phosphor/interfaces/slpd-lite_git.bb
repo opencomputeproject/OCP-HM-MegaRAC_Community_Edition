@@ -19,6 +19,3 @@ SRC_URI += "git://github.com/openbmc/slpd-lite"
 SRCREV = "a592888328e79f0ba61a7099fcb1143bc20a0d43"
 
 S = "${WORKDIR}/git"
-
-require conf/machine/include/unpack.inc
-

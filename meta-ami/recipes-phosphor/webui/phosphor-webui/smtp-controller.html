@@ -1,0 +1,78 @@
+<loader loading="loading"></loader>
+<div class="ldap" id="configuration-smtp">
+  <div class="row column">
+    <h1>SMTP</h1>
+  </div>
+  <div class="row column">
+    <p>Configure SMTP Settings</p>
+  </div>
+  <div class="row column">
+    <h2 class="subhead">
+      Settings
+    </h2>
+  </div>
+  <div class="row column">
+    <label class="control-check ldap__control-check">
+      <input type="checkbox" ng-disabled="dataService.isNotAdmin()" aria-labelledby="smtp-auth-label"
+      ng-change="smtp__configuration.$setUntouched()"
+      ng-click = "func_smtp_enable()"
+      ng-model="smtp_configs.smtp_enable" />
+      <span class="control__indicator"></span>
+      <span id="smtp-auth-label" class="control__label">
+        <strong>Enable SMTP settings</strong>
+      </span>
+    </label>
+  </div>
+  <div class="row column">
+    <form id="smtp__configuration" name="smtp__configuration" ng-class="{'submitted': submitted}"
+      class="smtp__configuration">
+      <fieldset>
+        <div class="ldap__configure-settings row column">
+          <div class="large-9 columns ldap__server-info">
+            <div class="medium-6 large-6 columns">
+              <label for="smtp_server">Server Address</label>
+              <input id="smtp_server" name="smtp_server" type="text"
+                ng-model="smtp_configs.server_address"
+                ng-disabled="!smtp_configs.smtp_enable || dataService.isNotAdmin()"
+                ng-pattern="/^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$/"
+                required />
+              <div ng-messages="smtp__configuration.smtp_server.$error" class="form-error"
+                ng-class="{'visible' : smtp__configuration.smtp_server.$touched || submitted}" role="alert">
+                <p ng-message="required">Field is required</p>
+                <p ng-message="pattern">Invalid Server Address</p>
+              </div>
+            </div>
+            <div class="medium-6 large-6 columns">
+              <label for="smtp_port">PORT</label>
+              <input id="smtp_port" name="smtp_port" type="number" min="1" max="65535" ng-disabled="!smtp_configs.smtp_enable || dataService.isNotAdmin()" ng-model="smtp_configs.port" required />
+              <div ng-messages="smtp__configuration.smtp_port.$error" class="form-error"
+                ng-class="{'visible' : smtp__configuration.smtp_port.$touched || submitted}" role="alert">
+                <p ng-message="required">Field is required</p>
+              </div>
+            </div>
+            <div class="medium-6 large-6 columns">
+              <label for="smtp_sender_email">Sender Email Address</label>
+              <input id="smtp_sender_email" ng-disabled="!smtp_configs.smtp_enable || dataService.isNotAdmin()" type="email" name="smtp_sender_email" autocomplete="off" ng-model="smtp_configs.sender_email" required />
+              <div ng-messages="smtp__configuration.smtp_sender_email.$error" class="form-error"
+                ng-class="{'visible' : smtp__configuration.smtp_sender_email.$touched || submitted}" role="alert">
+                <p ng-message="required">Field is required</p>
+              </div>
+            </div>
+            <div class="medium-6 large-6 columns">
+              <label for="smtp_reciver_email">Reciver Email Address</label>
+              <input id="smtp_reciver_email" ng-disabled="!smtp_configs.smtp_enable || dataService.isNotAdmin()" name="smtp_reciver_email" type="email" ng-model="smtp_configs.reciver_email" required />
+              <div ng-messages="smtp__configuration.smtp_reciver_email.$error" class="form-error"
+                ng-class="{'visible' : smtp__configuration.smtp_reciver_email.$touched || submitted}" role="alert">
+                <p ng-message="required">Field is required</p>
+              </div>
+            </div>
+            <div class="column smtp__configuration-buttons">
+              <button type="submit" class="btn btn-primary" ng-disabled="!smtp__configuration.$valid || dataService.isNotAdmin()"
+                ng-click="$parent.submitted=true; smtp__configuration.$valid && saveSMTPSettings(); smtp__configuration.$setUntouched()">Save</button>
+                <button type="button" class="btn btn-secondary" ng-disabled="dataService.isNotAdmin()"
+                ng-click="reset(); smtp__configuration.$setUntouched()">Reset</button>
+            </div>
+      </fieldset>
+    </form>
+  </div>
+</div>

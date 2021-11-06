@@ -1,0 +1,56 @@
+diff -Naur a/include/PSUSensor.hpp b/include/PSUSensor.hpp
+--- a/include/PSUSensor.hpp	2021-06-19 04:09:00.881336440 +0530
++++ b/include/PSUSensor.hpp	2021-06-19 03:59:50.400304687 +0530
+@@ -20,7 +20,7 @@
+               std::vector<thresholds::Threshold>&& thresholds,
+               const std::string& sensorConfiguration,
+               std::string& sensorTypeName, unsigned int factor, double max,
+-              double min, const std::string& label, size_t tSize,uint16_t EvStat, const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord);
++              double min, const std::string& label, size_t tSize,uint16_t EvStat, const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord,const PowerState powerState);
+     ~PSUSensor();
+     void setupRead(void);
+ 
+diff -Naur a/src/PSUSensor.cpp b/src/PSUSensor.cpp
+--- a/src/PSUSensor.cpp	2021-06-19 04:09:15.753248876 +0530
++++ b/src/PSUSensor.cpp	2021-06-19 04:00:12.928197974 +0530
+@@ -44,10 +44,10 @@
+                      const std::string& sensorConfiguration,
+                      std::string& sensorTypeName, unsigned int factor,
+                      double max, double min, const std::string& label,
+-                     size_t tSize,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord) :
++                     size_t tSize,uint16_t EvStat,const std::string& sensorUnit,struct sdr::SdrRecord sdrRecord,const PowerState powerState) :
+     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
+            std::move(_thresholds), sensorConfiguration, objectType, max, min,
+-           conn,EvStat,sensorUnit,sdrRecord),
++           conn,EvStat,sensorUnit,sdrRecord,powerState),
+     std::enable_shared_from_this<PSUSensor>(), objServer(objectServer),
+     inputDev(io), waitTimer(io), path(path), pathRatedMax(""), pathRatedMin(""),
+     sensorFactor(factor), minMaxReadCounter(0)
+diff -Naur a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+--- a/src/PSUSensorMain.cpp	2021-06-19 04:09:15.753248876 +0530
++++ b/src/PSUSensorMain.cpp	2021-06-19 04:00:12.928197974 +0530
+@@ -404,6 +404,15 @@
+                           << baseConfig->first << "\n";
+                 continue;
+             }
++	
++ 	    auto findPowerOn = baseConfig->second.find("PowerState");
++            PowerState readState = PowerState::always;
++            if (findPowerOn != baseConfig->second.end())
++            {
++                 std::string powerState = std::visit(
++                 VariantToStringVisitor(), findPowerOn->second);
++                 setReadState(powerState, readState);
++            }
+ 
+         uint16_t EvStat =
+                 std::visit(VariantToUnsignedIntVisitor(), findEvStat->second);
+@@ -824,7 +833,7 @@
+                 sensorPathStr, sensorType, objectServer, dbusConnection, io,
+                 sensorName, std::move(sensorThresholds), *interfacePath,
+                 findSensorType->second, factor, psuProperty->maxReading,
+-                psuProperty->minReading, labelHead, thresholdConfSize,EvStat,sensorUnit,sdrRecord);
++                psuProperty->minReading, labelHead, thresholdConfSize,EvStat,sensorUnit,sdrRecord,readState);
+             sensors[sensorName]->setupRead();
+             ++numCreated;
+             if constexpr (DEBUG)

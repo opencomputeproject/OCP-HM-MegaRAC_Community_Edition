@@ -10,6 +10,12 @@
           AutoReboot:
              Default: 'true'
 
+/xyz/openbmc_project/control/host0/auto_reboot/one_time:
+    - Interface: xyz.openbmc_project.Control.Boot.RebootPolicy
+      Properties:
+          AutoReboot:
+             Default: 'true'
+
 /xyz/openbmc_project/control/host0/boot:
     - Interface: xyz.openbmc_project.Control.Boot.Source
       Properties:
@@ -19,60 +25,6 @@
       Properties:
           BootMode:
               Default: Mode::Modes::Regular
-    - Interface: xyz.openbmc_project.Control.Boot.ResetLockout
-      Properties:
-          ResetLockout:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ConsoleRedirection
-      Properties:
-          ConsoleRedirection:
-              Default: ConsoleRedirection::Redirections::Default
-    - Interface: xyz.openbmc_project.Control.Boot.LockSleep
-      Properties:
-          LockSleep:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.PasswordBypass
-      Properties:
-          PasswordBypass:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ForceProgressTraps
-      Properties:
-          ForceProgressEventTraps:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.FirmwareVerbosity
-      Properties:
-          FirmwareVerbosity:
-              Default: FirmwareVerbosity::Levels::Default
-    - Interface: xyz.openbmc_project.Control.Boot.LockPower
-      Properties:
-          LockPower:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.SetInProgress
-      Properties:
-          SetInProgress:
-              Default: SetInProgress::Statuses::SetComplete
-    - Interface: xyz.openbmc_project.Control.Boot.ServicePartitionSelect
-      Properties:
-          ServicePartition:
-              Default: 0
-    - Interface: xyz.openbmc_project.Control.Boot.ServicePartitionScan
-      Properties:
-          RequestScan:
-              Default: 'false'
-          PartitionDiscovered:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.BootFlagValidClearing
-      Properties:
-          NoClearOnPEFReset:
-              Default: 'false'
-          NoClearOnTimeout:
-              Default: 'false'
-          NoClearOnWatchdogReset:
-              Default: 'false'
-          NoClearOnPushbuttonReset:
-              Default: 'false'
-          NoClearOnPowerup:
-              Default: 'false'
 
 /xyz/openbmc_project/control/host0/boot/one_time:
     - Interface: xyz.openbmc_project.Control.Boot.Source
@@ -87,58 +39,6 @@
       Properties:
           Enabled:
               Default: 'true'
-    - Interface: xyz.openbmc_project.Control.Boot.CMOSClear
-      Properties:
-          CMOSClear:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.LockKeyboard
-      Properties:
-          LockKeyboard:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ResetLockout
-      Properties:
-          ResetLockout:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ScreenBlank
-      Properties:
-          ScreenBlank:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ConsoleRedirection
-      Properties:
-          ConsoleRedirection:
-              Default: ConsoleRedirection::Redirections::Default
-    - Interface: xyz.openbmc_project.Control.Boot.LockSleep
-      Properties:
-          LockSleep:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.PasswordBypass
-      Properties:
-          PasswordBypass:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.ForceProgressTraps
-      Properties:
-          ForceProgressEventTraps:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.FirmwareVerbosity
-      Properties:
-          FirmwareVerbosity:
-              Default: FirmwareVerbosity::Levels::Default
-    - Interface: xyz.openbmc_project.Control.Boot.LockPower
-      Properties:
-          LockPower:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.MuxOverride
-      Properties:
-          MuxOverride:
-              Default: MuxOverride::Modes::Default
-    - Interface: xyz.openbmc_project.Control.Boot.SharedModeOverride
-      Properties:
-          SharedModeOverride:
-              Default: 'false'
-    - Interface: xyz.openbmc_project.Control.Boot.DeviceInstance
-      Properties:
-          DeviceInstance:
-              Default: 0
 
 /xyz/openbmc_project/control/host0/power_cap:
     - Interface: xyz.openbmc_project.Control.Power.Cap

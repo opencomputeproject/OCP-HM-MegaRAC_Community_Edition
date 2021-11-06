@@ -1,0 +1,199 @@
+diff -Naur a/include/oemcommands.hpp b/include/oemcommands.hpp
+--- a/include/oemcommands.hpp	2021-04-29 01:38:21.608128045 +0530
++++ b/include/oemcommands.hpp	2021-04-29 03:15:37.253512744 +0530
+@@ -74,6 +74,8 @@
+ static constexpr Cmd cmdSetSecurityMode = 0xB4;
+ static constexpr Cmd cmdMtmKeepAlive = 0xB5;
+ static constexpr Cmd cmdOEMGetReading = 0xE2;
++static constexpr Cmd cmdOEMSetSmtpConfig = 0xE3;
++static constexpr Cmd cmdOEMGetSmtpConfig = 0xE4;
+ static constexpr Cmd cmdSetBIOSCap = 0xD3;
+ static constexpr Cmd cmdGetBIOSCap = 0xD4;
+ static constexpr Cmd cmdSetPayload = 0xD5;
+diff -Naur a/ipmi-whitelist.conf b/ipmi-whitelist.conf
+--- a/ipmi-whitelist.conf	2021-04-29 03:58:25.991986515 +0530
++++ b/ipmi-whitelist.conf	2021-04-29 03:59:25.316464429 +0530
+@@ -304,6 +304,8 @@
+ 0x30:0xd9:0x7f7f   //<Intel General Application>:<OOB Update Status>
+ 0x30:0xdb:0x7f7f   //<Intel General Application>:<Get/Set BMC Remote Debug Parameters>
+ 0x30:0xe2:0xff7f   //<Intel General Application>:<OEM Get Reading>
++0x30:0xe3:0xff7f   //<Intel General Application>:<OEM Set SMTP>
++0x30:0xe4:0xff7f   //<Intel General Application>:<OEM Get SMTP>
+ 0x30:0xe5:0xff7f   //<Intel General Application>:<Get NMI Source>
+ 0x30:0xe6:0x7f7f   //<Intel General Application>:<Send Raw PECI>
+ 0x30:0xe7:0x7f7f   //<Intel General Application>:<Aggregate Send Raw PECI>
+diff -Naur a/src/oemcommands.cpp b/src/oemcommands.cpp
+--- a/src/oemcommands.cpp	2021-04-29 01:38:10.236046178 +0530
++++ b/src/oemcommands.cpp	2021-04-29 07:07:44.164992139 +0530
+@@ -3649,6 +3649,156 @@
+     return ipmi::responseSuccess(kcsMaxBufferSize, ipmbMaxBufferSize);
+ }
+ 
++std::vector<std::string> getsmtpconfig(sdbusplus::bus::bus& bus)
++{
++	std::vector<std::string> cfg;
++	auto call = bus.new_method_call("xyz.openbmc_project.mail", "/xyz/openbmc_project/mail/alert",
++                    "xyz.openbmc_project.mail.alert", "GetSmtpConfig");
++    	try
++    	{
++       	     auto data = bus.call(call);
++             data.read(cfg);
++    	}
++    	catch (sdbusplus::exception_t& e)
++    	{
++            std::cerr << "failed method call\n";
++    	}
++
++	return cfg;
++}
++
++void setsmtpconfig(sdbusplus::bus::bus& bus, std::string enable, std::string host, std::string port,
++		std::string send, std::string rec)
++{
++	auto call = bus.new_method_call("xyz.openbmc_project.mail", "/xyz/openbmc_project/mail/alert",
++                    "xyz.openbmc_project.mail.alert", "SetSmtpConfig");
++        call.append(enable, host, port, send, rec);
++        try
++        {
++              auto data = bus.call(call);
++        }
++        catch (sdbusplus::exception_t& e)
++        {
++              std::cerr << "failed method call\n";
++        }
++}
++
++
++RspType<> ipmiOEMSetSmtpConfig(Context::ptr ctx, uint8_t parameter, 
++		message::Payload& req)
++{
++    std::vector<std::string> smtpcfg;
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    smtpcfg = getsmtpconfig(*bus);
++
++    std::string enabled = smtpcfg[0];
++    std::string host = smtpcfg[1];
++    std::string port = smtpcfg[2];
++    std::string sender = smtpcfg[3];
++    std::string rec = smtpcfg[4];
++
++    switch (parameter)
++    {
++	 case 0x01:
++	 {
++		std::array<uint8_t, 1> bytes;
++            	if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++            	{
++                	return responseReqDataLenInvalid();
++            	}
++		if(bytes[0] == 0x00){
++			enabled = "false";
++		}else if(bytes[0] == 0x01)
++		{
++			enabled = "true";
++	 	}
++	 	break;
++	 }
++	 case 0x02:
++	 {
++		 std::array<uint8_t, 4> bytes;
++                 if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++                 {
++                        return responseReqDataLenInvalid();
++                 }
++		 host = std::to_string(bytes[0]) + "." +  std::to_string(bytes[1]) + "." +
++			 std::to_string(bytes[2]) + "." +  std::to_string(bytes[3]);
++		 break;
++	 }
++	 case 0x03:
++	 {
++		 std::vector<uint8_t> bytes;
++                 if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++                 {
++                        return responseReqDataLenInvalid();
++                 }
++		 std::string p(bytes.begin(), bytes.end());
++		 port = p;
++		 break;
++	 }
++	 case 0x04:
++	 {
++		 //std::array<char, 50> bytes; 
++		 std::vector<char> reqData;
++		 if (req.unpack(reqData) != 0 || !req.fullyUnpacked())
++    		 {
++        		return responseReqDataLenInvalid();
++    		 }
++
++		 std::string sen(reqData.begin(), reqData.end());
++		 sender = sen;
++		 break;
++	 }
++	 case 0x05:
++	 {
++		 //std::array<char, 50> bytes;
++		 std::vector<char> reqData;
++                 if (req.unpack(reqData) != 0 || !req.fullyUnpacked())
++                 {
++                        return responseReqDataLenInvalid();
++                 }
++
++		 std::string reci(reqData.begin(), reqData.end());
++		 rec = reci;
++		 break;
++	 }
++    }
++    setsmtpconfig(*bus, enabled, host, port, sender, rec);
++    return responseSuccess();
++}
++
++/*RspType<> ipmiOEMGetSmtpConfig(Context::ptr ctx, uint8_t parameter)
++{
++    std::vector<std::string> smtpcfg;
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    smtpcfg = getsmtpconfig(*bus);
++
++    switch (parameter)
++    {
++         case 0x01:
++         {
++                break;
++         }
++         case 0x02:
++         {
++                 break;
++         }
++         case 0x03:
++         {
++                 break;
++         }
++         case 0x04:
++         {
++                 break;
++         }
++         case 0x05:
++         {
++                 break;
++         }
++    }
++    return responseSuccess();
++}*/
++
+ static void registerOEMFunctions(void)
+ {
+     phosphor::logging::log<phosphor::logging::level::INFO>(
+@@ -3819,6 +3969,14 @@
+     registerHandler(prioOemBase, intel::netFnGeneral,
+                     intel::general::cmdOEMGetReading, Privilege::User,
+                     ipmiOEMGetReading);
++
++    registerHandler(prioOemBase, intel::netFnGeneral,
++                    intel::general::cmdOEMSetSmtpConfig, Privilege::User,
++                    ipmiOEMSetSmtpConfig);
++
++/*    registerHandler(prioOemBase, intel::netFnGeneral,
++                    intel::general::cmdOEMGetSmtpConfig, Privilege::User,
++                    ipmiOEMGetSmtpConfig);*/
+ }
+ 
+ } // namespace ipmi

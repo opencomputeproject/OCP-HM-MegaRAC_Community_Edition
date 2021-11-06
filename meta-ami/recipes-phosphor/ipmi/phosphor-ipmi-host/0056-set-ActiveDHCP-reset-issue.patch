@@ -1,0 +1,39 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-05-10 11:55:11.445365828 -0400
++++ b/dcmihandler.cpp	2021-05-17 12:07:20.760151122 -0400
+@@ -262,7 +262,22 @@
+     auto value = ipmi::getDbusProperty(bus, service, ethernetObj.first,
+                                        ethernetIntf, "DHCPEnabled");
+ 
+-    return true;
++    try
++    {
++        std::string& strValue = std::get<std::string>(value);
++
++        if (strValue == "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both")
++        {
++             return true;
++        }
++    }
++    catch (std::bad_variant_access& ex)
++    {
++        log<level::ERR>("Failed to convert returned value", entry("ERR=%s", ex.what()));
++        elog<InternalFailure>();
++    }
++
++    return false;
+ }
+ 
+ bool getDHCPOption(std::string prop)
+diff -Naur a/dcmihandler.hpp b/dcmihandler.hpp
+--- a/dcmihandler.hpp	2021-05-12 16:05:56.521885661 -0400
++++ b/dcmihandler.hpp	2021-05-12 16:06:43.410309643 -0400
+@@ -46,7 +46,7 @@
+     "/usr/share/ipmi-providers/dcmi_sensors.json";
+ static constexpr auto ethernetIntf =
+     "xyz.openbmc_project.Network.EthernetInterface";
+-static constexpr auto ethernetDefaultChannelNum = 0x1;
++static constexpr auto ethernetDefaultChannelNum = 0x2;
+ static constexpr auto networkRoot = "/xyz/openbmc_project/network";
+ static constexpr auto dhcpObj = "/xyz/openbmc_project/network/config/dhcp";
+ static constexpr auto dhcpIntf =

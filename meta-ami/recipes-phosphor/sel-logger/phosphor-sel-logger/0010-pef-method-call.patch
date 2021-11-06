@@ -1,0 +1,46 @@
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2021-04-29 06:28:23.196563219 +0530
++++ b/include/sel_logger.hpp	2021-04-29 06:29:04.292349156 +0530
+@@ -32,6 +32,11 @@
+ static constexpr char const* ipmiSelAddInterface =
+     "xyz.openbmc_project.Logging.IPMI";
+ 
++constexpr static const char* pefService = "xyz.openbmc_project.pef.alerting";
++constexpr static const char* pefObjPath = "/xyz/openbmc_project/pef/alerting";
++constexpr static const char* pefIface = "xyz.openbmc_project.pef.pefTask";
++constexpr static const char* pefTaskMethod = "doPefTask";
++
+ // ID string generated using journalctl to include in the MESSAGE_ID field for
+ // SEL entries.  Helps with filtering SEL entries in the journal.
+ static constexpr char const* selMessageId = "b370836ccf2f4850ac5bee185b77893a";
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2021-04-29 06:27:56.216702718 +0530
++++ b/src/sel_logger.cpp	2021-04-29 06:30:08.640010456 +0530
+@@ -146,6 +146,19 @@
+     toHexStr(selData, selDataStr);
+     unsigned int recordId = getNewRecordId();
+     sd_journal_send("MESSAGE=%s", message.c_str(), std::forward<T>(metadata)..., NULL);
++    //Do PEF Action
++    boost::asio::io_service io;
++    auto conn = std::make_shared<sdbusplus::asio::connection>(io);
++    auto startPefTask = conn->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
++    startPefTask.append(static_cast<uint16_t>(recordId),senType,senNum,eveType,selData[0],selData[1],selData[2],genId);
++    try
++    {
++         conn->call(startPefTask);
++    }
++    catch (sdbusplus::exception_t&)
++    {
++         std::cerr << "Failed to call doPefTask\n";
++    }
+     return recordId;
+ }
+ 
+@@ -166,6 +179,7 @@
+                     "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%x",
+                     recordId, "IPMI_SEL_RECORD_TYPE=%x", recordType,
+                     "IPMI_SEL_DATA=%s", selDataStr.c_str(), NULL);
++
+     return recordId;
+ }
+ 

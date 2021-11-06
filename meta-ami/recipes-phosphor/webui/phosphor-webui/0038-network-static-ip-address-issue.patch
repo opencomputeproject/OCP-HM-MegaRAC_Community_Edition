@@ -1,0 +1,146 @@
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-07-08 22:19:08.504205239 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-07-08 22:24:41.040093719 +0530
+@@ -173,6 +173,15 @@
+ 
+       $scope.check_IPv6_address_count = function(){
+         var count = 0;
++        var max_count = 3;
++        var warn_msg = ""
++        if(!$scope.interface.IPv6DHCPEnabled && $scope.oldInterface.IPv6DHCPEnabled){
++          var warn_msg = "Cannot configure more than One Address when switching from DHCP to Static!!";
++          var max_count = 1;
++        }else{
++          var warn_msg = "Cannot Add/Modify/Delete more than 3 IPv6 address at the same time!!";
++          var max_count = 3;
++        }
+         if (!$scope.interface.IPv6DHCPEnabled) {
+           // Update any changed IPV6 addresses and add new
+           for (var i in $scope.interface.ipv6.values) {
+@@ -185,15 +194,15 @@
+               } else {
+                 count = count+1;
+               }
+-              if(count > 3){
+-                toastService.warn("Cannot Add/Modify/Delete more than 3 IPv6 address at the same time!!");
++              if(count > max_count){
++                toastService.warn(warn_msg);
+                 return false;
+               }
+             }
+           }
+         }
+-        if($scope.ipv6sToDelete.length > 3){
+-          toastService.warn("Cannot Add/Modify/Delete more than 3 IPv6 address at the same time!!");
++        if($scope.ipv6sToDelete.length > max_count){
++          toastService.warn(warn_msg);
+           return false;
+         }
+         return true;
+@@ -305,9 +314,9 @@
+ 
+         // If switched from static to dhcp
+         // then delete the object. 
+-        if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled && !$scope.interface.vlan_DHCP) {
+-          promises.push(removeAllIPs());
+-        }
++        // if($scope.interface.DHCPEnabled && $scope.oldDHCPstatus != $scope.interface.DHCPEnabled && !$scope.interface.vlan_DHCP) {
++          // promises.push(removeAllIPs());
++        // }
+ 
+         // Set IPV4 IP Addresses, Netmask Prefix Lengths, and Gateways
+         if (!$scope.interface.DHCPEnabled) {
+@@ -365,12 +374,12 @@
+ 
+         if (!$scope.interface.IPv6DHCPEnabled) {
+           // Delete existing IPV6 addresses that were removed
+-          if(!$scope.network.interfaces[$scope.selectedinterfaceId].IPv6DHCPEnabled){
+-            if($scope.oldInterface.IPv6DHCPEnabled){
+-              promises.push(setIPv6AcceptRAStatus());
+-            }else{
++          if(!$scope.network.interfaces[$scope.selectedinterfaceId].IPv6DHCPEnabled && !$scope.oldInterface.IPv6DHCPEnabled){
++            // if($scope.oldInterface.IPv6DHCPEnabled){
++            //   promises.push(setIPv6AcceptRAStatus());
++            // }else{
+               promises.push(removeIPV6s());
+-            }
++            // }
+           }
+           // Update any changed IPV6 addresses and add new
+           for (var i in $scope.interface.ipv6.values) {
+@@ -637,8 +646,7 @@
+         // The correct way to edit an IPV4 interface is to remove it and then
+         // add a new one
+         if(type == "dhcp_to_static"){
+-          return APIUtils
+-          .addIPVs(
++          return APIUtils.addIPVs(
+             'xyz.openbmc_project.Network.IP.Protocol.IPv4',
+             $scope.selectedInterface,
+             $scope.interface.ipv4.values[index].Address,
+@@ -646,22 +654,20 @@
+             $scope.interface.ipv4.values[index].Gateway,
+             parseInt(index)
+           ).then(
+-            function(data) {
+-              toastService.info("Switching Network IPv4 Settings to Static..");
+-              $timeout(function(){
+-                return APIUtils.deleteIPVs(
+-                  $scope.selectedInterface,
+-                  $scope.interface.ipv4.values[index].id,
+-                  'ipv4'
+-                ).then(
+-                  function(data) {},
+-                  function(error) {
+-                    console.log(JSON.stringify(error));
+-                    return $q.reject();
+-                  }
+-                );
+-              }, 19000);
+-            },
++            function(data) { toastService.info("Switching Network IPv4 Settings to Static.."); },
++            // $timeout(function(){
++            //   return APIUtils.deleteIPVs(
++            //     $scope.selectedInterface,
++            //     $scope.interface.ipv4.values[index].id,
++            //     'ipv4'
++            //   ).then(
++            //     function(data) {},
++            //     function(error) {
++            //       console.log(JSON.stringify(error));
++            //       return $q.reject();
++            //     }
++            //   );
++            // }, 19000);
+             function(error) {
+               console.log(JSON.stringify(error));
+               return $q.reject();
+@@ -678,7 +684,7 @@
+             $scope.interface.ipv4.values[index].Gateway,
+             parseInt(index))
+           .then(
+-            function(){},
++            function(){toastService.info("Modifying Static IPv4 Address..");},
+             function(error) {
+               console.log(JSON.stringify(error));
+               return $q.reject();
+@@ -691,7 +697,7 @@
+         // The correct way to edit an IPV4 interface is to remove it and then
+         // add a new one
+         if(type == "dhcp_to_static"){
+-          $timeout(function(){
++          // $timeout(function(){
+             return APIUtils
+             .addIPVs(
+               'xyz.openbmc_project.Network.IP.Protocol.IPv6',
+@@ -705,8 +711,8 @@
+               }, function(error){
+                 console.log(JSON.stringify(error));
+                 return $q.reject();
+-              })
+-            }, 2000);
++              });
++            // }, 5000);
+         }
+         if(type == "static_to_static"){
+           return APIUtils.addIPVs(

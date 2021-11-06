@@ -1,0 +1,265 @@
+diff -Naur a/include/ChassisIntrusionSensor.hpp b/include/ChassisIntrusionSensor.hpp
+--- a/include/ChassisIntrusionSensor.hpp	2021-03-30 13:06:58.337409795 +0530
++++ b/include/ChassisIntrusionSensor.hpp	2021-03-30 13:13:42.385415177 +0530
+@@ -24,7 +24,8 @@
+     ~ChassisIntrusionSensor();
+ 
+     void start(IntrusionSensorType type, int busId, int slaveAddr,
+-              bool gpioInverted, uint8_t eventType, uint8_t evStat, uint8_t recordType,
++              bool gpioInverted, uint8_t eventType, uint8_t evStat, uint16_t assertEventMask,
++              uint16_t deassertEventMask, uint8_t recordType,
+               uint8_t entityId,uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
+               uint8_t sensorUnit2);
+ 
+@@ -50,6 +51,7 @@
+     uint8_t  mrecordType,mentityId,
+             mentityInstance,msensorInit,msensorCap,msensorType,
+             msensorUnit2;
++    uint16_t massertEventMask, mdeassertEventMask;
+     std::string mPinName = "CHASSIS_INTRUSION";
+     gpiod::line mGpioLine;
+     boost::asio::posix::stream_descriptor mGpioFd;
+diff -Naur a/include/SdrRecord.hpp b/include/SdrRecord.hpp
+--- a/include/SdrRecord.hpp	2021-03-30 13:06:58.337409795 +0530
++++ b/include/SdrRecord.hpp	2021-03-30 13:14:47.655301028 +0530
+@@ -13,6 +13,8 @@
+         uint8_t SensorCap;
+         uint8_t SensorType;
+         uint8_t EventType;
++	uint16_t AssertEventMask;
++        uint16_t DeassertEventMask;
+         uint8_t SensorUnit2;
+ 
+ };
+diff -Naur a/include/sensor.hpp b/include/sensor.hpp
+--- a/include/sensor.hpp	2021-03-30 13:06:58.337409795 +0530
++++ b/include/sensor.hpp	2021-03-30 13:18:38.316991116 +0530
+@@ -55,7 +55,7 @@
+        RecordType(sdrRecord.RecordType),
+        EntityId(sdrRecord.EntityId),EntityInstance(sdrRecord.EntityInstance),
+        SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),SensorType(sdrRecord.SensorType),
+-       EventType(sdrRecord.EventType),
++       EventType(sdrRecord.EventType), AssertEventMask(sdrRecord.AssertEventMask),DeassertEventMask(sdrRecord.DeassertEventMask),
+        SensorUnit2(sdrRecord.SensorUnit2)
+ 
+      {
+@@ -94,6 +94,8 @@
+     uint8_t SensorCap;
+     uint8_t SensorType;
+     uint8_t EventType;
++    uint16_t AssertEventMask;
++    uint16_t DeassertEventMask;
+     uint8_t SensorUnit2;
+ 
+     void updateInstrumentation(double readValue)
+@@ -226,6 +228,8 @@
+         sensorInterface->register_property("SensorCap",SensorCap );
+         sensorInterface->register_property("SensorType",SensorType );
+         sensorInterface->register_property("EventType",EventType );
++	sensorInterface->register_property("AssertEventMask",AssertEventMask );
++        sensorInterface->register_property("DeassertEventMask",DeassertEventMask );
+         sensorInterface->register_property("SensorUnit1",  0);
+         sensorInterface->register_property("SensorUnit2", SensorUnit2 );
+         sensorInterface->register_property("ModifierUnit",  0);
+@@ -500,7 +504,8 @@
+ 	RecordType(sdrRecord.RecordType),
+        EntityId(sdrRecord.EntityId),
+        EntityInstance(sdrRecord.EntityInstance),SensorInit(sdrRecord.SensorInit),SensorCap(sdrRecord.SensorCap),
+-       SensorType(sdrRecord.SensorType),EventType(sdrRecord.EventType), SensorUnit2(sdrRecord.SensorUnit2)
++       SensorType(sdrRecord.SensorType),EventType(sdrRecord.EventType), 
++	AssertEventMask(sdrRecord.AssertEventMask), DeassertEventMask(sdrRecord.DeassertEventMask),SensorUnit2(sdrRecord.SensorUnit2)
+ 
+ 
+     {
+@@ -521,6 +526,8 @@
+     uint8_t SensorCap;
+     uint8_t SensorType;
+     uint8_t EventType;
++    uint16_t AssertEventMask;
++    uint16_t DeassertEventMask;
+     uint8_t SensorUnit2;
+ 
+     std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
+@@ -572,6 +579,8 @@
+         sensorInterface->register_property("SensorCap",SensorCap );
+         sensorInterface->register_property("SensorType",SensorType );
+         sensorInterface->register_property("EventType",EventType );
++	sensorInterface->register_property("AssertEventMask",AssertEventMask );
++        sensorInterface->register_property("DeassertEventMask",DeassertEventMask );
+         sensorInterface->register_property("SensorUnit1",  0);
+         sensorInterface->register_property("SensorUnit2", SensorUnit2 );
+ 	sensorInterface->register_property("ModifierUnit",  0);
+diff -Naur a/src/ChassisIntrusionSensor.cpp b/src/ChassisIntrusionSensor.cpp
+--- a/src/ChassisIntrusionSensor.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/ChassisIntrusionSensor.cpp	2021-03-30 13:19:37.482256394 +0530
+@@ -281,9 +281,9 @@
+ 
+ void ChassisIntrusionSensor::start(IntrusionSensorType type, int busId,
+                                    int slaveAddr, bool gpioInverted, uint8_t eventType, uint8_t evStat,
+-                                  uint8_t recordType, uint8_t entityId,
+-                                   uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,uint8_t sensorType,
+-                                  uint8_t sensorUnit2)
++				   uint16_t assertEventMask, uint16_t deassertEventMask,uint8_t recordType, 
++				   uint8_t entityId, uint8_t entityInstance, uint8_t sensorInit,uint8_t sensorCap,
++				   uint8_t sensorType,uint8_t sensorUnit2)
+ {
+     if (DEBUG)
+     {
+@@ -321,6 +321,8 @@
+     msensorInit = sensorInit ;
+     msensorCap = sensorCap;
+     msensorType = sensorType;
++    massertEventMask = assertEventMask;
++    mdeassertEventMask = deassertEventMask;
+     msensorUnit2 = sensorUnit2;
+     double v = 0;
+     data = {0xFF,0xFF,0xFF};
+@@ -351,6 +353,8 @@
+            mIface->register_property("SensorInit",msensorInit );
+            mIface->register_property("SensorCap",msensorCap );
+            mIface->register_property("SensorType",msensorType );
++	   mIface->register_property("AssertEventMask", massertEventMask);
++           mIface->register_property("DeassertEventMask", mdeassertEventMask);
+            mIface->register_property("SensorUnit1",0);
+            mIface->register_property("ModifierUnit", 0);
+            mIface->register_property("SensorUnit2",msensorUnit2 );
+diff -Naur a/src/EventSensor.cpp b/src/EventSensor.cpp
+--- a/src/EventSensor.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/EventSensor.cpp	2021-03-30 13:08:23.621579786 +0530
+@@ -47,6 +47,7 @@
+ 
+     data = {0xFF,0xFF,0xFF};
+     al = 0x00;
++    uint8_t DontLog = 0;
+ 		    discreteInterfaceState->register_property("EventData",data,
+                        [&](const std::vector<uint8_t>& request, std::vector<uint8_t>& oldValue) {
+                    oldValue = request;
+@@ -61,6 +62,17 @@
+                      return 1;
+                  });
+ 
++		if(!strcmp(sensorName.c_str(),"WATCHDOG2"))
++                {
++                     discreteInterfaceState->register_property("DontLog",DontLog,
++                                [&](const uint8_t& request, uint8_t& oldValue) {
++                    oldValue = request;
++                     DontLog = request;
++                     return 1;
++                        });
++                }
++
++
+     association = objectServer.add_interface(
+         "/xyz/openbmc_project/sensors/eventsensor/" + name,
+         "org.openbmc.Associations");
+diff -Naur a/src/IntrusionSensorMain.cpp b/src/IntrusionSensorMain.cpp
+--- a/src/IntrusionSensorMain.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/IntrusionSensorMain.cpp	2021-03-30 13:24:21.659571136 +0530
+@@ -59,7 +59,7 @@
+     bool* pGpioInverted, uint8_t *pEventType, uint8_t *pEvState,
+     uint8_t *precordType,
+     uint8_t *pentityId,uint8_t *pentityInstance,uint8_t *psensorInit,uint8_t *psensorCap,
+-    uint8_t *psensorType,
++    uint8_t *psensorType, uint16_t *pAssertEventMask, uint16_t *pDeassertEventMask,
+     uint8_t *psensorUnit2)
+ {
+     // find matched configuration according to sensor type
+@@ -146,6 +146,8 @@
+                *psensorCap = sdrRecord.SensorCap;
+ 	       *pEventType = sdrRecord.EventType;
+ 	       *psensorType = sdrRecord.SensorType;
++	       *pAssertEventMask = sdrRecord.AssertEventMask;
++               *pDeassertEventMask = sdrRecord.DeassertEventMask;
+                *psensorUnit2 = sdrRecord.SensorUnit2;
+ 
+             }
+@@ -477,6 +479,7 @@
+     uint8_t recordType,entityId,
+             entityInstance,sensorInit,sensorCap,SensorType,
+             sensorUnit2;
++    uint16_t AssertEventMask, DeassertEventMask;
+     IntrusionSensorType type = IntrusionSensorType::gpio;
+ 
+     // setup connection to dbus
+@@ -503,10 +506,11 @@
+                                  &gpioInverted, &eventType, &evStat,
+                                  &recordType,
+                                  &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
+-                                 &sensorUnit2))
++				 &AssertEventMask, &DeassertEventMask, &sensorUnit2))
+     {
+         chassisIntrusionSensor.start(type, busId, slaveAddr, gpioInverted, eventType, evStat,recordType,entityId,
+                                      entityInstance,sensorInit,sensorCap,SensorType,
++				     AssertEventMask, DeassertEventMask,
+                                      sensorUnit2);
+     }
+ 
+@@ -524,12 +528,12 @@
+                                          &gpioInverted, &eventType, &evStat,
+                                  &recordType,
+                                  &entityId,&entityInstance,&sensorInit,&sensorCap,&SensorType,
+-                                 &sensorUnit2))
++                                 &AssertEventMask, &DeassertEventMask, &sensorUnit2))
+             {
+                 chassisIntrusionSensor.start(type, busId, slaveAddr,
+                                              gpioInverted, eventType, evStat,recordType,entityId,
+                                      entityInstance,sensorInit,sensorCap,SensorType,
+-                                     sensorUnit2);
++                                     AssertEventMask, DeassertEventMask, sensorUnit2); 
+             }
+         };
+ 
+diff -Naur a/src/PSUEvent.cpp b/src/PSUEvent.cpp
+--- a/src/PSUEvent.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/PSUEvent.cpp	2021-03-30 13:25:19.648536215 +0530
+@@ -50,6 +50,8 @@
+        "xyz.openbmc_project.Sensor.Value");
+ 
+     SenInterface->register_property("EventType",sdrRecord.EventType);
++    SenInterface->register_property("AssertEventMask",sdrRecord.AssertEventMask );
++    SenInterface->register_property("DeassertEventMask",sdrRecord.DeassertEventMask );
+     SenInterface->register_property("EvStat", EvStat);
+     SenInterface->register_property("SensorStat", false);
+     SenInterface->register_property("SdrVersion", 81);
+diff -Naur a/src/PwmSensor.cpp b/src/PwmSensor.cpp
+--- a/src/PwmSensor.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/PwmSensor.cpp	2021-03-30 13:25:59.685184293 +0530
+@@ -108,6 +108,8 @@
+     sensorInterface->register_property("SensorCap",sdrRecord_t.SensorCap);
+     sensorInterface->register_property("SensorType",sdrRecord_t.SensorType);
+     sensorInterface->register_property("EventType",sdrRecord_t.EventType);
++    sensorInterface->register_property("AssertEventMask",sdrRecord_t.AssertEventMask );
++    sensorInterface->register_property("DeassertEventMask",sdrRecord_t.DeassertEventMask );
+     sensorInterface->register_property("SensorUnit1", 0);
+     sensorInterface->register_property("SensorUnit2", sdrRecord_t.SensorUnit2);
+     sensorInterface->register_property("ModifierUnit", 0);
+diff -Naur a/src/SdrRecord.cpp b/src/SdrRecord.cpp
+--- a/src/SdrRecord.cpp	2021-03-30 13:06:58.337409795 +0530
++++ b/src/SdrRecord.cpp	2021-03-30 13:51:56.909476172 +0530
+@@ -38,13 +38,16 @@
+         auto SensorCapFind = item.second.find("SensorCap");
+         auto SensorTypeFind = item.second.find("SensorType");
+         auto EventTypeFind = item.second.find("EventType");
++	auto AssertEventMaskFind = item.second.find("AssertEventMask");
++       auto DeassertEventMaskFind = item.second.find("DeassertEventMask");
+         auto SensorUnit2Find = item.second.find("SensorUnit2");
+ 
+         if ( RecordTypeFind == item.second.end() ||
+              entityidFind == item.second.end() ||
+              EntityInstanceFind == item.second.end() || SensorInitFind == item.second.end() ||
+              SensorCapFind ==  item.second.end() || SensorTypeFind == item.second.end() ||
+-             EventTypeFind == item.second.end() || SensorUnit2Find  == item.second.end() ) 
++             EventTypeFind == item.second.end() || AssertEventMaskFind == item.second.end() ||
++            DeassertEventMaskFind == item.second.end() || SensorUnit2Find  == item.second.end() ) 
+ 
+         {
+             std::cerr << "Malformed SdrRecord in configuration\n";
+@@ -58,6 +61,8 @@
+         sdrRecord.SensorCap = std::visit(VariantToUnsignedIntVisitor(),SensorCapFind->second);
+         sdrRecord.SensorType = std::visit(VariantToUnsignedIntVisitor(),SensorTypeFind->second);
+         sdrRecord.EventType = std::visit(VariantToUnsignedIntVisitor(),EventTypeFind->second);
++	sdrRecord.AssertEventMask = std::visit(VariantToUnsignedIntVisitor(),AssertEventMaskFind->second);
++        sdrRecord.DeassertEventMask = std::visit(VariantToUnsignedIntVisitor(),DeassertEventMaskFind->second);
+         sdrRecord.SensorUnit2 = std::visit(VariantToUnsignedIntVisitor(),SensorUnit2Find->second);
+    }
+ 

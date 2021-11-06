@@ -1,0 +1,488 @@
+diff -Naur a/include/sensorcommands.hpp b/include/sensorcommands.hpp
+--- a/include/sensorcommands.hpp	2021-05-16 23:50:15.129482357 +0530
++++ b/include/sensorcommands.hpp	2021-05-17 00:36:23.755930330 +0530
+@@ -141,6 +141,9 @@
+ static constexpr const char *pefBus = "xyz.openbmc_project.pef.alert.manager";
+ static constexpr const char *pefObj = "/xyz/openbmc_project/PefAlertManager";
+ static constexpr const char *pefConfInfoIntf = "xyz.openbmc_project.pef.PEFConfInfo";
++static constexpr const char *pefArmPostponeTmrObj = "/xyz/openbmc_project/PefAlertManager/ArmPostponeTimer";
++static constexpr const char *pefCountdownTmrIntf = "xyz.openbmc_project.pef.CountdownTmr";
++static constexpr const char *pefPefPostponeIntf = "xyz.openbmc_project.pef.PEFPostponeTimer";
+ static constexpr const char *eventFilterTableObj = "/xyz/openbmc_project/PefAlertManager/EventFilterTable/Entry";
+ static constexpr const char *eventFilterTableIntf = "xyz.openbmc_project.pef.EventFilterTable";
+ static constexpr const char *alertPolicyTableObj = "/xyz/openbmc_project/PefAlertManager/AlertPolicyTable/Entry";
+diff -Naur a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+--- a/src/sensorcommands.cpp	2021-05-15 22:26:26.888680205 +0530
++++ b/src/sensorcommands.cpp	2021-05-17 00:38:27.499229014 +0530
+@@ -63,6 +63,7 @@
+ static uint32_t sdrLastRemove = noTimestamp;
+ static constexpr size_t lastRecordIndex = 0xFFFF;
+ static constexpr int GENERAL_ERROR = -1;
++static uint8_t pefSetInPro = 0;
+ 
+ SensorSubTree sensorTree;
+ SDRObjectType sensorDataRecords;
+@@ -1855,7 +1856,7 @@
+               uint8_t, // Action Supported
+               uint8_t // No of Event Filtering Table Entries
+               >
+-ipmiPefGetCapabilities()
++ipmiPefGetCapabilities(ipmi::Context::ptr ctx)
+ {
+         uint8_t pefVer = 0;
+         uint8_t actionSupported = 0;
+@@ -1863,7 +1864,7 @@
+ 
+         pefVer = ipmiPefVersion;
+ 
+-	actionSupported = 0x01; //Alert Action only supported Now
++	actionSupported = 0x0F; 
+ 
+         /*std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+         try
+@@ -1891,14 +1892,34 @@
+ 	uint8_t paraVer = 0;
+ 	uint8_t paraData = 0;
+ 	uint8_t setSel = 0;
+-	std::vector<uint8_t> paraDataByte;
++	std::vector<uint8_t> paraDataByte{};
+ 	paraVer = ipmiPefParamVer;
+ 	setSel = setSelector;
+-
++	if(((ParamSelector >> 7) & 0x01) == 0x01)
++	{
++		return ipmi::responseSuccess(paraVer,paraDataByte);
++	}
++	
++	ParamSelector = ParamSelector & 0x7F;
+ 	switch (PEFConfParam(ParamSelector))
+ 	{
++		case PEFConfParam::SetInProgress:
++                {
++			if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
++			paraData = pefSetInPro;
++                       	paraDataByte.push_back(paraData);
++                        break;
++                }
++
+ 		case PEFConfParam::PEFControl:
+ 		{
++			if((setSelector != 0) || (blockSelector != 0))
++			{
++				return ipmi::responseInvalidFieldRequest();
++			}
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+ 			{
+@@ -1918,6 +1939,10 @@
+ 		}
+ 		case PEFConfParam::PEFActionGlobalControl:
+ 		{
++			if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+ 			{
+@@ -1937,6 +1962,10 @@
+ 		}
+ 		case PEFConfParam::PEFStartupDelay:
+ 		{
++			if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+ 			{
+@@ -1956,6 +1985,10 @@
+ 		}
+ 		case PEFConfParam::PEFAlertStartupDelay:
+ 		{
++			if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+ 			{
+@@ -1973,6 +2006,15 @@
+ 			}
+ 			break;
+ 		}
++		case PEFConfParam::NumEventFilter:
++		{	if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
++			paraData = maxEventTblEntry;
++			paraDataByte.push_back(paraData);
++			break;
++		}
+ 		case PEFConfParam::EventFilterTable:
+ 		{
+ 			if(setSel == 0x00)
+@@ -2055,6 +2097,15 @@
+ 			}
+ 			break;
+ 		}
++		case PEFConfParam::NumAlertPolicyTable:
++                {       if((setSelector != 0) || (blockSelector != 0))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
++                        paraData = maxAlertPolicyEntry;
++                        paraDataByte.push_back(paraData);
++                        break;
++                }
+ 		case PEFConfParam::AlertPolicyTable:
+ 		{
+ 			if(setSel == 0x00)
+@@ -2095,8 +2146,26 @@
+ ipmi::RspType<> ipmiPefSetConfParamCmd(ipmi::Context::ptr ctx,uint8_t ParamSelector,ipmi::message::Payload& payload)
+ {
+ 	uint8_t paraData = 0;
++	if(((ParamSelector >> 7) & 0x01) == 0x01)
++        {
++                return ipmi::responseInvalidFieldRequest();
++        }
++	ParamSelector = ParamSelector & 0x7F;
+ 	switch (PEFConfParam(ParamSelector))
+ 	{
++		case PEFConfParam::SetInProgress:
++		{
++			if (payload.unpack(paraData) || !payload.fullyUnpacked())
++                        {
++                                return ipmi::responseReqDataLenInvalid();
++                        }
++			if((paraData != 0x00) && (paraData != 0x01))
++			{
++				return ipmi::responseInvalidFieldRequest();
++			}
++			pefSetInPro = paraData;
++			break;
++		}
+ 		case PEFConfParam::PEFControl:
+ 		{
+ 			if (payload.unpack(paraData) || !payload.fullyUnpacked())
+@@ -2196,22 +2265,43 @@
+ 		{
+ 			std::vector<uint8_t> entryData;
+ 			uint16_t offsetMask = 0,tmpOffsetMask = 0;
++			uint8_t evenSevtmp;
+ 			if (payload.unpack(entryData) || !payload.fullyUnpacked())
+             		{
+                 		return ipmi::responseReqDataLenInvalid();
+             		}
++
+ 			if(entryData.size() > 21 || entryData.size() < 21)
+ 			{
+ 				return ipmi::responseReqDataLenInvalid();
+ 			}
++
+ 			if(entryData.at(0) == 0x00)
+                         {
+                                 return ipmi::responseInvalidFieldRequest();
+                         }
++
+                         if(entryData.at(0) > maxEventTblEntry)
+                         {
+                                 return ipmi::responseParmOutOfRange();
+                         }
++
++			if(((entryData.at(1) & 0x1f) != 0) || (((entryData.at(1) >> 5) & 0x03) == 0x03) ||
++				(((entryData.at(1) >> 5) & 0x01) == 0x01))
++			{
++				return ipmi::responseInvalidFieldRequest();
++			}
++
++			if((((entryData.at(2) >> 7) & 0x01) == 0x01) || (((entryData.at(3) >> 7) & 0x01) == 0x01))
++			{
++				return ipmi::responseInvalidFieldRequest();
++			}
++
++			evenSevtmp  = entryData.at(4);
++			if ((((~evenSevtmp) + 1) & entryData.at(4)) != entryData.at(4))
++			{
++				return ipmi::responseInvalidFieldRequest();
++			}
+ 			std::string pefEveObjEntry = eventFilterTableObj + std::to_string(entryData.at(0));
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+@@ -2286,6 +2376,12 @@
+                         {
+                                 return ipmi::responseParmOutOfRange();
+                         }
++			if(((entryData.at(1) & 0x1f) != 0) || (((entryData.at(1) >> 5) & 0x03) == 0x03) ||
++                                (((entryData.at(1) >> 5) & 0x01) == 0x01))
++                        {
++                                return ipmi::responseInvalidFieldRequest();
++                        }
++
+ 			std::string pefEveObjEntry = eventFilterTableObj + std::to_string(entryData.at(0));
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+@@ -2313,7 +2409,8 @@
+ 			{
+ 				return ipmi::responseReqDataLenInvalid();
+ 			}
+-			if(entryData.at(0) == 0x00 || (entryData.at(0) & 0x80))
++			if((entryData.at(0) == 0x00) || ((entryData.at(0) & 0x80)==0x80) || 
++			((entryData.at(1) & 0x07) > 4) || ((entryData.at(1) & 0xF0) == 0))
+                         {
+                                 return ipmi::responseInvalidFieldRequest();
+                         }
+@@ -2321,6 +2418,8 @@
+                         {
+                                 return ipmi::responseParmOutOfRange();
+                         }
++
++
+ 			std::string pefAlertObjEntry = alertPolicyTableObj + std::to_string(entryData.at(0));
+ 			std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+ 			try
+@@ -2346,6 +2445,82 @@
+ 	}
+ 	return ipmi::responseSuccess();
+ }
++
++ipmi::RspType<> ipmiSetLastProcessedEventIdCmd(ipmi::Context::ptr ctx,uint8_t selRecId,uint16_t recordId)
++{
++	std::string recordIdstr;
++	if ((selRecId & 0xFE))
++       	{
++		return ipmi::responseInvalidFieldRequest();
++	}
++	if(!(selRecId & 0x01))
++	{
++		recordIdstr = "LastSWProcessedEventID";
++	}
++	else
++	{
++		recordIdstr = "LastBMCProcessedEventID";
++	}
++	std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++        try
++        {
++        	ipmi::setDbusProperty(*dbus, pefBus, pefObj,
++                                  pefConfInfoIntf, recordIdstr.c_str(),recordId);
++
++        }
++      	catch (std::exception& e)
++        {
++       		phosphor::logging::log<phosphor::logging::level::ERR>(
++                                        "Failed to set  property",
++                            	phosphor::logging::entry("EXCEPTION=%s", e.what()));
++              	return ipmi::responseUnspecifiedError();
++        }
++	return ipmi::responseSuccess();
++}
++
++ipmi::RspType<uint8_t // Present timer countdown value
++              >
++ipmiArmPefPostponeTimerCmd(ipmi::Context::ptr ctx,uint8_t data)
++{
++	if(data == 0xFF)
++        {
++                uint8_t tmrCountdown = 0;
++                std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++                try
++                {
++                      Value variant = ipmi::getDbusProperty(*dbus, pefBus, pefArmPostponeTmrObj,
++                                                    pefCountdownTmrIntf, "TmrCountdownValue");
++                        tmrCountdown = std::get<uint8_t>(variant);
++
++                }
++                catch (std::exception& e)
++                {
++                        phosphor::logging::log<phosphor::logging::level::ERR>(
++                                                "Failed to get TmrCountdownValue property",
++                                        phosphor::logging::entry("EXCEPTION=%s", e.what()));
++                        return ipmi::responseUnspecifiedError();
++                }
++		return ipmi::responseSuccess(tmrCountdown);
++
++        }
++	
++	std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++        try
++        {
++               ipmi::setDbusProperty(*dbus, pefBus, pefArmPostponeTmrObj,
++                      	          pefPefPostponeIntf,"ArmPEFPostponeTmr",data);
++
++	}
++	catch (std::exception& e)
++	{
++		phosphor::logging::log<phosphor::logging::level::ERR>(
++				"Failed to set ArmPEFPostponeTmr  property",
++				phosphor::logging::entry("EXCEPTION=%s", e.what()));
++		return ipmi::responseUnspecifiedError();
++	}
++
++	return ipmi::responseSuccess(data);
++}
+ /*end Pef Commands*/
+ 
+ void registerSensorFunctions()
+@@ -2437,5 +2612,15 @@
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdSetPefConfigurationParams, ipmi::Privilege::Admin,
+                           ipmiPefSetConfParamCmd);
++
++    //<Set Last Processed Event ID>
++    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
++                          ipmi::sensor_event::cmdSetLastProcessedEventId, ipmi::Privilege::Admin,
++                          ipmiSetLastProcessedEventIdCmd);
++
++    //<Arm PEF Postpone Timer>
++    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
++                          ipmi::sensor_event::cmdArmPefPostponeTimer, ipmi::Privilege::Admin,
++                          ipmiArmPefPostponeTimerCmd);
+ }
+ } // namespace ipmi
+diff -Naur a/src/storagecommands.cpp b/src/storagecommands.cpp
+--- a/src/storagecommands.cpp	2021-05-15 22:26:15.776749908 +0530
++++ b/src/storagecommands.cpp	2021-05-17 13:59:47.840362464 +0530
+@@ -43,9 +43,12 @@
+ #include <bits/stdc++.h> 
+ #include <sstream> 
+ #include <algorithm>
++#include <chrono>
+ 
++using namespace std::literals::chrono_literals;
+ using namespace std;
+ 
++constexpr std::chrono::microseconds DBUS_TIMEOUT = 5s;
+ static constexpr bool DEBUG = false;
+ 
+ std::mutex mtx;
+@@ -117,6 +120,9 @@
+ constexpr static const char* pefService = "xyz.openbmc_project.pef.alerting";
+ constexpr static const char* pefObjPath = "/xyz/openbmc_project/pef/alerting";
+ constexpr static const char* pefIface = "xyz.openbmc_project.pef.pefTask";
++constexpr static const char* pefConfService = "xyz.openbmc_project.pef.alert.manager";
++constexpr static const char* pefConfObjPath = "/xyz/openbmc_project/PefAlertManager";
++constexpr static const char* pefConfInfo = "xyz.openbmc_project.pef.PEFConfInfo";
+ constexpr static const char* pefTaskMethod = "doPefTask";
+ constexpr static const size_t writeTimeoutSeconds = 10;
+ constexpr static const char* chassisTypeRackMount = "23";
+@@ -1707,19 +1713,6 @@
+ 		intel_oem::ipmi::sel::checkRedfishHooks(
+ 	        recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+         	sensorNum, eventType, eventData1, eventData2, eventData3);
+-
+-		//Do PEF Action
+-		std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+-    		auto startPefTask = dbus->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
+-    		startPefTask.append(recordID,sensorType,sensorNum,eventType,eventData1,eventData2,eventData3,generatorID);
+-    		try
+-    		{
+-         		dbus->call(startPefTask);
+-    		}
+-    		catch (sdbusplus::exception_t&)
+-    		{
+-         		std::cerr << "Failed to call doPefTask\n";
+-    		}
+ 	}
+ 	else if (recordType >= intel_oem::ipmi::sel::oemTsEventFirst &&
+              recordType <= intel_oem::ipmi::sel::oemTsEventLast)
+@@ -1763,6 +1756,24 @@
+ 
+      LastSelIdFile.close();
+ 
++     //Do PEF Action
++     std::chrono::microseconds timeout = DBUS_TIMEOUT;
++     if (recordType == intel_oem::ipmi::sel::systemEvent )
++     {
++        std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++        auto startPefTask = dbus->new_method_call(pefService,pefObjPath,pefIface,pefTaskMethod);
++        startPefTask.append(responseID,sensorType,sensorNum,eventType,eventData1,eventData2,eventData3,generatorID);
++        try
++        {
++                dbus->call(startPefTask, timeout.count());
++        }
++        catch (sdbusplus::exception_t&)
++        {
++                std::cerr << "Failed to call doPefTask\n";
++        }
++     }
++
++
+     mtx.unlock();
+     return ipmi::responseSuccess(responseID);
+ }
+@@ -2094,6 +2105,59 @@
+     return resp;
+ }
+ 
++/*pef command*/
++
++ipmi::RspType<uint32_t,         //Most recent addition timestamp
++              uint16_t,         //Record ID for last record in SEL
++              uint16_t,         //Last SW Processed Event Record ID
++              uint16_t          //Last BMC Processed Event Record ID
++                >
++ipmiGetLastProcessedEventIdCmd(ipmi::Context::ptr ctx)
++{
++        uint32_t timeStamp = 0;
++        uint16_t selRecordId = 0;
++        uint16_t swEventRecordId = 0;
++        uint16_t bmcEventRecordId = 0;
++        selRecordId = countSELEntries(); 
++        timeStamp = intel_oem::ipmi::sel::getFileTimestamp(
++        intel_oem::ipmi::sel::selLogDir / intel_oem::ipmi::sel::redfishLogFilename);
++
++	std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
++        try
++	{
++		std::variant<uint16_t> result;
++               	auto method = dbus->new_method_call(pefConfService, pefConfObjPath,
++				"org.freedesktop.DBus.Properties", "Get");
++                method.append(pefConfInfo,"LastSWProcessedEventID");
++                auto reply = dbus->call(method);
++                reply.read(result);
++		swEventRecordId = std::get<uint16_t>(result);
++	}
++        catch (std::exception& e)
++        {
++                 return ipmi::responseUnspecifiedError();
++        }
++
++	try
++        {
++                std::variant<uint16_t> result;
++                auto method = dbus->new_method_call(pefConfService, pefConfObjPath,
++                                "org.freedesktop.DBus.Properties", "Get");
++                method.append(pefConfInfo,"LastBMCProcessedEventID");
++                auto reply = dbus->call(method);
++                reply.read(result);
++                bmcEventRecordId = std::get<uint16_t>(result);
++        }
++        catch (std::exception& e)
++        {
++                 return ipmi::responseUnspecifiedError();
++	}
++
++        return ipmi::responseSuccess(timeStamp,selRecordId,swEventRecordId,bmcEventRecordId);
++}
++
++/* end pef command */
++
+ void registerStorageFunctions()
+ {
+     createTimers();
+@@ -2143,6 +2207,10 @@
+                           ipmi::storage::cmdSetSelTime,
+                           ipmi::Privilege::Operator, ipmiStorageSetSELTime);
+ */
++    //<Get Last Processed Event ID>
++    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
++                          ipmi::sensor_event::cmdGetLastProcessedEventId, ipmi::Privilege::Admin,
++                          ipmiGetLastProcessedEventIdCmd);
+ 
+ }
+ } // namespace storage

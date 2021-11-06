@@ -1,0 +1,44 @@
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-04-28 19:42:10.267480496 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-04-28 19:51:41.177541301 +0530
+@@ -269,9 +269,10 @@
+               $scope.loading = false;
+               return;
+             }
+-            if ($scope.interface.ipv4.values[i].updateAddress ||
++            if ( ($scope.interface.ipv4.values[i].updateAddress ||
+                 $scope.interface.ipv4.values[i].updateGateway ||
+-                $scope.interface.ipv4.values[i].updatePrefix) {
++                $scope.interface.ipv4.values[i].updatePrefix) 
++                || $scope.oldInterface.DHCPEnabled) {
+               // If IPV4 has an id it means it already exists in the back end,
+               // and in order to update it is required to remove previous IPV4
+               // address and add new one. See openbmc/openbmc/issues/2163.
+@@ -470,7 +471,7 @@
+                     return $q.reject();
+                   }
+                 );
+-              }, 15000);
++              }, 19000);
+             },
+             function(error) {
+               console.log(JSON.stringify(error));
+@@ -499,7 +500,7 @@
+                     return $q.reject();
+                   }
+                 );
+-              }, 10000);
++              }, 1000);
+             },
+             function(error) {
+               console.log(JSON.stringify(error));
+@@ -548,7 +549,8 @@
+       }
+ 
+       $scope.refresh = function() {
+-        loadNetworkInfo();
++        // loadNetworkInfo();
++        $route.reload();
+       };
+ 
+       function loadNetworkInfo() {

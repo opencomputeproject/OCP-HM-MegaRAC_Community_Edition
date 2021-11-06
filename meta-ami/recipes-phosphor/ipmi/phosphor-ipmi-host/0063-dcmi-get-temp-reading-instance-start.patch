@@ -1,0 +1,23 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2021-05-24 17:18:18.331470099 +0530
++++ b/dcmihandler.cpp	2021-05-24 17:18:53.863251494 +0530
+@@ -1028,6 +1028,10 @@
+     static const std::vector<Json> empty{};
+     std::vector<Json> readings = data.value(type, empty);
+     numInstances = readings.size();
++    if(instanceStart == 0)
++    {
++	    instanceStart = instanceStart + 1;
++    }
+     for (const auto& j : readings)
+     {
+         try
+@@ -1040,7 +1044,7 @@
+ 
+             uint8_t instanceNum = j.value("instance", 0);
+             // Not in the instance range we're interested in
+-            if (instanceNum <= instanceStart)
++            if (instanceNum < instanceStart)
+             {
+                 continue;
+             }

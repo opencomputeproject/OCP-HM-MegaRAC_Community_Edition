@@ -1,0 +1,21 @@
+From e37349331a415bf771d1461bb1d509c2e081df1a Mon Sep 17 00:00:00 2001
+From: Ryon Heichelbech <ryonh@ami.com>
+Date: Wed, 7 Apr 2021 13:38:38 -0400
+Subject: [PATCH] whitelist kcs admin creation command
+
+---
+ ipmi-whitelist.conf | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ipmi-whitelist.conf b/ipmi-whitelist.conf
+index 024f168..35d90b5 100644
+--- a/ipmi-whitelist.conf
++++ b/ipmi-whitelist.conf
+@@ -359,3 +359,4 @@
+ 0x3e:0x73:0x7f7f   //<Intel Managed Data Region>:<SDR Configuration File Management>
+ 0x3e:0x75:0xff7f   //<Intel Managed Data Region>:<Get Remote Log IP>
+ 0x3e:0x76:0x7f7f   //<Intel Managed Data Region>:<Get/Set Password Mode>
++0x34:0x01:0x7f7f   //<AMI General>:<KCS Create Admin User>
+-- 
+2.17.1
+

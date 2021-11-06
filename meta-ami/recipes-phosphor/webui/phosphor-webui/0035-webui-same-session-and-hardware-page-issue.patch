@@ -1,0 +1,325 @@
+diff -Naur a/app/common/services/apiInterceptor.js b/app/common/services/apiInterceptor.js
+--- a/app/common/services/apiInterceptor.js	2021-06-29 19:35:10.183220254 +0530
++++ b/app/common/services/apiInterceptor.js	2021-06-29 19:54:02.238614195 +0530
+@@ -56,10 +56,12 @@
+               // this global redirect and handle forbidden
+               // requests in context of user action
+               if (dataService.path != '/login') {
+-              // $location.url('/unauthorized');
+-		sessionStorage.clear();
+-		$location.path('/logout');
+-		window.location.reload();
++                // $location.url('/unauthorized');
++                sessionStorage.clear();
++                $cookies.remove('XSRF-TOKEN');
++                $cookies.remove('SESSION');
++                $location.path('/logout');
++                window.location.reload();
+               }
+             } else if (rejection.status == -1) {
+               dataService.server_unreachable = true;
+diff -Naur a/app/common/services/api-utils.js b/app/common/services/api-utils.js
+--- a/app/common/services/api-utils.js	2021-06-29 19:35:10.183220254 +0530
++++ b/app/common/services/api-utils.js	2021-06-29 19:53:29.778744393 +0530
+@@ -77,6 +77,8 @@
+                   poll_interval = undefined;
+                   sessionStorage.removeItem('LOGIN_ID');
+                   sessionStorage.removeItem(temp);
++                  $cookies.remove('XSRF-TOKEN');
++                  $cookies.remove('SESSION');
+                   $location.path('/logout');
+                   window.location.reload();
+                 }
+@@ -528,47 +530,6 @@
+                 return response.data;
+               });
+         },
+-        setVLANIPAddress_source: function(method, url, data){
+-          return $http({
+-            method: method,
+-            url: DataService.getHost() + url,
+-            withCredentials: true,
+-            data: JSON.stringify(data)
+-          })
+-          .then(function(response) {
+-            return response.data;
+-          });
+-        },
+-        setNCSIClearInitState: function(interface_to_update){
+-          return $http({
+-            method: 'POST',
+-            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/NCSIClearInitState',
+-            data: JSON.stringify({"data": []}),
+-            withCredentials: true,
+-          }).then(function(response){
+-            return response.data;
+-          });
+-        },
+-        SetVlanFilter: function(interface_to_update, vlan_id){
+-          return $http({
+-            method: 'POST',
+-            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/SetVlanFilter',
+-            data: JSON.stringify({"data": [vlan_id,0,1,1]}),
+-            withCredentials: true,
+-          }).then(function(response){
+-            return response.data;
+-          });
+-        },
+-        EnableVLAN_API: function(interface_to_update){
+-          return $http({
+-            method: 'POST',
+-            url: DataService.getHost() + '/xyz/openbmc_project/network/'+interface_to_update+'/action/EnableVLAN',
+-            data: JSON.stringify({"data": [3]}),
+-            withCredentials: true,
+-          }).then(function(response){
+-            return response.data;
+-          });
+-        },
+         setDHCPEnabled: function(interfaceName, dhcpEnabled) {
+           return $http({
+                    method: 'PUT',
+@@ -737,7 +698,6 @@
+                     '/xyz/openbmc_project/network/' + interface_to_delete,
+                 withCredentials: true
+             }).then(function(response) {
+-                console.log("delete VLAN", response);
+                 return response.data;
+             });
+         },
+@@ -875,7 +835,6 @@
+         },
+ 
+         save_password_policy_settings : function(password_policy_history, password_policy_complexity){
+-          console.log('save_password_policy_history_api');
+           var data = {};
+           data['Oem'] = {};
+           data.Oem['OpenBMC'] = {};
+@@ -1827,6 +1786,9 @@
+                 }
+               }
+ 
++              if(JSON.stringify(transformed).indexOf('Value') == -1){
++                transformed.push({key: "Value", value: 0});
++              }
+               return transformed;
+             }
+ 
+@@ -2207,6 +2169,7 @@
+             .then(
+               function(response) {
+                 sessionStorage.setItem("ROLE", response.data["RoleId"]);
++                localStorage.setItem('ROLE', response.data["RoleId"]);
+             });
+         },
+         resetDefaultNetwork: function() {
+diff -Naur a/app/common/services/userModel.js b/app/common/services/userModel.js
+--- a/app/common/services/userModel.js	2021-06-29 19:35:10.183220254 +0530
++++ b/app/common/services/userModel.js	2021-06-29 19:57:11.121857425 +0530
+@@ -20,6 +20,7 @@
+                 (response.status == APIUtils.API_RESPONSE.SUCCESS_STATUS ||
+                  response.status === undefined)) {
+               sessionStorage.setItem('LOGIN_ID', username);
++              localStorage.setItem('LOGIN_ID', username);
+               APIUtils.getUserRole(username);
+               callback(true);
+             } else if (
+@@ -35,6 +36,16 @@
+             }
+           });
+         },
++        ishasSameSession: function(){
++          if($cookies.get('XSRF-TOKEN') != null && sessionStorage.getItem("LOGIN_ID") == null){
++            alert("Already a session is running in this browser, so opening the same session");
++            //IUtils.SAME_SESSION_OVERVIEW_FLAG = false;
++            sessionStorage.setItem("LOGIN_ID", localStorage.getItem("LOGIN_ID"));
++            sessionStorage.setItem("ROLE", localStorage.getItem("ROLE"));
++
++            return true;
++          }
++        },
+         isLoggedIn: function() {
+           if ((sessionStorage.getItem('LOGIN_ID') === null) &&
+               (($cookies.get('IsAuthenticated') === undefined) ||
+@@ -48,8 +59,11 @@
+             if (response &&
+                 response.status == APIUtils.API_RESPONSE.SUCCESS_STATUS) {
+               sessionStorage.removeItem('LOGIN_ID');
++              localStorage.removeItem('LOGIN_ID');
+               sessionStorage.removeItem(APIUtils.HOST_SESSION_STORAGE_KEY);
+               $cookies.remove('IsAuthenticated');
++              $cookies.remove('XSRF-TOKEN');
++              $cookies.remove('SESSION');
+               callback(true);
+             } else if (response.status == APIUtils.API_RESPONSE.ERROR_STATUS) {
+               callback(false);
+diff -Naur a/app/configuration/controllers/network-controller.html b/app/configuration/controllers/network-controller.html
+--- a/app/configuration/controllers/network-controller.html	2021-06-29 19:35:10.183220254 +0530
++++ b/app/configuration/controllers/network-controller.html	2021-06-29 19:58:32.429532015 +0530
+@@ -186,7 +186,7 @@
+       <div class="net-config__fieldset-content column small-12 large-12">
+         <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN Interface</label>
+-              <input id="net-config__host" ng-disabled="dataService.isNotAdmin()" type="text" ng-disabled="true" ng-model="VLANInterfaces" />
++              <input id="net-config__host" type="text" ng-disabled="true" ng-model="VLANInterfaces" />
+           </div>
+           <div class="column small-12 large-3">
+               <label for="net-config__host">VLAN ID</label>
+diff -Naur a/app/configuration/controllers/network-controller.js b/app/configuration/controllers/network-controller.js
+--- a/app/configuration/controllers/network-controller.js	2021-06-29 19:35:10.183220254 +0530
++++ b/app/configuration/controllers/network-controller.js	2021-06-29 20:00:05.673159050 +0530
+@@ -416,7 +416,7 @@
+                   $route.reload();
+                   $scope.loading = false;
+                   toastService.success('Network settings saved');
+-                }, 33000);
++                }, 20000);
+               },
+               function(error) {
+                 $scope.loading = false;
+@@ -729,43 +729,6 @@
+         }
+       };
+ 
+-      function updateVLAN_IP_Address_source(intfc){
+-
+-        var check_intf = intfc.split('_')[0];
+-
+-        if($scope.network.interfaces[check_intf].DHCPEnabled){
+-          var data = {};
+-          var url = '/xyz/openbmc_project/network/' + intfc + '/attr/DHCPEnabled';
+-          data.data = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
+-          var method = 'PUT';
+-        }
+-
+-        if(!$scope.network.interfaces[check_intf].DHCPEnabled){
+-          var data = {};
+-          data.data = [];
+-          var method = 'POST';
+-          var ip_address = $scope.network.interfaces[check_intf].ipv4.values[0].Address;
+-          var PrefixLength = $scope.network.interfaces[check_intf].ipv4.values[0].PrefixLength;
+-          var Gateway = $scope.network.interfaces[check_intf].ipv4.values[0].Gateway;
+-          data.data.push('xyz.openbmc_project.Network.IP.Protocol.IPv4');
+-          data.data.push(ip_address);
+-          data.data.push(PrefixLength);
+-          data.data.push(Gateway);
+-          var url = '/xyz/openbmc_project/network/' + intfc + '/action/IP';
+-        }
+-        APIUtils.setVLANIPAddress_source(method, url, data);
+-      }
+-
+-      function get_Dynamic_ipaddress(intfc){
+-        var id = intfc.split('_').pop();
+-        id = parseInt(id);
+-        APIUtils.setNCSIClearInitState(intfc).then(function(){
+-          APIUtils.SetVlanFilter(intfc, id).then(function(){
+-            APIUtils.EnableVLAN_API(intfc);
+-          });
+-        });
+-      }
+-
+       function setVLAN(data) {
+         return APIUtils.setVLAN(data).then(
+             function(response) {
+@@ -776,13 +739,7 @@
+                 vlan_priority_data.data = parseInt($scope.vlan.vlan_priority);
+                 $timeout(function(){
+                   call_setVLANPriority(vlan_priority_data, tmp_intf_val);
+-                  updateVLAN_IP_Address_source(tmp_intf_val);
+-
+-                  if(dataService.f_model == 'Vulcancity'){
+-                    get_Dynamic_ipaddress(tmp_intf_val);
+-                  }
+-
+-                },28000);
++                },2000);
+               }
+             },
+             function(error) {
+diff -Naur a/app/index.js b/app/index.js
+--- a/app/index.js	2021-06-29 19:35:10.179220271 +0530
++++ b/app/index.js	2021-06-29 20:09:12.010516614 +0530
+@@ -198,19 +198,30 @@
+           dataService.path = $location.path();
+           $rootScope.$on('$routeChangeStart', function(event, next, current) {
+             if (next.$$route == null || next.$$route == undefined) return;
+-            if (next.$$route.authenticated) {
+-              if (!userModel.isLoggedIn()) {
+-                $location.path('/login');
++
++            if(userModel.ishasSameSession()){
++              if (current && current.$$route) {
++                $location.path(current.$$route.originalPath);
++              } else {
++                $location.path('/overview/server');
++              }
++            }else{
++              if (next.$$route.authenticated) {
++                if (!userModel.isLoggedIn()) {
++                  $cookies.remove('XSRF-TOKEN');
++                  $cookies.remove('SESSION');
++                  $location.path('/login');
++                }
+               }
+-            }
+ 
+-            if (next.$$route.originalPath == '/' ||
++              if (next.$$route.originalPath == '/' ||
+                 next.$$route.originalPath == '/login') {
+-              if (userModel.isLoggedIn()) {
+-                if (current && current.$$route) {
+-                  $location.path(current.$$route.originalPath);
+-                } else {
+-                  $location.path('/overview/server');
++                if (userModel.isLoggedIn()) {
++                  if (current && current.$$route) {
++                    $location.path(current.$$route.originalPath);
++                  } else {
++                    $location.path('/overview/server');
++                  }
+                 }
+               }
+             }
+@@ -230,6 +241,8 @@
+             console.log('timedout-user event triggered');
+             sessionStorage.removeItem('LOGIN_ID');
+             $cookies.remove('IsAuthenticated');
++            $cookies.remove('XSRF-TOKEN');
++            $cookies.remove('SESSION');
+ 
+             $location.path('/login');
+           });
+@@ -242,6 +255,8 @@
+             }
+             sessionStorage.clear();
+             $cookies.remove('IsAuthenticated');
++            $cookies.remove('XSRF-TOKEN');
++            $cookies.remove('SESSION');
+             $location.path('/login');
+           });
+ 
+diff -Naur a/app/server-health/controllers/inventory-overview-controller.js b/app/server-health/controllers/inventory-overview-controller.js
+--- a/app/server-health/controllers/inventory-overview-controller.js	2021-06-29 19:35:10.187220238 +0530
++++ b/app/server-health/controllers/inventory-overview-controller.js	2021-06-29 20:05:26.683945565 +0530
+@@ -34,6 +34,12 @@
+               var tmp_i = $scope.hardwares[each_invent].path.split('/').pop();
+               if(tmp_s == tmp_i){
+                 $scope.sensor_data[each_sensor].inventory_available = true;
++                for(var i in $scope.hardwares[each_invent].items){
++                  if($scope.hardwares[each_invent].items[i].key == "Value"){
++                    $scope.hardwares[each_invent].items[i].value = $scope.sensor_data[each_sensor].Value;
++                    break;
++                  }
++                }
+                 $scope.finalHardware_data.push($scope.hardwares[each_invent]);
+                 break;
+               }
+@@ -90,6 +96,9 @@
+                 }
+               }
+             }
++            if(label == "title"){
++              label = "Name";
++            }
+             transformed.push({key: label, value: value});
+           }
+         }

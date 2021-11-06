@@ -7,6 +7,7 @@ bindir = "/usr/bin"
 
 SRC_URI = "git://github.com/openbmc/openbmc-tools"
 SRC_URI += "file://01-pwmtachtool.patch"
+SRC_URI += "file://02-get-correct-dutycycle-value.patch"
 
 SRCREV = "90cb34fc2f169aef4bb740c95daefcd8f16e0353"
 

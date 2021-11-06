@@ -1,0 +1,16 @@
+diff -Nuar a/src/chassiscommands.cpp b/src/chassiscommands.cpp
+--- a/src/chassiscommands.cpp	2021-05-16 22:57:44.664787299 +0530
++++ b/src/chassiscommands.cpp	2021-05-16 22:58:59.078070393 +0530
+@@ -186,6 +186,12 @@
+ {
+     uint8_t identifyInterval = interval.value_or(defaultIdentifyTimeOut);
+     bool forceIdentify = force.value_or(0) & 0x01;
++    uint8_t force_byte_res_field = force.value_or(0) & 0xFE;
++
++    if(0 != force_byte_res_field)
++    {
++        return ipmi::responseInvalidFieldRequest();
++    }
+ 
+     enclosureIdentifyLed(ledIDOnObj, false);
+     identifyTimer->stop();

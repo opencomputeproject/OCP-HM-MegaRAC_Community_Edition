@@ -1,0 +1,143 @@
+diff -Naur a/jtag_handler.c b/jtag_handler.c
+--- a/jtag_handler.c	2021-02-15 12:43:45.847578626 +0530
++++ b/jtag_handler.c	2021-02-15 12:59:07.585107870 +0530
+@@ -128,7 +128,7 @@
+ #ifdef JTAG_LEGACY_DRIVER
+     state->JTAG_driver_handle = open("/dev/jtag", O_RDWR);
+ #else
+-    state->JTAG_driver_handle = open("/dev/jtag0", O_RDWR);
++    state->JTAG_driver_handle = open("/dev/jtag1", O_RDWR);
+ #endif
+     if (state->JTAG_driver_handle == -1)
+     {
+@@ -645,4 +645,4 @@
+     state->active_chain = &state->chains[chain];
+ 
+     return ST_OK;
+-}
+\ No newline at end of file
++}
+diff -Naur a/target_handler.c b/target_handler.c
+--- a/target_handler.c	2021-02-15 12:43:24.967454882 +0530
++++ b/target_handler.c	2021-02-15 12:58:52.073014220 +0530
+@@ -185,11 +185,6 @@
+     state->gpios[BMC_PRDY_N].edge = GPIO_EDGE_FALLING;
+     state->gpios[BMC_PRDY_N].active_low = true;
+ 
+-    strcpy_s(state->gpios[BMC_RSMRST_B].name,
+-             sizeof(state->gpios[BMC_RSMRST_B].name), "RSMRST_N");
+-    state->gpios[BMC_RSMRST_B].direction = GPIO_DIRECTION_IN;
+-    state->gpios[BMC_RSMRST_B].edge = GPIO_EDGE_NONE;
+-
+     strcpy_s(state->gpios[BMC_CPU_PWRGD].name,
+              sizeof(state->gpios[BMC_CPU_PWRGD].name), "SIO_POWER_GOOD");
+     state->gpios[BMC_CPU_PWRGD].direction = GPIO_DIRECTION_IN;
+@@ -202,6 +197,28 @@
+     state->gpios[BMC_PLTRST_B].edge = GPIO_EDGE_BOTH;
+     state->gpios[BMC_PLTRST_B].active_low = true;
+ 
++    // Vulcancity having FBRK instead DEBUG_EN for Debug Consent.
++    strcpy_s(state->gpios[FBRK].name,
++             sizeof(state->gpios[FBRK].name), "FBRK");
++    state->gpios[FBRK].direction = GPIO_DIRECTION_LOW;
++    state->gpios[FBRK].edge = GPIO_EDGE_NONE;
++
++    strcpy_s(state->gpios[BMC_XDP_PRST_IN].name,
++             sizeof(state->gpios[BMC_XDP_PRST_IN].name), "XDP_PRST_N");
++    state->gpios[BMC_XDP_PRST_IN].direction = GPIO_DIRECTION_IN;
++    state->gpios[BMC_XDP_PRST_IN].active_low = true;
++    state->gpios[BMC_XDP_PRST_IN].edge = GPIO_EDGE_BOTH;
++
++
++    //  Enable below configurations if required for other platforms , not using for VulcanCity
++
++#if 0
++    strcpy_s(state->gpios[BMC_RSMRST_B].name,
++             sizeof(state->gpios[BMC_RSMRST_B].name), "RSMRST_N");
++    state->gpios[BMC_RSMRST_B].direction = GPIO_DIRECTION_IN;
++    state->gpios[BMC_RSMRST_B].edge = GPIO_EDGE_NONE;
++
++
+     strcpy_s(state->gpios[BMC_SYSPWROK].name,
+              sizeof(state->gpios[BMC_SYSPWROK].name), "SYSPWROK");
+     state->gpios[BMC_SYSPWROK].direction = GPIO_DIRECTION_HIGH;
+@@ -213,18 +230,9 @@
+     state->gpios[BMC_PWR_DEBUG_N].direction = GPIO_DIRECTION_HIGH;
+     state->gpios[BMC_PWR_DEBUG_N].edge = GPIO_EDGE_NONE;
+     state->gpios[BMC_PWR_DEBUG_N].active_low = true;
++#endif
+ 
+-    strcpy_s(state->gpios[BMC_DEBUG_EN_N].name,
+-             sizeof(state->gpios[BMC_DEBUG_EN_N].name), "DEBUG_EN_N");
+-    state->gpios[BMC_DEBUG_EN_N].direction = GPIO_DIRECTION_HIGH;
+-    state->gpios[BMC_DEBUG_EN_N].edge = GPIO_EDGE_NONE;
+-    state->gpios[BMC_DEBUG_EN_N].active_low = true;
+ 
+-    strcpy_s(state->gpios[BMC_XDP_PRST_IN].name,
+-             sizeof(state->gpios[BMC_XDP_PRST_IN].name), "XDP_PRST_N");
+-    state->gpios[BMC_XDP_PRST_IN].direction = GPIO_DIRECTION_IN;
+-    state->gpios[BMC_XDP_PRST_IN].active_low = true;
+-    state->gpios[BMC_XDP_PRST_IN].edge = GPIO_EDGE_BOTH;
+ 
+     platform_init(state);
+ 
+@@ -433,7 +441,7 @@
+     // specifically drive debug enable to assert
+     if (result == ST_OK)
+     {
+-        write_pin_value(state->gpios[BMC_DEBUG_EN_N], 1, &result);
++        write_pin_value(state->gpios[FBRK], 1, &result);
+         if (result != ST_OK)
+         {
+             ASD_log(ASD_LogLevel_Error, stream, option,
+@@ -1569,4 +1577,4 @@
+             i2c->enable, i2c->bus);
+ #endif
+     return result;
+-}
+\ No newline at end of file
++}
+diff -Naur a/target_handler.h b/target_handler.h
+--- a/target_handler.h	2021-02-15 12:43:33.343504513 +0530
++++ b/target_handler.h	2021-02-15 13:00:26.341583489 +0530
+@@ -40,14 +40,14 @@
+ #define POLL_GPIO (POLLPRI + POLLERR)
+ #define CHIP_BUFFER_SIZE 32
+ 
+-#define GPIO_SYSFS_SUPPORT_DEPRECATED
++//#define GPIO_SYSFS_SUPPORT_DEPRECATED
+ 
+ #ifdef GPIO_SYSFS_SUPPORT_DEPRECATED
+ // GPIO base needs to be adjusted according to your platform settings.
+ // Base can be found into /sys/class/gpio/gpiochipX/base file. If multiple
+ // gpiochip are found in your gpio folder use /sys/class/gpio/gpiochipX/label
+ // to find out the gpio controller that handles your gpios.
+-#define AST2500_GPIO_BASE_FILE "/sys/class/gpio/gpiochip0/base"
++#define AST2600_GPIO_BASE_FILE "/sys/class/gpio/gpiochip0/base"
+ #define CHIP_FNAME_BUFF_SIZE 48
+ #endif
+ 
+@@ -89,17 +89,17 @@
+     FUNC(BMC_TCK_MUX_SEL)                                                      \
+     FUNC(BMC_PREQ_N)                                                           \
+     FUNC(BMC_PRDY_N)                                                           \
+-    FUNC(BMC_RSMRST_B)                                                         \
+     FUNC(BMC_CPU_PWRGD)                                                        \
+     FUNC(BMC_PLTRST_B)                                                         \
+-    FUNC(BMC_SYSPWROK)                                                         \
+-    FUNC(BMC_PWR_DEBUG_N)                                                      \
+-    FUNC(BMC_DEBUG_EN_N)                                                       \
++    FUNC(FBRK)        		                                               \
+     FUNC(BMC_XDP_PRST_IN)                                                      \
+     FUNC(POWER_BTN)                                                            \
+-    FUNC(RESET_BTN)
++    FUNC(RESET_BTN)							       \	
++    FUNC(BMC_PWR_DEBUG_N)						       \
++    FUNC(BMC_SYSPWROK)							       \
++    FUNC(BMC_RSMRST_B)
+ 
+-#define NUM_GPIOS 10
++#define NUM_GPIOS 7
+ 
+ typedef enum
+ {

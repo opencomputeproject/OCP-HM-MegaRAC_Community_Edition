@@ -39,6 +39,3 @@ SERVICE_FILE_7SEG = " \
   postcode-7seg@${POSTCODE_SEVENSEG_DEVICE}.service \
 "
 SYSTEMD_SERVICE_${PN} += "${@bb.utils.contains('PACKAGECONFIG', '7seg', '${SERVICE_FILE_7SEG}', '', d)}"
-
-require conf/machine/include/unpack.inc
-
