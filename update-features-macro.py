@@ -117,8 +117,8 @@ def get_features_configs(configs):
                     if 'spx_macro' in feature.keys():
                         # print('dict Feature:',feature['spx_macro'],feature['enable'])
                         f[feature['spx_macro']] = feature['enable']
-		    elif 'macro' in feature.keys():
-			f[feature['macro']] = feature['enable']
+                    elif 'macro' in feature.keys():
+                        f[feature['macro']] = feature['enable']
                     else:
                         print("Warning, ", feature['name']," this feature is not proper")
                     if 'path' in feature.keys() and feature['path'] and feature['path'].endswith('.yaml'):
@@ -133,7 +133,7 @@ def get_features_configs(configs):
                 if 'spx_macro' in feature.keys():
                     # print('list Feature:', feature['spx_macro'], feature['enable'])
                     f[feature['spx_macro']] = feature['enable']
-		elif 'macro' in feature.keys():
+                elif 'macro' in feature.keys():
                         f[feature['macro']] = feature['enable']
                 else:
                     print("Warning, ", feature['name']," this feature is not proper")
@@ -285,10 +285,10 @@ pdh_ctnt = ''
 pdmk_ctnt = ''
 with open('projdef.cfg', 'r') as pdf:
     pdc_ctnt = pdf.read()
-for f,v in features.iteritems():
+for f,v in features.items():
     pdc_ctnt = update_prjdef_cfg(pdc_ctnt, f, v)
 
-for c,v in configs.iteritems():
+for c,v in configs.items():
     pdc_ctnt = update_prjdef_cfg(pdc_ctnt, c, v)
 
 with open('projdef.mod.cfg', 'w') as pdf:
