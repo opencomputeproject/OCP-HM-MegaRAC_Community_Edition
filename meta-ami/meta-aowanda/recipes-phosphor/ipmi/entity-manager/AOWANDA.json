@@ -1,0 +1,1254 @@
+{
+  "Exposes": [
+    {
+      "PowerState": "On",
+      "Index": 0,
+      "Name": " P5V",
+      "Status": "Okay",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "ScaleFactor": 0.2392,
+      "SdrInfo": [
+        {
+          "SdrVersion": "0x51",
+          "RecordType": "0x01",
+          "RecordLen": 0,
+          "OwnerId": "0x20",
+          "OwnerLun": 0,
+          "EntityId": 7,
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit1": 0,
+          "SensorUnit2": 4,
+          "ModifierUnit": 0,
+          "Linearization": 0,
+          "NominalReading": "0x97",
+          "NormalMax": "0xC5",
+          "NormalMin": "0x8b",
+          "MaxReading": "0xff",
+          "MinReading": 0,
+          "PositiveHysteris": 0,
+          "NegativeHysteresis": 0,
+          "IdStringLen": 0
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 5.49
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 4.52
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "PowerState": "On",
+      "Index": 1,
+      "Name": "P5V_AUX",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "ScaleFactor": 0.1124,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 2,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 5.49
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "PowerState": "On",
+      "Index": 2,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "Name": "P3V3_AUX",
+      "ScaleFactor": 0.1124,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 17,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 3.627
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 2.96
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "Status": "okay",
+      "Direction": "Input",
+      "Index": 202,
+      "Name": "CPU_THERM_MARGIN",
+      "HighOffset": "0x01",
+      "LowOffset": "0xff",
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x20",
+          "EntityInstance": 0,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x0c",
+          "EventType": "0x6f",
+          "AssertEventMask": "0x0001",
+          "DeassertEventMask": "0x0000",
+          "SensorUnit2": 0
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 0
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x29",
+      "Index": 0,
+      "Name": "HSC_IN_POWER",
+      "ScaleValue": 4,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 6,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 548.6
+        }
+      ],
+      "Type": "pmbus"
+    },
+    {
+      "Address": "0x2a",
+      "Index": 1,
+      "Name": "HSC_IN_VOLT",
+      "ScaleValue": 0.02,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 6,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 13.2
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 10.8
+        }
+      ],
+      "Type": "pmbus"
+    },
+    {
+      "Address": "0x8a",
+      "Index": 2,
+      "Name": "HSC_TEMP",
+      "ScaleValue": 0.238,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 6,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 0
+        }
+      ],
+      "Type": "pmbus"
+    },
+    {
+      "Address": "0x8a",
+      "Index": 3,
+      "Name": "HSC_OUT_CURR",
+      "ScaleValue": 0.0468,
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 6,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 52.8
+        }
+      ],
+      "Type": "pmbus"
+    },
+    {
+      "Index": 16,
+      "Name": "P1V8_PCH_AUX",
+      "ScaleFactor": 0.7505,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 19,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.96
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 1.646
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "BindConnector": "1U System Fan connector 1",
+      "Index": 0,
+      "Status": "okay",
+      "Name": "Fan_0",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 2",
+      "Index": 1,
+      "PowerState": "On",
+      "Name": "Fan_1",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 3",
+      "Index": 2,
+      "PowerState": "On",
+      "Name": "Fan_2",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 4",
+      "Index": 3,
+      "PowerState": "On",
+      "Name": "Fan_3",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 5",
+      "Index": 4,
+      "PowerState": "On",
+      "Name": "Fan_4",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 6",
+      "Index": 5,
+      "PowerState": "On",
+      "Name": "Fan_5",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 7",
+      "Index": 6,
+      "PowerState": "On",
+      "Name": "Fan_6",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "BindConnector": "1U System Fan connector 8",
+      "Index": 7,
+      "PowerState": "On",
+      "Name": "Fan_7",
+      "Status": "disabled",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.RPMS",
+      "EvStat": 231,
+      "Thresholds": [
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 600
+        }
+      ],
+      "Type": "AspeedFan"
+    },
+    {
+      "Index": 15,
+      "Name": "P12V_RISER",
+      "ScaleFactor": 0.0052,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 16,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 13.79
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 10.6
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 3,
+      "Name": "P12V_STBY",
+      "ScaleFactor": 0.0998,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 4,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 13.79
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 10.6
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "PVDDQ_EFGH_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 101
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "PVCCIN_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 130
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "PVCCIO_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 130
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "PVCCSA_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 130
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "PVDDQ_ABCD_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 101
+        }
+      ],
+      "Type": "TMP421"
+    },
+    {
+      "Address": "0x30",
+      "Bus": 0,
+      "Name": "CPU_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x07",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 101
+        }
+      ],
+      "Type": "XeonCPU"
+    },
+    {
+      "Address": "0x4C",
+      "Bus": 13,
+      "Name": "FRONT_Temp",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 4,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 70
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "PowerState": "On",
+      "Address": "0x4C",
+      "Bus": 11,
+      "Name": "M2_TEMP_2",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "Name_SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 95
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "PowerState": "On",
+      "Address": "0x4C",
+      "Bus": 12,
+      "Name": "M2_TEMP_1",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "Name_SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 95
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "Index": 18,
+      "Name": "PVCCANA",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "ScaleFactor": 0.2717,
+      "SdrInfo": [
+        {
+          "SdrVersion": "0x51",
+          "RecordType": "0x01",
+          "RecordLen": 0,
+          "OwnerId": "0x20",
+          "OwnerLun": 0,
+          "EntityId": 12,
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit1": 0,
+          "SensorUnit2": 4,
+          "ModifierUnit": 0,
+          "Linearization": 0,
+          "NominalReading": "0x97",
+          "NormalMax": "0xC5",
+          "NormalMin": "0x8b",
+          "MaxReading": "0xff",
+          "MinReading": 0,
+          "PositiveHysteris": 0,
+          "NegativeHysteresis": 0,
+          "IdStringLen": 0
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.088
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 0.892
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 4,
+      "Name": "PVCCIN",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "PowerState": "On",
+      "ScaleFactor": 0.7505,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 5,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.98
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 1.167
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 5,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "Name": "PVCCIO",
+      "PowerState": "On",
+      "ScaleFactor": 0.7505,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 6,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.186
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 0.725
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 6,
+      "Name": "PVDDQ_CPU1_EFGH",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 7,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x03",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.333
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 1.088
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 7,
+      "Name": "PVDDQ_CPU1_ABCD",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 8,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x03",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.333
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 1.088
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "PowerState": "On",
+      "Address": "0x4C",
+      "Bus": 9,
+      "Name": "DIMM_A_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "Name_SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 95
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "PowerState": "On",
+      "Address": "0x4C",
+      "Bus": 10,
+      "Name": "DIMM_B_TEMP",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "Name_SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 95
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "Address": "0x4C",
+      "Bus": 13,
+      "Name": "REAR_Temp",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.DegreesC",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x10",
+          "EntityInstance": 5,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x01",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0280",
+          "DeassertEventMask": "0x0140",
+          "SensorUnit2": 1
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Label": "Name",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 70
+        }
+      ],
+      "Type": "EMC1413"
+    },
+    {
+      "Index": 8,
+      "PowerState": "On",
+      "Name": "P3V3",
+      "ScaleFactor": 0.3008,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 9,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 3.627
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 2.964
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 24,
+      "Name": " PVNN_PCH_STBY",
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.1
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 0.76
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 9,
+      "Name": "P3V_BAT",
+      "ScaleFactor": 0.501,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 10,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 3.296
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 2.145
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Index": 10,
+      "PowerState": "On",
+      "Status": "Okay",
+      "Name": "P1V05_PCH_AUX",
+      "ScaleFactor": 1.14,
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Volts",
+      "EvStat": 231,
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": 7,
+          "EntityInstance": 11,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x02",
+          "EventType": "0x01",
+          "AssertEventMask": "0x0285",
+          "DeassertEventMask": "0x014a",
+          "SensorUnit2": 4
+        }
+      ],
+      "Thresholds": [
+        {
+          "Direction": "greater than",
+          "Name": "upper critical",
+          "Severity": 1,
+          "Value": 1.137
+        },
+        {
+          "Direction": "less than",
+          "Name": "lower critical",
+          "Severity": 1,
+          "Value": 0.96
+        }
+      ],
+      "Type": "ADC"
+    },
+    {
+      "Unit": "xyz.openbmc_project.Sensor.Value.Unit.Discrete",
+      "EvStat": 231,
+      "Name": "BMC watchdog",
+      "Status": "okay",
+      "EventOffset": "0",
+      "SdrInfo": [
+        {
+          "RecordType": "0x01",
+          "EntityId": "0x07",
+          "EntityInstance": 1,
+          "SensorInit": "0xF7",
+          "SensorCap": "0x48",
+          "SensorType": "0x28",
+          "EventType": "0x03",
+          "AssertEventMask": "0x0004",
+          "DeassertEventMask": "0x0000",
+          "SensorUnit2": 0
+        }
+      ],
+      "Type": "Watchevent"
+    }
+  ],
+  "Name": "Aowanda Baseboard",
+  "Probe": "xyz.openbmc_project.FruDevice({'PRODUCT_PRODUCT_NAME': 'Aowanda'})",
+  "Type": "Board",
+  "xyz.openbmc_project.Inventory.Decorator.Asset": {
+    "Manufacturer": "$BOARD_MANUFACTURER",
+    "Model": "$BOARD_PRODUCT_NAME",
+    "PartNumber": "$BOARD_PART_NUMBER",
+    "SerialNumber": "$BOARD_SERIAL_NUMBER"
+  },
+  "xyz.openbmc_project.Inventory.Decorator.AssetTag": {
+    "AssetTag": "$PRODUCT_ASSET_TAG"
+  },
+  "xyz.openbmc_project.Inventory.Item.Board.Motherboard": {
+    "ProductId": 123
+  },
+  "xyz.openbmc_project.Inventory.Item.System": {}
+}

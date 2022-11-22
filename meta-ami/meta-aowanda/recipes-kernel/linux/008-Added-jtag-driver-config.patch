@@ -1,0 +1,18 @@
+diff -Naur a/drivers/Kconfig b/drivers/Kconfig
+--- a/drivers/Kconfig	2021-02-23 20:15:55.273683576 +0530
++++ b/drivers/Kconfig	2021-02-23 20:17:13.290475419 +0530
+@@ -230,4 +230,6 @@
+ 
+ source "drivers/peci/Kconfig"
+ 
++source "drivers/jtag/Kconfig"
++
+ endmenu
+diff -Naur a/drivers/Makefile b/drivers/Makefile
+--- a/drivers/Makefile	2021-02-23 20:16:08.913824093 +0530
++++ b/drivers/Makefile	2021-02-23 20:17:27.398615706 +0530
+@@ -187,3 +187,4 @@
+ obj-$(CONFIG_INTERCONNECT)	+= interconnect/
+ obj-$(CONFIG_COUNTER)		+= counter/
+ obj-$(CONFIG_PECI)		+= peci/
++obj-$(CONFIG_PECI)		+= jtag/

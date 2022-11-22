@@ -1,0 +1,3949 @@
+diff -Naur linux/drivers/soc/aspeed/aspeed-bmc-misc.c linux-new/drivers/soc/aspeed/aspeed-bmc-misc.c
+--- linux/drivers/soc/aspeed/aspeed-bmc-misc.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/soc/aspeed/aspeed-bmc-misc.c	2020-12-23 16:44:46.471424815 -0500
+@@ -0,0 +1,190 @@
++// SPDX-License-Identifier: GPL-2.0+
++// Copyright 2018 IBM Corp.
++
++#include <linux/kobject.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/mfd/syscon.h>
++
++#define DEVICE_NAME "aspeed-bmc-misc"
++
++struct aspeed_bmc_ctrl {
++	const char *name;
++	u32 offset;
++	u32 mask;
++	u32 shift;
++	struct regmap *map;
++	struct kobj_attribute attr;
++};
++
++struct aspeed_bmc_misc {
++	struct device *dev;
++	struct regmap *map;
++	struct aspeed_bmc_ctrl *ctrls;
++	int nr_ctrls;
++};
++
++static int aspeed_bmc_misc_parse_dt_child(struct device_node *child,
++					  struct aspeed_bmc_ctrl *ctrl)
++{
++	int rc;
++
++	/* Example child:
++	 *
++	 * ilpc2ahb {
++	 *     offset = <0x80>;
++	 *     bit-mask = <0x1>;
++	 *     bit-shift = <6>;
++	 *     label = "foo";
++	 * }
++	 */
++	if (of_property_read_string(child, "label", &ctrl->name))
++		ctrl->name = child->name;
++
++	rc = of_property_read_u32(child, "offset", &ctrl->offset);
++	if (rc < 0)
++		return rc;
++
++	rc = of_property_read_u32(child, "bit-mask", &ctrl->mask);
++	if (rc < 0)
++		return rc;
++
++	rc = of_property_read_u32(child, "bit-shift", &ctrl->shift);
++	if (rc < 0)
++		return rc;
++
++	ctrl->mask <<= ctrl->shift;
++
++	return 0;
++}
++
++static int aspeed_bmc_misc_parse_dt(struct aspeed_bmc_misc *bmc,
++				    struct device_node *parent)
++{
++	struct aspeed_bmc_ctrl *ctrl;
++	struct device_node *child;
++	int rc;
++
++	bmc->nr_ctrls = of_get_child_count(parent);
++	bmc->ctrls = devm_kcalloc(bmc->dev, bmc->nr_ctrls, sizeof(*bmc->ctrls),
++				  GFP_KERNEL);
++	if (!bmc->ctrls)
++		return -ENOMEM;
++
++	ctrl = bmc->ctrls;
++	for_each_child_of_node(parent, child) {
++		rc = aspeed_bmc_misc_parse_dt_child(child, ctrl++);
++		if (rc < 0) {
++			of_node_put(child);
++			return rc;
++		}
++	}
++
++	return 0;
++}
++
++static ssize_t aspeed_bmc_misc_show(struct kobject *kobj,
++				    struct kobj_attribute *attr, char *buf)
++{
++	struct aspeed_bmc_ctrl *ctrl;
++	unsigned int val;
++	int rc;
++
++	ctrl = container_of(attr, struct aspeed_bmc_ctrl, attr);
++	rc = regmap_read(ctrl->map, ctrl->offset, &val);
++	if (rc)
++		return rc;
++
++	val &= ctrl->mask;
++	val >>= ctrl->shift;
++
++	return sprintf(buf, "%u\n", val);
++}
++
++static ssize_t aspeed_bmc_misc_store(struct kobject *kobj,
++				     struct kobj_attribute *attr,
++				     const char *buf, size_t count)
++{
++	struct aspeed_bmc_ctrl *ctrl;
++	long val;
++	int rc;
++
++	rc = kstrtol(buf, 0, &val);
++	if (rc)
++		return rc;
++
++	ctrl = container_of(attr, struct aspeed_bmc_ctrl, attr);
++	val <<= ctrl->shift;
++	rc = regmap_update_bits(ctrl->map, ctrl->offset, ctrl->mask, val);
++
++	return rc < 0 ? rc : count;
++}
++
++static int aspeed_bmc_misc_add_sysfs_attr(struct aspeed_bmc_misc *bmc,
++					  struct aspeed_bmc_ctrl *ctrl)
++{
++	ctrl->map = bmc->map;
++
++	sysfs_attr_init(&ctrl->attr.attr);
++	ctrl->attr.attr.name = ctrl->name;
++	ctrl->attr.attr.mode = 0664;
++	ctrl->attr.show = aspeed_bmc_misc_show;
++	ctrl->attr.store = aspeed_bmc_misc_store;
++
++	return sysfs_create_file(&bmc->dev->kobj, &ctrl->attr.attr);
++}
++
++static int aspeed_bmc_misc_populate_sysfs(struct aspeed_bmc_misc *bmc)
++{
++	int rc;
++	int i;
++
++	for (i = 0; i < bmc->nr_ctrls; i++) {
++		rc = aspeed_bmc_misc_add_sysfs_attr(bmc, &bmc->ctrls[i]);
++		if (rc < 0)
++			return rc;
++	}
++
++	return 0;
++}
++
++static int aspeed_bmc_misc_probe(struct platform_device *pdev)
++{
++	struct aspeed_bmc_misc *bmc;
++	int rc;
++
++	bmc = devm_kzalloc(&pdev->dev, sizeof(*bmc), GFP_KERNEL);
++	if (!bmc)
++		return -ENOMEM;
++
++	bmc->dev = &pdev->dev;
++	bmc->map = syscon_node_to_regmap(pdev->dev.parent->of_node);
++	if (IS_ERR(bmc->map))
++		return PTR_ERR(bmc->map);
++
++	rc = aspeed_bmc_misc_parse_dt(bmc, pdev->dev.of_node);
++	if (rc < 0)
++		return rc;
++
++	return aspeed_bmc_misc_populate_sysfs(bmc);
++}
++
++static const struct of_device_id aspeed_bmc_misc_match[] = {
++	{ .compatible = "aspeed,bmc-misc" },
++	{ },
++};
++
++static struct platform_driver aspeed_bmc_misc = {
++	.driver = {
++		.name		= DEVICE_NAME,
++		.of_match_table = aspeed_bmc_misc_match,
++	},
++	.probe = aspeed_bmc_misc_probe,
++};
++
++module_platform_driver(aspeed_bmc_misc);
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Andrew Jeffery <andrew@aj.id.au>");
+diff -Naur linux/drivers/soc/aspeed/aspeed-jtag.c linux-new/drivers/soc/aspeed/aspeed-jtag.c
+--- linux/drivers/soc/aspeed/aspeed-jtag.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/soc/aspeed/aspeed-jtag.c	2020-12-23 16:44:46.471424815 -0500
+@@ -0,0 +1,1307 @@
++/*
++ * JTAG driver for the Aspeed SoC
++ *
++ * Copyright (C) ASPEED Technology Inc.
++ * Ryan Chen <ryan_chen@aspeedtech.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation;
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ *
++ */
++#include <linux/poll.h>
++#include <linux/sysfs.h>
++#include <linux/clk.h>
++#include <linux/fs.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/miscdevice.h>
++#include <linux/slab.h>
++#include <linux/sched.h>
++#include <linux/delay.h>
++#include <linux/interrupt.h>
++#include <linux/platform_device.h>
++#include <linux/reset.h>
++#include <asm/io.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <asm/uaccess.h>
++/******************************************************************************/
++#define ASPEED_JTAG_DATA		0x00
++#define ASPEED_JTAG_INST		0x04
++#define ASPEED_JTAG_CTRL		0x08
++#define ASPEED_JTAG_ISR			0x0C
++#define ASPEED_JTAG_SW			0x10
++#define ASPEED_JTAG_TCK			0x14
++#define ASPEED_JTAG_IDLE		0x18
++
++/* ASPEED_JTAG_CTRL - 0x08 : Engine Control */
++#define JTAG_ENG_EN			BIT(31)
++#define JTAG_ENG_OUT_EN			BIT(30)
++#define JTAG_FORCE_TMS			BIT(29)
++#define JTAG_IR_UPDATE			BIT(26)		//AST2500 only
++
++#define JTAG_G6_RESET_FIFO		BIT(21)		//AST2600 only
++#define JTAG_G6_CTRL_MODE		BIT(20)		//AST2600 only
++#define JTAG_G6_XFER_LEN_MASK		(0x3ff << 8)	//AST2600 only
++#define JTAG_G6_SET_XFER_LEN(x)		(x << 8)
++#define JTAG_G6_MSB_FIRST		BIT(6)		//AST2600 only
++#define JTAG_G6_TERMINATE_XFER		BIT(5)		//AST2600 only
++#define JTAG_G6_LAST_XFER		BIT(4)		//AST2600 only
++#define JTAG_G6_INST_EN			BIT(1)
++
++#define JTAG_INST_LEN_MASK		(0x3f << 20)
++#define JTAG_SET_INST_LEN(x)		(x << 20)
++#define JTAG_SET_INST_MSB		BIT(19)
++#define JTAG_TERMINATE_INST		BIT(18)
++#define JTAG_LAST_INST			BIT(17)
++#define JTAG_INST_EN			BIT(16)
++#define JTAG_DATA_LEN_MASK		(0x3f << 4)
++
++#define JTAG_DR_UPDATE			BIT(10)		//AST2500 only
++#define JTAG_DATA_LEN(x)		(x << 4)
++#define JTAG_MSB_FIRST			BIT(3)
++#define JTAG_TERMINATE_DATA		BIT(2)
++#define JTAG_LAST_DATA			BIT(1)
++#define JTAG_DATA_EN			BIT(0)
++
++/* ASPEED_JTAG_ISR	- 0x0C : INterrupt status and enable */
++#define JTAG_INST_PAUSE			BIT(19)
++#define JTAG_INST_COMPLETE		BIT(18)
++#define JTAG_DATA_PAUSE			BIT(17)
++#define JTAG_DATA_COMPLETE		BIT(16)
++
++#define JTAG_INST_PAUSE_EN		BIT(3)
++#define JTAG_INST_COMPLETE_EN		BIT(2)
++#define JTAG_DATA_PAUSE_EN		BIT(1)
++#define JTAG_DATA_COMPLETE_EN		BIT(0)
++
++/* ASPEED_JTAG_SW	- 0x10 : Software Mode and Status */
++#define JTAG_SW_MODE_EN			BIT(19)
++#define JTAG_SW_MODE_TCK		BIT(18)
++#define JTAG_SW_MODE_TMS		BIT(17)
++#define JTAG_SW_MODE_TDIO		BIT(16)
++//
++#define JTAG_STS_INST_PAUSE		BIT(2)
++#define JTAG_STS_DATA_PAUSE		BIT(1)
++#define JTAG_STS_ENG_IDLE		(0x1)
++
++/* ASPEED_JTAG_TCK	- 0x14 : TCK Control */
++#define JTAG_TCK_INVERSE		BIT(31)
++#define JTAG_TCK_DIVISOR_MASK		(0x7ff)
++#define JTAG_GET_TCK_DIVISOR(x)		(x & 0x7ff)
++
++/*  ASPEED_JTAG_IDLE - 0x18 : Ctroller set for go to IDLE */
++#define JTAG_CTRL_TRSTn_HIGH		BIT(31)
++#define JTAG_GO_IDLE			BIT(0)
++
++#define BUFFER_LEN			1024
++#define TCK_FREQ			8000000
++
++/******************************************************************************/
++typedef enum jtag_xfer_mode {
++	HW_MODE = 0,
++	SW_MODE
++} xfer_mode;
++
++struct runtest_idle {
++	xfer_mode	mode;	//0 :HW mode, 1: SW mode
++	unsigned char	reset;	//Test Logic Reset
++	unsigned char	end;	//o: idle, 1: ir pause, 2: drpause
++	unsigned char	tck;	//keep tck
++};
++
++struct sir_xfer {
++	xfer_mode	mode;	//0 :HW mode, 1: SW mode
++	unsigned short	length;	//bits
++	unsigned int	*tdi;
++	unsigned int	*tdo;
++	unsigned char	endir;	//0: idle, 1:pause
++};
++
++struct sdr_xfer {
++	xfer_mode	mode;	//0 :HW mode, 1: SW mode
++	unsigned char	direct; // 0 ; read , 1 : write
++	unsigned short	length;	//bits
++	unsigned int	*tdio;
++	unsigned char	enddr;	//0: idle, 1:pause
++};
++
++struct io_xfer {
++	xfer_mode	mode;	//0 :HW mode, 1: SW mode
++	unsigned long	Address;
++	unsigned long	Data;
++};
++
++struct trst_reset {
++	unsigned long	operation;	// 0 ; read , 1 : write
++	unsigned long	Data;		// 0 means low, 1 means high - TRST pin
++};
++
++#define JTAGIOC_BASE	'T'
++
++#define ASPEED_JTAG_IOCRUNTEST	_IOW(JTAGIOC_BASE, 0, struct runtest_idle)
++#define ASPEED_JTAG_IOCSIR	_IOWR(JTAGIOC_BASE, 1, struct sir_xfer)
++#define ASPEED_JTAG_IOCSDR	_IOWR(JTAGIOC_BASE, 2, struct sdr_xfer)
++#define ASPEED_JTAG_SIOCFREQ	_IOW(JTAGIOC_BASE, 3, unsigned int)
++#define ASPEED_JTAG_GIOCFREQ	_IOR(JTAGIOC_BASE, 4, unsigned int)
++#define ASPEED_JTAG_IOWRITE	_IOW(JTAGIOC_BASE, 5, struct io_xfer)
++#define ASPEED_JTAG_IOREAD	_IOR(JTAGIOC_BASE, 6, struct io_xfer)
++#define ASPEED_JTAG_RESET	_IOW(JTAGIOC_BASE, 7, struct io_xfer)
++#define ASPEED_JTAG_TRST_RESET	_IOW(JTAGIOC_BASE, 8, struct trst_reset)
++#define ASPEED_JTAG_RUNTCK	_IOW(JTAGIOC_BASE, 12, struct io_xfer)
++/******************************************************************************/
++#define ASPEED_JTAG_DEBUG
++
++#ifdef ASPEED_JTAG_DEBUG
++#define JTAG_DBUG(fmt, args...) printk(KERN_DEBUG "%s() " fmt, __FUNCTION__, ## args)
++#else
++#define JTAG_DBUG(fmt, args...)
++#endif
++
++struct aspeed_jtag_config {
++	u8	jtag_version;
++	u32	jtag_buff_len;
++};
++
++struct aspeed_jtag_info {
++	void __iomem			*reg_base;
++	struct aspeed_jtag_config	*config;
++	u32				*tdi;
++	u32				*tdo;
++	u8				sts;	// 0: idle, 1:irpause 2:drpause
++	int				irq;	// JTAG IRQ number
++	struct reset_control		*reset;
++	struct clk			*clk;
++	u32				clkin;	// ast2600 use hclk, old use pclk
++	u32				flag;
++	wait_queue_head_t		jtag_wq;
++	bool				is_open;
++	struct miscdevice		*misc_dev;
++};
++
++/******************************************************************************/
++static DEFINE_SPINLOCK(jtag_state_lock);
++
++/******************************************************************************/
++static inline u32
++aspeed_jtag_read(struct aspeed_jtag_info *aspeed_jtag, u32 reg)
++{
++#if 0
++	u32 val;
++
++	val = readl(aspeed_jtag->reg_base + reg);
++	JTAG_DBUG("reg = 0x%08x, val = 0x%08x\n", reg, val);
++	return val;
++#else
++	return readl(aspeed_jtag->reg_base + reg);
++#endif
++}
++
++static inline void
++aspeed_jtag_write(struct aspeed_jtag_info *aspeed_jtag, u32 val, u32 reg)
++{
++	JTAG_DBUG("reg = 0x%08x, val = 0x%08x\n", reg, val);
++	writel(val, aspeed_jtag->reg_base + reg);
++}
++
++/******************************************************************************/
++static void aspeed_jtag_set_freq(struct aspeed_jtag_info *aspeed_jtag, unsigned int freq)
++{
++	int div;
++
++	for (div = 0; div < JTAG_TCK_DIVISOR_MASK; div++) {
++		if ((aspeed_jtag->clkin / (div + 1)) <= freq)
++			break;
++	}
++	JTAG_DBUG("set div = %x \n", div);
++
++	aspeed_jtag_write(aspeed_jtag, ((aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_TCK) & ~JTAG_TCK_DIVISOR_MASK) | div),  ASPEED_JTAG_TCK);
++}
++
++static unsigned int aspeed_jtag_get_freq(struct aspeed_jtag_info *aspeed_jtag)
++{
++	return aspeed_jtag->clkin / (JTAG_GET_TCK_DIVISOR(aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_TCK)) + 1);
++
++}
++/******************************************************************************/
++static void dummy(struct aspeed_jtag_info *aspeed_jtag, unsigned int cnt)
++{
++	int i = 0;
++
++	for (i = 0; i < cnt; i++)
++		aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW);
++}
++
++static u8 TCK_Cycle(struct aspeed_jtag_info *aspeed_jtag, u8 TMS, u8 TDI)
++{
++	u8 tdo;
++
++	// TCK = 0
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | (TMS * JTAG_SW_MODE_TMS) | (TDI * JTAG_SW_MODE_TDIO), ASPEED_JTAG_SW);
++
++	dummy(aspeed_jtag, 10);
++
++	// TCK = 1
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TCK | (TMS * JTAG_SW_MODE_TMS) | (TDI * JTAG_SW_MODE_TDIO), ASPEED_JTAG_SW);
++
++	if (aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW) & JTAG_SW_MODE_TDIO)
++		tdo = 1;
++	else
++		tdo = 0;
++
++	dummy(aspeed_jtag, 10);
++
++	// TCK = 0
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | (TMS * JTAG_SW_MODE_TMS) | (TDI * JTAG_SW_MODE_TDIO), ASPEED_JTAG_SW);
++
++	return tdo;
++}
++
++/******************************************************************************/
++static void aspeed_jtag_wait_instruction_pause_complete(struct aspeed_jtag_info *aspeed_jtag)
++{
++	wait_event_interruptible(aspeed_jtag->jtag_wq, (aspeed_jtag->flag == JTAG_INST_PAUSE));
++	JTAG_DBUG("\n");
++	aspeed_jtag->flag = 0;
++}
++
++static void aspeed_jtag_wait_instruction_complete(struct aspeed_jtag_info *aspeed_jtag)
++{
++	wait_event_interruptible(aspeed_jtag->jtag_wq, (aspeed_jtag->flag == JTAG_INST_COMPLETE));
++	JTAG_DBUG("\n");
++	aspeed_jtag->flag = 0;
++}
++
++static void aspeed_jtag_wait_data_pause_complete(struct aspeed_jtag_info *aspeed_jtag)
++{
++	wait_event_interruptible(aspeed_jtag->jtag_wq, (aspeed_jtag->flag == JTAG_DATA_PAUSE));
++	JTAG_DBUG("\n");
++	aspeed_jtag->flag = 0;
++}
++
++static void aspeed_jtag_wait_data_complete(struct aspeed_jtag_info *aspeed_jtag)
++{
++	wait_event_interruptible(aspeed_jtag->jtag_wq, (aspeed_jtag->flag == JTAG_DATA_COMPLETE));
++	JTAG_DBUG("\n");
++	aspeed_jtag->flag = 0;
++}
++/******************************************************************************/
++/* JTAG_reset() is to generate at leaspeed 9 TMS high and
++ * 1 TMS low to force devices into Run-Test/Idle State
++ */
++static void aspeed_jtag_run_test_idle(struct aspeed_jtag_info *aspeed_jtag, struct runtest_idle *runtest)
++{
++	int i = 0;
++
++	JTAG_DBUG(":%s mode\n", runtest->mode ? "SW" : "HW");
++
++	if (runtest->mode) {
++		// SW mode
++		// from idle , from pause,  -- > to pause, to idle
++		if (runtest->reset) {
++			for (i = 0; i < 10; i++)
++				TCK_Cycle(aspeed_jtag, 1, 0);
++		}
++
++		switch (aspeed_jtag->sts) {
++		case 0:
++			if (runtest->end == 1) {
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRSCan
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to IRSCan
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IRCap
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to IRExit1
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IRPause
++				aspeed_jtag->sts = 1;
++			} else if (runtest->end == 2) {
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRSCan
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to DRCap
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRExit1
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to DRPause
++				aspeed_jtag->sts = 1;
++			} else {
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IDLE
++				aspeed_jtag->sts = 0;
++			}
++			break;
++		case 1:
++			//from IR/DR Pause
++			if (runtest->end == 1) {
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Exit2 IR / DR
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Update IR /DR
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRSCan
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to IRSCan
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IRCap
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to IRExit1
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IRPause
++				aspeed_jtag->sts = 1;
++			} else if (runtest->end == 2) {
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Exit2 IR / DR
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Update IR /DR
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRSCan
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to DRCap
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to DRExit1
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to DRPause
++				aspeed_jtag->sts = 1;
++			} else {
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Exit2 IR / DR
++				TCK_Cycle(aspeed_jtag, 1, 0);	// go to Update IR /DR
++				TCK_Cycle(aspeed_jtag, 0, 0);	// go to IDLE
++				aspeed_jtag->sts = 0;
++			}
++			break;
++		default:
++			printk("TODO check ERROR \n");
++			break;
++		}
++
++		for (i = 0; i < runtest->tck; i++)
++			TCK_Cycle(aspeed_jtag, 0, 0);	// stay on IDLE for at lease  TCK cycle
++
++	} else {
++		aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_SW);  //dis sw mode
++		mdelay(2);
++		if (runtest->reset)
++			aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_FORCE_TMS, ASPEED_JTAG_CTRL);	// x TMS high + 1 TMS low
++		else
++			aspeed_jtag_write(aspeed_jtag, JTAG_GO_IDLE, ASPEED_JTAG_IDLE);
++		mdelay(2);
++		aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++		aspeed_jtag->sts = 0;
++	}
++}
++
++static void aspeed_sw_jtag_sir_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sir_xfer *sir)
++{
++	unsigned int index = 0;
++	u32 shift_bits = 0;
++	u32 tdi = 0;
++	u32 remain_xfer = sir->length;
++
++	if (aspeed_jtag->sts) {
++		//from IR/DR Pause
++		TCK_Cycle(aspeed_jtag, 1, 0);	// go to Exit2 IR / DR
++		TCK_Cycle(aspeed_jtag, 1, 0);	// go to Update IR /DR
++	}
++
++	TCK_Cycle(aspeed_jtag, 1, 0);		// go to DRSCan
++	TCK_Cycle(aspeed_jtag, 1, 0);		// go to IRSCan
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to IRCap
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to IRShift
++
++	aspeed_jtag->tdo[index] = 0;
++	while (remain_xfer) {
++		tdi = (aspeed_jtag->tdi[index]) >> (shift_bits % 32) & (0x1);
++		if (remain_xfer == 1) {
++			aspeed_jtag->tdo[index] |= TCK_Cycle(aspeed_jtag, 1, tdi);
++		} else {
++			aspeed_jtag->tdo[index] |= TCK_Cycle(aspeed_jtag, 0, tdi);
++			aspeed_jtag->tdo[index] <<= 1;
++		}
++		shift_bits++;
++		remain_xfer--;
++		if ((shift_bits % 32) == 0) {
++			index++;
++			aspeed_jtag->tdo[index] = 0;
++		}
++	}
++
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to IRPause
++
++	//stop pause
++	if (sir->endir == 0) {
++		//go to idle
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to IRExit2
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to IRUpdate
++		TCK_Cycle(aspeed_jtag, 0, 0);		// go to IDLE
++	}
++}
++
++static void aspeed_hw_jtag_sir_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sir_xfer *sir)
++{
++	unsigned int index = 0;
++	u32 shift_bits = 0;
++	u32 remain_xfer = sir->length;
++	int i, tmp_idx = 0;
++	aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_SW);	//dis sw mode
++
++	while (remain_xfer) {
++		if (remain_xfer > aspeed_jtag->config->jtag_buff_len) {
++			shift_bits = aspeed_jtag->config->jtag_buff_len;
++			tmp_idx = shift_bits / 32;
++			for (i = 0; i < tmp_idx; i++)
++				aspeed_jtag_write(aspeed_jtag, aspeed_jtag->tdi[index + i], ASPEED_JTAG_INST);
++
++			if (aspeed_jtag->config->jtag_version == 6) {
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_G6_SET_XFER_LEN(shift_bits),
++						  ASPEED_JTAG_CTRL);
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_G6_SET_XFER_LEN(shift_bits) |
++						  JTAG_G6_INST_EN, ASPEED_JTAG_CTRL);
++			} else {
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_SET_INST_LEN(shift_bits),
++						  ASPEED_JTAG_CTRL);
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_SET_INST_LEN(shift_bits) |
++						  JTAG_INST_EN, ASPEED_JTAG_CTRL);
++			}
++			aspeed_jtag_wait_instruction_pause_complete(aspeed_jtag);
++		} else {
++			shift_bits = remain_xfer;
++			tmp_idx = shift_bits / 32;
++			if (shift_bits % 32) tmp_idx += 1;
++			for (i = 0; i < tmp_idx; i++)
++				aspeed_jtag_write(aspeed_jtag, aspeed_jtag->tdi[index + i], ASPEED_JTAG_INST);
++
++			if (aspeed_jtag->config->jtag_version == 6) {
++				if (sir->endir) {
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_SET_XFER_LEN(shift_bits),
++							  ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_SET_XFER_LEN(shift_bits) |
++							  JTAG_G6_INST_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_instruction_pause_complete(aspeed_jtag);
++				} else {
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_LAST_XFER | JTAG_G6_SET_XFER_LEN(shift_bits),
++							  ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_LAST_XFER | JTAG_G6_SET_XFER_LEN(shift_bits) |
++							  JTAG_G6_INST_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_instruction_complete(aspeed_jtag);
++				}
++			} else {
++				if (sir->endir) {
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_SET_INST_LEN(shift_bits),
++							  ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_SET_INST_LEN(shift_bits) |
++							  JTAG_INST_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_instruction_pause_complete(aspeed_jtag);
++				} else {
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_LAST_INST | JTAG_SET_INST_LEN(shift_bits),
++							  ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_LAST_INST | JTAG_SET_INST_LEN(shift_bits) |
++							  JTAG_INST_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_instruction_complete(aspeed_jtag);
++				}
++			}
++		}
++
++		remain_xfer = remain_xfer - shift_bits;
++
++		//handle tdo data
++		tmp_idx = shift_bits / 32;
++		if (shift_bits % 32) tmp_idx += 1;
++		for (i = 0; i < tmp_idx; i++) {
++			if (shift_bits < 32)
++				aspeed_jtag->tdo[index + i] = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_INST) >> (32 - shift_bits);
++			else
++				aspeed_jtag->tdo[index + i] = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_INST);
++			shift_bits -= 32;
++		}
++		index += tmp_idx;
++	}
++
++	// aspeed_jtag->tdo = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_INST);
++
++#if 0
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++#else
++	if (sir->endir == 0) {
++		aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++	}
++#endif
++
++}
++
++static int aspeed_jtag_sir_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sir_xfer *sir)
++{
++	JTAG_DBUG("%s mode, ENDIR : %d, len : %d \n", sir->mode ? "SW" : "HW", sir->endir, sir->length);
++
++	memset(aspeed_jtag->tdi, 0, BUFFER_LEN * 2);
++
++	if (copy_from_user(aspeed_jtag->tdi, sir->tdi, (sir->length + 7) / 8))
++		return -EFAULT;
++
++	if (sir->mode) {
++		aspeed_sw_jtag_sir_xfer(aspeed_jtag, sir);
++	} else {
++		aspeed_hw_jtag_sir_xfer(aspeed_jtag, sir);
++	}
++	aspeed_jtag->sts = sir->endir;
++
++	if (copy_to_user(sir->tdo, aspeed_jtag->tdo, (sir->length + 7) / 8))
++		return -EFAULT;
++
++	return 0;
++}
++
++static void aspeed_sw_jtag_sdr_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sdr_xfer *sdr)
++{
++	unsigned int index = 0;
++	u32 shift_bits = 0;
++	u32 tdo = 0;
++	u32 remain_xfer = sdr->length;
++
++	if (aspeed_jtag->sts) {
++		//from IR/DR Pause
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to Exit2 IR / DR
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to Update IR /DR
++	}
++
++	TCK_Cycle(aspeed_jtag, 1, 0);		// go to DRScan
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to DRCap
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to DRShift
++
++	if (!sdr->direct)
++		aspeed_jtag->tdo[index] = 0;
++	while (remain_xfer) {
++		if (sdr->direct) {
++			//write
++			if ((shift_bits % 32) == 0)
++				JTAG_DBUG("W dr->dr_data[%d]: %x\n", index, aspeed_jtag->tdo[index]);
++
++			tdo = (aspeed_jtag->tdo[index] >> (shift_bits % 32)) & (0x1);
++			JTAG_DBUG("%d ", tdo);
++			if (remain_xfer == 1) {
++				TCK_Cycle(aspeed_jtag, 1, tdo); // go to DRExit1
++			} else {
++				TCK_Cycle(aspeed_jtag, 0, tdo); // go to DRShit
++			}
++		} else {
++			//read
++			if (remain_xfer == 1) {
++				tdo = TCK_Cycle(aspeed_jtag, 1, tdo);	// go to DRExit1
++			} else {
++				tdo = TCK_Cycle(aspeed_jtag, 0, tdo);	// go to DRShit
++			}
++			JTAG_DBUG("%d ", tdo);
++			aspeed_jtag->tdo[index] |= (tdo << (shift_bits % 32));
++
++			if ((shift_bits % 32) == 0)
++				JTAG_DBUG("R dr->dr_data[%d]: %x\n", index, aspeed_jtag->tdo[index]);
++		}
++		shift_bits++;
++		remain_xfer--;
++		if ((shift_bits % 32) == 0) {
++			index++;
++			aspeed_jtag->tdo[index] = 0;
++		}
++
++	}
++
++	TCK_Cycle(aspeed_jtag, 0, 0);		// go to DRPause
++
++	if (sdr->enddr == 0) {
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to DRExit2
++		TCK_Cycle(aspeed_jtag, 1, 0);		// go to DRUpdate
++		TCK_Cycle(aspeed_jtag, 0, 0);		// go to IDLE
++	}
++
++}
++
++static void aspeed_hw_jtag_sdr_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sdr_xfer *sdr)
++{
++	unsigned int index = 0;
++	u32 shift_bits = 0;
++	u32 remain_xfer = sdr->length;
++	int i, tmp_idx = 0;
++
++	aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_SW);
++
++	while (remain_xfer) {
++		if (remain_xfer > aspeed_jtag->config->jtag_buff_len) {
++			shift_bits = aspeed_jtag->config->jtag_buff_len;
++			tmp_idx = shift_bits / 32;
++			for (i = 0; i < tmp_idx; i++) {
++				if (sdr->direct)
++					aspeed_jtag_write(aspeed_jtag, aspeed_jtag->tdo[index + i], ASPEED_JTAG_DATA);
++				else
++					aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_DATA);
++			}
++			// read bytes were not equals to column length ==> Pause-DR
++			JTAG_DBUG("shit bits %d \n", shift_bits);
++			if (aspeed_jtag->config->jtag_version == 6) {
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_G6_SET_XFER_LEN(shift_bits), ASPEED_JTAG_CTRL);
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_G6_SET_XFER_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++			} else {
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_DATA_LEN(shift_bits), ASPEED_JTAG_CTRL);
++				aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++						  JTAG_DATA_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++			}
++			aspeed_jtag_wait_data_pause_complete(aspeed_jtag);
++		} else {
++			// read bytes equals to column length => Update-DR
++			shift_bits = remain_xfer;
++			tmp_idx = shift_bits / 32;
++			if (shift_bits % 32) tmp_idx += 1;
++			for (i = 0; i < tmp_idx; i++) {
++				if (sdr->direct)
++					aspeed_jtag_write(aspeed_jtag, aspeed_jtag->tdo[index + i], ASPEED_JTAG_DATA);
++				else
++					aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_DATA);
++			}
++			JTAG_DBUG("shit bits %d with last \n", shift_bits);
++			if (aspeed_jtag->config->jtag_version == 6) {
++				if (sdr->enddr) {
++					JTAG_DBUG("DR Keep Pause \n");
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_SET_XFER_LEN(shift_bits), ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_G6_SET_XFER_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_data_pause_complete(aspeed_jtag);
++				} else {
++					JTAG_DBUG("DR go IDLE \n");
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_G6_LAST_XFER |
++							  JTAG_G6_SET_XFER_LEN(shift_bits), ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_G6_LAST_XFER |
++							  JTAG_G6_SET_XFER_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_data_complete(aspeed_jtag);
++				}
++			} else {
++				if (sdr->enddr) {
++					JTAG_DBUG("DR Keep Pause \n");
++					aspeed_jtag_write(aspeed_jtag,
++							  JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_DATA_LEN(shift_bits), ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag,
++							  JTAG_ENG_EN | JTAG_ENG_OUT_EN |
++							  JTAG_DATA_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_data_pause_complete(aspeed_jtag);
++				} else {
++					JTAG_DBUG("DR go IDLE \n");
++					aspeed_jtag_write(aspeed_jtag,
++							  JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_LAST_DATA |
++							  JTAG_DATA_LEN(shift_bits), ASPEED_JTAG_CTRL);
++					aspeed_jtag_write(aspeed_jtag,
++							  JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_LAST_DATA |
++							  JTAG_DATA_LEN(shift_bits) | JTAG_DATA_EN, ASPEED_JTAG_CTRL);
++					aspeed_jtag_wait_data_complete(aspeed_jtag);
++				}
++			}
++		}
++		remain_xfer = remain_xfer - shift_bits;
++		//handle tdo data
++		if (!sdr->direct) {
++			tmp_idx = shift_bits / 32;
++			if (shift_bits % 32) tmp_idx += 1;
++			for (i = 0; i < tmp_idx; i++) {
++				if (shift_bits < 32)
++					aspeed_jtag->tdo[index + i] = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_DATA) >> (32 - shift_bits);
++				else
++					aspeed_jtag->tdo[index + i] = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_DATA);
++				JTAG_DBUG("R dr->dr_data[%d]: %x\n", index, aspeed_jtag->tdo[index]);
++				shift_bits -= 32;
++			}
++		}
++
++		index += tmp_idx;
++		JTAG_DBUG("remain_xfer %d\n", remain_xfer);
++	}
++
++#if 0
++	mdelay(2);
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++#else
++	if (!sdr->enddr) {
++		mdelay(2);
++		aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++	}
++#endif
++
++}
++
++static int aspeed_jtag_sdr_xfer(struct aspeed_jtag_info *aspeed_jtag, struct sdr_xfer *sdr)
++{
++
++	JTAG_DBUG("%s mode, len : %d \n", sdr->mode ? "SW" : "HW", sdr->length);
++
++	memset(aspeed_jtag->tdi, 0, BUFFER_LEN * 2);
++
++	if (copy_from_user(aspeed_jtag->tdo, sdr->tdio, (sdr->length + 7) / 8))
++		return -EFAULT;
++
++	if (sdr->mode) {
++		aspeed_sw_jtag_sdr_xfer(aspeed_jtag, sdr);
++	} else {
++		aspeed_hw_jtag_sdr_xfer(aspeed_jtag, sdr);
++	}
++
++	aspeed_jtag->sts = sdr->enddr;
++
++	if (copy_to_user(sdr->tdio, aspeed_jtag->tdo, (sdr->length + 7) / 8))
++		return -EFAULT;
++
++	return 0;
++}
++
++/*************************************************************************************/
++static irqreturn_t aspeed_jtag_isr(int this_irq, void *dev_id)
++{
++	u32 status;
++	struct aspeed_jtag_info *aspeed_jtag = dev_id;
++
++	status = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_ISR);
++	JTAG_DBUG("sts %x \n", status);
++
++	if (status & JTAG_INST_PAUSE) {
++		aspeed_jtag_write(aspeed_jtag, JTAG_INST_PAUSE | (status & 0xf), ASPEED_JTAG_ISR);
++		aspeed_jtag->flag = JTAG_INST_PAUSE;
++	}
++
++	if (status & JTAG_INST_COMPLETE) {
++		aspeed_jtag_write(aspeed_jtag, JTAG_INST_COMPLETE | (status & 0xf), ASPEED_JTAG_ISR);
++		aspeed_jtag->flag = JTAG_INST_COMPLETE;
++	}
++
++	if (status & JTAG_DATA_PAUSE) {
++		aspeed_jtag_write(aspeed_jtag, JTAG_DATA_PAUSE | (status & 0xf), ASPEED_JTAG_ISR);
++		aspeed_jtag->flag = JTAG_DATA_PAUSE;
++	}
++
++	if (status & JTAG_DATA_COMPLETE) {
++		aspeed_jtag_write(aspeed_jtag, JTAG_DATA_COMPLETE | (status & 0xf), ASPEED_JTAG_ISR);
++		aspeed_jtag->flag = JTAG_DATA_COMPLETE;
++	}
++
++	if (aspeed_jtag->flag) {
++		wake_up_interruptible(&aspeed_jtag->jtag_wq);
++		return IRQ_HANDLED;
++	} else {
++		printk("TODO Check JTAG's interrupt %x\n", status);
++		return IRQ_NONE;
++	}
++
++}
++
++static void JTAG_reset(struct aspeed_jtag_info *aspeed_jtag)
++{
++	aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_SW);
++	aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN, ASPEED_JTAG_CTRL);
++	aspeed_jtag_write(aspeed_jtag, JTAG_ENG_EN | JTAG_ENG_OUT_EN | JTAG_FORCE_TMS, ASPEED_JTAG_CTRL);
++	mdelay(5);
++	while (1) {
++		if (aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_CTRL) & JTAG_FORCE_TMS)
++			break;
++	}
++	aspeed_jtag_write(aspeed_jtag, JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO, ASPEED_JTAG_SW);
++}
++
++int jtag_write_register(struct io_xfer *io,int size)
++{
++	void __iomem	*reg_add;
++	if(size!=sizeof(struct io_xfer))
++	{
++	    return (-1);
++	}
++
++	reg_add = ioremap(io->Address, 4);
++	writel(io->Data, reg_add);
++	iounmap(reg_add);
++	return 0;
++}
++
++int jtsg_read_register(struct io_xfer *io,int size)
++{
++	void __iomem	*reg_add;
++
++	if(size!=sizeof(struct io_xfer))
++	{
++	    return (-1);
++	}
++	
++	reg_add = ioremap(io->Address, 4);
++	io->Data = readl(reg_add);
++	iounmap(reg_add);
++	return 0;
++}
++
++/*************************************************************************************/
++static long jtag_ioctl(struct file *file, unsigned int cmd,
++		       unsigned long arg)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(c->this_device);
++	void __user *argp = (void __user *)arg;
++	struct io_xfer io;
++	struct trst_reset trst_pin;
++	struct runtest_idle run_idle;
++	struct sir_xfer sir;
++	struct sdr_xfer sdr;
++	int ret = 0;
++
++	switch (cmd) {
++	case ASPEED_JTAG_GIOCFREQ:
++		ret = __put_user(aspeed_jtag_get_freq(aspeed_jtag), (unsigned int __user *)arg);
++		break;
++	case ASPEED_JTAG_SIOCFREQ:
++//			printk("set freq = %d , pck %d \n",config.freq, aspeed_get_pclk());
++		if ((unsigned int)arg > aspeed_jtag->clkin)
++			ret = -EFAULT;
++		else
++			aspeed_jtag_set_freq(aspeed_jtag, (unsigned int)arg);
++		break;
++	case ASPEED_JTAG_IOCRUNTEST:
++		if (copy_from_user(&run_idle, argp, sizeof(struct runtest_idle)))
++			ret = -EFAULT;
++		else
++			aspeed_jtag_run_test_idle(aspeed_jtag, &run_idle);
++		break;
++	case ASPEED_JTAG_IOCSIR:
++		if (copy_from_user(&sir, argp, sizeof(struct sir_xfer)))
++			return -EFAULT;
++		if (sir.length > 1024)
++			return -EINVAL;
++		ret = aspeed_jtag_sir_xfer(aspeed_jtag, &sir);
++		if (copy_to_user(argp, &sir, sizeof(struct sir_xfer)))
++			return -EFAULT;
++
++		break;
++	case ASPEED_JTAG_IOCSDR:
++		if (copy_from_user(&sdr, argp, sizeof(struct sdr_xfer)))
++			return -EFAULT;
++		if (sdr.length > 1024)
++			return -EFAULT;
++		ret = aspeed_jtag_sdr_xfer(aspeed_jtag, &sdr);
++		if (copy_to_user(argp, &sdr, sizeof(struct sdr_xfer)))
++			return -EFAULT;
++		break;
++	case ASPEED_JTAG_IOWRITE:
++		if (copy_from_user(&io, argp, sizeof(struct io_xfer))) {
++			ret = -EFAULT;
++		} else {
++			void __iomem	*reg_add;
++			reg_add = ioremap(io.Address, 4);
++			writel(io.Data, reg_add);
++			iounmap(reg_add);
++		}
++
++		break;
++	case ASPEED_JTAG_IOREAD:
++		if (copy_from_user(&io, argp, sizeof(struct io_xfer))) {
++			ret = -EFAULT;
++		} else {
++			void __iomem	*reg_add;
++			reg_add = ioremap(io.Address, 4);
++			io.Data = readl(reg_add);
++			iounmap(reg_add);
++		}
++		if (copy_to_user(argp, &io, sizeof(struct io_xfer)))
++			ret = -EFAULT;
++		break;
++	case ASPEED_JTAG_RESET:
++		JTAG_reset(aspeed_jtag);
++		break;
++	case ASPEED_JTAG_RUNTCK:
++		if (copy_from_user(&io, argp, sizeof(struct io_xfer))) {
++			ret = -EFAULT;
++		} else {
++			int i;
++
++			for (i = 0; i < io.Address; i++)
++				TCK_Cycle(aspeed_jtag, io.mode, io.Data);
++		}
++		break;
++	case ASPEED_JTAG_TRST_RESET:
++		if (copy_from_user(&trst_pin, argp, sizeof(struct trst_reset))) {
++			ret = -EFAULT;
++		} else {
++			unsigned int regs = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_IDLE);
++
++			if (trst_pin.operation == 1) {
++				if (trst_pin.Data == 1)
++					aspeed_jtag_write(aspeed_jtag, regs | (1 << 31), ASPEED_JTAG_IDLE);
++				else
++					aspeed_jtag_write(aspeed_jtag, regs & (~(1 << 31)), ASPEED_JTAG_IDLE);
++			} else
++				trst_pin.Data = (regs >> 31);
++
++		}
++		if (copy_to_user(argp, &trst_pin, sizeof(struct trst_reset)))
++			ret = -EFAULT;
++		break;
++	default:
++		return -ENOTTY;
++	}
++
++	return ret;
++}
++
++static int jtag_open(struct inode *inode, struct file *file)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(c->this_device);
++
++	spin_lock(&jtag_state_lock);
++
++	if (aspeed_jtag->is_open) {
++		spin_unlock(&jtag_state_lock);
++		return -EBUSY;
++	}
++
++	aspeed_jtag->is_open = true;
++
++	spin_unlock(&jtag_state_lock);
++
++	return 0;
++}
++
++static int jtag_release(struct inode *inode, struct file *file)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(c->this_device);
++
++
++	spin_lock(&jtag_state_lock);
++
++	aspeed_jtag->is_open = false;
++
++	spin_unlock(&jtag_state_lock);
++
++	return 0;
++}
++
++static ssize_t show_tdo(struct device *dev,
++			struct device_attribute *attr, char *buf)
++{
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	return sprintf(buf, "%s\n", aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW) & JTAG_SW_MODE_TDIO ? "1" : "0");
++}
++
++static DEVICE_ATTR(tdo, S_IRUGO, show_tdo, NULL);
++
++static ssize_t store_tdi(struct device *dev,
++			 struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 tdi;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	tdi = simple_strtoul(buf, NULL, 1);
++
++	aspeed_jtag_write(aspeed_jtag, aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW) | JTAG_SW_MODE_EN | (tdi * JTAG_SW_MODE_TDIO), ASPEED_JTAG_SW);
++
++	return count;
++}
++
++static DEVICE_ATTR(tdi, S_IWUSR, NULL, store_tdi);
++
++static ssize_t store_tms(struct device *dev,
++			 struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 tms;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	tms = simple_strtoul(buf, NULL, 1);
++
++	aspeed_jtag_write(aspeed_jtag, aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW) | JTAG_SW_MODE_EN | (tms * JTAG_SW_MODE_TMS), ASPEED_JTAG_SW);
++
++	return count;
++}
++
++static DEVICE_ATTR(tms, S_IWUSR, NULL, store_tms);
++
++static ssize_t store_tck(struct device *dev,
++			 struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 tck;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	tck = simple_strtoul(buf, NULL, 1);
++
++	aspeed_jtag_write(aspeed_jtag, aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_SW) | JTAG_SW_MODE_EN | (tck * JTAG_SW_MODE_TDIO), ASPEED_JTAG_SW);
++
++	return count;
++}
++
++static DEVICE_ATTR(tck, S_IWUSR, NULL, store_tck);
++
++static ssize_t show_sts(struct device *dev,
++			struct device_attribute *attr, char *buf)
++{
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	return sprintf(buf, "%s\n", aspeed_jtag->sts ? "Pause" : "Idle");
++}
++
++static DEVICE_ATTR(sts, S_IRUGO, show_sts, NULL);
++
++static ssize_t show_frequency(struct device *dev,
++			      struct device_attribute *attr, char *buf)
++{
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++//	printk("PCLK = %d \n", aspeed_get_pclk());
++//	printk("DIV  = %d \n", JTAG_GET_TCK_DIVISOR(aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_TCK)) + 1);
++	return sprintf(buf, "Frequency : %d\n", aspeed_jtag->clkin / (JTAG_GET_TCK_DIVISOR(aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_TCK)) + 1));
++}
++
++static ssize_t store_frequency(struct device *dev,
++			       struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 val;
++	struct aspeed_jtag_info *aspeed_jtag = dev_get_drvdata(dev);
++
++	val = simple_strtoul(buf, NULL, 20);
++	aspeed_jtag_set_freq(aspeed_jtag, val);
++
++	return count;
++}
++
++static DEVICE_ATTR(freq, S_IRUGO | S_IWUSR, show_frequency, store_frequency);
++
++static struct attribute *jtag_sysfs_entries[] = {
++	&dev_attr_freq.attr,
++	&dev_attr_sts.attr,
++	&dev_attr_tck.attr,
++	&dev_attr_tms.attr,
++	&dev_attr_tdi.attr,
++	&dev_attr_tdo.attr,
++	NULL
++};
++
++static struct attribute_group jtag_attribute_group = {
++	.attrs = jtag_sysfs_entries,
++};
++
++static const struct file_operations aspeed_jtag_fops = {
++	.owner		= THIS_MODULE,
++	.unlocked_ioctl	= jtag_ioctl,
++	.open		= jtag_open,
++	.release		= jtag_release,
++};
++
++static struct aspeed_jtag_config jtag_config = {
++	.jtag_version = 0,
++	.jtag_buff_len = 32,
++};
++
++static struct aspeed_jtag_config jtag_g6_config = {
++	.jtag_version = 6,
++	.jtag_buff_len = 512,
++};
++
++static const struct of_device_id aspeed_jtag_of_matches[] = {
++	{ .compatible = "aspeed,ast2400-jtag", .data = &jtag_config, 	},
++	{ .compatible = "aspeed,ast2500-jtag", .data = &jtag_config, 	},
++	{ .compatible = "aspeed,ast2600-jtag", .data = &jtag_g6_config, },
++	{},
++};
++MODULE_DEVICE_TABLE(of, aspeed_jtag_of_matches);
++
++static int aspeed_jtag_probe(struct platform_device *pdev)
++{
++	struct aspeed_jtag_info *aspeed_jtag;
++	const struct of_device_id *jtag_dev_id;
++	struct resource *res;
++	struct miscdevice *misc_dev;
++	int ret = 0;
++
++	JTAG_DBUG("aspeed_jtag_probe\n");
++
++	aspeed_jtag = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_jtag_info), GFP_KERNEL);
++	if (!aspeed_jtag)
++		return -ENOMEM;
++
++	jtag_dev_id = of_match_device(aspeed_jtag_of_matches, &pdev->dev);
++	if (!jtag_dev_id)
++		return -EINVAL;
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (res == NULL) {
++		dev_err(&pdev->dev, "cannot get IORESOURCE_MEM\n");
++		ret = -ENOENT;
++		goto out;
++	}
++
++	aspeed_jtag->reg_base = devm_ioremap_resource(&pdev->dev, res);
++	if (!aspeed_jtag->reg_base) {
++		ret = -EIO;
++		goto out_region;
++	}
++
++	aspeed_jtag->irq = platform_get_irq(pdev, 0);
++	if (aspeed_jtag->irq < 0) {
++		dev_err(&pdev->dev, "no irq specified\n");
++		ret = -ENOENT;
++		goto out_region;
++	}
++
++	aspeed_jtag->reset = devm_reset_control_get_exclusive(&pdev->dev, "jtag");
++	if (IS_ERR(aspeed_jtag->reset)) {
++		dev_err(&pdev->dev, "can't get jtag reset\n");
++		return PTR_ERR(aspeed_jtag->reset);
++	}
++
++	aspeed_jtag->clk = devm_clk_get(&pdev->dev, NULL);
++	if (IS_ERR(aspeed_jtag->clk)) {
++		dev_err(&pdev->dev, "no clock defined\n");
++		return -ENODEV;
++	}
++
++	aspeed_jtag->clkin = clk_get_rate(aspeed_jtag->clk);
++	JTAG_DBUG("aspeed_jtag->clkin %d \n", aspeed_jtag->clkin);
++
++	aspeed_jtag->config = (struct aspeed_jtag_config *)jtag_dev_id->data;
++
++	aspeed_jtag->tdi = kmalloc(BUFFER_LEN * 2, GFP_KERNEL);
++	aspeed_jtag->tdo = aspeed_jtag->tdi + (BUFFER_LEN / sizeof(u32));
++
++	JTAG_DBUG("buffer addr : tdi %x tdo %x \n", (u32)aspeed_jtag->tdi, (u32)aspeed_jtag->tdo);
++
++	// SCU init
++	reset_control_assert(aspeed_jtag->reset);
++	udelay(3);
++	reset_control_deassert(aspeed_jtag->reset);
++
++	// enable clock
++	aspeed_jtag_write(aspeed_jtag,
++			  JTAG_ENG_EN | JTAG_ENG_OUT_EN,
++			  ASPEED_JTAG_CTRL);
++
++	// enable sw mode for disable clk
++	aspeed_jtag_write(aspeed_jtag,
++			  JTAG_SW_MODE_EN | JTAG_SW_MODE_TDIO,
++			  ASPEED_JTAG_SW);
++
++	ret = devm_request_irq(&pdev->dev, aspeed_jtag->irq, aspeed_jtag_isr,
++			       0, dev_name(&pdev->dev), aspeed_jtag);
++	if (ret) {
++		printk("JTAG Unable to get IRQ");
++		goto out_region;
++	}
++
++	// enable interrupt
++	aspeed_jtag_write(aspeed_jtag,
++			  JTAG_INST_PAUSE | JTAG_INST_COMPLETE |
++			  JTAG_DATA_PAUSE | JTAG_DATA_COMPLETE |
++			  JTAG_INST_PAUSE_EN | JTAG_INST_COMPLETE_EN |
++			  JTAG_DATA_PAUSE_EN | JTAG_DATA_COMPLETE_EN,
++			  ASPEED_JTAG_ISR);
++
++	aspeed_jtag->flag = 0;
++	init_waitqueue_head(&aspeed_jtag->jtag_wq);
++
++	misc_dev = (struct miscdevice *)devm_kzalloc(&pdev->dev, sizeof(struct miscdevice), GFP_KERNEL);
++	if (!misc_dev) {
++		pr_err("failed to allocate misc device\n");
++		goto out_irq;
++	}
++
++	misc_dev->minor = MISC_DYNAMIC_MINOR;
++	misc_dev->name = pdev->name;
++	misc_dev->fops = &aspeed_jtag_fops;
++
++
++	ret = misc_register(misc_dev);
++	if (ret) {
++		printk(KERN_ERR "JTAG : failed to register misc device\n");
++		goto out_irq;
++	}
++
++	platform_set_drvdata(pdev, aspeed_jtag);
++	dev_set_drvdata(misc_dev->this_device, aspeed_jtag);
++
++	aspeed_jtag->misc_dev = misc_dev;
++
++	ret = sysfs_create_group(&pdev->dev.kobj, &jtag_attribute_group);
++	if (ret) {
++		printk(KERN_ERR "aspeed_jtag: failed to create sysfs device attributes.\n");
++		return -1;
++	}
++
++	aspeed_jtag_set_freq(aspeed_jtag, TCK_FREQ);
++
++	printk(KERN_INFO "aspeed_jtag: driver successfully loaded.\n");
++
++	return 0;
++
++out_irq:
++	devm_free_irq(&pdev->dev, aspeed_jtag->irq, aspeed_jtag);
++out_region:
++	release_mem_region(res->start, res->end - res->start + 1);
++	kfree(aspeed_jtag->tdi);
++out:
++	printk(KERN_WARNING "aspeed_jtag: driver init failed (ret=%d)!\n", ret);
++	return ret;
++}
++
++static int aspeed_jtag_remove(struct platform_device *pdev)
++{
++	struct resource *res;
++	struct aspeed_jtag_info *aspeed_jtag = platform_get_drvdata(pdev);
++
++	JTAG_DBUG("aspeed_jtag_remove\n");
++
++	sysfs_remove_group(&pdev->dev.kobj, &jtag_attribute_group);
++
++	misc_deregister(aspeed_jtag->misc_dev);
++
++	kfree(aspeed_jtag->misc_dev);
++
++	devm_free_irq(&pdev->dev, aspeed_jtag->irq, aspeed_jtag);
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++
++	iounmap(aspeed_jtag->reg_base);
++
++	platform_set_drvdata(pdev, NULL);
++
++	release_mem_region(res->start, res->end - res->start + 1);
++
++	return 0;
++}
++
++#ifdef CONFIG_PM
++static int
++aspeed_jtag_suspend(struct platform_device *pdev, pm_message_t state)
++{
++	return 0;
++}
++
++static int
++aspeed_jtag_resume(struct platform_device *pdev)
++{
++	return 0;
++}
++#endif
++
++static struct platform_driver aspeed_jtag_driver = {
++	.probe		= aspeed_jtag_probe,
++	.remove		= aspeed_jtag_remove,
++#ifdef CONFIG_PM
++	.suspend	= aspeed_jtag_suspend,
++	.resume		= aspeed_jtag_resume,
++#endif
++	.driver		= {
++		.name	= KBUILD_MODNAME,
++		.of_match_table = aspeed_jtag_of_matches,
++	},
++};
++
++module_platform_driver(aspeed_jtag_driver);
++
++EXPORT_SYMBOL(jtag_write_register);
++EXPORT_SYMBOL(jtsg_read_register);
++MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
++MODULE_DESCRIPTION("AST JTAG LIB Driver");
++MODULE_LICENSE("GPL");
+diff -Naur linux/drivers/soc/aspeed/aspeed-lpc-ctrl.c linux-new/drivers/soc/aspeed/aspeed-lpc-ctrl.c
+--- linux/drivers/soc/aspeed/aspeed-lpc-ctrl.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/soc/aspeed/aspeed-lpc-ctrl.c	2020-12-23 16:44:46.471424815 -0500
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/clk.h>
++#include <linux/log2.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/miscdevice.h>
+ #include <linux/mm.h>
+@@ -241,6 +242,18 @@
+ 
+ 		lpc_ctrl->mem_size = resource_size(&resm);
+ 		lpc_ctrl->mem_base = resm.start;
++
++		if (!is_power_of_2(lpc_ctrl->mem_size)) {
++			dev_err(dev, "Reserved memory size must be a power of 2, got %zu\n",
++			       lpc_ctrl->mem_size);
++			return -EINVAL;
++		}
++
++		if (!IS_ALIGNED(lpc_ctrl->mem_base, lpc_ctrl->mem_size)) {
++			dev_err(dev, "Reserved memory must be naturally aligned for size %zu\n",
++			       lpc_ctrl->mem_size);
++			return -EINVAL;
++		}
+ 	}
+ 
+ 	lpc_ctrl->regmap = syscon_node_to_regmap(
+@@ -291,6 +304,7 @@
+ static const struct of_device_id aspeed_lpc_ctrl_match[] = {
+ 	{ .compatible = "aspeed,ast2400-lpc-ctrl" },
+ 	{ .compatible = "aspeed,ast2500-lpc-ctrl" },
++	{ .compatible = "aspeed,ast2600-lpc-ctrl" },
+ 	{ },
+ };
+ 
+diff -Naur linux/drivers/soc/aspeed/aspeed-lpc-snoop.c linux-new/drivers/soc/aspeed/aspeed-lpc-snoop.c
+--- linux/drivers/soc/aspeed/aspeed-lpc-snoop.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/soc/aspeed/aspeed-lpc-snoop.c	2020-12-23 16:44:46.471424815 -0500
+@@ -22,8 +22,15 @@
+ #include <linux/platform_device.h>
+ #include <linux/poll.h>
+ #include <linux/regmap.h>
++#include <linux/miscdevice.h>
++#include <linux/device.h>
++#include <linux/ioctl.h>
++#include <linux/mm.h>
++#include <linux/uaccess.h>
+ 
+-#define DEVICE_NAME	"aspeed-lpc-snoop"
++#define DEVICE_NAME	"snoop0"
++
++#define READ_CURRENT_CODES   _IOR('s', 1, int)
+ 
+ #define NUM_SNOOP_CHANNELS 2
+ #define SNOOP_FIFO_SIZE 2048
+@@ -51,6 +58,9 @@
+ #define HICRB_ENSNP0D		BIT(14)
+ #define HICRB_ENSNP1D		BIT(15)
+ 
++static atomic_t open_count = ATOMIC_INIT(0);
++struct miscdevice       miscdev;
++
+ struct aspeed_lpc_snoop_model_data {
+ 	/* The ast2400 has bits 14 and 15 as reserved, whereas the ast2500
+ 	 * can use them.
+@@ -68,6 +78,8 @@
+ 	struct regmap		*regmap;
+ 	int			irq;
+ 	struct aspeed_lpc_snoop_channel chan[NUM_SNOOP_CHANNELS];
++	struct platform_device *pdev;
++	struct miscdevice       miscdev;
+ };
+ 
+ static struct aspeed_lpc_snoop_channel *snoop_file_to_chan(struct file *file)
+@@ -97,13 +109,13 @@
+ 	return ret ? ret : copied;
+ }
+ 
+-static __poll_t snoop_file_poll(struct file *file,
++static unsigned int snoop_file_poll(struct file *file,
+ 				    struct poll_table_struct *pt)
+ {
+ 	struct aspeed_lpc_snoop_channel *chan = snoop_file_to_chan(file);
+ 
+ 	poll_wait(file, &chan->wq, pt);
+-	return !kfifo_is_empty(&chan->fifo) ? EPOLLIN : 0;
++	return !kfifo_is_empty(&chan->fifo) ? POLLIN : 0;
+ }
+ 
+ static const struct file_operations snoop_fops = {
+@@ -116,14 +128,38 @@
+ /* Save a byte to a FIFO and discard the oldest byte if FIFO is full */
+ static void put_fifo_with_discard(struct aspeed_lpc_snoop_channel *chan, u8 val)
+ {
+-	if (!kfifo_initialized(&chan->fifo))
+-		return;
+-	if (kfifo_is_full(&chan->fifo))
+-		kfifo_skip(&chan->fifo);
+-	kfifo_put(&chan->fifo, val);
++	struct kfifo *fifo = &chan->fifo;
++	memcpy (fifo->kfifo.data+fifo->kfifo.in,(void *)&val,1);
++
++	fifo->kfifo.in = (fifo->kfifo.in + 1) % 2048;
++
++	if ( fifo->kfifo.mask == (2048-1))
++	{
++		fifo->kfifo.mask++;
++		fifo->kfifo.out = (fifo->kfifo.out + 1) % 2048;
++	}
++	else if ( fifo->kfifo.mask == 2048)
++		fifo->kfifo.out = (fifo->kfifo.out + 1) % 2048;
++	else
++		fifo->kfifo.mask++;
++
+ 	wake_up_interruptible(&chan->wq);
+ }
+ 
++static void
++snoop_kfifo_get (struct kfifo *fifo, unsigned char *buffer, unsigned int length)
++{
++       unsigned int l;
++       if ( fifo->kfifo.in < fifo->kfifo.out )
++       {
++               l = fifo->kfifo.mask - fifo->kfifo.out;
++               memcpy ( buffer, fifo->kfifo.data + (fifo->kfifo.out - 1)%2048 , l+1 );
++               memcpy ( &buffer[l+1], fifo->kfifo.data, fifo->kfifo.out-1 );
++       }
++       else
++               memcpy ( buffer, fifo->kfifo.data + fifo->kfifo.out, fifo->kfifo.in - fifo->kfifo.out );
++}
++
+ static irqreturn_t aspeed_lpc_snoop_irq(int irq, void *arg)
+ {
+ 	struct aspeed_lpc_snoop *lpc_snoop = arg;
+@@ -195,6 +231,7 @@
+ 	if (rc)
+ 		return rc;
+ 
++	lpc_snoop->chan[channel].fifo.kfifo.mask = 0;
+ 	lpc_snoop->chan[channel].miscdev.minor = MISC_DYNAMIC_MINOR;
+ 	lpc_snoop->chan[channel].miscdev.name =
+ 		devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME, channel);
+@@ -254,6 +291,72 @@
+ 	misc_deregister(&lpc_snoop->chan[channel].miscdev);
+ }
+ 
++static struct aspeed_lpc_snoop *file_lpc_snoop(struct file *file)
++{
++        return container_of(file->private_data, struct aspeed_lpc_snoop, miscdev);
++}
++
++static long ast_snoop_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
++{
++
++       struct aspeed_lpc_snoop *ast_snoop = file_lpc_snoop(file);
++       unsigned char* buf = (unsigned char*) arg;
++       unsigned char databuf[SNOOP_FIFO_SIZE];
++       unsigned int size = 0,avail=0;;
++       int ret;
++
++       switch(cmd)
++       {
++               case READ_CURRENT_CODES:
++                       size =kfifo_len(&ast_snoop->chan[0].fifo);
++                       avail = kfifo_avail(&ast_snoop->chan[0].fifo);
++//                     printk("size - %u\n avail - %u\n",size,avail);
++                       snoop_kfifo_get(&ast_snoop->chan[0].fifo,databuf, size);
++                       if ((ret = copy_to_user( (void*) (buf), (void*) databuf, size )) != 0)
++                       {
++                               printk("READ_CURRENT_CODES: Error copying data to user \n");
++                               return ret;
++                       }
++                       break;
++
++               default:
++                       printk("unrecognized IOCTL call\n");
++                       return -1;
++                       break;
++
++       }
++
++
++       return size;
++}
++
++static int ast_snoop_release(struct inode *inode, struct file *file)
++{
++
++        atomic_dec(&open_count);
++        return 0;
++
++}
++
++static int ast_snoop_open(struct inode *inode, struct file *file)
++{
++
++        if (atomic_inc_return(&open_count) == 1) {
++                return 0;
++        }
++
++        atomic_dec(&open_count);
++        return -EBUSY;
++
++}
++
++static const struct file_operations ast_snoop_fops = {
++        .owner          = THIS_MODULE,
++        .open           = ast_snoop_open,
++        .unlocked_ioctl           = ast_snoop_ioctl,
++        .release        = ast_snoop_release,
++};
++
+ static int aspeed_lpc_snoop_probe(struct platform_device *pdev)
+ {
+ 	struct aspeed_lpc_snoop *lpc_snoop;
+@@ -281,6 +384,19 @@
+ 		dev_err(dev, "no snoop ports configured\n");
+ 		return -ENODEV;
+ 	}
++	else
++		printk(" snoop port configured - %x",port);
++
++	lpc_snoop->miscdev.minor   = MISC_DYNAMIC_MINOR,
++	lpc_snoop->miscdev.name    = DEVICE_NAME,
++	lpc_snoop->miscdev.fops    = &ast_snoop_fops,
++	lpc_snoop->miscdev.parent = dev;
++
++	rc = misc_register(&lpc_snoop->miscdev);
++	if (rc) {
++		dev_err(dev, "Unable to register misc device\n");
++		return rc;
++	}
+ 
+ 	rc = aspeed_lpc_snoop_config_irq(lpc_snoop, pdev);
+ 	if (rc)
+@@ -296,6 +412,8 @@
+ 		rc = aspeed_lpc_enable_snoop(lpc_snoop, dev, 1, port);
+ 		if (rc)
+ 			aspeed_lpc_disable_snoop(lpc_snoop, 0);
++		else
++			printk(" snoop port configured - %x",port);
+ 	}
+ 
+ 	return rc;
+@@ -325,6 +443,8 @@
+ 	  .data = &ast2400_model_data },
+ 	{ .compatible = "aspeed,ast2500-lpc-snoop",
+ 	  .data = &ast2500_model_data },
++	{ .compatible = "aspeed,ast2600-lpc-snoop",
++	  .data = &ast2500_model_data },
+ 	{ },
+ };
+ 
+diff -Naur linux/drivers/soc/aspeed/aspeed-mctp.c linux-new/drivers/soc/aspeed/aspeed-mctp.c
+--- linux/drivers/soc/aspeed/aspeed-mctp.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/soc/aspeed/aspeed-mctp.c	2020-12-23 16:44:46.471424815 -0500
+@@ -0,0 +1,1260 @@
++/*
++ * MCTP driver for the Aspeed SoC
++ *
++ * Copyright (C) ASPEED Technology Inc.
++ * Ryan Chen <ryan_chen@aspeedtech.com>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version
++ * 2 of the License, or (at your option) any later version.
++ *
++ */
++#include <linux/poll.h>
++#include <linux/dma-mapping.h>
++#include <linux/miscdevice.h>
++#include <linux/completion.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/reset.h>
++#include <linux/slab.h>
++#include <linux/of.h>
++#include <linux/of_irq.h>
++#include <linux/of_device.h>
++#include <linux/of_address.h>
++#include <linux/io.h>
++#include <asm/uaccess.h>
++/*************************************************************************************/
++#define MCTP_DESC_SIZE			4096 * 2	//for tx/rx descript
++#define MCTP_TX_BUFF_SIZE		4096
++#define MCTP_RX_BUFF_POOL_SIZE		16384
++#define MCTP_G6_RX_BUFF_POOL_SIZE	MCTP_RX_BUFF_POOL_SIZE * 4
++#define MCTP_TX_FIFO_NUM		1
++#define MCTP_G6_TX_FIFO_NUM		8
++#define MCTP_G6_RX_DEFAULT_PAYLOAD	64
++#define MCTP_G6_TX_DEFAULT_PAYLOAD	64
++
++#define MCTP_RX_DESC_BUFF_NUM		8
++
++#define G4_DRAM_BASE_ADDR		0x40000000
++#define G5_DRAM_BASE_ADDR		0x80000000
++#define G6_DRAM_BASE_ADDR		0x80000000
++
++/*************************************************************************************/
++#define ASPEED_MCTP_CTRL 		0x00
++#define  MCTP_GET_CUR_CMD_CNT(x)	((x >> 24) & 0x3f)
++#define  MCTP_RX_PCIE_IDLE		BIT(21)
++#define  MCTP_RX_DMA_IDLE		BIT(20)
++#define  MCTP_TX_PCIE_IDLE		BIT(17)
++#define  MCTP_TX_DMA_IDLE		BIT(16)
++#define  MCTP_CPL2_ENABLE		BIT(15)
++#define  MCTP_MATCH_EID			BIT(9)
++#define  MCTP_RX_CMD_RDY		BIT(4)
++#define  MCTP_TX_TRIGGER		BIT(0)
++#define ASPEED_MCTP_TX_CMD		0x04
++#define ASPEED_MCTP_RX_CMD		0x08
++#define ASPEED_MCTP_ISR 		0x0c
++#define ASPEED_MCTP_IER 		0x10
++#define  MCTP_MSG_OBFF_STS_CHG		BIT(27)
++#define  MCTP_MSG_OBFF_ACTIVE		BIT(26)
++#define  MCTP_MSG_OBFF_IDLE		BIT(25)
++#define  MCTP_MSG_OBFF_STATE		BIT(24)
++#define  MCTP_WAKE_OBFF_ACTIVE		BIT(19)
++#define  MCTP_WAKE_POST_OBFF		BIT(18)
++#define  MCTP_WAKE_OBFF_STATE		BIT(17)
++#define  MCTP_WAKE_OBFF_IDLE		BIT(16)
++#define  MCTP_RX_NO_CMD			BIT(9)
++#define  MCTP_RX_COMPLETE		BIT(8)
++#define  MCTP_TX_CMD_WRONG		BIT(2)	//ast-g6 mctp
++#define  MCTP_TX_LAST			BIT(1)
++#define  MCTP_TX_COMPLETE		BIT(0)
++#define ASPEED_MCTP_EID 		0x14
++#define ASPEED_MCTP_OBFF_CTRL 		0x18
++/* aspeed g6 mctp */
++#define ASPEED_MCTP_CTRL1 		0x1C
++#define  MCTP_FIFO_FULL			BIT(19)
++#define  MCTP_OBFF_DMA_ENABLE		BIT(18)
++#define  MCTP_OBFF_MONITOR		BIT(17)
++#define  MCTP_6KB_TX_2KB_RX_FIFO	(0 << 8)
++#define  MCTP_4KB_TX_4KB_RX_FIFO	(1 << 8)
++#define  MCTP_2KB_TX_6KB_RX_FIFO	(2 << 8)
++#define  MCTP_RX_PAYLOAD_64BYTE		(0 << 4)
++#define  MCTP_RX_PAYLOAD_128BYTE	(1 << 4)
++#define  MCTP_RX_PAYLOAD_256BYTE	(2 << 4)
++#define  MCTP_RX_PAYLOAD_512BYTE	(3 << 4)
++#define  MCTP_TX_PAYLOAD_64BYTE		(0)
++#define  MCTP_TX_PAYLOAD_128BYTE	(1)
++#define  MCTP_TX_PAYLOAD_256BYTE	(2)
++#define  MCTP_TX_PAYLOAD_512BYTE	(3)
++#define ASPEED_MCTP_RX_DESC_ADDR	0x20
++#define ASPEED_MCTP_RX_DESC_NUM		0x24
++#define ASPEED_MCTP_RX_WRITE_PT		0x28
++#define  MCTP_HW_READ_PT_UPDATE		0x80000000
++#define  MCTP_HW_READ_PT_NUM_MASK	0xfff
++#define ASPEED_MCTP_RX_READ_PT		0x2C
++/* ast2600 mctp use tx cmd descript */
++#define ASPEED_MCTP_TX_DESC_ADDR	0x30
++#define ASPEED_MCTP_TX_DESC_NUM		0x34
++#define ASPEED_MCTP_TX_READ_PT		0x38
++#define ASPEED_MCTP_TX_WRITE_PT		0x3C
++
++/*************************************************************************************/
++//TX CMD desc0 : ast-g4, ast-g5
++#define BUS_NO(x)			((x & 0xff) << 24)
++#define DEV_NO(x)			((x & 0x1f) << 19)
++#define FUN_NO(x)			((x & 0x7) << 16)
++#define INT_ENABLE			BIT(15)
++
++//ast-g5
++/* 0: route to RC, 1: route by ID, 2/3: broadcast from RC */
++#define G5_ROUTING_TYPE_L(x)		((x & 0x1) << 14)
++#define G5_ROUTING_TYPE_H(x)		(((x & 0x2) >> 1) << 12)
++//ast old version
++#define ROUTING_TYPE(x)			((x & 0x1) << 14)
++
++#define TAG_OWN(x)			(x << 13)
++
++//bit 12:2 is packet in 4bytes
++//ast2400 bit 12 can be use.
++//ast2500 bit 12 can't be used. 0: 1024 * 4 = 4096
++#define G5_PKG_SIZE(x)			((x & 0x3ff) << 2)
++#define PKG_SIZE(x)			((x & 0x7ff) << 2)
++
++#define PADDING_LEN(x)			(x & 0x3)
++//TX CMD desc1
++#define LAST_CMD			BIT(31)
++//ast-g5
++#define G5_TX_DATA_ADDR(x)		(((x >> 7) & 0x7fffff) << 8)
++//ast old version
++#define TX_DATA_ADDR(x)			(((x >> 6) & 0x7fffff) << 8)
++
++#define DEST_EP_ID(x)			(x & 0xff)
++
++/*************************************************************************************/
++//RX CMD desc0
++#define GET_PKG_LEN(x)			(((x) >> 24) & 0x7f)
++#define GET_SRC_EPID(x)			(((x) >> 16) & 0xff)
++#define GET_ROUTING_TYPE(x)		((x >> 14) & 0x7)
++#define GET_SEQ_NO(x)			(((x) >> 11) & 0x3)
++#define GET_MSG_TAG(x)			(((x) >> 8) & 0x3)
++#define MCTP_SOM			BIT(7)
++#define GET_MCTP_SOM(x)			(((x) >> 7) & 0x1)
++#define MCTP_EOM			BIT(6)
++#define GET_MCTP_EOM(x)			(((x) >> 6) & 0x1)
++#define GET_PADDING_LEN(x)		(((x) >> 4) & 0x3)
++#define CMD_UPDATE			BIT(0)
++//RX CMD desc1
++#define LAST_CMD			BIT(31)
++#define RX_DATA_ADDR(x)			((x) & 0x3fffff80)
++
++
++static DEFINE_SPINLOCK(mctp_state_lock);
++/*************************************************************************************/
++//pcie vdm header
++
++//pcie vdm data
++
++//ast-g6
++
++/*************************************************************************************/
++#define G6_TX_DATA_ADDR(x)		(((x >> 2) & 0x1fffffff) << 2)
++#define G6_TX_DESC_VALID		(0x1)
++
++struct aspeed_mctp_cmd_desc {
++	unsigned int desc0;
++	unsigned int desc1;
++};
++//ast2400 tx cmd desc
++
++//ast2500 tx cmd desc
++//[31:24]:dest pcie bus#,[23:19]:dest pcie dev#, [18:16]:dest pcie fun# [15]: Int_en, [14] : Routing type 0: RC, 1 by ID,  [13]: MCTP tag owner, [12:2]: package size in 4 bytes, [1:0]: Padding length
++//[31]: last cmd, [30:8] data address ,[7:0]: dest EP ID
++
++//ast2600 tx cmd desc
++//[16]: stop, [15]: Int, [12:2] payload size 4bytes, [0]: 0
++//[31]: read only , [30:2]vdm address, resv, [1]: 1
++
++//ast2400 rx cmd desc
++
++//ast2500 rx cmd desc
++//[31:24]:dest pcie bus#,[23:19]:dest pcie dev#, [18:16]:dest pcie fun# [15]: Int_en, [14] : Routing type 0: RC, 1 by ID,  [13]: MCTP tag owner, [12:2]: package size in 4 bytes, [1:0]: Padding length
++//[30:24] payload size 4bytes, [23:16]: src EPID, [15:14]: routing type, [13]: tag owner ,[12:11]: mctp seq# ,[10:8]: mctp Tag, [7]: mctp SOM, [6]: mctp EOM, [5:1] reserved ,[0]: cmd updated
++
++//ast2600 rx cmd desc
++
++/*************************************************************************************/
++#define ASPEED_MCTP_XFER_SIZE 4096
++
++#define MCTPIOC_BASE 'M'
++
++#define ASPEED_MCTP_IOCTX	_IOW(MCTPIOC_BASE, 0, struct aspeed_mctp_xfer*)
++#define ASPEED_MCTP_IOCRX	_IOR(MCTPIOC_BASE, 1, struct aspeed_mctp_xfer*)
++
++/*************************************************************************************/
++struct pcie_vdm_header {
++	__u32		length: 10,
++			revd0: 2,
++			attr: 2,
++			ep: 1,
++			td: 1,
++			revd1: 4,
++			tc: 3,
++			revd2: 1,
++			type_routing: 5,
++			fmt: 2,
++			revd3: 1;
++	__u8		message_code;
++	__u8		vdm_code: 4,
++			pad_len: 2,
++			tag_revd: 2;
++	__u16		pcie_req_id;
++	__u16		vender_id;
++	__u16		pcie_target_id;
++	__u8		msg_tag: 3,
++			to: 1,
++			pkt_seq: 2,
++			eom: 1,
++			som: 1;
++	__u8		src_epid;
++	__u8		dest_epid;
++	__u8		header_ver: 4,
++			rsvd: 4;
++};
++
++struct aspeed_mctp_xfer {
++	unsigned char *xfer_buff;
++	struct pcie_vdm_header header;
++};
++/*************************************************************************************/
++// #define ASPEED_MCTP_DEBUG
++
++#ifdef ASPEED_MCTP_DEBUG
++#define MCTP_DBUG(fmt, args...) printk(KERN_DEBUG "%s() " fmt,__FUNCTION__, ## args)
++#else
++#define MCTP_DBUG(fmt, args...)
++#endif
++
++#define MCTP_MSG(fmt, args...) printk(fmt, ## args)
++
++struct aspeed_mctp_info {
++	void __iomem *reg_base;
++	void __iomem *pci_bdf_regs;
++	struct miscdevice misc_dev;
++	bool is_open;
++	int open_count;
++	int irq;
++	int pcie_irq;
++	int mctp_version;
++	struct reset_control *reset;
++	u32 dram_base;
++
++	/* mctp tx info */
++	struct completion tx_complete;
++
++	int tx_fifo_num;
++	int tx_idx;
++	int tx_payload;
++
++	void *tx_pool;
++	dma_addr_t tx_pool_dma;
++
++	struct aspeed_mctp_cmd_desc *tx_cmd_desc;
++	dma_addr_t tx_cmd_desc_dma;
++
++	/* mctp rx info */
++	void *rx_pool;
++	dma_addr_t rx_pool_dma;
++
++	int rx_dma_pool_size;
++	int rx_fifo_size;
++	int rx_fifo_num;
++
++	void *rx_cmd_desc;
++	dma_addr_t rx_cmd_desc_dma;
++
++	int rx_idx;
++	int rx_hw_idx;
++	int rx_full;
++	int rx_payload;
++
++	/* for ast2600 workaround, due to the hw read ptr is not point correctly,
++	 * should use other variable to track the actual cmd ptr.
++	 * rx_cmd_num should be 4 times of rx_fifo_num, and rx_fifo_num should
++	 * be 4n+1.
++	 */
++	int rx_cmd_num;
++	int rx_reboot;
++	int rx_first_loop;
++	int rx_recv_idx;
++};
++
++/******************************************************************************/
++
++static inline u32
++aspeed_mctp_read(struct aspeed_mctp_info *aspeed_mctp, u32 reg)
++{
++	u32 val;
++
++	val = readl(aspeed_mctp->reg_base + reg);
++//	MCTP_DBUG("reg = 0x%08x, val = 0x%08x\n", reg, val);
++	return val;
++}
++
++static inline void
++aspeed_mctp_write(struct aspeed_mctp_info *aspeed_mctp, u32 val, u32 reg)
++{
++//	MCTP_DBUG("reg = 0x%08x, val = 0x%08x\n", reg, val);
++	writel(val, aspeed_mctp->reg_base + reg);
++}
++
++static int aspeed_mctp_g6_tx_xfer(struct aspeed_mctp_info *aspeed_mctp, struct aspeed_mctp_xfer *mctp_xfer)
++{
++	struct pcie_vdm_header *vdm_header1 = &mctp_xfer->header;
++	struct pcie_vdm_header *vdm_header2;
++	void *tx_buff1;
++	void *tx_buff2;
++	unsigned long byte_length = 0;
++	int needs_fifo;
++	u32 hw_read_pt;
++	u32 ctrl_cmd = 0;
++
++	byte_length = vdm_header1->length * 4 - vdm_header1->pad_len;
++
++	MCTP_DBUG("xfer byte_length = %ld, padding len = %d\n", byte_length, vdm_header1->pad_len);
++
++	/* In some condition, tx som and eom will not match expected result.
++	 * e.g. When max payload size (MPL) set to 64 byte, and then transfer
++	 * size set between 61 ~ 124 (MPL-3 ~ 2*MPL-4), the engine will set all
++	 * packet vdm header eom to 1, nomether what it setted. To fix that
++	 * issue, when driver receive the size between (MPL-3 ~ 2*MPL-4), it
++	 * set MPL to next level(e.g. 64 to 128), and then separate the packet
++	 * manually.
++	*/
++	switch (aspeed_mctp->tx_payload) {
++	case 64:
++		if (byte_length >= 61 &&  byte_length <= 64) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_128BYTE;
++			needs_fifo = 1;
++		} else if (byte_length > 64 &&  byte_length <= 124) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_128BYTE;
++			needs_fifo = 2;
++		} else {
++			ctrl_cmd = MCTP_TX_PAYLOAD_64BYTE;
++			needs_fifo = 1;
++		}
++		break;
++	case 128:
++		if (byte_length >= 125 &&  byte_length <= 128) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_256BYTE;
++			needs_fifo = 1;
++		} else if (byte_length > 128 &&  byte_length <= 252) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_256BYTE;
++			needs_fifo = 2;
++		} else {
++			ctrl_cmd = MCTP_TX_PAYLOAD_128BYTE;
++			needs_fifo = 1;
++		}
++		break;
++	case 256:
++		if (byte_length >= 253 &&  byte_length <= 256) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_512BYTE;
++			needs_fifo = 1;
++		} else if (byte_length > 256 &&  byte_length <= 508) {
++			ctrl_cmd = MCTP_TX_PAYLOAD_512BYTE;
++			needs_fifo = 2;
++		} else {
++			ctrl_cmd = MCTP_TX_PAYLOAD_256BYTE;
++			needs_fifo = 1;
++		}
++		break;
++	default:
++		return -EFAULT;
++	}
++
++	/* 
++	 * write MCTP_HW_READ_PT_UPDATE and wait until that bit back to 0,
++	 * and then do it again, these steps can guarantee hw read pt will 
++	 * update. 
++	 */
++	aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
++	while (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
++	aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
++	while (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
++	hw_read_pt = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_NUM_MASK;
++
++	if (((aspeed_mctp->tx_idx + needs_fifo) % MCTP_G6_TX_FIFO_NUM) == hw_read_pt) {
++		printk("TX FIFO full \n");
++		return 0;
++	}
++
++	if (needs_fifo == 1) {
++		tx_buff1 = aspeed_mctp->tx_pool + (MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_idx);
++		aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0 = PKG_SIZE(vdm_header1->length);
++		aspeed_mctp->tx_idx++;
++		aspeed_mctp->tx_idx %= MCTP_G6_TX_FIFO_NUM;
++
++		//ast2600 support vdm header transfer
++		vdm_header1->pcie_req_id = (readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) << 3;
++		memcpy(tx_buff1, vdm_header1, sizeof(struct pcie_vdm_header));
++		if (copy_from_user(tx_buff1 + sizeof(struct pcie_vdm_header), mctp_xfer->xfer_buff, byte_length))
++			return -EFAULT;
++
++	} else {
++		tx_buff1 = aspeed_mctp->tx_pool + (MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_idx);
++		aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0 = PKG_SIZE(aspeed_mctp->tx_payload / 4);
++		aspeed_mctp->tx_idx++;
++		aspeed_mctp->tx_idx %= MCTP_G6_TX_FIFO_NUM;
++		tx_buff2 = aspeed_mctp->tx_pool + (MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_idx);
++		vdm_header2 = tx_buff2;
++		memcpy(vdm_header2, vdm_header1, sizeof(struct pcie_vdm_header));
++
++		vdm_header1->eom = 0;
++		vdm_header1->length = aspeed_mctp->tx_payload / 4;
++		vdm_header1->pad_len = 0;
++		vdm_header1->pcie_req_id = (readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) << 3;
++
++		vdm_header2->som = 0;
++		vdm_header2->pkt_seq++;
++		vdm_header2->length = vdm_header2->length - aspeed_mctp->tx_payload / 4;
++		vdm_header2->pcie_req_id = vdm_header1->pcie_req_id;
++
++		aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0 = PKG_SIZE(vdm_header2->length);
++		aspeed_mctp->tx_idx++;
++		aspeed_mctp->tx_idx %= MCTP_G6_TX_FIFO_NUM;
++
++		//ast2600 support vdm header transfer
++		memcpy(tx_buff1, vdm_header1, sizeof(struct pcie_vdm_header));
++		if (copy_from_user(tx_buff1 + sizeof(struct pcie_vdm_header), mctp_xfer->xfer_buff, aspeed_mctp->tx_payload))
++			return -EFAULT;
++
++		//ast2600 support vdm header transfer
++		if (copy_from_user(tx_buff2 + sizeof(struct pcie_vdm_header), mctp_xfer->xfer_buff + aspeed_mctp->tx_payload, byte_length - aspeed_mctp->tx_payload))
++			return -EFAULT;
++	}
++#if 0
++	//add TEST for interrupt and stop
++	aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0 |= BIT(15) | BIT(16);
++	//
++	MCTP_DBUG("tx idx [%d] desc0 %x , desc1 %x \n", aspeed_mctp->tx_idx,
++		  aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0,
++		  aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc1);
++#endif
++	aspeed_mctp_write(aspeed_mctp, (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL1) & ~(0x3)) | ctrl_cmd, ASPEED_MCTP_CTRL1);
++
++	//trigger write pt;
++	aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_idx, ASPEED_MCTP_TX_WRITE_PT);
++
++	//trigger tx
++	aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
++
++	return 0;
++}
++
++
++/*************************************************************************************/
++static int aspeed_mctp_tx_xfer(struct aspeed_mctp_info *aspeed_mctp, struct aspeed_mctp_xfer *mctp_xfer)
++{
++	struct pcie_vdm_header *vdm_header = &mctp_xfer->header;
++	unsigned long byte_length = 0;
++	u32 routing_type = vdm_header->type_routing;
++
++	if (!vdm_header->length)
++		byte_length = 4096 - vdm_header->pad_len;
++	else
++		byte_length = vdm_header->length * 4 - vdm_header->pad_len;
++
++	//ast2500 only support 4096, g5 is not supporting vdm_length is 1024
++	if ((aspeed_mctp->mctp_version == 5) && (!mctp_xfer->header.length))
++		return 1;
++
++	MCTP_DBUG("xfer byte_length = %ld, padding len = %d\n", byte_length, vdm_header->pad_len);
++
++	if (copy_from_user(aspeed_mctp->tx_pool, mctp_xfer->xfer_buff, byte_length))
++		return -EFAULT;
++
++	//old ast2400/ast2500 only one tx fifo and wait for tx complete
++	init_completion(&aspeed_mctp->tx_complete);
++
++	//if use ast2400/ast2500 need to check vdm header support
++	if (vdm_header->som != vdm_header->eom) {
++		printk("can't support som eom different som %d , eom %d \n", vdm_header->som, vdm_header->eom);
++		return 1;
++	}
++
++	switch (routing_type & 0x7) {
++	case 0:	//route to rc
++		routing_type = 0;
++		break;
++	case 2:	//route to ID
++		routing_type = 1;
++		break;
++	default:
++		printk("not supported routing type %x ", routing_type);
++		break;
++	}
++
++
++	switch (aspeed_mctp->mctp_version) {
++	case 0:
++		//routing type bit 14
++		//bit 15 : interrupt enable
++		if (!vdm_header->length)
++			aspeed_mctp->tx_cmd_desc->desc0 = INT_ENABLE | TAG_OWN(vdm_header->to) | (routing_type << 14) |
++							  PKG_SIZE(0x400) | (vdm_header->pcie_target_id << 16) |
++							  PADDING_LEN(vdm_header->pad_len);
++		else
++			aspeed_mctp->tx_cmd_desc->desc0 = INT_ENABLE | TAG_OWN(vdm_header->to) | (routing_type << 14) |
++							  PKG_SIZE(vdm_header->length) | (vdm_header->pcie_target_id << 16) |
++							  PADDING_LEN(vdm_header->pad_len);
++
++		aspeed_mctp->tx_cmd_desc->desc1 = LAST_CMD | DEST_EP_ID(vdm_header->dest_epid) | TX_DATA_ADDR(aspeed_mctp->tx_pool_dma);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
++		break;
++	case 5:
++		//routing type [desc0 bit 12, desc0 bit 14], but bug at bit 12, don't use
++		//bit 15 : interrupt enable
++		aspeed_mctp->tx_cmd_desc->desc0 = INT_ENABLE | TAG_OWN(vdm_header->to) | (routing_type << 14) |
++						  G5_PKG_SIZE(vdm_header->length) | (vdm_header->pcie_target_id << 16) |
++						  PADDING_LEN(vdm_header->pad_len);
++		aspeed_mctp->tx_cmd_desc->desc1 = LAST_CMD | DEST_EP_ID(vdm_header->dest_epid) | G5_TX_DATA_ADDR(aspeed_mctp->tx_pool_dma);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
++		break;
++	}
++
++	//trigger tx
++	aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
++
++	wait_for_completion(&aspeed_mctp->tx_complete);
++
++	return 0;
++}
++
++static void aspeed_mctp_ctrl_init(struct aspeed_mctp_info *aspeed_mctp)
++{
++	int i = 0;
++
++	MCTP_DBUG("dram base %x \n", aspeed_mctp->dram_base);
++	aspeed_mctp_write(aspeed_mctp, (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_EID) & 0xff) |
++			  aspeed_mctp->dram_base, ASPEED_MCTP_EID);
++
++	aspeed_mctp->tx_idx = 0;
++
++	if (aspeed_mctp->mctp_version == 6) {
++		for (i = 0; i < aspeed_mctp->tx_fifo_num; i++)
++			aspeed_mctp->tx_cmd_desc[i].desc1 = ((aspeed_mctp->tx_pool_dma + (MCTP_TX_BUFF_SIZE * i)) & 0x7ffffff0) | 0x1;
++		aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_fifo_num - 1].desc1 |= LAST_CMD;
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_DESC_ADDR);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_fifo_num, ASPEED_MCTP_TX_DESC_NUM);
++		aspeed_mctp_write(aspeed_mctp, 0, ASPEED_MCTP_TX_WRITE_PT);
++	} else {
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_CMD);
++	}
++
++	aspeed_mctp->rx_idx = 0;
++	aspeed_mctp->rx_hw_idx = 0;
++
++	//rx fifo data
++	if (aspeed_mctp->mctp_version == 6) {
++		//ast2600 : each 16 bytes align and configurable 64/128/256/512 bytes can receive
++		u32 *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
++		u32 *rx_cmd_header;
++
++		aspeed_mctp->rx_recv_idx = 0;
++		aspeed_mctp->rx_first_loop = 1;
++		aspeed_mctp->rx_reboot = 1;
++
++		/* reserved 4 cmd for reboot issue workaround, it will be minused
++		 * after first circle.
++		*/
++		aspeed_mctp->rx_cmd_num = aspeed_mctp->rx_fifo_num * 4 + 4;
++
++		for (i = 0; i < aspeed_mctp->rx_cmd_num; i++) {
++			rx_cmd_header = (u32 *)aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * i);
++			*rx_cmd_header = 0;
++			rx_cmd_desc[i] = (u32)aspeed_mctp->rx_pool_dma + (aspeed_mctp->rx_fifo_size * i);
++			MCTP_DBUG("Rx [%d]: desc: %x , \n", i, rx_cmd_desc[i]);
++		}
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_fifo_num, ASPEED_MCTP_RX_DESC_NUM);
++		aspeed_mctp_write(aspeed_mctp, 0, ASPEED_MCTP_RX_READ_PT);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_DESC_ADDR);
++		aspeed_mctp_write(aspeed_mctp, MCTP_TX_CMD_WRONG | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
++		aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
++	} else {
++		//ast2400/ast2500 : each 128 bytes align, and only 64 bytes can receive
++		struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
++		for (i = 0; i < aspeed_mctp->rx_fifo_num; i++) {
++			rx_cmd_desc[i].desc0 = 0;
++			rx_cmd_desc[i].desc1 = RX_DATA_ADDR(aspeed_mctp->rx_pool_dma + (aspeed_mctp->rx_fifo_size * i));
++			if (i == (aspeed_mctp->rx_fifo_num - 1))
++				rx_cmd_desc[i].desc1 |= LAST_CMD;
++			MCTP_DBUG("Rx [%d]: desc0: %x , desc1: %x \n", i, rx_cmd_desc[i].desc0, rx_cmd_desc[i].desc1);
++		}
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_CMD);
++		aspeed_mctp_write(aspeed_mctp, MCTP_RX_COMPLETE | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
++	}
++
++}
++
++static irqreturn_t aspeed_pcie_raise_isr(int this_irq, void *dev_id)
++{
++	struct aspeed_mctp_info *aspeed_mctp = dev_id;
++
++	MCTP_DBUG("\n");
++	aspeed_mctp_ctrl_init(aspeed_mctp);
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t aspeed_mctp_isr(int this_irq, void *dev_id)
++{
++	struct aspeed_mctp_info *aspeed_mctp = dev_id;
++	u32 status = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_ISR);
++
++	MCTP_DBUG("%x \n", status);
++
++	if (status & MCTP_TX_LAST) {
++		//only for ast2400/ast2500, ast2600 is tx fifo
++		aspeed_mctp_write(aspeed_mctp, MCTP_TX_LAST, ASPEED_MCTP_ISR);
++		complete(&aspeed_mctp->tx_complete);
++	}
++
++	if (status & MCTP_TX_COMPLETE) {
++		aspeed_mctp_write(aspeed_mctp, MCTP_TX_COMPLETE, ASPEED_MCTP_ISR);
++		printk("don't care don't use \n");
++	}
++
++	if (status & MCTP_RX_COMPLETE) {
++		if (aspeed_mctp->mctp_version == 6) {
++			if (((aspeed_mctp->rx_hw_idx + 1) % aspeed_mctp->rx_fifo_num) == aspeed_mctp->rx_idx)
++				aspeed_mctp->rx_full = 1;
++			else
++				aspeed_mctp->rx_hw_idx++;
++			aspeed_mctp->rx_hw_idx %= aspeed_mctp->rx_fifo_num;
++		} else {
++			struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
++
++			while (rx_cmd_desc[aspeed_mctp->rx_hw_idx].desc0 & CMD_UPDATE) {
++				aspeed_mctp->rx_hw_idx++;
++				aspeed_mctp->rx_hw_idx %= aspeed_mctp->rx_fifo_num;
++				if (aspeed_mctp->rx_hw_idx == aspeed_mctp->rx_idx)
++					break;
++			}
++		}
++		aspeed_mctp_write(aspeed_mctp, MCTP_RX_COMPLETE, ASPEED_MCTP_ISR);
++	}
++
++	if (status & MCTP_RX_NO_CMD) {
++		aspeed_mctp->rx_full = 1;
++		aspeed_mctp_write(aspeed_mctp, MCTP_RX_NO_CMD, ASPEED_MCTP_ISR);
++		printk("MCTP_RX_NO_CMD \n");
++	}
++
++	return IRQ_HANDLED;
++}
++
++static long mctp_ioctl(struct file *file, unsigned int cmd,
++		       unsigned long arg)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
++	struct aspeed_mctp_xfer mctp_xfer;
++	void __user *argp = (void __user *)arg;
++	int recv_length;
++	int ret;
++ 
++
++
++	if (copy_from_user(&mctp_xfer, argp, sizeof(struct aspeed_mctp_xfer)))
++		return -EFAULT;
++
++	switch (cmd) {
++	case ASPEED_MCTP_IOCTX:
++		spin_lock(&mctp_state_lock);
++		MCTP_DBUG("ASPEED_MCTP_IOCTX ver %d\n", aspeed_mctp->mctp_version);
++		if (aspeed_mctp->mctp_version != 0) {
++			if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++				printk("PCIE not ready \n");
++				spin_unlock(&mctp_state_lock);
++				return -EFAULT;
++			}
++		}
++		if (aspeed_mctp->mctp_version == 6) {
++			ret = aspeed_mctp_g6_tx_xfer(aspeed_mctp, &mctp_xfer);
++		} else {
++			ret = aspeed_mctp_tx_xfer(aspeed_mctp, &mctp_xfer);
++		}
++		
++		if (ret)
++		{
++			spin_unlock(&mctp_state_lock);
++			return -EFAULT;
++		}
++		else
++		{
++			spin_unlock(&mctp_state_lock);
++			return 0;
++		}
++		break;
++	case ASPEED_MCTP_IOCRX:
++		spin_lock(&mctp_state_lock);
++		// MCTP_DBUG("ASPEED_MCTP_IOCRX \n");
++		if (aspeed_mctp->mctp_version == 6) {
++			u32 hw_read_pt;
++			aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
++			hw_read_pt = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_RX_WRITE_PT) & MCTP_HW_READ_PT_NUM_MASK;
++
++			if (aspeed_mctp->rx_idx == hw_read_pt) {
++				// MCTP_DBUG("No rx data\n");
++				spin_unlock(&mctp_state_lock);
++				return 0;
++			} else {
++				struct pcie_vdm_header *vdm;
++				u32 *rx_buffer;
++				u32 *header_dw;
++
++				// when reboot first round, drop old data.
++				while (aspeed_mctp->rx_reboot) {
++					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					if (*header_dw != 0) {
++						aspeed_mctp->rx_reboot = 0;
++						break;
++					}
++					aspeed_mctp->rx_recv_idx++;
++				}
++				if (aspeed_mctp->rx_first_loop) {
++					int wrap_around = 0;
++					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					while (*header_dw == 0) {
++						MCTP_DBUG("first loop header_dw == 0");
++						MCTP_DBUG("first loop rx_recv_idx:%d", aspeed_mctp->rx_recv_idx);
++						aspeed_mctp->rx_recv_idx++;
++						if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
++						{
++							if (aspeed_mctp->mctp_version != 0) {
++                        		if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++									aspeed_mctp_ctrl_init(aspeed_mctp);
++									aspeed_mctp->rx_full = 0;
++                                	spin_unlock(&mctp_state_lock);
++									return -EFAULT;
++                        		}
++                			}
++
++							wrap_around = 1;
++						}
++						aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++						header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					}
++					if (wrap_around) {
++						MCTP_DBUG("wrap around");
++						aspeed_mctp->rx_first_loop = 0;
++						aspeed_mctp->rx_cmd_num -= 4;
++					}
++				} else {
++					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					while (*header_dw == 0) {
++						MCTP_DBUG("header_dw == 0");
++						aspeed_mctp->rx_recv_idx++;
++						
++						if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
++						{
++							if (aspeed_mctp->mctp_version != 0) {
++                        		if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++									aspeed_mctp_ctrl_init(aspeed_mctp);
++									aspeed_mctp->rx_full = 0;
++                                	spin_unlock(&mctp_state_lock);
++                                	return -EFAULT;
++                        		}
++                			}
++						}
++						
++						aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++						header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					}
++				}
++
++				MCTP_DBUG("rx_recv_idx:%d, rx_idx:%d", aspeed_mctp->rx_recv_idx, aspeed_mctp->rx_idx);
++				MCTP_DBUG("rx_cmd_num:%d, rx_fifo_num:%d", aspeed_mctp->rx_cmd_num, aspeed_mctp->rx_fifo_num);
++				MCTP_DBUG("rx_first_loop:%d, rx_reboot:%d", aspeed_mctp->rx_first_loop, aspeed_mctp->rx_reboot);
++
++				vdm = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++				header_dw = (u32 *)vdm;
++				rx_buffer = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx) + sizeof(struct pcie_vdm_header);
++
++				recv_length = (vdm->length * 4) + vdm->pad_len;
++				mctp_xfer.header = *vdm;
++
++				if (copy_to_user(mctp_xfer.xfer_buff, rx_buffer, recv_length))
++				{
++					spin_unlock(&mctp_state_lock);
++					return -EFAULT;
++				}
++				
++				if (copy_to_user(argp, &mctp_xfer, sizeof(struct aspeed_mctp_xfer)))
++				{
++					spin_unlock(&mctp_state_lock);
++					return -EFAULT;
++				}
++
++				*header_dw = 0;
++				aspeed_mctp->rx_recv_idx++;
++				aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++
++				aspeed_mctp->rx_idx++;
++				aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++				aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_idx, ASPEED_MCTP_RX_READ_PT);
++			}
++		} else {
++			struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
++			u32 desc0 = rx_cmd_desc[aspeed_mctp->rx_idx].desc0;
++			unsigned int pci_bdf;
++
++			if ((aspeed_mctp->rx_idx == aspeed_mctp->rx_hw_idx) && (!desc0)) {
++				if (aspeed_mctp->rx_full) {
++					MCTP_DBUG("re-trigger\n");
++					aspeed_mctp_ctrl_init(aspeed_mctp);
++					aspeed_mctp->rx_full = 0;
++				}
++				spin_unlock(&mctp_state_lock);
++				return 0;
++			}
++
++			if (!desc0)
++			{	
++				spin_unlock(&mctp_state_lock);
++				return 0;
++			}
++
++			mctp_xfer.header.length = GET_PKG_LEN(desc0);
++			MCTP_DBUG("mctp_xfer.header.length %d \n", mctp_xfer.header.length);
++
++			if (mctp_xfer.header.length != 0 && mctp_xfer.header.length < GET_PKG_LEN(desc0))
++			{
++				spin_unlock(&mctp_state_lock);
++				return -EINVAL;
++			}
++
++			mctp_xfer.header.pad_len = GET_PADDING_LEN(desc0);
++			mctp_xfer.header.src_epid = GET_SRC_EPID(desc0);
++			mctp_xfer.header.type_routing = GET_ROUTING_TYPE(desc0);
++			mctp_xfer.header.pkt_seq = GET_SEQ_NO(desc0);
++			mctp_xfer.header.msg_tag = GET_MSG_TAG(desc0);
++			mctp_xfer.header.eom = GET_MCTP_EOM(desc0);
++			mctp_xfer.header.som = GET_MCTP_SOM(desc0);
++			// 0x1e6ed0c4[4:0]: Dev#
++			// 0x1e6ed0c4[12:5]: Bus#
++			// Fun# always 0
++			if (aspeed_mctp->mctp_version != 0) {
++				pci_bdf = readl(aspeed_mctp->pci_bdf_regs + 0xc4);
++				mctp_xfer.header.pcie_target_id = (pci_bdf & 0x1f) << 3 |
++								  (pci_bdf >> 5 & 0xff) << 8;
++			}
++			recv_length = (mctp_xfer.header.length * 4);
++
++			if (copy_to_user(mctp_xfer.xfer_buff,
++					 aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_idx),
++					 recv_length)) {
++
++				spin_unlock(&mctp_state_lock);
++				return -EFAULT;
++			}
++
++			if (copy_to_user(argp, &mctp_xfer, sizeof(struct aspeed_mctp_xfer)))
++			{
++				spin_unlock(&mctp_state_lock);
++				return -EFAULT;
++			}
++
++			rx_cmd_desc[aspeed_mctp->rx_idx].desc0 = 0;
++			aspeed_mctp->rx_idx++;
++			aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++		}
++		
++		spin_unlock(&mctp_state_lock);
++		break;
++
++	default:
++		MCTP_DBUG("ERROR \n");
++		return -ENOTTY;
++	}
++
++	return 0;
++}
++
++static int mctp_open(struct inode *inode, struct file *file)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
++
++	spin_lock(&mctp_state_lock);
++
++	MCTP_DBUG("\n");
++	//if (aspeed_mctp->is_open) {
++	//	return -EBUSY;
++	//}
++	
++	aspeed_mctp->is_open = true;
++    aspeed_mctp->open_count++;	
++	spin_unlock(&mctp_state_lock);
++	
++	return 0;
++}
++
++static int mctp_release(struct inode *inode, struct file *file)
++{
++	struct miscdevice *c = file->private_data;
++	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
++
++	spin_lock(&mctp_state_lock);
++	MCTP_DBUG("\n");
++	if(aspeed_mctp->open_count > 0)
++	{
++		aspeed_mctp->open_count--;
++	}
++	
++	if(aspeed_mctp->open_count <= 0)
++	{
++		aspeed_mctp->is_open = false;
++    }
++	
++
++	
++	spin_unlock(&mctp_state_lock);
++	
++	return 0;
++}
++
++static const struct file_operations aspeed_mctp_fops = {
++	.owner		= THIS_MODULE,
++	.unlocked_ioctl	= mctp_ioctl,
++	.open		= mctp_open,
++	.release	= mctp_release,
++};
++
++static const struct of_device_id aspeed_mctp_of_matches[] = {
++	{ .compatible = "aspeed,ast2400-mctp", .data = (void *) 0, },
++	{ .compatible = "aspeed,ast2500-mctp", .data = (void *) 5, },
++	{ .compatible = "aspeed,ast2600-mctp", .data = (void *) 6, },
++	{},
++};
++MODULE_DEVICE_TABLE(of, aspeed_mctp_of_matches);
++
++static int reserved_idx = -1;
++
++static int aspeed_mctp_probe(struct platform_device *pdev)
++{
++	struct resource *res;
++	struct aspeed_mctp_info *aspeed_mctp;
++	struct device_node *np = pdev->dev.of_node;
++	// struct miscdevice *misc_dev;
++	const struct of_device_id *mctp_dev_id;
++	int max_reserved_idx;
++	int idx;
++	int fifo_num;
++	int ret = 0;
++	u32 ctrl_cmd = 0;
++
++	MCTP_DBUG("\n");
++
++	if (!(aspeed_mctp = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_mctp_info), GFP_KERNEL))) {
++		return -ENOMEM;
++	}
++
++	mctp_dev_id = of_match_device(aspeed_mctp_of_matches, &pdev->dev);
++	if (!mctp_dev_id)
++		return -EINVAL;
++
++	aspeed_mctp->mctp_version = (unsigned long)mctp_dev_id->data;
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (NULL == res) {
++		dev_err(&pdev->dev, "cannot get IORESOURCE_MEM\n");
++		ret = -ENOENT;
++		goto out;
++	}
++
++	aspeed_mctp->reg_base = devm_ioremap_resource(&pdev->dev, res);
++	if (!aspeed_mctp->reg_base) {
++		ret = -EIO;
++		goto out_region;
++	}
++
++	switch (aspeed_mctp->mctp_version) {
++	case 0:
++		aspeed_mctp->tx_fifo_num = MCTP_TX_FIFO_NUM;
++		aspeed_mctp->rx_fifo_size = 128;
++		aspeed_mctp->rx_fifo_num = MCTP_RX_BUFF_POOL_SIZE / aspeed_mctp->rx_fifo_size;
++		aspeed_mctp->dram_base = G4_DRAM_BASE_ADDR;
++		break;
++	case 5:
++		aspeed_mctp->tx_fifo_num = MCTP_TX_FIFO_NUM;
++		aspeed_mctp->rx_fifo_size = 128;
++		aspeed_mctp->rx_fifo_num = MCTP_RX_BUFF_POOL_SIZE / aspeed_mctp->rx_fifo_size;
++		aspeed_mctp->dram_base = G5_DRAM_BASE_ADDR;
++		break;
++	case 6:
++
++		if (of_property_read_u32(np, "rx-payload-bytes",
++					 &aspeed_mctp->rx_payload)) {
++			aspeed_mctp->rx_payload = MCTP_G6_RX_DEFAULT_PAYLOAD;
++		}
++		switch (aspeed_mctp->rx_payload) {
++		case 64:
++			ctrl_cmd |= MCTP_RX_PAYLOAD_64BYTE;
++			break;
++		case 128:
++			ctrl_cmd |= MCTP_RX_PAYLOAD_128BYTE;
++			break;
++		case 256:
++			ctrl_cmd |= MCTP_RX_PAYLOAD_256BYTE;
++			break;
++		case 512:
++			ctrl_cmd |= MCTP_RX_PAYLOAD_512BYTE;
++			break;
++		default:
++			dev_err(&pdev->dev, "rx payload only support 64, 128 and 256 bytes\n");
++			goto out_region;
++		}
++
++		if (of_property_read_u32(np, "tx-payload-bytes",
++					 &aspeed_mctp->tx_payload)) {
++			aspeed_mctp->tx_payload = MCTP_G6_TX_DEFAULT_PAYLOAD;
++		}
++		switch (aspeed_mctp->tx_payload) {
++		case 64:
++			ctrl_cmd |= MCTP_TX_PAYLOAD_64BYTE;
++			break;
++		case 128:
++			ctrl_cmd |= MCTP_TX_PAYLOAD_128BYTE;
++			break;
++		case 256:
++			ctrl_cmd |= MCTP_TX_PAYLOAD_256BYTE;
++			break;
++		case 512:
++			ctrl_cmd |= MCTP_TX_PAYLOAD_512BYTE;
++			break;
++		default:
++			dev_err(&pdev->dev, "tx payload only support 64, 128 and 256 bytes\n");
++			goto out_region;
++		}
++
++		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL1) | ctrl_cmd, ASPEED_MCTP_CTRL1);
++
++		aspeed_mctp->tx_fifo_num = MCTP_G6_TX_FIFO_NUM;
++		//must 16byte align
++		aspeed_mctp->rx_fifo_size = (aspeed_mctp->rx_payload + 16);
++
++		// for ast2600 workaround, rx_fifo_num should be 4n+1
++		fifo_num = ((MCTP_G6_RX_BUFF_POOL_SIZE / aspeed_mctp->rx_fifo_size) / 4) - 1;
++		aspeed_mctp->rx_fifo_num = fifo_num - ((fifo_num - 1) % 4);
++
++		aspeed_mctp->dram_base = G6_DRAM_BASE_ADDR;
++		break;
++	default:
++		dev_err(&pdev->dev, "cannot get mctp version\n");
++		goto out_region;
++		break;
++	}
++
++	// g4 not support pcie host controller
++	if (aspeed_mctp->mctp_version != 0) {
++		aspeed_mctp->pci_bdf_regs = ioremap(0x1e6ed000,256);
++		if (!aspeed_mctp->pci_bdf_regs) {
++			dev_err(&pdev->dev, "failed to remap pcie\n");
++			ret = -ENOMEM;
++			goto out_region;
++		}
++	}
++
++	aspeed_mctp->irq = platform_get_irq_byname(pdev, "mctp");
++	if (aspeed_mctp->irq < 0) {
++		dev_err(&pdev->dev, "no irq specified\n");
++		if (aspeed_mctp->mctp_version != 6) {
++			ret = -ENOENT;
++			goto out_region;
++		}
++	} else {
++		ret = devm_request_irq(&pdev->dev, aspeed_mctp->irq, aspeed_mctp_isr,
++				       0, dev_name(&pdev->dev), aspeed_mctp);
++		if (ret) {
++			printk("MCTP Unable to get IRQ");
++			goto out_region;
++		}
++	}
++
++	aspeed_mctp->pcie_irq = platform_get_irq_byname(pdev, "pcie");
++	if (aspeed_mctp->pcie_irq < 0) {
++		dev_err(&pdev->dev, "no pcie reset irq specified\n");
++		ret = -ENOENT;
++		goto out_region;
++	} else {
++		ret = devm_request_irq(&pdev->dev, aspeed_mctp->pcie_irq, aspeed_pcie_raise_isr,
++				       IRQF_SHARED, dev_name(&pdev->dev), aspeed_mctp);
++		if (ret) {
++			printk("MCTP Unable to get pcie raise IRQ");
++			goto out_region;
++		}
++	}
++
++
++	aspeed_mctp->reset = devm_reset_control_get(&pdev->dev, NULL);
++	if (IS_ERR(aspeed_mctp->reset)) {
++		dev_err(&pdev->dev, "can't get mctp reset\n");
++		return PTR_ERR(aspeed_mctp->reset);
++	}
++
++//scu init
++	if (aspeed_mctp->mctp_version == 6) {
++		if (!of_find_property(np, "no-reset-on-reboot", NULL) ||
++		    aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_CMD) == 0) {
++			printk(KERN_INFO "aspeed_mctp: reset.\n");
++			reset_control_assert(aspeed_mctp->reset);
++			reset_control_deassert(aspeed_mctp->reset);
++		}
++	} else {
++		reset_control_assert(aspeed_mctp->reset);
++		reset_control_deassert(aspeed_mctp->reset);
++	}
++
++	// aspeed_mctp->misc_dev = (struct miscdevice *)devm_kzalloc(&pdev->dev, sizeof(struct miscdevice), GFP_KERNEL);
++	// if (!misc_dev) {
++	// 	pr_err("failed to allocate misc device\n");
++	// 	goto out_region;
++	// }
++
++	if (reserved_idx == -1) {
++		max_reserved_idx = of_alias_get_highest_id("mctp");
++		if (max_reserved_idx >= 0)
++			reserved_idx = max_reserved_idx;
++	}
++
++	idx = of_alias_get_id(pdev->dev.of_node, "mctp");;
++	if (idx < 0) {
++		idx = ++reserved_idx;
++	}
++
++	aspeed_mctp->misc_dev.minor = MISC_DYNAMIC_MINOR;
++	aspeed_mctp->misc_dev.name = kasprintf(GFP_KERNEL, "mctppcie%d", idx);
++	aspeed_mctp->misc_dev.fops = &aspeed_mctp_fops;
++
++	ret = misc_register(&aspeed_mctp->misc_dev);
++
++	if (ret) {
++		printk(KERN_ERR "MCTP : failed to request interrupt\n");
++		goto out_region;
++	}
++
++	platform_set_drvdata(pdev, aspeed_mctp);
++	// dev_set_drvdata(misc_dev->this_device, aspeed_mctp);
++
++	// aspeed_mctp->misc_dev = misc_dev;
++
++	aspeed_mctp->tx_idx = 0;
++
++//tx desc allocate --> tx desc : 0~4096, rx desc : 4096 ~ 8192
++	aspeed_mctp->tx_cmd_desc = dma_alloc_coherent(NULL,
++				   MCTP_DESC_SIZE,
++				   &aspeed_mctp->tx_cmd_desc_dma, GFP_KERNEL);
++
++//tx buff pool init
++//ast2400/ast2500 : 128 bytes aligned,
++//ast2600 : 16 bytes aligned,
++	aspeed_mctp->tx_pool = dma_alloc_coherent(NULL,
++			       MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_fifo_num,
++			       &aspeed_mctp->tx_pool_dma, GFP_KERNEL);
++
++//rx desc allocate : 4096 ~ 8192
++	aspeed_mctp->rx_cmd_desc = (void *)aspeed_mctp->tx_cmd_desc + 4096;
++	aspeed_mctp->rx_cmd_desc_dma = aspeed_mctp->tx_cmd_desc_dma + 4096;
++
++//rx buff pool init :
++//ast2400/ast2500, data address [29:7]: 0x00 , 0x80 , 0x100, 0x180,
++//ast2600, data address [30:4]: 0x00 , 0x10 , 0x20, 0x30,
++	if (aspeed_mctp->mctp_version != 6) {
++		aspeed_mctp->rx_pool = dma_alloc_coherent(NULL,
++				       MCTP_RX_BUFF_POOL_SIZE,
++				       &aspeed_mctp->rx_pool_dma, GFP_KERNEL);
++	} else {
++		// ast2600 workaround, rx_pool should be 4 times of rx fifo
++		aspeed_mctp->rx_pool = dma_alloc_coherent(NULL,
++				       MCTP_G6_RX_BUFF_POOL_SIZE,
++				       &aspeed_mctp->rx_pool_dma, GFP_KERNEL);
++	}
++
++	aspeed_mctp_ctrl_init(aspeed_mctp);
++
++	printk(KERN_INFO "aspeed_mctp: driver successfully loaded.\n");
++
++	return 0;
++
++out_region:
++	release_mem_region(res->start, res->end - res->start + 1);
++out:
++	printk(KERN_WARNING "aspeed_mctp: driver init failed (ret=%d)!\n", ret);
++	return ret;
++}
++
++static int aspeed_mctp_remove(struct platform_device *pdev)
++{
++	struct resource *res;
++	struct aspeed_mctp_info *aspeed_mctp = platform_get_drvdata(pdev);
++
++	MCTP_DBUG("\n");
++
++	misc_deregister(&aspeed_mctp->misc_dev);
++
++	kfree_const(aspeed_mctp->misc_dev.name);
++
++	free_irq(aspeed_mctp->irq, aspeed_mctp);
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++
++	iounmap(aspeed_mctp->reg_base);
++
++	if (aspeed_mctp->mctp_version != 0) {
++		iounmap(aspeed_mctp->pci_bdf_regs);
++	}
++
++	platform_set_drvdata(pdev, NULL);
++
++	release_mem_region(res->start, res->end - res->start + 1);
++
++	return 0;
++}
++
++#ifdef CONFIG_PM
++static int
++aspeed_mctp_suspend(struct platform_device *pdev, pm_message_t state)
++{
++	return 0;
++}
++
++static int
++aspeed_mctp_resume(struct platform_device *pdev)
++{
++	return 0;
++}
++
++#else
++#define aspeed_mctp_suspend        NULL
++#define aspeed_mctp_resume         NULL
++#endif
++
++static struct platform_driver aspeed_mctp_driver = {
++	.probe 		= aspeed_mctp_probe,
++	.remove 	= aspeed_mctp_remove,
++#ifdef CONFIG_PM
++	.suspend        = aspeed_mctp_suspend,
++	.resume         = aspeed_mctp_resume,
++#endif
++	.driver         = {
++		.name   = KBUILD_MODNAME,
++		.of_match_table = aspeed_mctp_of_matches,
++	},
++};
++
++module_platform_driver(aspeed_mctp_driver);
++
++MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
++MODULE_DESCRIPTION("ASPEED MCTP Driver");
++MODULE_LICENSE("GPL");
+diff -Naur linux/drivers/soc/aspeed/ast_ssp.c linux-new/drivers/soc/aspeed/ast_ssp.c
+--- linux/drivers/soc/aspeed/ast_ssp.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/soc/aspeed/ast_ssp.c	2020-12-23 16:44:46.471424815 -0500
+@@ -0,0 +1,190 @@
++#include <linux/io.h>
++#include <linux/fs.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/miscdevice.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/firmware.h>
++#include <linux/platform_device.h>
++#include <linux/interrupt.h>
++#include <linux/of.h>
++#include <linux/of_reserved_mem.h>
++#include <linux/of_address.h>
++#include <linux/of_irq.h>
++#include <linux/mfd/syscon.h>
++#include <linux/regmap.h>
++#include <linux/dma-mapping.h>
++
++#define SSP_FILE_NAME			"ast2600_ssp.bin"
++#define AST2600_CVIC_TRIGGER		0x28
++#define AST2600_CVIC_PENDING_STATUS	0x18
++#define AST2600_CVIC_PENDING_CLEAR	0x1C
++
++struct ast2600_ssp {
++	struct device		*dev;
++	struct regmap 		*scu;
++	dma_addr_t 		hw_addr;
++	void __iomem		*ssp_mem;
++	void __iomem 		*cvic;
++	int			irq[16];
++	int			n_irq;
++};
++
++static int ast_ssp_open(struct inode *inode, struct file *file)
++{
++	printk(KERN_INFO "Device File Opened...!!!\n");
++	return 0;
++}
++
++static int ast_ssp_release(struct inode *inode, struct file *file)
++{
++    printk(KERN_INFO "Device File Closed...!!!\n");
++    return 0;
++}
++
++static struct file_operations ast_ssp_fops =
++{       
++	.owner			= THIS_MODULE,
++	.open			= ast_ssp_open,
++	.release		= ast_ssp_release,
++	.llseek 		= no_llseek,
++};
++
++struct miscdevice ast_ssp_misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "ast-ssp",
++	.fops = &ast_ssp_fops,
++};
++
++static irqreturn_t ast2600_ssp_interrupt(int irq, void *dev_id)
++{
++	struct ast2600_ssp *priv = dev_id;
++	writel(readl(priv->cvic + AST2600_CVIC_PENDING_STATUS),
++	       priv->cvic + AST2600_CVIC_PENDING_CLEAR);
++
++	return IRQ_HANDLED;
++}
++static int ast_ssp_probe(struct platform_device *pdev)
++{
++	const struct firmware *firmware;
++	struct device_node *np, *mnode = dev_of_node(&pdev->dev);
++	struct ast2600_ssp *priv;
++	int i, ret;
++
++	printk("ast2600 SSP init\n");
++	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
++	if (!priv) {
++		return -ENOMEM;
++	}
++
++	priv->dev = &pdev->dev;
++	platform_set_drvdata(pdev, priv);
++
++	ret = misc_register(&ast_ssp_misc);
++	if (ret) {
++		pr_err("can't misc_register :(\n");
++		return -EIO;
++	}
++	dev_set_drvdata(ast_ssp_misc.this_device, pdev);
++
++	ret = of_reserved_mem_device_init(&pdev->dev);
++	if (ret) {
++		dev_err(priv->dev,
++			"failed to initialize reserved mem: %d\n", ret);
++	}
++	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
++	priv->ssp_mem = dma_alloc_coherent(priv->dev, 0x00200000, &priv->hw_addr,
++					 GFP_KERNEL);
++	
++	printk("virtual addr = 0x%08x, phy_addr = 0x%08x\n",
++	       (uint32_t)priv->ssp_mem, priv->hw_addr);
++	if (request_firmware(&firmware, SSP_FILE_NAME, &pdev->dev) < 0) {
++		dev_err(&pdev->dev, "don't have %s\n", SSP_FILE_NAME);
++		release_firmware(firmware);
++		return 0;
++	}
++
++	memcpy(priv->ssp_mem, (void *)firmware->data, firmware->size);
++	release_firmware(firmware);
++
++	printk("init inter-processor IRQs\n");
++	np = of_parse_phandle(mnode, "aspeed,cvic", 0);
++	if (!np) {
++		dev_err(&pdev->dev, "can't find CVIC\n");
++		return -EINVAL;
++	}
++
++	priv->cvic = devm_of_iomap(&pdev->dev, np, 0, NULL);
++	if (IS_ERR(priv->cvic)) {
++		dev_err(&pdev->dev, "can't map CVIC\n");
++		return -EINVAL;
++	}	
++
++	i = 0;
++	while(0 != (priv->irq[i] = irq_of_parse_and_map(mnode, i))) {
++		ret = request_irq(priv->irq[i], ast2600_ssp_interrupt, 0,
++				  "ssp-sw-irq", priv);
++		i++;
++	}
++	priv->n_irq = i;
++	printk("%d SSP ISR registered\n", priv->n_irq);
++
++	printk("init CM3 memory bases\n");
++	priv->scu = syscon_regmap_lookup_by_compatible("aspeed,ast2600-scu");
++	if (!priv->scu)
++		printk("scu NULL pointer\n");
++	regmap_write(priv->scu, 0xa00, 0);
++	mdelay(1);
++	regmap_write(priv->scu, 0xa04, priv->hw_addr);
++	regmap_write(priv->scu, 0xa48, 3);
++	mdelay(1);
++	regmap_write(priv->scu, 0xa48, 1);
++	regmap_write(priv->scu, 0xa08, priv->hw_addr + 0x00100000);
++	regmap_write(priv->scu, 0xa0c, priv->hw_addr + 0x00200000);
++	regmap_write(priv->scu, 0xa00, 2);
++	mdelay(1);
++	regmap_write(priv->scu, 0xa00, 0);
++	mdelay(1);
++	regmap_write(priv->scu, 0xa00, 1);
++	printk("CM3 init done\n");
++	return 0;
++}
++
++static int ast_ssp_remove(struct platform_device *pdev)
++{
++	struct ast2600_ssp *priv = platform_get_drvdata(pdev);
++	int i;
++
++	printk("SSP module removed\n");
++	regmap_write(priv->scu, 0xa00, 0);
++	for (i = 0; i < priv->n_irq; i++) {
++		free_irq(priv->irq[i], priv);
++	}
++
++	dma_free_coherent(priv->dev, 0x00200000, priv->ssp_mem, priv->hw_addr);
++	kfree(priv);
++
++	misc_deregister((struct miscdevice *)&ast_ssp_misc);
++
++	return 0;
++}
++
++static const struct of_device_id of_ast_ssp_match_table[] = {
++	{ .compatible = "aspeed,ast2600-ssp", },
++	{},
++};
++MODULE_DEVICE_TABLE(of, of_ast_ssp_match_table);
++
++static struct platform_driver ast_ssp_driver = {
++	.probe		= ast_ssp_probe,
++	.remove 	= ast_ssp_remove,
++	.driver		= {
++		.name	= KBUILD_MODNAME,
++		.of_match_table = of_ast_ssp_match_table,
++	},
++};
++
++module_platform_driver(ast_ssp_driver);
++
++MODULE_LICENSE("Dual BSD/GPL");
+diff -Naur linux.old/drivers/soc/aspeed/aspeed-lpc-pcc.c linux-new/drivers/soc/aspeed/aspeed-lpc-pcc.c 
+--- linux.old/drivers/soc/aspeed/aspeed-lpc-pcc.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-new/drivers/soc/aspeed/aspeed-lpc-pcc.c	2020-11-20 17:00:31.000000000 +0800
+@@ -0,0 +1,631 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (C) ASPEED Technology Inc.
++ */
++#include <linux/bitops.h>
++#include <linux/interrupt.h>
++#include <linux/fs.h>
++#include <linux/kfifo.h>
++#include <linux/mfd/syscon.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <linux/of_address.h>
++#include <linux/platform_device.h>
++#include <linux/poll.h>
++#include <linux/regmap.h>
++#include <linux/dma-mapping.h>
++
++#define DEVICE_NAME "aspeed-lpc-pcc"
++
++#define LHCR5	0x0b4
++#define LHCR6	0x0b8
++#define PCCR6	0x0c4
++#define LHCRA	0x0c8
++#define 	LHCRA_PAT_A_LEN_MASK	GENMASK(18, 17)
++#define 	LHCRA_PAT_A_LEN_SHIFT	17
++#define 	LHCRA_PAT_A_WRITE	BIT(16)
++#define 	LHCRA_PAT_A_ADDR_MASK	GENMASK(15, 0)
++#define 	LHCRA_PAT_A_ADDR_SHIFT	0
++#define LHCRB	0x0cc
++#define 	LHCRB_PAT_B_LEN_MASK	GENMASK(18, 17)
++#define 	LHCRB_PAT_B_LEN_SHIFT	17
++#define 	LHCRB_PAT_B_WRITE	BIT(16)
++#define 	LHCRB_PAT_B_ADDR_MASK	GENMASK(15, 0)
++#define 	LHCRB_PAT_B_ADDR_SHIFT	0
++#define PCCR4	0x0d0
++#define PCCR5	0x0d4
++#define PCCR0	0x130
++#define 	PCCR0_EN_DMA_INT	BIT(31)
++#define 	PCCR0_EN_PAT_B_INT	BIT(23)
++#define 	PCCR0_EN_PAT_B		BIT(22)
++#define 	PCCR0_EN_PAT_A_INT	BIT(21)
++#define 	PCCR0_EN_PAT_A		BIT(20)
++#define 	PCCR0_EN_DMA_MODE	BIT(14)
++#define 	PCCR0_ADDR_SEL_MASK	GENMASK(13, 12)
++#define 	PCCR0_ADDR_SEL_SHIFT	12
++#define 	PCCR0_RX_TRIG_LVL_MASK	GENMASK(10, 8)
++#define 	PCCR0_RX_TRIG_LVL_SHIFT	8
++#define 	PCCR0_CLR_RX_FIFO	BIT(7)
++#define 	PCCR0_MODE_SEL_MASK	GENMASK(5, 4)
++#define 	PCCR0_MODE_SEL_SHIFT	4
++#define 	PCCR0_EN_RX_OVR_INT	BIT(3)
++#define 	PCCR0_EN_RX_TMOUT_INT	BIT(2)
++#define 	PCCR0_EN_RX_AVAIL_INT	BIT(1)
++#define 	PCCR0_EN		BIT(0)
++#define PCCR1	0x134
++#define 	PCCR1_BASE_ADDR_MASK		GENMASK(15, 0)
++#define 	PCCR1_BASE_ADDR_SHIFT		0
++#define 	PCCR1_DONT_CARE_BITS_MASK	GENMASK(21, 16)
++#define 	PCCR1_DONT_CARE_BITS_SHIFT	16
++#define PCCR2	0x138
++#define 	PCCR2_PAT_B_RST		BIT(17)
++#define 	PCCR2_PAT_B_INT		BIT(16)
++#define 	PCCR2_PAT_A_RST		BIT(9)
++#define 	PCCR2_PAT_A_INT		BIT(8)
++#define 	PCCR2_DMA_DONE		BIT(4)
++#define 	PCCR2_RX_OVR_INT	BIT(3)
++#define 	PCCR2_RX_TMOUT_INT	BIT(2)
++#define 	PCCR2_RX_AVAIL_INT	BIT(1)
++#define PCCR3	0x13c
++#define 	PCCR3_DATA_RDY		BIT(23)
++#define 	PCCR3_FIFO_DATA_MASK	GENMASK(7, 0)
++
++#define PCC_DMA_MAX_BUFSZ	(PAGE_SIZE)
++#define PCC_MAX_PATNM	2
++
++enum pcc_fifo_threshold {
++	PCC_FIFO_THR_1_BYTE,
++	PCC_FIFO_THR_1_EIGHTH,
++	PCC_FIFO_THR_2_EIGHTH,
++	PCC_FIFO_THR_3_EIGHTH,
++	PCC_FIFO_THR_4_EIGHTH,
++	PCC_FIFO_THR_5_EIGHTH,
++	PCC_FIFO_THR_6_EIGHTH,
++	PCC_FIFO_THR_7_EIGHTH,
++	PCC_FIFO_THR_8_EIGHTH,
++};
++
++enum pcc_record_mode {
++	PCC_REC_1B,
++	PCC_REC_2B,
++	PCC_REC_4B,
++	PCC_REC_FULL,
++};
++
++enum pcc_port_hbits_select {
++	PCC_PORT_HBITS_SEL_NONE,
++	PCC_PORT_HBITS_SEL_45,
++	PCC_PORT_HBITS_SEL_67,
++	PCC_PORT_HBITS_SEL_89,
++};
++
++struct pcc_pattern {
++	u32 enable;
++	u32 pattern;
++	u32 len;
++	u32 write;
++	u32 port;
++};
++
++struct aspeed_pcc_dma {
++	u32 idx;
++	u32 addr;
++	u8 *virt;
++	u32 size;
++	u32 static_mem;
++	struct tasklet_struct tasklet;
++};
++
++struct aspeed_pcc {
++	struct device *dev;
++	struct regmap *regmap;
++	int irq;
++
++	u32 rec_mode;
++
++	u32 port;
++	u32 port_xbits;
++	u32 port_hbits_select;
++
++	u32 dma_mode;
++	struct aspeed_pcc_dma dma;
++
++	struct pcc_pattern pat_search[PCC_MAX_PATNM];
++
++	struct kfifo fifo;
++	wait_queue_head_t wq;
++
++	struct miscdevice misc_dev;
++};
++
++static inline bool is_pcc_enabled(struct aspeed_pcc *pcc)
++{
++	u32 reg;
++	if (regmap_read(pcc->regmap, PCCR0, &reg))
++		return false;
++	return (reg & PCCR0_EN) ? true : false;
++}
++
++static inline bool is_valid_rec_mode(u32 mode)
++{
++	return (mode > PCC_REC_FULL) ? false : true;
++}
++
++static inline bool is_valid_high_bits_select(u32 select)
++{
++	return (select > PCC_PORT_HBITS_SEL_89) ? false : true;
++}
++
++static ssize_t aspeed_pcc_file_read(struct file *file, char __user *buffer,
++		size_t count, loff_t *ppos)
++{
++	int rc;
++	ssize_t copied;
++
++	struct aspeed_pcc *pcc = container_of(
++			file->private_data,
++			struct aspeed_pcc,
++			misc_dev);
++
++	if (kfifo_is_empty(&pcc->fifo)) {
++		if (file->f_flags & O_NONBLOCK)
++			return -EAGAIN;
++		rc = wait_event_interruptible(pcc->wq,
++				!kfifo_is_empty(&pcc->fifo));
++		if (rc == -ERESTARTSYS)
++			return -EINTR;
++	}
++
++	rc = kfifo_to_user(&pcc->fifo, buffer, count, &copied);
++	return rc ? rc : copied;
++}
++
++static __poll_t aspeed_pcc_file_poll(struct file *file,
++		struct poll_table_struct *pt)
++{
++	struct aspeed_pcc *pcc = container_of(
++			file->private_data,
++			struct aspeed_pcc,
++			misc_dev);
++
++	poll_wait(file, &pcc->wq, pt);
++	return !kfifo_is_empty(&pcc->fifo) ? POLLIN : 0;
++}
++
++static const struct file_operations pcc_fops = {
++	.owner = THIS_MODULE,
++	.read = aspeed_pcc_file_read,
++	.poll = aspeed_pcc_file_poll,
++};
++
++static void aspeed_pcc_dma_tasklet(unsigned long arg)
++{
++	u32 reg;
++	u32 pre_dma_idx;
++	u32 cur_dma_idx;
++
++	u8 has_data = 0;
++
++	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
++	struct kfifo *fifo = &pcc->fifo;
++
++	if (!kfifo_initialized(fifo))
++		return;
++
++	if (regmap_read(pcc->regmap, PCCR6, &reg))
++		return;
++
++	cur_dma_idx = reg & (PCC_DMA_MAX_BUFSZ - 1);
++	pre_dma_idx = pcc->dma.idx;
++	has_data = (pre_dma_idx == cur_dma_idx) ? false : true;
++
++	do {
++		/* kick the oldest one if full */
++		if (kfifo_is_full(fifo))
++			kfifo_skip(fifo);
++		kfifo_put(fifo, pcc->dma.virt[pre_dma_idx]);
++		pre_dma_idx = (pre_dma_idx + 1) % PCC_DMA_MAX_BUFSZ;
++	} while (pre_dma_idx != cur_dma_idx);
++
++	if (has_data)
++		wake_up_interruptible(&pcc->wq);
++
++	pcc->dma.idx = cur_dma_idx;
++}
++
++static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
++{
++	u32 val;
++	irqreturn_t ret = IRQ_NONE;
++	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
++
++	if (regmap_read(pcc->regmap, PCCR2, &val))
++		return ret;
++
++	if (val & PCCR2_PAT_B_INT) {
++		dev_info(pcc->dev, "pattern search B interrupt\n");
++		regmap_write_bits(pcc->regmap, PCCR2,
++			PCCR2_PAT_B_INT, PCCR2_PAT_B_INT);
++		ret = IRQ_HANDLED;
++	}
++
++	if (val & PCCR2_PAT_A_INT) {
++		dev_info(pcc->dev, "pattern search A interrupt\n");
++		regmap_write_bits(pcc->regmap, PCCR2,
++			PCCR2_PAT_A_INT, PCCR2_PAT_A_INT);
++		ret = IRQ_HANDLED;
++	}
++
++	if (val & PCCR2_RX_OVR_INT) {
++		dev_warn(pcc->dev, "RX FIFO overrun\n");
++		regmap_write_bits(pcc->regmap, PCCR2,
++			PCCR2_RX_OVR_INT, PCCR2_RX_OVR_INT);
++		ret = IRQ_HANDLED;
++	}
++
++	if (val & (PCCR2_DMA_DONE | PCCR2_RX_TMOUT_INT | PCCR2_RX_AVAIL_INT)) {
++		if (pcc->dma_mode) {
++			regmap_write_bits(pcc->regmap, PCCR2,
++					PCCR2_DMA_DONE, PCCR2_DMA_DONE);
++			tasklet_schedule(&pcc->dma.tasklet);
++		}
++		else {
++			do {
++				if (regmap_read(pcc->regmap, PCCR3, &val))
++					break;
++				if (kfifo_is_full(&pcc->fifo))
++					kfifo_skip(&pcc->fifo);
++				kfifo_put(&pcc->fifo, val & PCCR3_FIFO_DATA_MASK);
++			} while (val & PCCR3_DATA_RDY);
++
++			wake_up_interruptible(&pcc->wq);
++		}
++		ret = IRQ_HANDLED;
++	}
++
++	return ret;
++}
++
++static void aspeed_pcc_config(struct aspeed_pcc *pcc)
++{
++	struct pcc_pattern* pat_search = pcc->pat_search;
++
++	/* record mode */
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_MODE_SEL_MASK,
++			pcc->rec_mode << PCCR0_MODE_SEL_SHIFT);
++
++	/* port address */
++	regmap_update_bits(pcc->regmap, PCCR1,
++			PCCR1_BASE_ADDR_MASK,
++			pcc->port << PCCR1_BASE_ADDR_SHIFT);
++
++	/* port address high bits selection or parser control */
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_ADDR_SEL_MASK,
++			pcc->port_hbits_select << PCCR0_ADDR_SEL_SHIFT);
++
++	/* port address dont care bits */
++	regmap_update_bits(pcc->regmap, PCCR1,
++			PCCR1_DONT_CARE_BITS_MASK,
++			pcc->port_xbits << PCCR1_DONT_CARE_BITS_SHIFT);
++
++	/* pattern search state reset */
++	regmap_write_bits(pcc->regmap, PCCR2,
++			PCCR2_PAT_B_RST | PCCR2_PAT_A_RST,
++			PCCR2_PAT_B_RST | PCCR2_PAT_A_RST);
++
++	/* pattern A to search */
++	regmap_write(pcc->regmap, LHCR5, pat_search[0].pattern);
++	regmap_update_bits(pcc->regmap, LHCRA,
++			LHCRA_PAT_A_LEN_MASK,
++			(pat_search[0].len - 1) << LHCRA_PAT_A_LEN_SHIFT);
++	regmap_update_bits(pcc->regmap, LHCRA,
++			LHCRA_PAT_A_WRITE,
++			(pat_search[0].write) ? LHCRA_PAT_A_WRITE : 0);
++	regmap_update_bits(pcc->regmap, LHCRA,
++			LHCRA_PAT_A_ADDR_MASK,
++			pat_search[0].port << LHCRA_PAT_A_ADDR_SHIFT);
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_PAT_A_INT | PCCR0_EN_PAT_A,
++			(pat_search[0].enable) ? PCCR0_EN_PAT_A_INT | PCCR0_EN_PAT_A : 0);
++
++	/* pattern B to search */
++	regmap_write(pcc->regmap, LHCR6, pat_search[1].pattern);
++	regmap_update_bits(pcc->regmap, LHCRB,
++			LHCRB_PAT_B_LEN_MASK,
++			(pat_search[1].len - 1) << LHCRB_PAT_B_LEN_SHIFT);
++	regmap_update_bits(pcc->regmap, LHCRB,
++			LHCRB_PAT_B_WRITE,
++			(pat_search[1].write) ? LHCRB_PAT_B_WRITE : 0);
++	regmap_update_bits(pcc->regmap, LHCRB,
++			LHCRB_PAT_B_ADDR_MASK,
++			pat_search[1].port << LHCRB_PAT_B_ADDR_SHIFT);
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_PAT_B_INT | PCCR0_EN_PAT_B,
++			PCCR0_EN_PAT_B_INT | PCCR0_EN_PAT_B);
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_PAT_B_INT | PCCR0_EN_PAT_B,
++			(pat_search[1].enable) ? PCCR0_EN_PAT_B_INT | PCCR0_EN_PAT_B : 0);
++
++	/* DMA address and size (4-bytes unit) */
++	if (pcc->dma_mode) {
++		regmap_write(pcc->regmap, PCCR4, pcc->dma.addr);
++		regmap_write(pcc->regmap, PCCR5, pcc->dma.size / 4);
++	}
++}
++
++static int aspeed_pcc_enable(struct aspeed_pcc *pcc, struct device *dev)
++{
++	int rc;
++
++	if (pcc->dma_mode) {
++		/* map reserved memory or allocate a new one for DMA use */
++		if (pcc->dma.static_mem) {
++			if (pcc->dma.size > PCC_DMA_MAX_BUFSZ) {
++				rc = -EINVAL;
++				goto err_ret;
++			}
++
++			pcc->dma.virt = ioremap(pcc->dma.addr,
++							  pcc->dma.size);
++			if (pcc->dma.virt == NULL) {
++				rc = -ENOMEM;
++				goto err_ret;
++			}
++		}
++		else {
++			pcc->dma.size = PCC_DMA_MAX_BUFSZ;
++			pcc->dma.virt = dma_alloc_coherent(NULL,
++					pcc->dma.size,
++					&pcc->dma.addr,
++					GFP_KERNEL);
++			if (pcc->dma.virt == NULL) {
++				rc = -ENOMEM;
++				goto err_ret;
++			}
++		}
++	}
++
++	rc = kfifo_alloc(&pcc->fifo, PAGE_SIZE, GFP_KERNEL);
++	if (rc)
++		goto err_free_dma;
++
++	pcc->misc_dev.parent = dev;
++	pcc->misc_dev.name = devm_kasprintf(dev, GFP_KERNEL, "%s", DEVICE_NAME);
++	pcc->misc_dev.fops = &pcc_fops;
++	rc = misc_register(&pcc->misc_dev);
++	if (rc)
++		goto err_free_kfifo;
++
++	aspeed_pcc_config(pcc);
++
++	/* skip FIFO cleanup if already enabled */
++	if (!is_pcc_enabled(pcc))
++		regmap_write_bits(pcc->regmap, PCCR0,
++				PCCR0_CLR_RX_FIFO, PCCR0_CLR_RX_FIFO);
++
++	if (pcc->dma_mode) {
++		regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE,
++			PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE);
++	}
++	else {
++		regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_RX_TRIG_LVL_MASK,
++			PCC_FIFO_THR_4_EIGHTH << PCCR0_RX_TRIG_LVL_SHIFT);
++		regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_RX_OVR_INT | PCCR0_EN_RX_TMOUT_INT | PCCR0_EN_RX_AVAIL_INT,
++			PCCR0_EN_RX_OVR_INT | PCCR0_EN_RX_TMOUT_INT | PCCR0_EN_RX_AVAIL_INT);
++	}
++
++	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN, PCCR0_EN);
++	return 0;
++
++err_free_kfifo:
++	kfifo_free(&pcc->fifo);
++err_free_dma:
++	if (pcc->dma_mode) {
++		if (pcc->dma.static_mem)
++			iounmap(pcc->dma.virt);
++		else
++			dma_free_coherent(dev, pcc->dma.size,
++					pcc->dma.virt, pcc->dma.addr);
++	}
++err_ret:
++	return rc;
++}
++
++static int aspeed_pcc_disable(struct aspeed_pcc *pcc, struct device *dev)
++{
++	regmap_update_bits(pcc->regmap, PCCR0,
++		PCCR0_EN_DMA_INT
++		| PCCR0_EN_RX_OVR_INT
++		| PCCR0_EN_RX_TMOUT_INT
++		| PCCR0_EN_RX_AVAIL_INT
++		| PCCR0_EN_DMA_MODE
++		| PCCR0_EN,
++		0);
++
++	if (pcc->dma.static_mem)
++		iounmap(pcc->dma.virt);
++	else
++		dma_free_coherent(dev, pcc->dma.size,
++				pcc->dma.virt, pcc->dma.addr);
++
++	misc_deregister(&pcc->misc_dev);
++	kfifo_free(&pcc->fifo);
++
++	return 0;
++}
++
++static int aspeed_pcc_probe(struct platform_device *pdev)
++{
++	int rc;
++
++	struct aspeed_pcc *pcc;
++
++	struct device *dev = &pdev->dev;
++	struct device_node *node;
++
++	struct resource res;
++
++	pcc = devm_kzalloc(&pdev->dev, sizeof(*pcc), GFP_KERNEL);
++	if (!pcc) {
++		dev_err(dev, "failed to allocate memory\n");
++		return -ENOMEM;
++	}
++
++	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
++	if (IS_ERR(pcc->regmap)) {
++		dev_err(dev, "failed to get regmap\n");
++		return -ENODEV;
++	}
++
++	rc = of_property_read_u32(dev->of_node, "port-addr", &pcc->port);
++	if (rc) {
++		dev_err(dev, "failed to get port base address\n");
++		return rc;
++	}
++
++	pcc->dma_mode = of_property_read_bool(dev->of_node, "dma-mode");
++	if (pcc->dma_mode) {
++		/*
++		 * optional, reserved memory for the DMA buffer
++		 * if not specified, the DMA buffer is allocated
++		 * dynamically.
++		 */
++		node = of_parse_phandle(dev->of_node, "memory-region", 0);
++		if (node) {
++			rc = of_address_to_resource(node, 0, &res);
++			if (rc) {
++				dev_err(dev, "failed to get reserved memory region\n");
++				return -ENOMEM;
++			}
++			pcc->dma.addr = res.start;
++			pcc->dma.size = resource_size(&res);
++			pcc->dma.static_mem = 1;
++			of_node_put(node);
++		}
++	}
++
++	/* optional, by default: 0 -> 1-Byte mode */
++	of_property_read_u32(dev->of_node, "rec-mode", &pcc->rec_mode);
++	if (!is_valid_rec_mode(pcc->rec_mode)) {
++		dev_err(dev, "invalid record mode: %u\n",
++				pcc->rec_mode);
++		return -EINVAL;
++	}
++
++	/* optional, by default: 0 -> no don't care bits */
++	of_property_read_u32(dev->of_node, "port-addr-xbits", &pcc->port_xbits);
++
++	/*
++	 * optional, by default: 0 -> no high address bits
++	 *
++	 * Note that when record mode is set to 1-Byte, this
++	 * property is ignored and the corresponding HW bits
++	 * behave as read/write cycle parser control with the
++	 * value set to 0b11
++	 */
++	if (pcc->rec_mode) {
++		of_property_read_u32(dev->of_node, "port-addr-hbits-select", &pcc->port_hbits_select);
++		if (!is_valid_high_bits_select(pcc->port_hbits_select)) {
++			dev_err(dev, "invalid high address bits selection: %u\n",
++				pcc->port_hbits_select);
++			return -EINVAL;
++		}
++	}
++	else
++		pcc->port_hbits_select = 0x3;
++
++	/* optional, pattern search A */
++	if (of_property_read_bool(dev->of_node, "pattern-a-en")) {
++		of_property_read_u32(dev->of_node, "pattern-a", &pcc->pat_search[0].pattern);
++		of_property_read_u32(dev->of_node, "pattern-a-len", &pcc->pat_search[0].len);
++		of_property_read_u32(dev->of_node, "pattern-a-write", &pcc->pat_search[0].write);
++		of_property_read_u32(dev->of_node, "pattern-a-port", &pcc->pat_search[0].port);
++		pcc->pat_search[0].enable = 1;
++	}
++
++	/* optional, pattern search B */
++	if (of_property_read_bool(dev->of_node, "pattern-b-en")) {
++		of_property_read_u32(dev->of_node, "pattern-b", &pcc->pat_search[1].pattern);
++		of_property_read_u32(dev->of_node, "pattern-b-len", &pcc->pat_search[1].len);
++		of_property_read_u32(dev->of_node, "pattern-b-write", &pcc->pat_search[1].write);
++		of_property_read_u32(dev->of_node, "pattern-b-port", &pcc->pat_search[1].port);
++		pcc->pat_search[1].enable = 1;
++	}
++
++	pcc->irq = platform_get_irq(pdev, 0);
++	if (!pcc->irq) {
++		dev_err(dev, "failed to get IRQ\n");
++		return -ENODEV;
++	}
++
++	/*
++	 * as PCC may have been enabled in early stages, we
++	 * need to disable interrupts before requesting IRQ
++	 * to prevent kernel crash
++	 */
++	regmap_update_bits(pcc->regmap, PCCR0,
++			PCCR0_EN_DMA_INT
++			| PCCR0_EN_PAT_A_INT
++			| PCCR0_EN_PAT_B_INT
++			| PCCR0_EN_RX_OVR_INT
++			| PCCR0_EN_RX_TMOUT_INT
++			| PCCR0_EN_RX_AVAIL_INT,
++			0);
++
++	rc = devm_request_irq(dev, pcc->irq, aspeed_pcc_isr,
++			IRQF_SHARED, DEVICE_NAME, pcc);
++	if (rc < 0) {
++		dev_err(dev, "failed to request IRQ handler\n");
++		return rc;
++	}
++
++	tasklet_init(&pcc->dma.tasklet, aspeed_pcc_dma_tasklet,
++			(unsigned long)pcc);
++
++	init_waitqueue_head(&pcc->wq);
++
++	rc = aspeed_pcc_enable(pcc, dev);
++	if (rc) {
++		dev_err(dev, "failed to enable PCC\n");
++		return rc;
++	}
++
++	pcc->dev = dev;
++	dev_set_drvdata(&pdev->dev, pcc);
++	return 0;
++}
++
++static int aspeed_pcc_remove(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct aspeed_pcc *pcc = dev_get_drvdata(dev);
++	aspeed_pcc_disable(pcc, dev);
++	return 0;
++}
++
++static const struct of_device_id aspeed_pcc_table[] = {
++	{ .compatible = "aspeed,ast2500-lpc-pcc" },
++	{ .compatible = "aspeed,ast2600-lpc-pcc" },
++};
++
++static struct platform_driver aspeed_pcc_driver = {
++	.driver = {
++		.name = "aspeed-pcc",
++		.of_match_table = aspeed_pcc_table,
++	},
++	.probe = aspeed_pcc_probe,
++	.remove = aspeed_pcc_remove,
++};
++
++module_platform_driver(aspeed_pcc_driver);
++
++MODULE_AUTHOR("Chia-Wei Wang <chiawei_wang@aspeedtech.com>");
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("Driver for Aspeed Post Code Capture");
+diff -Naur linux/drivers/soc/aspeed/Kconfig linux-new/drivers/soc/aspeed/Kconfig
+--- linux/drivers/soc/aspeed/Kconfig	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/soc/aspeed/Kconfig	2020-12-23 16:44:46.471424815 -0500
+@@ -5,6 +5,14 @@
+ 	def_bool y
+ 	depends on ARCH_ASPEED || COMPILE_TEST
+ 
++config ASPEED_BMC_MISC
++	bool "Miscellaneous ASPEED BMC interfaces"
++	depends on ARCH_ASPEED || COMPILE_TEST
++	default ARCH_ASPEED
++	help
++	  Say yes to expose VGA and LPC scratch registers, and other
++	  miscellaneous control interfaces specific to the ASPEED BMC SoCs
++
+ config ASPEED_LPC_CTRL
+ 	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
+ 	tristate "Aspeed ast2400/2500 HOST LPC to BMC bridge control"
+@@ -21,6 +29,21 @@
+ 	  allows the BMC to listen on and save the data written by
+ 	  the host to an arbitrary LPC I/O port.
+ 
++config ASPEED_LPC_PCC
++	tristate "Aspeed Post Code Capture support"
++	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
++	help
++	  Provides a driver to control the LPC PCC interface,
++	  allowing the BMC to snoop data bytes written by the
++	  the host to an arbitrary LPC I/O port.
++
++config ASPEED_LPC_MBOX
++	tristate "Aspeed LPC Mailbox Controller"
++	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
++	help
++	  Expose teh ASPEED LPC MBOX registers found on Aspeed SoCs
++	  to userspace.
++
+ config ASPEED_P2A_CTRL
+ 	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
+ 	tristate "Aspeed ast2400/2500 HOST P2A VGA MMIO to BMC bridge control"	
+@@ -29,4 +52,38 @@
+ 	  ioctl()s, the driver also provides an interface for userspace mappings to
+ 	  a pre-defined region.
+
++config ASPEED_ESPI
++	tristate "Aspeed eSPI Engine Driver"
++	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
++	help
++	  Enable support for the Aspeed eSPI engine. The eSPI engine
++	  plays as a slave device in BMC to communicate with the host
++	  side master over the eSPI interface. The four eSPI channels,
++	  namely peripheral, virtual wire, out-of-band, and flash are
++	  supported.
++
++config ASPEED_ESPI_MMBI
++	tristate "Aspeed eSPI MMBI Driver"
++	depends on ASPEED_ESPI
++	help
++	  Control Aspeed eSPI MMBI driver
++
++config ASPEED_JTAG
++	tristate "ASPEED JTAG Controller"
++	default n
++	help
++	  Driver for JTAG Controller
++
++config ASPEED_MCTP
++        tristate "ASPEED MCTP Driver"
++        default n
++        help
++          Driver for MCTP
++
++config ASPEED_SSP
++    tristate "ASPEED SSP Driver"
++    default n
++    help
++      Driver for secondary-service-processor
++
+ endmenu
+diff -Naur linux/drivers/soc/aspeed/Makefile linux-new/drivers/soc/aspeed/Makefile
+--- linux/drivers/soc/aspeed/Makefile	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/soc/aspeed/Makefile	2020-12-23 16:44:46.471424815 -0500
+@@ -1,4 +1,12 @@
+ # SPDX-License-Identifier: GPL-2.0-only
++obj-$(CONFIG_ASPEED_BMC_MISC)	+= aspeed-bmc-misc.o
++obj-$(CONFIG_ASPEED_JTAG)	+= aspeed-jtag.o
++obj-$(CONFIG_ASPEED_MCTP)       += aspeed-mctp.o
+ obj-$(CONFIG_ASPEED_LPC_CTRL)	+= aspeed-lpc-ctrl.o
+ obj-$(CONFIG_ASPEED_LPC_SNOOP)	+= aspeed-lpc-snoop.o
+ obj-$(CONFIG_ASPEED_P2A_CTRL)	+= aspeed-p2a-ctrl.o
++obj-$(CONFIG_ASPEED_LPC_PCC)	+= aspeed-lpc-pcc.o
++obj-$(CONFIG_ASPEED_LPC_MBOX)	+= aspeed-lpc-mbox.o
++obj-$(CONFIG_ASPEED_ESPI)	+= aspeed-espi-ctrl.o
++obj-$(CONFIG_ASPEED_ESPI_MMBI)	+= aspeed-espi-mmbi.o
++obj-$(CONFIG_ASPEED_SSP)        += ast_ssp.o

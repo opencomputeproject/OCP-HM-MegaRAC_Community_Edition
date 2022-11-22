@@ -1,0 +1,299 @@
+diff -Naur linux/drivers/i2c/i2c-core-base.c linux-new/drivers/i2c/i2c-core-base.c
+--- linux/drivers/i2c/i2c-core-base.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/i2c/i2c-core-base.c	2020-12-23 15:22:30.377882462 -0500
+@@ -40,6 +40,7 @@
+ #include <linux/slab.h>
+ 
+ #include "i2c-core.h"
++#include <linux/i2c-dev.h>
+ 
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/i2c.h>
+@@ -2411,6 +2412,133 @@
+ }
+ EXPORT_SYMBOL_GPL(i2c_put_dma_safe_msg_buf);
+ 
++#ifdef I2C_BUS_RECOVERY
++int i2c_recovery_event(void)
++{
++   int id, ret;
++   struct i2c_adapter  *adap;
++
++   for (id = 0; id < MAX_I2C_ADAPTERS; id++)
++   {
++       adap = i2c_get_adapter(id);
++       if (adap != NULL)
++       {
++           if (adap->algo->i2c_recovery)
++           {
++               if (in_atomic() || irqs_disabled())
++               {
++                   ret = rt_mutex_trylock(&adap->bus_lock);
++                   if (!ret)
++                   {
++                       i2c_put_adapter(adap);
++                       continue;
++                   }
++               }
++               else
++               {
++                   rt_mutex_lock(&adap->bus_lock);
++               }
++               ret = adap->algo->i2c_recovery(adap);
++               rt_mutex_unlock(&adap->bus_lock);
++           }
++           i2c_put_adapter(adap);
++       }
++   }
++
++   return 0;
++}
++#endif
++
++/* AMI Extended IOCTLS */
++int i2c_ioctl(struct i2c_adapter * adap,unsigned long cmd, unsigned long arg)
++{
++	switch (cmd)
++	{
++		case I2C_SLAVEREAD:
++			/* IMPORTANT NOTE:
++			   Why we don't lock slave xfer functions?
++
++			   All i2c hardware should never access hardware.
++			   Instead they sleep for slave buffers gets filled up.
++
++			   Since they does access hardware, locking is not needed to
++			   prevent master and slave access to hardware. Also if we lock
++			   the master xfers cannot be done as the slave routines does not
++			   return if if does not have slave data.
++			*/
++			if (adap->algo->slave_recv)
++			{
++				char *tmp;
++				int ret;
++				tmp = kmalloc(MAX_IPMB_MSG_SIZE,GFP_KERNEL);
++				if (!tmp)
++					return -ENOMEM;
++				ret = adap->algo->slave_recv(adap,tmp,MAX_IPMB_MSG_SIZE);
++				if (ret > 0)
++					ret = copy_to_user((char *)arg,tmp,ret)?-EFAULT:ret;
++				kfree(tmp);
++				return ret;
++			}
++			break;
++
++		case SMBUS_HOST_NOTIFY:
++			if (adap->algo->smb_slave_recv)
++			{
++				char 	*tmp;
++				int 	ret = 0;
++				int     count = 0;
++				tmp = kmalloc(MAX_IPMB_MSG_SIZE, GFP_KERNEL);
++				if (tmp==NULL)
++					return -ENOMEM;
++
++				ret = adap->algo->smb_slave_recv(adap,tmp,count);
++				if (ret > 0)
++					ret = copy_to_user((unsigned char __user *)arg,tmp,ret)?-EFAULT:ret;
++#ifdef DEBUG
++				printk (KERN_DEBUG "ret value returned in slave receive call = 0x%x\n", ret);
++#endif
++				kfree(tmp);
++				return ret;
++			}
++			break;
++
++		/* UNTESTED CODE :We don't have any scenario to test slave writes */
++#if 1
++		case I2C_SLAVEWRITE:
++			if (adap->algo->slave_send)
++			{
++				char *tmp;
++				int ret;
++				tmp = kmalloc(MAX_IPMB_MSG_SIZE,GFP_KERNEL);
++				if (!tmp)
++					return -ENOMEM;
++				ret = copy_from_user(tmp,(char *)arg,MAX_IPMB_MSG_SIZE)?-EFAULT:0;
++				if (ret == -EFAULT)
++				{
++					kfree(tmp);
++					return -EFAULT;
++				}
++				return adap->algo->slave_send(adap,tmp,MAX_IPMB_MSG_SIZE);
++			}
++			break;
++#endif
++		default:
++			if (adap->algo->i2c_hw_ioctl)
++				return adap->algo->i2c_hw_ioctl(adap,cmd,arg);
++			break;
++	}
++
++	/* NOTE:  returning a fault code here could cause trouble
++	 * in buggy userspace code.  Some old kernel bugs returned
++	 * zero in this case, and userspace code might accidentally
++	 * have depended on that bug.
++	 */
++	return -ENOTTY;
++}
++
++EXPORT_SYMBOL(i2c_ioctl);
++
++
+ MODULE_AUTHOR("Simon G. Vogl <simon@tk.uni-linz.ac.at>");
+ MODULE_DESCRIPTION("I2C-Bus main module");
+ MODULE_LICENSE("GPL");
+diff -Naur linux/drivers/i2c/i2c-dev.c linux-new/drivers/i2c/i2c-dev.c
+--- linux/drivers/i2c/i2c-dev.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/i2c/i2c-dev.c	2020-12-23 15:22:45.366312679 -0500
+@@ -480,12 +480,8 @@
+ 		client->adapter->timeout = msecs_to_jiffies(arg * 10);
+ 		break;
+ 	default:
+-		/* NOTE:  returning a fault code here could cause trouble
+-		 * in buggy userspace code.  Some old kernel bugs returned
+-		 * zero in this case, and userspace code might accidentally
+-		 * have depended on that bug.
+-		 */
+-		return -ENOTTY;
++       /* Call the core ioctl (AMI extended)functions */
++        return i2c_ioctl(client->adapter,cmd,arg);
+ 	}
+ 	return 0;
+ }
+diff -Naur linux/drivers/i2c/Makefile linux-new/drivers/i2c/Makefile
+--- linux/drivers/i2c/Makefile	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/i2c/Makefile	2020-12-23 15:30:36.000000000 -0500
+@@ -18,3 +18,6 @@
+ obj-$(CONFIG_I2C_SLAVE_EEPROM)	+= i2c-slave-eeprom.o
+ 
+ ccflags-$(CONFIG_I2C_DEBUG_CORE) := -DDEBUG
++ccflags-y += -DI2C_BUS_RECOVERY
++
++
+diff -Naur linux/include/linux/i2c.h linux-new/include/linux/i2c.h
+--- linux/include/linux/i2c.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/linux/i2c.h	2020-12-23 15:23:48.824136606 -0500
+@@ -21,6 +21,11 @@
+ #include <linux/swab.h>		/* for swab16 */
+ #include <uapi/linux/i2c.h>
+ 
++
++#define MAX_IPMB_MSG_SIZE  128
++#define MAX_I2C_ADAPTERS   16
++
++
+ extern struct bus_type i2c_bus_type;
+ extern struct device_type i2c_adapter_type;
+ extern struct device_type i2c_client_type;
+@@ -121,6 +126,9 @@
+ extern int __i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
+ 			  int num);
+ 
++/* Extended IOCTLs -implemented in i2c-core */
++extern int i2c_ioctl(struct i2c_adapter *adap, unsigned long cmd, unsigned long arg);
++
+ /* This is the very generalized SMBus access routine. You probably do not
+    want to use this, though; one of the functions below may be much easier,
+    and probably just as fast.
+@@ -547,6 +555,19 @@
+ 	/* To determine what the adapter supports */
+ 	u32 (*functionality)(struct i2c_adapter *adap);
+ 
++   /* AMI Extended Functions */
++   /* i2c recovery */
++   int (*i2c_recovery) (struct i2c_adapter *adap);
++
++   /* Slave Receive and Slave Send Functions */
++   int (*slave_send)(struct i2c_adapter *adap , char *data ,int size);
++   int (*slave_recv)(struct i2c_adapter *adap , char *data ,int size);
++   int (*smb_slave_recv)(struct i2c_adapter *adap , char *data , int size);
++
++   /* Extended IOCTL Calls */
++   int (*i2c_hw_ioctl)(struct i2c_adapter *adap, unsigned long cmd , unsigned long arg);
++
++
+ #if IS_ENABLED(CONFIG_I2C_SLAVE)
+ 	int (*reg_slave)(struct i2c_client *client);
+ 	int (*unreg_slave)(struct i2c_client *client);
+@@ -1005,4 +1026,43 @@
+ }
+ #endif /* CONFIG_ACPI */
+ 
++/****************************************************/
++/*             AMI Recovery Begin                      */
++/* Keeping this for backward compatability. May be  */
++/* from 3.14.x onwards we can use generic recovery? */
++/****************************************************/
++extern int i2c_recovery_event(void);
++
++/*
++ * i2c_recovery is the structure used to specify the recovery parameters for the bus
++ */
++#define DEFAULT_NUM_PULSES     16
++#define DEFAULT_PULSE_PERIOD       5
++#define DEFAULT_FREQ           100000
++#define ENABLE_SMBUS_RESET     1
++#define DISABLE_SMBUS_RESET        0
++#define ENABLE_CLOCK_PULSE     1
++#define DISABLE_CLOCK_PULSE        0
++#define ENABLE_FORCE_STOP      1
++#define DISABLE_FORCE_STOP     0
++#define ENABLE_RECOVERY            1
++#define DISABLE_RECOVERY       0   /* Recovery should not be done on multi-master bus - Disable Recovery */
++typedef struct
++{
++   int enable_recovery;
++   int is_smbus_reset_enabled;
++   int is_generate_clock_pulses_enabled;
++   int is_force_stop_enabled;
++   int num_clock_pulses;
++   int frequency;
++} bus_recovery_info_T;
++
++/**************************************************/
++/*               AMI Recovery End                */
++/**************************************************/
++
++
++
++
++
+ #endif /* _LINUX_I2C_H */
+diff -Naur linux/include/uapi/linux/i2c-dev.h linux-new/include/uapi/linux/i2c-dev.h
+--- linux/include/uapi/linux/i2c-dev.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/uapi/linux/i2c-dev.h	2020-12-23 15:24:36.057496600 -0500
+@@ -53,6 +53,20 @@
+ #define I2C_SMBUS	0x0720	/* SMBus transfer */
+ 
+ 
++/* Extended IOCTLS - Implemented in i2c-core and hardware */
++#define I2C_SLAVEREAD      0x0750  /* Perform Slave Read   */
++#define I2C_SLAVEWRITE     0x0751  /* Perform Slave Write  */
++#define I2C_SET_HOST_ADDR  0x0752  /* Set Slave Address of the Controller */
++#define I2C_GET_HOST_ADDR  0x0753  /* Get Slave Address of the Controller */
++#define I2C_SET_REC_INFO   0x0754  /* Set Recovery Parameters */
++#define I2C_GET_REC_INFO   0x0755  /* Get Recovery Parameters */
++#define I2C_RESET      0x0756  /* Reset Controller */
++#define SMBUS_HOST_NOTIFY  0x0757 /* Perform SMBus Host Notify Protocol */
++#define I2C_SET_SPEED      0x0758  /* Set I2C Bus Speed */
++#define I2C_GET_LINK_STATE      0x0759  /* Get the Status of Clk/Data pin*/
++#define I2C_BUS_TEST            0x0850  /* Perform the I2C Bus test*/
++#define I2C_MCTP_READ           0x0851  /* Perform MCTP Pkt Read*/
++
+ /* This is the structure as used in the I2C_SMBUS ioctl call */
+ struct i2c_smbus_ioctl_data {
+ 	__u8 read_write;
+diff -Naur linux/include/uapi/linux/i2c.h linux-new/include/uapi/linux/i2c.h
+--- linux/include/uapi/linux/i2c.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/uapi/linux/i2c.h	2020-12-23 15:24:30.161326726 -0500
+@@ -131,7 +131,8 @@
+ /*
+  * Data for SMBus Messages
+  */
+-#define I2C_SMBUS_BLOCK_MAX	32	/* As specified in SMBus standard */
++//#define I2C_SMBUS_BLOCK_MAX	32	/* As specified in SMBus standard */
++#define I2C_SMBUS_BLOCK_MAX	240	/* As specified in SMBus standard */
+ union i2c_smbus_data {
+ 	__u8 byte;
+ 	__u16 word;

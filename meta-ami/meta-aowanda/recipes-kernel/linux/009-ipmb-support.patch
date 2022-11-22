@@ -1,0 +1,59 @@
+diff -Naur a/drivers/i2c/i2c-slave-read.c b/drivers/i2c/i2c-slave-read.c
+--- a/drivers/i2c/i2c-slave-read.c	2021-03-03 12:31:21.516610040 +0530
++++ b/drivers/i2c/i2c-slave-read.c	2021-03-03 12:21:24.720147142 +0530
+@@ -6,8 +6,8 @@
+ #include <linux/spinlock.h>
+ #include <linux/sysfs.h>
+ 
+-#define MQ_MSGBUF_SIZE		128
+-#define MQ_QUEUE_SIZE		32
++#define MQ_MSGBUF_SIZE		CONFIG_I2C_SLAVE_MQUEUE_MESSAGE_SIZE
++#define MQ_QUEUE_SIZE		CONFIG_I2C_SLAVE_MQUEUE_QUEUE_SIZE
+ #define MQ_QUEUE_NEXT(x)	(((x) + 1) & (MQ_QUEUE_SIZE - 1))
+ 
+ struct mq_msg {
+diff -Naur a/drivers/i2c/Kconfig b/drivers/i2c/Kconfig
+--- a/drivers/i2c/Kconfig	2021-03-03 12:31:52.681493536 +0530
++++ b/drivers/i2c/Kconfig	2021-03-03 12:21:03.491585766 +0530
+@@ -119,6 +119,29 @@
+ config I2C_SLAVE_EEPROM
+ 	tristate "I2C eeprom slave driver"
+ 
++config I2C_SLAVE_MQUEUE_MESSAGE_SIZE
++        int "The message size of I2C mqueue slave"
++        default 120
++
++config I2C_SLAVE_MQUEUE_QUEUE_SIZE
++        int "The queue size of I2C mqueue slave"
++        default 32
++        help
++          This number MUST be power of 2.
++
++config I2C_SLAVE_MQUEUE
++        tristate "I2C mqueue (message queue) slave driver"
++        help
++          Some protocols over I2C are designed for bi-directional transferring
++          messages by using I2C Master Write protocol. This driver is used to
++          receive and queue messages from the remote I2C device.
++
++          Userspace can get the messages by reading sysfs file that this driver
++          exposes.
++
++          This support is also available as a module. If so, the module will be
++          called i2c-slave-mqueue.
++
+ endif
+ 
+ config I2C_DEBUG_CORE
+diff -Naur a/drivers/i2c/Makefile b/drivers/i2c/Makefile
+--- a/drivers/i2c/Makefile	2021-03-03 12:31:44.469260580 +0530
++++ b/drivers/i2c/Makefile	2021-03-03 12:20:53.843331429 +0530
+@@ -16,7 +16,7 @@
+ obj-y				+= algos/ busses/ muxes/
+ obj-$(CONFIG_I2C_STUB)		+= i2c-stub.o
+ obj-$(CONFIG_I2C_SLAVE_EEPROM)	+= i2c-slave-eeprom.o
+-obj-$(CONFIG_I2C_SLAVE)     += i2c-slave-read.o
++obj-$(CONFIG_I2C_SLAVE_MQUEUE)     += i2c-slave-read.o
+ 
+ ccflags-$(CONFIG_I2C_DEBUG_CORE) := -DDEBUG
+ ccflags-y += -DI2C_BUS_RECOVERY

@@ -1,0 +1,1173 @@
+diff -Naur ori_linux/drivers/soc/aspeed/aspeed-mctp.c new_linux/drivers/soc/aspeed/aspeed-mctp.c
+--- ori_linux/drivers/soc/aspeed/aspeed-mctp.c	2021-07-15 03:41:42.002050219 +0800
++++ new_linux/drivers/soc/aspeed/aspeed-mctp.c	2021-07-15 03:49:45.702045801 +0800
+@@ -24,8 +24,10 @@
+ #include <linux/of_address.h>
+ #include <linux/io.h>
+ #include <asm/uaccess.h>
++#include <linux/moduleparam.h>
++#include <linux/module.h>
+ /*************************************************************************************/
+-#define MCTP_DESC_SIZE			4096 * 2	//for tx/rx descript
++#define MCTP_DESC_SIZE			4096	//for tx/rx descript
+ #define MCTP_TX_BUFF_SIZE		4096
+ #define MCTP_RX_BUFF_POOL_SIZE		16384
+ #define MCTP_G6_RX_BUFF_POOL_SIZE	MCTP_RX_BUFF_POOL_SIZE * 4
+@@ -33,6 +35,8 @@
+ #define MCTP_G6_TX_FIFO_NUM		8
+ #define MCTP_G6_RX_DEFAULT_PAYLOAD	64
+ #define MCTP_G6_TX_DEFAULT_PAYLOAD	64
++#define MCTP_DMA_SIZE			MCTP_DESC_SIZE * 2 + MCTP_TX_BUFF_SIZE * MCTP_TX_FIFO_NUM + MCTP_RX_BUFF_POOL_SIZE
++#define MCTP_G6_DMA_SIZE		MCTP_DESC_SIZE * 2 + MCTP_TX_BUFF_SIZE * MCTP_G6_TX_FIFO_NUM + MCTP_G6_RX_BUFF_POOL_SIZE
+ 
+ #define MCTP_RX_DESC_BUFF_NUM		8
+ 
+@@ -191,6 +195,49 @@
+ #define ASPEED_MCTP_IOCRX	_IOR(MCTPIOC_BASE, 1, struct aspeed_mctp_xfer*)
+ 
+ /*************************************************************************************/
++
++#define get_vdm_length(ptr)		(ptr[0] & 0x3ff)
++#define get_vdm_type_routing(ptr)	((ptr[0] >> 24) & 0x1f)
++#define get_vdm_pad_len(ptr)		((ptr[1] >> 12) & 0x3)
++#define get_vdm_pcie_req_id(ptr)	((ptr[1] >> 16) & 0xffff)
++#define get_vdm_pcie_target_id(ptr)	((ptr[2] >> 16) & 0xffff)
++#define get_vdm_msg_tag(ptr)		(ptr[3] & 0x7)
++#define get_vdm_to(ptr)			((ptr[3] >> 3) & 0x1)
++#define get_vdm_pkt_seq(ptr)		((ptr[3] >> 4) & 0x3)
++#define get_vdm_eom(ptr)		((ptr[3] >> 6) & 0x1)
++#define get_vdm_som(ptr)		((ptr[3] >> 7) & 0x1)
++#define get_vdm_src_epid(ptr)		((ptr[3] >> 8) & 0xff)
++#define get_vdm_dest_epid(ptr)		((ptr[3] >> 16) & 0xff)
++
++#define put_ptr(ptr, val , mask, offset) \
++	ptr = (ptr & ~(mask << offset)) | (((x) & mask) << offset)
++
++#define put_vdm_length(ptr, x)		put_ptr(ptr[0], x, 0x3ff, 0)
++#define put_vdm_type_routing(ptr, x)	put_ptr(ptr[0], x, 0x1f, 24)
++#define put_vdm_pad_len(ptr, x)		put_ptr(ptr[1], x, 0x3, 12)
++#define put_vdm_pcie_req_id(ptr, x)	put_ptr(ptr[1], x, 0xffff, 16)
++#define put_vdm_pcie_target_id(ptr, x)	put_ptr(ptr[2], x, 0xffff, 16)
++#define put_vdm_msg_tag(ptr, x)		put_ptr(ptr[3], x, 0x7, 0)
++#define put_vdm_to(ptr, x)		put_ptr(ptr[3], x, 0x1, 3)
++#define put_vdm_pkt_seq(ptr, x)		put_ptr(ptr[3], x, 0x3, 4)
++#define put_vdm_eom(ptr, x)		put_ptr(ptr[3], x, 0x1, 6)
++#define put_vdm_som(ptr, x)		put_ptr(ptr[3], x, 0x1, 7)
++#define put_vdm_src_epid(ptr, x)	put_ptr(ptr[3], x, 0xff, 8)
++#define put_vdm_dest_epid(ptr, x)	put_ptr(ptr[3], x, 0xff, 16)
++
++#define PCIE_NOT_READY 0
++#define PCIE_READY     1
++#define PCIE_RESET     2
++static uint mctppcie_status=0; //0:PCIe Not Ready, 1:PCIe Ready, 2:PCIe Reset
++static int clear_mctppcie_reset(const char *val, const struct kernel_param *kp);
++static int get_mctppcie_status(char *val, const struct kernel_param *kp);
++static const struct kernel_param_ops mctppcie_status_ops = {
++	.set = clear_mctppcie_reset,
++	.get = get_mctppcie_status,
++};
++module_param_cb(mctppcie_status, &mctppcie_status_ops , &mctppcie_status, 0644);
++MODULE_PARM_DESC(mctppcie_status, "Check MCTP PCIe status");
++
+ struct pcie_vdm_header {
+ 	__u32		length: 10,
+ 			revd0: 2,
+@@ -288,10 +335,21 @@
+ 	int rx_recv_idx;
+ };
+ 
++static int clear_mctppcie_reset(const char *val, const struct kernel_param *kp)
++{
++    mctppcie_status = PCIE_NOT_READY;
++    return 0;
++}
++
++static int get_mctppcie_status(char *val, const struct kernel_param *kp)
++{
++    return (snprintf(val,64,"%d",mctppcie_status));
++}
++
+ /******************************************************************************/
+ 
+ static inline u32
+-aspeed_mctp_read(struct aspeed_mctp_info *aspeed_mctp, u32 reg)
++aspeed_mctp_readl(struct aspeed_mctp_info *aspeed_mctp, u32 reg)
+ {
+ 	u32 val;
+ 
+@@ -301,7 +359,7 @@
+ }
+ 
+ static inline void
+-aspeed_mctp_write(struct aspeed_mctp_info *aspeed_mctp, u32 val, u32 reg)
++aspeed_mctp_writel(struct aspeed_mctp_info *aspeed_mctp, u32 val, u32 reg)
+ {
+ //	MCTP_DBUG("reg = 0x%08x, val = 0x%08x\n", reg, val);
+ 	writel(val, aspeed_mctp->reg_base + reg);
+@@ -371,16 +429,16 @@
+ 		return -EFAULT;
+ 	}
+ 
+-	/* 
++	/*
+ 	 * write MCTP_HW_READ_PT_UPDATE and wait until that bit back to 0,
+-	 * and then do it again, these steps can guarantee hw read pt will 
+-	 * update. 
++	 * and then do it again, these steps can guarantee hw read pt will
++	 * update.
+ 	 */
+-	aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
+-	while (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
+-	aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
+-	while (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
+-	hw_read_pt = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_NUM_MASK;
++	aspeed_mctp_writel(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
++	while (aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
++	aspeed_mctp_writel(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_TX_READ_PT);
++	while (aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_UPDATE);
++	hw_read_pt = aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_TX_READ_PT) & MCTP_HW_READ_PT_NUM_MASK;
+ 
+ 	if (((aspeed_mctp->tx_idx + needs_fifo) % MCTP_G6_TX_FIFO_NUM) == hw_read_pt) {
+ 		printk("TX FIFO full \n");
+@@ -439,13 +497,13 @@
+ 		  aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc0,
+ 		  aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_idx].desc1);
+ #endif
+-	aspeed_mctp_write(aspeed_mctp, (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL1) & ~(0x3)) | ctrl_cmd, ASPEED_MCTP_CTRL1);
++	aspeed_mctp_writel(aspeed_mctp, (aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL1) & ~(0x3)) | ctrl_cmd, ASPEED_MCTP_CTRL1);
+ 
+ 	//trigger write pt;
+-	aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_idx, ASPEED_MCTP_TX_WRITE_PT);
++	aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->tx_idx, ASPEED_MCTP_TX_WRITE_PT);
+ 
+ 	//trigger tx
+-	aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
++	aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
+ 
+ 	return 0;
+ }
+@@ -508,7 +566,7 @@
+ 							  PADDING_LEN(vdm_header->pad_len);
+ 
+ 		aspeed_mctp->tx_cmd_desc->desc1 = LAST_CMD | DEST_EP_ID(vdm_header->dest_epid) | TX_DATA_ADDR(aspeed_mctp->tx_pool_dma);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
+ 		break;
+ 	case 5:
+ 		//routing type [desc0 bit 12, desc0 bit 14], but bug at bit 12, don't use
+@@ -517,12 +575,12 @@
+ 						  G5_PKG_SIZE(vdm_header->length) | (vdm_header->pcie_target_id << 16) |
+ 						  PADDING_LEN(vdm_header->pad_len);
+ 		aspeed_mctp->tx_cmd_desc->desc1 = LAST_CMD | DEST_EP_ID(vdm_header->dest_epid) | G5_TX_DATA_ADDR(aspeed_mctp->tx_pool_dma);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_IER) | MCTP_TX_LAST, ASPEED_MCTP_IER);
+ 		break;
+ 	}
+ 
+ 	//trigger tx
+-	aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
++	aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_TX_TRIGGER, ASPEED_MCTP_CTRL);
+ 
+ 	wait_for_completion(&aspeed_mctp->tx_complete);
+ 
+@@ -534,8 +592,8 @@
+ 	int i = 0;
+ 
+ 	MCTP_DBUG("dram base %x \n", aspeed_mctp->dram_base);
+-	aspeed_mctp_write(aspeed_mctp, (aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_EID) & 0xff) |
+-			  aspeed_mctp->dram_base, ASPEED_MCTP_EID);
++	aspeed_mctp_writel(aspeed_mctp, (aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_EID) & 0xff) |
++			   aspeed_mctp->dram_base, ASPEED_MCTP_EID);
+ 
+ 	aspeed_mctp->tx_idx = 0;
+ 
+@@ -543,11 +601,11 @@
+ 		for (i = 0; i < aspeed_mctp->tx_fifo_num; i++)
+ 			aspeed_mctp->tx_cmd_desc[i].desc1 = ((aspeed_mctp->tx_pool_dma + (MCTP_TX_BUFF_SIZE * i)) & 0x7ffffff0) | 0x1;
+ 		aspeed_mctp->tx_cmd_desc[aspeed_mctp->tx_fifo_num - 1].desc1 |= LAST_CMD;
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_DESC_ADDR);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_fifo_num, ASPEED_MCTP_TX_DESC_NUM);
+-		aspeed_mctp_write(aspeed_mctp, 0, ASPEED_MCTP_TX_WRITE_PT);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_DESC_ADDR);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->tx_fifo_num, ASPEED_MCTP_TX_DESC_NUM);
++		aspeed_mctp_writel(aspeed_mctp, 0, ASPEED_MCTP_TX_WRITE_PT);
+ 	} else {
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_CMD);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->tx_cmd_desc_dma, ASPEED_MCTP_TX_CMD);
+ 	}
+ 
+ 	aspeed_mctp->rx_idx = 0;
+@@ -569,17 +627,17 @@
+ 		aspeed_mctp->rx_cmd_num = aspeed_mctp->rx_fifo_num * 4 + 4;
+ 
+ 		for (i = 0; i < aspeed_mctp->rx_cmd_num; i++) {
+-			rx_cmd_header = (u32 *)aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * i);
++			rx_cmd_header = (u32 *)(aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * i));
+ 			*rx_cmd_header = 0;
+ 			rx_cmd_desc[i] = (u32)aspeed_mctp->rx_pool_dma + (aspeed_mctp->rx_fifo_size * i);
+ 			MCTP_DBUG("Rx [%d]: desc: %x , \n", i, rx_cmd_desc[i]);
+ 		}
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_fifo_num, ASPEED_MCTP_RX_DESC_NUM);
+-		aspeed_mctp_write(aspeed_mctp, 0, ASPEED_MCTP_RX_READ_PT);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_DESC_ADDR);
+-		aspeed_mctp_write(aspeed_mctp, MCTP_TX_CMD_WRONG | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
+-		aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_DESC_ADDR);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->rx_fifo_num, ASPEED_MCTP_RX_DESC_NUM);
++		aspeed_mctp_writel(aspeed_mctp, 0, ASPEED_MCTP_RX_READ_PT);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_TX_CMD_WRONG | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
+ 	} else {
+ 		//ast2400/ast2500 : each 128 bytes align, and only 64 bytes can receive
+ 		struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
+@@ -590,9 +648,9 @@
+ 				rx_cmd_desc[i].desc1 |= LAST_CMD;
+ 			MCTP_DBUG("Rx [%d]: desc0: %x , desc1: %x \n", i, rx_cmd_desc[i].desc0, rx_cmd_desc[i].desc1);
+ 		}
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_CMD);
+-		aspeed_mctp_write(aspeed_mctp, MCTP_RX_COMPLETE | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->rx_cmd_desc_dma, ASPEED_MCTP_RX_CMD);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_RX_COMPLETE | MCTP_RX_NO_CMD, ASPEED_MCTP_IER);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL) | MCTP_RX_CMD_RDY, ASPEED_MCTP_CTRL);
+ 	}
+ 
+ }
+@@ -602,25 +660,28 @@
+ 	struct aspeed_mctp_info *aspeed_mctp = dev_id;
+ 
+ 	MCTP_DBUG("\n");
++	spin_lock(&mctp_state_lock);
+ 	aspeed_mctp_ctrl_init(aspeed_mctp);
++    if(mctppcie_status==PCIE_READY) mctppcie_status=PCIE_RESET;
++    spin_unlock(&mctp_state_lock);
+ 	return IRQ_HANDLED;
+ }
+ 
+ static irqreturn_t aspeed_mctp_isr(int this_irq, void *dev_id)
+ {
+ 	struct aspeed_mctp_info *aspeed_mctp = dev_id;
+-	u32 status = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_ISR);
++	u32 status = aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_ISR);
+ 
+ 	MCTP_DBUG("%x \n", status);
+-
++	spin_lock(&mctp_state_lock);
+ 	if (status & MCTP_TX_LAST) {
+ 		//only for ast2400/ast2500, ast2600 is tx fifo
+-		aspeed_mctp_write(aspeed_mctp, MCTP_TX_LAST, ASPEED_MCTP_ISR);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_TX_LAST, ASPEED_MCTP_ISR);
+ 		complete(&aspeed_mctp->tx_complete);
+ 	}
+ 
+ 	if (status & MCTP_TX_COMPLETE) {
+-		aspeed_mctp_write(aspeed_mctp, MCTP_TX_COMPLETE, ASPEED_MCTP_ISR);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_TX_COMPLETE, ASPEED_MCTP_ISR);
+ 		printk("don't care don't use \n");
+ 	}
+ 
+@@ -641,20 +702,256 @@
+ 					break;
+ 			}
+ 		}
+-		aspeed_mctp_write(aspeed_mctp, MCTP_RX_COMPLETE, ASPEED_MCTP_ISR);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_RX_COMPLETE, ASPEED_MCTP_ISR);
+ 	}
+ 
+ 	if (status & MCTP_RX_NO_CMD) {
+ 		aspeed_mctp->rx_full = 1;
+-		aspeed_mctp_write(aspeed_mctp, MCTP_RX_NO_CMD, ASPEED_MCTP_ISR);
++		aspeed_mctp_writel(aspeed_mctp, MCTP_RX_NO_CMD, ASPEED_MCTP_ISR);
+ 		printk("MCTP_RX_NO_CMD \n");
+ 	}
+-
++	spin_unlock(&mctp_state_lock);
+ 	return IRQ_HANDLED;
+ }
+ 
+-static long mctp_ioctl(struct file *file, unsigned int cmd,
+-		       unsigned long arg)
++static ssize_t aspeed_mctp_write(struct file *file, const char __user *buf,
++				 size_t len, loff_t *offset)
++{
++	int rc;
++	struct miscdevice *c = file->private_data;
++	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
++	struct aspeed_mctp_xfer mctp_xfer;
++	
++	spin_lock(&mctp_state_lock);
++
++	if (len != sizeof(mctp_xfer))
++	{
++		spin_unlock(&mctp_state_lock);
++		return -EINVAL;
++	}
++	rc = copy_from_user(&mctp_xfer, buf, len);
++	if (rc)
++		return rc;
++
++	MCTP_DBUG("ASPEED_MCTP_IOCTX ver %d\n", aspeed_mctp->mctp_version);
++	if (aspeed_mctp->mctp_version != 0) {
++		if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++			MCTP_DBUG("PCIE not ready \n");
++			spin_unlock(&mctp_state_lock);
++			return -EFAULT;
++		}
++        else
++        {
++            if(mctppcie_status==PCIE_NOT_READY) mctppcie_status=PCIE_READY;
++            //MCTP_DBUG("PCIE ready\n");    
++        }
++	}
++	if (aspeed_mctp->mctp_version == 6) {
++		rc = aspeed_mctp_g6_tx_xfer(aspeed_mctp, &mctp_xfer);
++	} else {
++		rc = aspeed_mctp_tx_xfer(aspeed_mctp, &mctp_xfer);
++	}
++
++	if (rc)
++	{
++		spin_unlock(&mctp_state_lock);
++		return -EFAULT;
++	}
++	
++	spin_unlock(&mctp_state_lock);
++	return len;
++
++}
++
++static ssize_t aspeed_mctp_read(struct file *file, char __user *buf,
++				size_t len, loff_t *offset)
++{
++	int rc;
++	int recv_length;
++	struct miscdevice *c = file->private_data;
++	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
++	struct aspeed_mctp_xfer mctp_xfer;
++
++	spin_lock(&mctp_state_lock);
++	
++	if (len != sizeof(mctp_xfer))
++	{
++		spin_unlock(&mctp_state_lock);
++		return -EINVAL;
++	}
++	
++	rc = copy_from_user(&mctp_xfer, buf, len);
++	if (rc)
++	{
++		spin_unlock(&mctp_state_lock);
++		return rc;
++	}
++	
++	if (aspeed_mctp->mctp_version == 6) {
++		struct pcie_vdm_header *vdm;
++		u32 hw_read_pt;
++		u32 *rx_buffer;
++		u32 *header_dw;
++
++		aspeed_mctp_writel(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
++		hw_read_pt = aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_RX_WRITE_PT) & MCTP_HW_READ_PT_NUM_MASK;
++
++		if (aspeed_mctp->rx_idx == hw_read_pt) {
++			// MCTP_DBUG("No rx data\n");
++			spin_unlock(&mctp_state_lock);
++			return 0;
++		}
++
++		// when reboot first round, drop old data.
++		while (aspeed_mctp->rx_reboot) {
++			header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			if (*header_dw != 0) {
++				aspeed_mctp->rx_reboot = 0;
++				break;
++			}
++			aspeed_mctp->rx_recv_idx++;
++			aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++		}
++
++		if (aspeed_mctp->rx_first_loop) {
++			int wrap_around = 0;
++			header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			while (*header_dw == 0) {
++				MCTP_DBUG("first loop header_dw == 0");
++				MCTP_DBUG("first loop rx_recv_idx:%d", aspeed_mctp->rx_recv_idx);
++				aspeed_mctp->rx_recv_idx++;
++				if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
++					wrap_around = 1;
++					
++				aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++				header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			}
++			if (wrap_around) {
++				MCTP_DBUG("wrap around");
++				aspeed_mctp->rx_first_loop = 0;
++				aspeed_mctp->rx_cmd_num -= 4;
++			}
++		} else {
++			header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			while (*header_dw == 0) {
++				MCTP_DBUG("header_dw == 0");
++				aspeed_mctp->rx_recv_idx++;
++				aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++				header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			}
++		}
++
++		MCTP_DBUG("rx_recv_idx:%d, rx_idx:%d", aspeed_mctp->rx_recv_idx, aspeed_mctp->rx_idx);
++		MCTP_DBUG("rx_cmd_num:%d, rx_fifo_num:%d", aspeed_mctp->rx_cmd_num, aspeed_mctp->rx_fifo_num);
++		MCTP_DBUG("rx_first_loop:%d, rx_reboot:%d", aspeed_mctp->rx_first_loop, aspeed_mctp->rx_reboot);
++
++		vdm = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++		header_dw = (u32 *)vdm;
++		rx_buffer = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx) + sizeof(struct pcie_vdm_header);
++
++		recv_length = (vdm->length * 4) + vdm->pad_len;
++		mctp_xfer.header = *vdm;
++
++		rc = copy_to_user(mctp_xfer.xfer_buff, rx_buffer, recv_length);
++		if (rc)
++		{
++			spin_unlock(&mctp_state_lock);
++			return rc;
++		}
++		
++		rc = copy_to_user(buf, &mctp_xfer, sizeof(struct aspeed_mctp_xfer));
++		if (rc)
++		{
++			spin_unlock(&mctp_state_lock);
++			return rc;
++		}
++
++		*header_dw = 0;
++		aspeed_mctp->rx_recv_idx++;
++		aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++
++		aspeed_mctp->rx_idx++;
++		aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->rx_idx, ASPEED_MCTP_RX_READ_PT);
++
++	} else {
++		struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
++		u32 desc0 = rx_cmd_desc[aspeed_mctp->rx_idx].desc0;
++		unsigned int pci_bdf;
++
++		if ((aspeed_mctp->rx_idx == aspeed_mctp->rx_hw_idx) && (!desc0)) {
++			if (aspeed_mctp->rx_full) {
++				MCTP_DBUG("re-trigger\n");
++				aspeed_mctp_ctrl_init(aspeed_mctp);
++				aspeed_mctp->rx_full = 0;
++			}
++			
++			spin_unlock(&mctp_state_lock);
++			return 0;
++		}
++
++		if (!desc0)
++		{
++			spin_unlock(&mctp_state_lock);
++			return 0;
++		}
++		
++		mctp_xfer.header.length = GET_PKG_LEN(desc0);
++		MCTP_DBUG("mctp_xfer.header.length %d \n", mctp_xfer.header.length);
++
++		if (mctp_xfer.header.length != 0 && mctp_xfer.header.length < GET_PKG_LEN(desc0))
++		{
++			spin_unlock(&mctp_state_lock);
++			return -EINVAL;
++		}
++		
++		mctp_xfer.header.pad_len = GET_PADDING_LEN(desc0);
++		mctp_xfer.header.src_epid = GET_SRC_EPID(desc0);
++		mctp_xfer.header.type_routing = GET_ROUTING_TYPE(desc0);
++		mctp_xfer.header.pkt_seq = GET_SEQ_NO(desc0);
++		mctp_xfer.header.msg_tag = GET_MSG_TAG(desc0);
++		mctp_xfer.header.eom = GET_MCTP_EOM(desc0);
++		mctp_xfer.header.som = GET_MCTP_SOM(desc0);
++		// 0x1e6ed0c4[4:0]: Dev#
++		// 0x1e6ed0c4[12:5]: Bus#
++		// Fun# always 0
++		if (aspeed_mctp->mctp_version != 0) {
++			pci_bdf = readl(aspeed_mctp->pci_bdf_regs + 0xc4);
++			mctp_xfer.header.pcie_target_id = (pci_bdf & 0x1f) << 3 |
++							  (pci_bdf >> 5 & 0xff) << 8;
++		}
++		recv_length = (mctp_xfer.header.length * 4);
++
++		rc = copy_to_user(mctp_xfer.xfer_buff,
++				  aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_idx),
++				  recv_length);
++
++		if (rc)
++		{
++			spin_unlock(&mctp_state_lock);
++			return rc;
++		}
++		
++		rc = copy_to_user(buf, &mctp_xfer, sizeof(struct aspeed_mctp_xfer));
++		if (rc)
++		{
++			spin_unlock(&mctp_state_lock);
++			return rc;
++		}
++		
++		rx_cmd_desc[aspeed_mctp->rx_idx].desc0 = 0;
++		aspeed_mctp->rx_idx++;
++		aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++
++	}
++	
++	spin_unlock(&mctp_state_lock);
++	return len;
++
++}
++
++static long aspeed_mctp_ioctl(struct file *file, unsigned int cmd,
++			      unsigned long arg)
+ {
+ 	struct miscdevice *c = file->private_data;
+ 	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
+@@ -662,29 +959,32 @@
+ 	void __user *argp = (void __user *)arg;
+ 	int recv_length;
+ 	int ret;
+- 
+-
+ 
+ 	if (copy_from_user(&mctp_xfer, argp, sizeof(struct aspeed_mctp_xfer)))
+ 		return -EFAULT;
+ 
+ 	switch (cmd) {
+ 	case ASPEED_MCTP_IOCTX:
+-		spin_lock(&mctp_state_lock);
+ 		MCTP_DBUG("ASPEED_MCTP_IOCTX ver %d\n", aspeed_mctp->mctp_version);
++		spin_lock(&mctp_state_lock);
+ 		if (aspeed_mctp->mctp_version != 0) {
+ 			if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
+-				printk("PCIE not ready \n");
++				MCTP_DBUG("PCIE not ready \n");
+ 				spin_unlock(&mctp_state_lock);
+ 				return -EFAULT;
+ 			}
++            else
++            {  
++                if(mctppcie_status==PCIE_NOT_READY) mctppcie_status=PCIE_READY;
++                //MCTP_DBUG("PCIE ready\n");
++            }
+ 		}
+ 		if (aspeed_mctp->mctp_version == 6) {
+ 			ret = aspeed_mctp_g6_tx_xfer(aspeed_mctp, &mctp_xfer);
+ 		} else {
+ 			ret = aspeed_mctp_tx_xfer(aspeed_mctp, &mctp_xfer);
+ 		}
+-		
++
+ 		if (ret)
+ 		{
+ 			spin_unlock(&mctp_state_lock);
+@@ -697,113 +997,109 @@
+ 		}
+ 		break;
+ 	case ASPEED_MCTP_IOCRX:
+-		spin_lock(&mctp_state_lock);
+ 		// MCTP_DBUG("ASPEED_MCTP_IOCRX \n");
++		spin_lock(&mctp_state_lock);
+ 		if (aspeed_mctp->mctp_version == 6) {
++			struct pcie_vdm_header *vdm;
+ 			u32 hw_read_pt;
+-			aspeed_mctp_write(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
+-			hw_read_pt = aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_RX_WRITE_PT) & MCTP_HW_READ_PT_NUM_MASK;
++			u32 *rx_buffer;
++			u32 *header_dw;
++
++			aspeed_mctp_writel(aspeed_mctp, MCTP_HW_READ_PT_UPDATE, ASPEED_MCTP_RX_WRITE_PT);
++			hw_read_pt = aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_RX_WRITE_PT) & MCTP_HW_READ_PT_NUM_MASK;
+ 
+ 			if (aspeed_mctp->rx_idx == hw_read_pt) {
+ 				// MCTP_DBUG("No rx data\n");
+ 				spin_unlock(&mctp_state_lock);
+ 				return 0;
+-			} else {
+-				struct pcie_vdm_header *vdm;
+-				u32 *rx_buffer;
+-				u32 *header_dw;
++			}
+ 
+-				// when reboot first round, drop old data.
+-				while (aspeed_mctp->rx_reboot) {
+-					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
+-					if (*header_dw != 0) {
+-						aspeed_mctp->rx_reboot = 0;
+-						break;
+-					}
+-					aspeed_mctp->rx_recv_idx++;
++			// when reboot first round, drop old data.
++			while (aspeed_mctp->rx_reboot) {
++				header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++				if (*header_dw != 0) {
++					aspeed_mctp->rx_reboot = 0;
++					break;
+ 				}
+-				if (aspeed_mctp->rx_first_loop) {
+-					int wrap_around = 0;
+-					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
+-					while (*header_dw == 0) {
+-						MCTP_DBUG("first loop header_dw == 0");
+-						MCTP_DBUG("first loop rx_recv_idx:%d", aspeed_mctp->rx_recv_idx);
+-						aspeed_mctp->rx_recv_idx++;
+-						if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
+-						{
+-							if (aspeed_mctp->mctp_version != 0) {
+-                        		if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
+-									aspeed_mctp_ctrl_init(aspeed_mctp);
+-									aspeed_mctp->rx_full = 0;
+-                                	spin_unlock(&mctp_state_lock);
+-									return -EFAULT;
+-                        		}
+-                			}
+-
+-							wrap_around = 1;
+-						}
+-						aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
+-						header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
+-					}
+-					if (wrap_around) {
+-						MCTP_DBUG("wrap around");
+-						aspeed_mctp->rx_first_loop = 0;
+-						aspeed_mctp->rx_cmd_num -= 4;
+-					}
+-				} else {
+-					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
+-					while (*header_dw == 0) {
+-						MCTP_DBUG("header_dw == 0");
+-						aspeed_mctp->rx_recv_idx++;
+-						
+-						if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
+-						{
+-							if (aspeed_mctp->mctp_version != 0) {
+-                        		if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
+-									aspeed_mctp_ctrl_init(aspeed_mctp);
+-									aspeed_mctp->rx_full = 0;
+-                                	spin_unlock(&mctp_state_lock);
+-                                	return -EFAULT;
+-                        		}
+-                			}
+-						}
++				aspeed_mctp->rx_recv_idx++;
++				aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++			}
++
++			if (aspeed_mctp->rx_first_loop) {
++				int wrap_around = 0;
++				header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++				while (*header_dw == 0) {
++					MCTP_DBUG("first loop header_dw == 0");
++					MCTP_DBUG("first loop rx_recv_idx:%d", aspeed_mctp->rx_recv_idx);
++					aspeed_mctp->rx_recv_idx++;
++					if (aspeed_mctp->rx_recv_idx >= aspeed_mctp->rx_cmd_num)
++						wrap_around = 1;
+ 						
+-						aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
+-						header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					
++					if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++				    	MCTP_DBUG("re-trigger\n");
++						aspeed_mctp_ctrl_init(aspeed_mctp);
++						aspeed_mctp->rx_full = 0;
++						spin_unlock(&mctp_state_lock);
++						return 0;
+ 					}
+ 				}
+-
+-				MCTP_DBUG("rx_recv_idx:%d, rx_idx:%d", aspeed_mctp->rx_recv_idx, aspeed_mctp->rx_idx);
+-				MCTP_DBUG("rx_cmd_num:%d, rx_fifo_num:%d", aspeed_mctp->rx_cmd_num, aspeed_mctp->rx_fifo_num);
+-				MCTP_DBUG("rx_first_loop:%d, rx_reboot:%d", aspeed_mctp->rx_first_loop, aspeed_mctp->rx_reboot);
+-
+-				vdm = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
+-				header_dw = (u32 *)vdm;
+-				rx_buffer = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx) + sizeof(struct pcie_vdm_header);
+-
+-				recv_length = (vdm->length * 4) + vdm->pad_len;
+-				mctp_xfer.header = *vdm;
+-
+-				if (copy_to_user(mctp_xfer.xfer_buff, rx_buffer, recv_length))
+-				{
+-					spin_unlock(&mctp_state_lock);
+-					return -EFAULT;
++				if (wrap_around) {
++					MCTP_DBUG("wrap around");
++					aspeed_mctp->rx_first_loop = 0;
++					aspeed_mctp->rx_cmd_num -= 4;
+ 				}
+ 				
+-				if (copy_to_user(argp, &mctp_xfer, sizeof(struct aspeed_mctp_xfer)))
+-				{
+-					spin_unlock(&mctp_state_lock);
+-					return -EFAULT;
++			} else {
++				header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++				while (*header_dw == 0) {
++					MCTP_DBUG("header_dw == 0");
++					aspeed_mctp->rx_recv_idx++;
++					aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++					header_dw = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++					
++					if ((readl(aspeed_mctp->pci_bdf_regs + 0xc4) & 0x1fff) == 0) {
++				    	MCTP_DBUG("re-trigger\n");
++						aspeed_mctp_ctrl_init(aspeed_mctp);
++						aspeed_mctp->rx_full = 0;
++						spin_unlock(&mctp_state_lock);
++						return 0;
++					}
+ 				}
++			}
+ 
+-				*header_dw = 0;
+-				aspeed_mctp->rx_recv_idx++;
+-				aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++			MCTP_DBUG("rx_recv_idx:%d, rx_idx:%d", aspeed_mctp->rx_recv_idx, aspeed_mctp->rx_idx);
++			MCTP_DBUG("rx_cmd_num:%d, rx_fifo_num:%d", aspeed_mctp->rx_cmd_num, aspeed_mctp->rx_fifo_num);
++			MCTP_DBUG("rx_first_loop:%d, rx_reboot:%d", aspeed_mctp->rx_first_loop, aspeed_mctp->rx_reboot);
++
++			vdm = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx);
++			header_dw = (u32 *)vdm;
++			rx_buffer = aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_recv_idx) + sizeof(struct pcie_vdm_header);
++
++			recv_length = (vdm->length * 4) + vdm->pad_len;
++			mctp_xfer.header = *vdm;
+ 
+-				aspeed_mctp->rx_idx++;
+-				aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
+-				aspeed_mctp_write(aspeed_mctp, aspeed_mctp->rx_idx, ASPEED_MCTP_RX_READ_PT);
++			if (copy_to_user(mctp_xfer.xfer_buff, rx_buffer, recv_length))
++			{
++				spin_unlock(&mctp_state_lock);
++				return -EFAULT;
+ 			}
++			
++			if (copy_to_user(argp, &mctp_xfer, sizeof(struct aspeed_mctp_xfer)))
++			{
++				spin_unlock(&mctp_state_lock);
++				return -EFAULT;
++			}	
++			*header_dw = 0;
++			aspeed_mctp->rx_recv_idx++;
++			aspeed_mctp->rx_recv_idx %= aspeed_mctp->rx_cmd_num;
++
++			aspeed_mctp->rx_idx++;
++			aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++			aspeed_mctp_writel(aspeed_mctp, aspeed_mctp->rx_idx, ASPEED_MCTP_RX_READ_PT);
++
+ 		} else {
+ 			struct aspeed_mctp_cmd_desc *rx_cmd_desc = aspeed_mctp->rx_cmd_desc;
+ 			u32 desc0 = rx_cmd_desc[aspeed_mctp->rx_idx].desc0;
+@@ -820,7 +1116,7 @@
+ 			}
+ 
+ 			if (!desc0)
+-			{	
++			{
+ 				spin_unlock(&mctp_state_lock);
+ 				return 0;
+ 			}
+@@ -833,7 +1129,6 @@
+ 				spin_unlock(&mctp_state_lock);
+ 				return -EINVAL;
+ 			}
+-
+ 			mctp_xfer.header.pad_len = GET_PADDING_LEN(desc0);
+ 			mctp_xfer.header.src_epid = GET_SRC_EPID(desc0);
+ 			mctp_xfer.header.type_routing = GET_ROUTING_TYPE(desc0);
+@@ -854,8 +1149,8 @@
+ 			if (copy_to_user(mctp_xfer.xfer_buff,
+ 					 aspeed_mctp->rx_pool + (aspeed_mctp->rx_fifo_size * aspeed_mctp->rx_idx),
+ 					 recv_length)) {
+-
+-				spin_unlock(&mctp_state_lock);
++					 
++				spin_unlock(&mctp_state_lock);	 
+ 				return -EFAULT;
+ 			}
+ 
+@@ -864,12 +1159,11 @@
+ 				spin_unlock(&mctp_state_lock);
+ 				return -EFAULT;
+ 			}
+-
+ 			rx_cmd_desc[aspeed_mctp->rx_idx].desc0 = 0;
+ 			aspeed_mctp->rx_idx++;
+ 			aspeed_mctp->rx_idx %= aspeed_mctp->rx_fifo_num;
++
+ 		}
+-		
+ 		spin_unlock(&mctp_state_lock);
+ 		break;
+ 
+@@ -878,10 +1172,11 @@
+ 		return -ENOTTY;
+ 	}
+ 
++	
+ 	return 0;
+ }
+ 
+-static int mctp_open(struct inode *inode, struct file *file)
++static int aspeed_mctp_open(struct inode *inode, struct file *file)
+ {
+ 	struct miscdevice *c = file->private_data;
+ 	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
+@@ -900,7 +1195,7 @@
+ 	return 0;
+ }
+ 
+-static int mctp_release(struct inode *inode, struct file *file)
++static int aspeed_mctp_release(struct inode *inode, struct file *file)
+ {
+ 	struct miscdevice *c = file->private_data;
+ 	struct aspeed_mctp_info *aspeed_mctp = container_of(c, struct aspeed_mctp_info, misc_dev);
+@@ -926,9 +1221,11 @@
+ 
+ static const struct file_operations aspeed_mctp_fops = {
+ 	.owner		= THIS_MODULE,
+-	.unlocked_ioctl	= mctp_ioctl,
+-	.open		= mctp_open,
+-	.release	= mctp_release,
++	.read		= aspeed_mctp_read,
++	.write		= aspeed_mctp_write,
++	.unlocked_ioctl	= aspeed_mctp_ioctl,
++	.open		= aspeed_mctp_open,
++	.release	= aspeed_mctp_release,
+ };
+ 
+ static const struct of_device_id aspeed_mctp_of_matches[] = {
+@@ -937,7 +1234,6 @@
+ 	{ .compatible = "aspeed,ast2600-mctp", .data = (void *) 6, },
+ 	{},
+ };
+-MODULE_DEVICE_TABLE(of, aspeed_mctp_of_matches);
+ 
+ static int reserved_idx = -1;
+ 
+@@ -946,8 +1242,8 @@
+ 	struct resource *res;
+ 	struct aspeed_mctp_info *aspeed_mctp;
+ 	struct device_node *np = pdev->dev.of_node;
+-	// struct miscdevice *misc_dev;
+ 	const struct of_device_id *mctp_dev_id;
++	size_t dma_size;
+ 	int max_reserved_idx;
+ 	int idx;
+ 	int fifo_num;
+@@ -957,26 +1253,30 @@
+ 	MCTP_DBUG("\n");
+ 
+ 	if (!(aspeed_mctp = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_mctp_info), GFP_KERNEL))) {
+-		return -ENOMEM;
++		ret = -EINVAL;
++		goto out;
+ 	}
+ 
+ 	mctp_dev_id = of_match_device(aspeed_mctp_of_matches, &pdev->dev);
+-	if (!mctp_dev_id)
+-		return -EINVAL;
++	if (!mctp_dev_id) {
++		ret = -EINVAL;
++		goto out;
++	}
+ 
+ 	aspeed_mctp->mctp_version = (unsigned long)mctp_dev_id->data;
+ 
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	if (NULL == res) {
+ 		dev_err(&pdev->dev, "cannot get IORESOURCE_MEM\n");
+-		ret = -ENOENT;
++		ret = -EINVAL;
+ 		goto out;
+ 	}
+ 
+ 	aspeed_mctp->reg_base = devm_ioremap_resource(&pdev->dev, res);
+ 	if (!aspeed_mctp->reg_base) {
++		dev_err(&pdev->dev, "ioremap fail\n");
+ 		ret = -EIO;
+-		goto out_region;
++		goto out;
+ 	}
+ 
+ 	switch (aspeed_mctp->mctp_version) {
+@@ -1013,7 +1313,8 @@
+ 			break;
+ 		default:
+ 			dev_err(&pdev->dev, "rx payload only support 64, 128 and 256 bytes\n");
+-			goto out_region;
++			ret = -EINVAL;
++			goto out;
+ 		}
+ 
+ 		if (of_property_read_u32(np, "tx-payload-bytes",
+@@ -1035,10 +1336,11 @@
+ 			break;
+ 		default:
+ 			dev_err(&pdev->dev, "tx payload only support 64, 128 and 256 bytes\n");
+-			goto out_region;
++			ret = -EINVAL;
++			goto out;
+ 		}
+ 
+-		aspeed_mctp_write(aspeed_mctp, aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_CTRL1) | ctrl_cmd, ASPEED_MCTP_CTRL1);
++		aspeed_mctp_writel(aspeed_mctp, aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_CTRL1) | ctrl_cmd, ASPEED_MCTP_CTRL1);
+ 
+ 		aspeed_mctp->tx_fifo_num = MCTP_G6_TX_FIFO_NUM;
+ 		//must 16byte align
+@@ -1052,33 +1354,67 @@
+ 		break;
+ 	default:
+ 		dev_err(&pdev->dev, "cannot get mctp version\n");
+-		goto out_region;
+-		break;
++		ret = -EINVAL;
++		goto out;
+ 	}
+ 
++	if (aspeed_mctp->mctp_version != 6) {
++		dma_size = MCTP_DMA_SIZE;
++	} else {
++		dma_size = MCTP_G6_DMA_SIZE;
++	}
++	aspeed_mctp->tx_cmd_desc = dma_alloc_coherent(&pdev->dev,
++				   dma_size, &aspeed_mctp->tx_cmd_desc_dma, GFP_KERNEL);
++	aspeed_mctp->rx_cmd_desc = (void *)aspeed_mctp->tx_cmd_desc + MCTP_DESC_SIZE;
++	aspeed_mctp->rx_cmd_desc_dma = aspeed_mctp->tx_cmd_desc_dma + MCTP_DESC_SIZE;
++	aspeed_mctp->tx_pool = aspeed_mctp->rx_cmd_desc + MCTP_DESC_SIZE;
++	aspeed_mctp->tx_pool_dma = aspeed_mctp->rx_cmd_desc_dma + MCTP_DESC_SIZE;
++	aspeed_mctp->rx_pool = aspeed_mctp->tx_pool + MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_fifo_num;
++	aspeed_mctp->rx_pool_dma = aspeed_mctp->tx_pool_dma + MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_fifo_num;
++
+ 	// g4 not support pcie host controller
+ 	if (aspeed_mctp->mctp_version != 0) {
++
+ 		aspeed_mctp->pci_bdf_regs = ioremap(0x1e6ed000,256);
+ 		if (!aspeed_mctp->pci_bdf_regs) {
+ 			dev_err(&pdev->dev, "failed to remap pcie\n");
+ 			ret = -ENOMEM;
+-			goto out_region;
++			goto free;
++		}
++	}
++
++	aspeed_mctp->reset = devm_reset_control_get(&pdev->dev, NULL);
++	if (IS_ERR(aspeed_mctp->reset)) {
++		dev_err(&pdev->dev, "can't get mctp reset\n");
++		return PTR_ERR(aspeed_mctp->reset);
++	}
++
++//scu init
++	if (aspeed_mctp->mctp_version == 6) {
++		if (!of_find_property(np, "no-reset-on-reboot", NULL) ||
++		    aspeed_mctp_readl(aspeed_mctp, ASPEED_MCTP_TX_DESC_ADDR) == 0) {
++			printk(KERN_INFO "aspeed_mctp: reset.\n");
++			reset_control_assert(aspeed_mctp->reset);
++			reset_control_deassert(aspeed_mctp->reset);
+ 		}
++	} else {
++		reset_control_assert(aspeed_mctp->reset);
++		reset_control_deassert(aspeed_mctp->reset);
+ 	}
+ 
+ 	aspeed_mctp->irq = platform_get_irq_byname(pdev, "mctp");
+ 	if (aspeed_mctp->irq < 0) {
+-		dev_err(&pdev->dev, "no irq specified\n");
+ 		if (aspeed_mctp->mctp_version != 6) {
++			dev_err(&pdev->dev, "no irq specified\n");
+ 			ret = -ENOENT;
+-			goto out_region;
++			goto free;
+ 		}
+ 	} else {
+ 		ret = devm_request_irq(&pdev->dev, aspeed_mctp->irq, aspeed_mctp_isr,
+ 				       0, dev_name(&pdev->dev), aspeed_mctp);
+ 		if (ret) {
+-			printk("MCTP Unable to get IRQ");
+-			goto out_region;
++			dev_err(&pdev->dev, "MCTP Unable to get IRQ");
++			goto free;
+ 		}
+ 	}
+ 
+@@ -1086,42 +1422,16 @@
+ 	if (aspeed_mctp->pcie_irq < 0) {
+ 		dev_err(&pdev->dev, "no pcie reset irq specified\n");
+ 		ret = -ENOENT;
+-		goto out_region;
++		goto free;
+ 	} else {
+ 		ret = devm_request_irq(&pdev->dev, aspeed_mctp->pcie_irq, aspeed_pcie_raise_isr,
+ 				       IRQF_SHARED, dev_name(&pdev->dev), aspeed_mctp);
+ 		if (ret) {
+-			printk("MCTP Unable to get pcie raise IRQ");
+-			goto out_region;
++			dev_err(&pdev->dev, "MCTP Unable to get pcie raise IRQ");
++			goto free;
+ 		}
+ 	}
+ 
+-
+-	aspeed_mctp->reset = devm_reset_control_get(&pdev->dev, NULL);
+-	if (IS_ERR(aspeed_mctp->reset)) {
+-		dev_err(&pdev->dev, "can't get mctp reset\n");
+-		return PTR_ERR(aspeed_mctp->reset);
+-	}
+-
+-//scu init
+-	if (aspeed_mctp->mctp_version == 6) {
+-		if (!of_find_property(np, "no-reset-on-reboot", NULL) ||
+-		    aspeed_mctp_read(aspeed_mctp, ASPEED_MCTP_TX_CMD) == 0) {
+-			printk(KERN_INFO "aspeed_mctp: reset.\n");
+-			reset_control_assert(aspeed_mctp->reset);
+-			reset_control_deassert(aspeed_mctp->reset);
+-		}
+-	} else {
+-		reset_control_assert(aspeed_mctp->reset);
+-		reset_control_deassert(aspeed_mctp->reset);
+-	}
+-
+-	// aspeed_mctp->misc_dev = (struct miscdevice *)devm_kzalloc(&pdev->dev, sizeof(struct miscdevice), GFP_KERNEL);
+-	// if (!misc_dev) {
+-	// 	pr_err("failed to allocate misc device\n");
+-	// 	goto out_region;
+-	// }
+-
+ 	if (reserved_idx == -1) {
+ 		max_reserved_idx = of_alias_get_highest_id("mctp");
+ 		if (max_reserved_idx >= 0)
+@@ -1140,46 +1450,10 @@
+ 	ret = misc_register(&aspeed_mctp->misc_dev);
+ 
+ 	if (ret) {
+-		printk(KERN_ERR "MCTP : failed to request interrupt\n");
+-		goto out_region;
++		goto free;
+ 	}
+ 
+ 	platform_set_drvdata(pdev, aspeed_mctp);
+-	// dev_set_drvdata(misc_dev->this_device, aspeed_mctp);
+-
+-	// aspeed_mctp->misc_dev = misc_dev;
+-
+-	aspeed_mctp->tx_idx = 0;
+-
+-//tx desc allocate --> tx desc : 0~4096, rx desc : 4096 ~ 8192
+-	aspeed_mctp->tx_cmd_desc = dma_alloc_coherent(NULL,
+-				   MCTP_DESC_SIZE,
+-				   &aspeed_mctp->tx_cmd_desc_dma, GFP_KERNEL);
+-
+-//tx buff pool init
+-//ast2400/ast2500 : 128 bytes aligned,
+-//ast2600 : 16 bytes aligned,
+-	aspeed_mctp->tx_pool = dma_alloc_coherent(NULL,
+-			       MCTP_TX_BUFF_SIZE * aspeed_mctp->tx_fifo_num,
+-			       &aspeed_mctp->tx_pool_dma, GFP_KERNEL);
+-
+-//rx desc allocate : 4096 ~ 8192
+-	aspeed_mctp->rx_cmd_desc = (void *)aspeed_mctp->tx_cmd_desc + 4096;
+-	aspeed_mctp->rx_cmd_desc_dma = aspeed_mctp->tx_cmd_desc_dma + 4096;
+-
+-//rx buff pool init :
+-//ast2400/ast2500, data address [29:7]: 0x00 , 0x80 , 0x100, 0x180,
+-//ast2600, data address [30:4]: 0x00 , 0x10 , 0x20, 0x30,
+-	if (aspeed_mctp->mctp_version != 6) {
+-		aspeed_mctp->rx_pool = dma_alloc_coherent(NULL,
+-				       MCTP_RX_BUFF_POOL_SIZE,
+-				       &aspeed_mctp->rx_pool_dma, GFP_KERNEL);
+-	} else {
+-		// ast2600 workaround, rx_pool should be 4 times of rx fifo
+-		aspeed_mctp->rx_pool = dma_alloc_coherent(NULL,
+-				       MCTP_G6_RX_BUFF_POOL_SIZE,
+-				       &aspeed_mctp->rx_pool_dma, GFP_KERNEL);
+-	}
+ 
+ 	aspeed_mctp_ctrl_init(aspeed_mctp);
+ 
+@@ -1187,8 +1461,8 @@
+ 
+ 	return 0;
+ 
+-out_region:
+-	release_mem_region(res->start, res->end - res->start + 1);
++free:
++	dma_free_coherent(&pdev->dev, dma_size, &aspeed_mctp->tx_cmd_desc_dma, GFP_KERNEL);
+ out:
+ 	printk(KERN_WARNING "aspeed_mctp: driver init failed (ret=%d)!\n", ret);
+ 	return ret;
+@@ -1196,59 +1470,24 @@
+ 
+ static int aspeed_mctp_remove(struct platform_device *pdev)
+ {
+-	struct resource *res;
+ 	struct aspeed_mctp_info *aspeed_mctp = platform_get_drvdata(pdev);
+ 
+ 	MCTP_DBUG("\n");
++	if (aspeed_mctp->mctp_version != 6)
++		dma_free_coherent(&pdev->dev, MCTP_DMA_SIZE, aspeed_mctp->tx_cmd_desc, GFP_KERNEL);
++	else
++		dma_free_coherent(&pdev->dev, MCTP_G6_DMA_SIZE, aspeed_mctp->tx_cmd_desc, GFP_KERNEL);
+ 
+ 	misc_deregister(&aspeed_mctp->misc_dev);
+ 
+-	kfree_const(aspeed_mctp->misc_dev.name);
+-
+-	free_irq(aspeed_mctp->irq, aspeed_mctp);
+-
+-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-
+-	iounmap(aspeed_mctp->reg_base);
+-
+-	if (aspeed_mctp->mctp_version != 0) {
+-		iounmap(aspeed_mctp->pci_bdf_regs);
+-	}
+-
+-	platform_set_drvdata(pdev, NULL);
+-
+-	release_mem_region(res->start, res->end - res->start + 1);
+-
+-	return 0;
+-}
+-
+-#ifdef CONFIG_PM
+-static int
+-aspeed_mctp_suspend(struct platform_device *pdev, pm_message_t state)
+-{
+ 	return 0;
+ }
+ 
+-static int
+-aspeed_mctp_resume(struct platform_device *pdev)
+-{
+-	return 0;
+-}
+-
+-#else
+-#define aspeed_mctp_suspend        NULL
+-#define aspeed_mctp_resume         NULL
+-#endif
+-
+ static struct platform_driver aspeed_mctp_driver = {
+-	.probe 		= aspeed_mctp_probe,
+-	.remove 	= aspeed_mctp_remove,
+-#ifdef CONFIG_PM
+-	.suspend        = aspeed_mctp_suspend,
+-	.resume         = aspeed_mctp_resume,
+-#endif
+-	.driver         = {
+-		.name   = KBUILD_MODNAME,
++	.probe = aspeed_mctp_probe,
++	.remove = aspeed_mctp_remove,
++	.driver = {
++		.name = KBUILD_MODNAME,
+ 		.of_match_table = aspeed_mctp_of_matches,
+ 	},
+ };

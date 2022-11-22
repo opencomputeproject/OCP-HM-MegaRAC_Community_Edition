@@ -1,0 +1,265 @@
+diff -Nuar linux.orig/drivers/mmc/core/core.c linux.new/drivers/mmc/core/core.c
+--- linux.orig/drivers/mmc/core/core.c	2021-02-04 13:04:22.320857452 -0500
++++ linux.new/drivers/mmc/core/core.c	2021-02-04 13:08:00.195447278 -0500
+@@ -997,7 +997,6 @@
+ 	host->ios.bus_mode = MMC_BUSMODE_PUSHPULL;
+ 	host->ios.bus_width = MMC_BUS_WIDTH_1;
+ 	host->ios.timing = MMC_TIMING_LEGACY;
+-	host->ios.drv_type = 0;
+ 	host->ios.enhanced_strobe = false;
+ 
+ 	/*
+diff -Nuar linux.orig/drivers/mmc/host/sdhci-of-aspeed.c linux.new/drivers/mmc/host/sdhci-of-aspeed.c
+--- linux.orig/drivers/mmc/host/sdhci-of-aspeed.c	2021-02-04 13:04:22.320857452 -0500
++++ linux.new/drivers/mmc/host/sdhci-of-aspeed.c	2021-02-04 13:07:25.039052066 -0500
+@@ -10,6 +10,7 @@
+ #include <linux/module.h>
+ #include <linux/of_address.h>
+ #include <linux/of.h>
++#include <linux/of_gpio.h>
+ #include <linux/of_platform.h>
+ #include <linux/platform_device.h>
+ #include <linux/spinlock.h>
+@@ -20,6 +21,8 @@
+ #define   ASPEED_SDC_S1MMC8	BIT(25)
+ #define   ASPEED_SDC_S0MMC8	BIT(24)
+ 
++#define TIMING_PHASE_OFFSET 0xF4
++
+ struct aspeed_sdc {
+ 	struct clk *clk;
+ 	struct resource *res;
+@@ -31,6 +34,8 @@
+ struct aspeed_sdhci {
+ 	struct aspeed_sdc *parent;
+ 	u32 width_mask;
++	int	pwr_pin;
++	int	pwr_sw_pin;
+ };
+ 
+ static void aspeed_sdc_configure_8bit_mode(struct aspeed_sdc *sdc,
+@@ -52,6 +57,9 @@
+ 
+ static void aspeed_sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
+ {
++#ifdef CONFIG_MACH_ASPEED_G6
++	sdhci_set_clock(host, clock);
++#else
+ 	struct sdhci_pltfm_host *pltfm_host;
+ 	unsigned long parent;
+ 	int div;
+@@ -59,7 +67,6 @@
+ 
+ 	pltfm_host = sdhci_priv(host);
+ 	parent = clk_get_rate(pltfm_host->clk);
+-
+ 	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
+ 
+ 	if (clock == 0)
+@@ -68,23 +75,17 @@
+ 	if (WARN_ON(clock > host->max_clk))
+ 		clock = host->max_clk;
+ 
+-	for (div = 2; div < 256; div *= 2) {
++	for (div = 1; div < 256; div *= 2) {
+ 		if ((parent / div) <= clock)
+ 			break;
+ 	}
+ 	div >>= 1;
+ 
++	//Issue : For ast2300, ast2400 couldn't set div = 0 means /1 , so set source is ~50Mhz up
+ 	clk = div << SDHCI_DIVIDER_SHIFT;
+ 
+ 	sdhci_enable_clk(host, clk);
+-}
+-
+-static unsigned int aspeed_sdhci_get_max_clock(struct sdhci_host *host)
+-{
+-	if (host->mmc->f_max)
+-		return host->mmc->f_max;
+-
+-	return sdhci_pltfm_clk_get_max_clock(host);
++#endif	
+ }
+ 
+ static void aspeed_sdhci_set_bus_width(struct sdhci_host *host, int width)
+@@ -111,18 +112,107 @@
+ 	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
+ }
+ 
+-static const struct sdhci_ops aspeed_sdhci_ops = {
++static void sdhci_aspeed_set_power(struct sdhci_host *host, unsigned char mode,
++						   unsigned short vdd)
++{
++	struct sdhci_pltfm_host *pltfm_priv = sdhci_priv(host);
++	struct aspeed_sdhci *dev = sdhci_pltfm_priv(pltfm_priv);
++	u8 pwr = 0;
++
++
++	if (dev->pwr_pin <= 0)
++		return sdhci_set_power(host, mode, vdd);
++
++	if (mode != MMC_POWER_OFF) {
++			switch (1 << vdd) {
++			case MMC_VDD_165_195:
++			/*
++			 * Without a regulator, SDHCI does not support 2.0v
++			 * so we only get here if the driver deliberately
++			 * added the 2.0v range to ocr_avail. Map it to 1.8v
++			 * for the purpose of turning on the power.
++			 */
++			case MMC_VDD_20_21:
++					pwr = SDHCI_POWER_180;
++					break;
++			case MMC_VDD_29_30:
++			case MMC_VDD_30_31:
++					pwr = SDHCI_POWER_300;
++					break;
++			case MMC_VDD_32_33:
++			case MMC_VDD_33_34:
++					pwr = SDHCI_POWER_330;
++					break;
++			default:
++					WARN(1, "%s: Invalid vdd %#x\n",
++						 mmc_hostname(host->mmc), vdd);
++					break;
++			}
++	}
++
++    if (host->pwr == pwr)
++            return;
++
++    host->pwr = pwr;
++
++    if (pwr == 0) {
++            if(gpio_is_valid(dev->pwr_pin))
++                    gpio_set_value(dev->pwr_pin, 0);
++            sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
++    } else {
++            pwr |= SDHCI_POWER_ON;
++
++            if(pwr & SDHCI_POWER_ON) {
++                    if(gpio_is_valid(dev->pwr_pin))
++                            gpio_set_value(dev->pwr_pin, 1);
++            }
++
++            if (pwr & SDHCI_POWER_330) {
++                    if(gpio_is_valid(dev->pwr_sw_pin))
++                            gpio_set_value(dev->pwr_sw_pin, 1);
++            } else if (pwr & SDHCI_POWER_180) {
++                    if(gpio_is_valid(dev->pwr_sw_pin))
++                            gpio_set_value(dev->pwr_sw_pin, 0);
++            } else
++                    printk("todo fail check ~~ \n");
++
++            sdhci_writeb(host, pwr, SDHCI_POWER_CONTROL);
++    }
++}
++
++static void aspeed_sdhci_voltage_switch(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_priv = sdhci_priv(host);
++	struct aspeed_sdhci *dev = sdhci_pltfm_priv(pltfm_priv);
++
++	if (dev->pwr_sw_pin <= 0) {
++		return;
++	}
++    if (gpio_is_valid(dev->pwr_sw_pin))
++            gpio_set_value(dev->pwr_sw_pin, 0);
++}
++
++/*
++	AST2300/AST2400 : SDMA/PIO
++	AST2500 : ADMA/SDMA/PIO
++*/
++static struct sdhci_ops aspeed_sdhci_ops = {
++	.set_power = sdhci_aspeed_set_power,
++	.voltage_switch = aspeed_sdhci_voltage_switch,
+ 	.set_clock = aspeed_sdhci_set_clock,
+-	.get_max_clock = aspeed_sdhci_get_max_clock,
++	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+ 	.set_bus_width = aspeed_sdhci_set_bus_width,
+ 	.get_timeout_clock = sdhci_pltfm_clk_get_max_clock,
+ 	.reset = sdhci_reset,
+ 	.set_uhs_signaling = sdhci_set_uhs_signaling,
+ };
+ 
+-static const struct sdhci_pltfm_data aspeed_sdhci_pdata = {
++static struct sdhci_pltfm_data aspeed_sdhci_pdata = {
+ 	.ops = &aspeed_sdhci_ops,
++#ifndef CONFIG_MACH_ASPEED_G6
+ 	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
++	.quirks2 = SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN | SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
++#endif
+ };
+ 
+ static inline int aspeed_sdhci_calculate_slot(struct aspeed_sdhci *dev,
+@@ -146,6 +236,7 @@
+ static int aspeed_sdhci_probe(struct platform_device *pdev)
+ {
+ 	struct sdhci_pltfm_host *pltfm_host;
++	struct device_node *np = pdev->dev.of_node;
+ 	struct aspeed_sdhci *dev;
+ 	struct sdhci_host *host;
+ 	struct resource *res;
+@@ -187,6 +278,29 @@
+ 	if (ret)
+ 		goto err_sdhci_add;
+ 
++	dev->pwr_pin = of_get_named_gpio(np, "power-gpio", 0);
++	if(dev->pwr_pin >= 0) {
++		if (gpio_is_valid(dev->pwr_pin)) {
++			if (devm_gpio_request(&pdev->dev, dev->pwr_pin,
++								  "mmc_pwr")) {
++				printk("devm_gpio_request pwr fail \n");
++			}
++			gpio_direction_output(dev->pwr_pin, 1);
++		}
++	}
++	
++	dev->pwr_sw_pin = of_get_named_gpio(np, "power-switch-gpio", 0);
++
++	if(dev->pwr_sw_pin >= 0) {
++		if (gpio_is_valid(dev->pwr_sw_pin)) {
++			if (devm_gpio_request(&pdev->dev, dev->pwr_sw_pin,
++							  "mmc_pwr_sw")) {
++				printk("devm_gpio_request pwr sw fail \n");
++			}
++			gpio_direction_output(dev->pwr_sw_pin, 1);
++		}
++	}
++
+ 	ret = sdhci_add_host(host);
+ 	if (ret)
+ 		goto err_sdhci_add;
+@@ -240,6 +354,7 @@
+ 	struct device_node *parent, *child;
+ 	struct aspeed_sdc *sdc;
+ 	int ret;
++	u32 timing_phase;
+ 
+ 	sdc = devm_kzalloc(&pdev->dev, sizeof(*sdc), GFP_KERNEL);
+ 	if (!sdc)
+@@ -264,6 +379,10 @@
+ 		goto err_clk;
+ 	}
+ 
++	if (!of_property_read_u32(pdev->dev.of_node, \
++		"timing-phase", &timing_phase))
++		writel(timing_phase, sdc->regs + TIMING_PHASE_OFFSET);
++
+ 	dev_set_drvdata(&pdev->dev, sdc);
+ 
+ 	parent = pdev->dev.of_node;
+diff -Nuar linux.orig/drivers/mmc/host/sdhci-pltfm.c linux.new/drivers/mmc/host/sdhci-pltfm.c
+--- linux.orig/drivers/mmc/host/sdhci-pltfm.c	2021-02-04 13:04:22.320857452 -0500
++++ linux.new/drivers/mmc/host/sdhci-pltfm.c	2021-02-04 13:06:15.878251013 -0500
+@@ -110,6 +110,8 @@
+ 	if (device_property_read_bool(dev, "wakeup-source") ||
+ 	    device_property_read_bool(dev, "enable-sdio-wakeup")) /* legacy */
+ 		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
++	if (device_property_read_u8(dev, "sdhci-drive-type", &host->mmc->ios.drv_type) != 0)
++		host->mmc->ios.drv_type = 0;
+ }
+ EXPORT_SYMBOL_GPL(sdhci_get_property);
+ 

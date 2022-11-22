@@ -1,0 +1,13 @@
+[Unit]
+Description="Set BMC ready Bit"
+After=obmc-chassis-poweron@0.target
+
+[Service]
+ExecStart=/usr/bin/env /usr/sbin/bmcready.sh
+SyslogIdentifier=bmcready.sh
+Type=oneshot
+RemainAfterExit=no
+
+[Install]
+RequiredBy=chassis-poweron@0.target
+WantedBy=multi-user.target

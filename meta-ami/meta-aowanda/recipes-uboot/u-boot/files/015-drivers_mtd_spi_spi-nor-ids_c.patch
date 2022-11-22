@@ -1,0 +1,40 @@
+--- uboot_old/drivers/mtd/spi/spi-nor-ids.c	2021-02-01 13:50:50.288464886 +0800
++++ uboot/drivers/mtd/spi/spi-nor-ids.c	2021-02-01 11:51:38.853070900 +0800
+@@ -136,7 +136,7 @@
+ 	{ INFO("is25lp128",  0x9d6018, 0, 64 * 1024, 256,
+ 			SECT_4K | SPI_NOR_DUAL_READ) },
+ 	{ INFO("is25lp256",  0x9d6019, 0, 64 * 1024, 512,
+-			SECT_4K | SPI_NOR_DUAL_READ) },
++			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ 	{ INFO("is25lp512m",  0x9d601a, 0, 64 * 1024, 1024,
+ 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ 	{ INFO("is25wp032",  0x9d7016, 0, 64 * 1024,  64,
+@@ -165,6 +165,7 @@
+ 	{ INFO("mx66l51235l", 0xc2201a, 0, 64 * 1024, 1024, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES) },
+ 	{ INFO("mx66u51235f", 0xc2253a, 0, 64 * 1024, 1024, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES) },
+ 	{ INFO("mx66l1g45g",  0xc2201b, 0, 64 * 1024, 2048, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
++	{ INFO("mx66l2g45g",  0xc2201c, 0, 64 * 1024, 4096, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ 	{ INFO("mx25l1633e", 0xc22415, 0, 64 * 1024,   32, SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES | SECT_4K) },
+ #endif
+ 
+@@ -233,6 +234,7 @@
+ #endif
+ #ifdef CONFIG_SPI_FLASH_STMICRO		/* STMICRO */
+ 	/* ST Microelectronics -- newer production may have feature updates */
++    { INFO("m25p05a", 0x202010,  0,  32 * 1024,   2, 0) },
+ 	{ INFO("m25p10",  0x202011,  0,  32 * 1024,   4, 0) },
+ 	{ INFO("m25p20",  0x202012,  0,  64 * 1024,   4, 0) },
+ 	{ INFO("m25p40",  0x202013,  0,  64 * 1024,   8, 0) },
+@@ -244,6 +246,12 @@
+ 	{ INFO("m25pe16", 0x208015,  0, 64 * 1024, 32, SECT_4K) },
+ 	{ INFO("m25px16",    0x207115,  0, 64 * 1024, 32, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ 	{ INFO("m25px64",    0x207117,  0, 64 * 1024, 128, 0) },
++    { INFO("m45p20",  0x204012,  0, 64  * 1024, 4 , 0) },
++    { INFO("m45p40",  0x204013,  0, 64 * 1024, 8, 0) },
++    { INFO("m45p80",  0x204014,  0, 64 * 1024, 16, 0) },
++    { INFO("m45p16",  0x204015,  0, 64 * 1024, 32, 0) },
++    { INFO("m45p32",  0x204016,  0, 64 * 1024, 64, 0) },
++    { INFO("m45p64",  0x204017,  0, 64 * 1024, 128, 0) },
+ #endif
+ #ifdef CONFIG_SPI_FLASH_WINBOND		/* WINBOND */
+ 	/* Winbond -- w25x "blocks" are 64K, "sectors" are 4KiB */

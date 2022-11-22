@@ -1,0 +1,48 @@
+diff -Naur linux/include/linux/dma-mapping.h linux-new/include/linux/dma-mapping.h
+--- linux/include/linux/dma-mapping.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/linux/dma-mapping.h	2020-12-23 15:18:32.695097108 -0500
+@@ -263,9 +263,9 @@
+ 
+ static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
+ {
+-	if (dev->dma_ops)
++	if (dev && dev->dma_ops)
+ 		return dev->dma_ops;
+-	return get_arch_dma_ops(dev->bus);
++	return get_arch_dma_ops(dev ? dev->bus : NULL);
+ }
+ 
+ static inline void set_dma_ops(struct device *dev,
+@@ -658,7 +658,7 @@
+ 
+ static inline u64 dma_get_mask(struct device *dev)
+ {
+-	if (dev->dma_mask && *dev->dma_mask)
++	if (dev && dev->dma_mask && *dev->dma_mask)
+ 		return *dev->dma_mask;
+ 	return DMA_BIT_MASK(32);
+ }
+diff -Naur linux/kernel/dma/direct.c linux-new/kernel/dma/direct.c
+--- linux/kernel/dma/direct.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/kernel/dma/direct.c	2020-12-23 15:19:05.664033538 -0500
+@@ -327,7 +327,7 @@
+ 		size_t size)
+ {
+ 	return swiotlb_force != SWIOTLB_FORCE &&
+-		dma_capable(dev, dma_addr, size);
++		(!dev || dma_capable(dev, dma_addr, size));
+ }
+ 
+ dma_addr_t dma_direct_map_page(struct device *dev, struct page *page,
+diff -Naur linux/kernel/dma/mapping.c linux-new/kernel/dma/mapping.c
+--- linux/kernel/dma/mapping.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/kernel/dma/mapping.c	2020-12-23 15:19:17.420367862 -0500
+@@ -300,7 +300,7 @@
+ 	const struct dma_map_ops *ops = get_dma_ops(dev);
+ 	void *cpu_addr;
+ 
+-	WARN_ON_ONCE(!dev->coherent_dma_mask);
++	WARN_ON_ONCE(dev && !dev->coherent_dma_mask);
+ 
+ 	if (dma_alloc_from_dev_coherent(dev, size, dma_handle, &cpu_addr))
+ 		return cpu_addr;

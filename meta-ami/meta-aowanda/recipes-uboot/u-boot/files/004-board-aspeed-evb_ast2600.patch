@@ -1,0 +1,627 @@
+--- /dev/null	2020-08-13 10:14:47.477943399 -0400
++++ b/board/aspeed/evb_ast2600/vc_ast2600.c	2020-08-13 19:27:00.683759299 -0400
+@@ -0,0 +1,624 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (C) ASPEED Technology Inc.
++ */
++#include <common.h>
++#include <dm.h>
++#include <ram.h>
++#include <timer.h>
++#include <asm/io.h>
++#include <asm/arch/timer.h>
++#include <linux/err.h>
++#include <dm/uclass.h>
++
++/* muti function pin register*/
++#define SCU_BASE	0x1e6e2000
++#define SCU_PHYMODE_CONFIG 0x40
++#define SCU_HARDWARE_STRAP1	        0x500
++#define SCU_HARDWARE_STRAP1_CLEAR	0x504
++#define SCU_HARDWARE_STRAP1_PROTECT 0x508
++#define SCU_HARDWARE_STRAP2	        0x510
++#define SCU_HARDWARE_STRAP2_CLEAR	0x514
++#define SCU_HARDWARE_STRAP2_PROTECT 0x518
++
++#define SCU070_EXTRST  0x70
++#define SCU_CONTROL1	0x400
++#define SCU_CONTROL2	0x404
++#define SCU_CONTROL3	0x40C
++#define SCU_CONTROL4	0x410
++#define SCU_CONTROL5	0x414
++#define SCU_CONTROL6	0x418
++#define SCU_CONTROL7	0x41C
++#define SCU_CONTROL8	0x430
++#define SCU_CONTROL9	0x434
++#define SCU_CONTROL10	0x438
++#define SCU_CONTROL14	0x450
++#define SCU_CONTROL15	0x454
++#define SCU_CONTROL16	0x458
++#define SCU_CONTROL17	0x4B0
++#define SCU_CONTROL18	0x4B4
++#define SCU_CONTROL19	0x4B8
++#define SCU_CONTROL20	0x4BC
++#define SCU_CONTROL22	0x4D4
++#define SCU_CONTROL23	0x4D8
++#define SCU_CONTROL24	0x690
++#define SCU_CONTROL25	0x694
++#define SCU_CONTROL26	0x698
++#define SCU_CONTROL27	0x69C
++#define SCU_CONTROL28	0x6D0
++
++#define LPC_BASE	    0x1e789000
++#define HICR5               0x80 
++#define SNPWADR             0x90
++#define SNPWDR              0x94
++#define HICR9		    0x98
++#define HICRB               0x100
++#define SCU_SGPM_MASK      GENMASK(27, 24)
++
++/*GPIO BASE setting*/
++
++#define GPIOABCD_BASE	    0x00 
++#define GPIOEFGH_BASE	    0x20
++#define GPIOIJKL_BASE	    0x70
++#define GPIOMNOP_BASE	    0x78
++#define GPIOQRST_BASE	    0x80
++#define GPIOUVWX_BASE	    0x88
++#define GPIOYZ_BASE	        0x1E0
++#define GPIO18ABCD_BASE	    0x800
++#define GPIO18E_BASE	    0x820
++#define GPIO_DAT	        0x00
++#define GPIO_DIR	        0x04
++
++#define AST_GPIO_BASE       0x1e780000
++#define GPIO_554            0x554
++#define GPIO_PWRGD_NUM      0x00008000 
++#define GPIO_EFGH_DIR       0x00000024
++#define GPIO_MNOP_DIR       0x0000007c
++
++#define AST_LPC_BASE                   0x1e6e9000
++#define AST_ESPI_BASE                  0x1e6ee000
++#define AST_SCU_BASE                   0x1e6e2000
++#define AST_SCU_HW_STRAP2              0x510
++#define SCU_HW_STRAP_ESPI_ENABLED      0x40
++
++void EnableUART1()
++{
++    ulong tmp;
++    writel(0x1688a8a8,SCU_BASE); //unlock SCU
++
++    tmp = readl(SCU_BASE+SCU_CONTROL7);
++    tmp = tmp | 0xFF;
++    writel(tmp,(SCU_BASE+SCU_CONTROL7));
++	
++    tmp = readl(LPC_BASE+HICR9); //diable UART1 reset source from LPC
++    tmp = tmp & 0xFFFFFFEF;
++    writel(tmp,(LPC_BASE+HICR9));
++	
++	//writel(1,SCU_BASE); //Lock SCU
++}
++
++void EnableSomeMutifunctionPin()
++{
++	ulong tmp;
++    writel(0x1688a8a8,SCU_BASE); //unlock SCU
++ 
++    tmp = readl(SCU_BASE+SCU_CONTROL4);
++    tmp &= 0xFFFFCFFF; //                         Disable MDC2 &&MDIO2: 1, 2
++    writel(tmp,(SCU_BASE+SCU_CONTROL4));
++	
++    tmp = readl(SCU_BASE+SCU_CONTROL6);
++    tmp &= 0xBFFFFFFF; //                         Disable VGAHS pin
++    writel(tmp,(SCU_BASE+SCU_CONTROL6));
++	
++    tmp = readl(SCU_BASE+SCU_CONTROL6);
++    tmp |= 0x60; //                         Enable SIOPBI and PBO
++    writel(tmp,(SCU_BASE+SCU_CONTROL6));
++
++    tmp = readl(SCU_BASE+SCU_CONTROL8);
++    tmp &= 0xFFFCFFFF; //                         Disable MDC1/MDIO1 pin
++    writel(tmp,(SCU_BASE+SCU_CONTROL8));
++	
++    tmp = readl(SCU_BASE+SCU_CONTROL10);
++    tmp&= 0xFFFF00FE;                      //disable SPI1 diable SALT5
++    writel(tmp,(SCU_BASE+SCU_CONTROL10));
++	
++    tmp = readl(SCU_BASE+SCU_CONTROL1);
++    tmp&= 0x00000FFF;                      //disable EMMC 
++    writel(tmp,(SCU_BASE+SCU_CONTROL1));
++	
++    tmp = readl(SCU_BASE+SCU_CONTROL18);
++    tmp&= 0xFF00FFFF;                      //disable SD2
++    writel(tmp,(SCU_BASE+SCU_CONTROL18));
++
++    tmp = readl(SCU_BASE+SCU_HARDWARE_STRAP1_CLEAR);
++    tmp|= 0xE8;                      //disable VB 
++    writel(tmp,(SCU_BASE+SCU_HARDWARE_STRAP1_CLEAR));
++
++    tmp = readl(SCU_BASE+SCU070_EXTRST);
++    tmp &= 0xFBFFFFFF;                      
++    writel(tmp,(SCU_BASE+SCU070_EXTRST));
++
++	//writel(1,SCU_BASE); //Lock SCU
++}
++
++void EnableNCSIRMIIPin()
++{
++	ulong tmp;
++    writel(0x1688a8a8,SCU_BASE); //unlock SCU
++ 
++    tmp = readl(SCU_BASE+SCU_CONTROL4);
++    tmp |= 0x74E0000; //    enable RMII3 mutifunction pin                        
++    writel(tmp,(SCU_BASE+SCU_CONTROL4));
++	
++	tmp = readl(SCU_BASE+SCU_CONTROL17);
++    tmp |= 0xE0000000; //    enable RMII4 mutifunction pin                       
++    writel(tmp,(SCU_BASE+SCU_CONTROL17));
++	
++	tmp = readl(SCU_BASE+SCU_CONTROL18);
++    tmp |= 0x74; //    enable RMII4 mutifunction pin                       
++    writel(tmp,(SCU_BASE+SCU_CONTROL18));
++	
++	tmp = readl(SCU_BASE+SCU_CONTROL5);
++    tmp &= 0xFFFFFF8B; //    enable RMII4 mutifunction pin                   
++    writel(tmp,(SCU_BASE+SCU_CONTROL5));
++	
++	tmp = readl(SCU_BASE+SCU_CONTROL4);
++    tmp &= 0x1FFFFFFF; //    enable RMII4 mutifunction pin                   
++    writel(tmp,(SCU_BASE+SCU_CONTROL4));
++	
++	//tmp = readl(SCU_BASE+SCU_HARDWARE_STRAP2_CLEAR);
++    tmp = 0x3; //   Hardware strap for RMII4 && RMII3                         
++    writel(tmp,(SCU_BASE+SCU_HARDWARE_STRAP2_CLEAR));
++	
++}
++
++void Redirect_port80h_sgpio()
++{
++	ulong tmp;
++	
++	tmp = readl(SCU_BASE+SCU_CONTROL5); //Enable SGPIO
++	tmp |= SCU_SGPM_MASK;
++	writel(tmp,SCU_BASE+SCU_CONTROL5);
++
++	tmp = readl(LPC_BASE+SNPWADR); //Configure snoop address in LPC
++	tmp |= 0x00000080;
++	writel(tmp,LPC_BASE+SNPWADR);
++
++	tmp = readl(LPC_BASE+HICR5); //Enable Snoop and SIOGIO in HICR5 in LPC
++	tmp |= 0x80000001;
++	writel(tmp,LPC_BASE+HICR5);
++
++	tmp = readl(LPC_BASE+HICRB); //Enable SIOGIO in HICRB in LPC
++	tmp |= 0x00002000;
++	writel(tmp,LPC_BASE+HICRB);
++
++	tmp = readl(AST_GPIO_BASE+GPIO_554); //Configure Number of SGPIO
++	tmp &= 0xFFFFFC3F;
++	tmp |= 0x00000281;
++	writel(tmp,AST_GPIO_BASE+GPIO_554);
++}
++
++void Config_PWRGD()
++{
++     ulong tmp;
++     writel(0x1688a8a8, SCU_BASE); //unlock SCU
++     
++     tmp = readl(AST_GPIO_BASE + GPIO_EFGH_DIR);
++     tmp &= ~(GPIO_PWRGD_NUM);     //Set GPIO PWRGD input
++     writel(tmp,(AST_GPIO_BASE + GPIO_EFGH_DIR));
++
++     //writel(1,SCU_BASE); //Lock SCU
++}
++
++void Config_SCU_btn_PassThru()
++{
++         ulong tmp;
++         writel(0x1688a8a8, SCU_BASE); //unlock SCU
++      
++         tmp = readl(SCU_BASE + SCU_CONTROL20);
++         tmp |= 0x3f000000;  //Enable pass through 0-2 input & output                        
++         writel(tmp,(SCU_BASE + SCU_CONTROL20));
++     
++         tmp = readl(AST_GPIO_BASE + GPIO_MNOP_DIR);
++         tmp |= 0x2a000000;     //Set GPIO  pass through output
++         writel(tmp,(AST_GPIO_BASE + GPIO_MNOP_DIR));
++     
++         tmp = readl(AST_GPIO_BASE + GPIO_MNOP_DIR);
++         tmp &= ~(0x15000000);     //Set GPIO pass through input
++         writel(tmp,(AST_GPIO_BASE + GPIO_MNOP_DIR));
++
++         tmp = readl(SCU_BASE + AST_SCU_HW_STRAP2);
++         tmp |= 0x20;  //Enable ACPI
++         writel(tmp,(SCU_BASE + AST_SCU_HW_STRAP2));
++     
++         //writel(1,SCU_BASE); //Lock SCU
++}
++
++/*
++ * Copyright 2018 Intel Corporation
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version
++ * 2 of the License, or (at your option) any later version.
++ */
++
++#define USE_HW_HANDSHAKE               1
++#define DEBUG_ESPI_ENABLED             0
++#if DEBUG_ESPI_ENABLED
++#define DBG_ESPI printf
++#else
++#define DBG_ESPI(...)
++#endif
++
++/* eSPI controller registers */
++#define ESPI000 0x000 /* Engine Control. */
++#define ESPI004 0x004 /* Engine Status. */
++#define ESPI008 0x008 /* Interrupt Status. */
++#define ESPI00C 0x00C /* Interrupt Enable. */
++#define ESPI010 0x010 /* DMA Addr of Peripheral Channel Posted Rx pkt */
++#define ESPI014 0x014 /* Control of Peripheral Channel Posted Rx pkt. */
++#define ESPI018 0x018 /* Data port of Peripheral Channel Posted Rx pkt. */
++#define ESPI020 0x020 /* DMA Addr of Peripheral Channel Posted Tx pkt. */
++#define ESPI024 0x024 /* Control of Peripheral Channel Posted Tx pkt. */
++#define ESPI028 0x028 /* Data port of Peripheral Channel Posted Tx pkt. */
++#define ESPI030 0x030 /* DMA Addr of Peripheral Channel Non-Posted Tx pkt. */
++#define ESPI034 0x034 /* Control of Peripheral Channel Non-Posted Tx pkt. */
++#define ESPI038 0x038 /* Data port of Peripheral Channel Non-Posted Tx pkt. */
++#define ESPI040 0x040 /* DMA Addr of OOB Channel Rx pkt. */
++#define ESPI044 0x044 /* Control of OOB Channel Rx pkt. */
++#define ESPI048 0x048 /* Data port of OOB Channel Rx pkt. */
++#define ESPI050 0x050 /* DMA Addr of OOB Channel Tx pkt. */
++#define ESPI054 0x054 /* Control of OOB Channel Tx pkt. */
++#define ESPI058 0x058 /* Data port of OOB Channel Tx pkt. */
++#define ESPI060 0x060 /* DMA Addr of Flash Channel Rx pkt. */
++#define ESPI064 0x064 /* Control of Flash Channel Rx pkt. */
++#define ESPI068 0x068 /* Data port of Flash Channel Rx pkt. */
++#define ESPI070 0x070 /* DMA Addr of Flash Channel Tx pkt. */
++#define ESPI074 0x074 /* Control of Flash Channel Tx pkt. */
++#define ESPI078 0x078 /* Data port of Flash Channel Tx pkt. */
++#define ESPI080 0x080 /* Engine Control 2. */
++#define ESPI084 0x084 /* Mapping Src Addr of Peripheral Channel Rx pkt. */
++#define ESPI088 0x088 /* Mapping Tgt Addr of Peripheral Channel Rx pkt. */
++#define ESPI08C 0x08C /* Mapping Addr Mask of Peripheral Channel Rx pkt. */
++#define ESPI090 0x090 /* Mapping Target Addr and Mask of Flash Channel. */
++#define ESPI094 0x094 /* Interrupt enable of System Event from Master. */
++#define ESPI098 0x098 /* System Event from and to Master. */
++#define ESPI09C 0x09C /* GPIO through Virtual Wire Channel. */
++#define ESPI0A0 0x0A0 /* General Capabilities and Configurations. */
++#define ESPI0A4 0x0A4 /* Channel 0 Capabilities and Configurations. */
++#define ESPI0A8 0x0A8 /* Channel 1 Capabilities and Configurations. */
++#define ESPI0AC 0x0AC /* Channel 2 Capabilities and Configurations. */
++#define ESPI0B0 0x0B0 /* Channel 3 Capabilities and Configurations. */
++#define ESPI0B4 0x0B4 /* GPIO Direction of Virtual Wire Channel. */
++#define ESPI0B8 0x0B8 /* GPIO Selection of Virtual Wire Channel. */
++#define ESPI0BC 0x0BC /* GPIO Reset Selection of Virtual Wire Channel. */
++#define ESPI100 0x100 /* Interrupt enable of System Event 1 from Master. */
++#define ESPI104 0x104 /* System Event 1 from and to Master. */
++#define ESPI110 0x110 /* Interrupt type 0 of System Event from Master. */
++#define ESPI114 0x114 /* Interrupt type 1 of System Event from Master. */
++#define ESPI118 0x118 /* Interrupt type 2 of System Event from Master. */
++#define ESPI11C 0x11C /* Interrupt status of System Event from Master. */
++#define ESPI120 0x120 /* Interrupt type 0 of System Event 1 from Master. */
++#define ESPI124 0x124 /* Interrupt type 1 of System Event 1 from Master. */
++#define ESPI128 0x128 /* Interrupt type 2 of System Event 1 from Master. */
++#define ESPI12C 0x12C /* Interrupt status of System Event 1 from Master. */
++#define ESPICFG004 0x004 /* Device Identification. */
++#define ESPICFG008 0x008 /* General Capabilities and Configurations. */
++#define ESPICFG010 0x010 /* Channel 0 Capabilities and Configurations. */
++#define ESPICFG020 0x020 /* Channel 1 Capabilities and Configurations. */
++#define ESPICFG030 0x030 /* Channel 2 Capabilities and Configurations. */
++#define ESPICFG040 0x040 /* Channel 3 Capabilities and Configurations. */
++#define ESPICFG044 0x044 /* Channel 3 Capabilities and Configurations 2. */
++#define ESPICFG800 0x800 /* GPIO Direction of Virtual Wire Channel. */
++#define ESPICFG804 0x804 /* GPIO Selection of Virtual Wire Channel. */
++#define ESPICFG808 0x808 /* GPIO Reset Selection of Virtual Wire Channel. */
++#define ESPICFG810 0x810 /* Mapping Src Addr of Peripheral Channel Rx pkt */
++#define ESPICFG814 0x814 /* Mapping Tgt Addr of Peripheral Channel Rx pkt */
++#define ESPICFG818 0x818 /* Mapping Addr Mask of Peripheral Channel Rx pkt */
++
++/* ESPI000 bits */
++#define AST_ESPI_OOB_CHRDY             BIT(4)
++#define AST_ESPI_FLASH_SW_CHRDY                BIT(7)
++#define AST_ESPI_FLASH_SW_READ         BIT(10)
++
++/* ESPI00C bits (Interrupt Enable) */
++#define AST_ESPI_IEN_HW_RST            BIT(31)
++#define AST_ESPI_IEN_SYS1_EV           BIT(22)
++#define AST_ESPI_IEN_SYS_EV            BIT(8)
++#define AST_ESPI_IEN_GPIO_EV           BIT(9)
++
++/* ESPI008 bits ISR */
++#define AST_ESPI_VW_SYS_EVT            BIT(8)
++#define AST_ESPI_VW_GPIO_EVT           BIT(9)
++#define AST_ESPI_VW_SYS_EV1            BIT(22)
++#define AST_ESPI_HW_RST                        BIT(31)
++
++/* ESPI080 bits */
++#define AST_ESPI_AUTO_ACK_HOST_RST_WARN        BIT(2)
++#define AST_ESPI_AUTO_ACK_OOB_RST_WARN BIT(1)
++#define AST_ESPI_AUTO_ACK_SUS_WARN     BIT(0)
++
++/* ESPI098 and ESPI11C bits */
++#define AST_ESPI_OOB_RST_WARN          BIT(6)
++#define AST_ESPI_HOST_RST_WARN         BIT(8)
++#define AST_ESPI_PLTRSTN               BIT(5)
++#define AST_ESPI_OOB_RST_ACK           BIT(16)
++#define AST_ESPI_SL_BT_DONE            BIT(20)
++#define AST_ESPI_SL_BT_STATUS          BIT(23)
++#define AST_ESPI_HOST_RST_ACK          BIT(27)
++
++/* ESPI104 bits */
++#define AST_ESPI_SUS_WARN              BIT(0)
++#define AST_ESPI_SUS_ACK               BIT(20)
++
++/* LPC chip ID */
++#define SCR0SIO                                0x170
++#define IRQ_SRC_ESPI                   74 /* IRQ 74 */
++
++static void espi_handshake_ack(void)
++{
++       /* IRQ only serviced if strapped, so no strap check */
++       if (!(readl(AST_ESPI_BASE + ESPI098) & AST_ESPI_SL_BT_STATUS)) {
++               DBG_ESPI("Setting espi slave boot done\n");
++               uint32_t v = readl(AST_ESPI_BASE + ESPI098) |
++                            AST_ESPI_SL_BT_STATUS | AST_ESPI_SL_BT_DONE;
++               writel(v, AST_ESPI_BASE + ESPI098);
++       }
++
++       uint32_t sys1_event = readl(AST_ESPI_BASE + ESPI104);
++       if (sys1_event & AST_ESPI_SUS_WARN &&
++           !(sys1_event & AST_ESPI_SUS_ACK)) {
++               DBG_ESPI("Boot SUS_WARN, evt: 0x%08x\n", sys1_event);
++               writel(sys1_event | AST_ESPI_SUS_ACK, AST_ESPI_BASE + ESPI104);
++               DBG_ESPI("SUS_WARN sent ack\n");
++       }
++}
++
++int espi_irq_handler(struct pt_regs *regs)
++{
++       uint32_t irq_status = readl(AST_ESPI_BASE + ESPI008);
++
++       DBG_ESPI("espi_irq_handler, ESPI008=0X%x, ESPI00c=0X%x,\
++               ESPI100=0X%x, ESPI11c=0X%x, ESPI094=0X%x,\
++               ESPI12c=0X%x, irq_status=0x%x\n",
++               readl(AST_ESPI_BASE + ESPI008),
++               readl(AST_ESPI_BASE + ESPI00C),
++               readl(AST_ESPI_BASE + ESPI100),
++               readl(AST_ESPI_BASE + ESPI11C),
++               readl(AST_ESPI_BASE + ESPI094),
++               readl(AST_ESPI_BASE + ESPI12C), irq_status);
++
++       if (irq_status & AST_ESPI_VW_SYS_EVT) {
++               uint32_t sys_status = readl(AST_ESPI_BASE + ESPI11C);
++               uint32_t sys_event = readl(AST_ESPI_BASE + ESPI098);
++
++               DBG_ESPI("sys_status : 0x%08X\n", sys_status);
++               if (sys_status & AST_ESPI_HOST_RST_WARN) {
++                       DBG_ESPI("HOST_RST_WARN evt: 0x%08X\n", sys_event);
++                       if (sys_event & AST_ESPI_HOST_RST_WARN) {
++                               uint32_t v = readl(AST_ESPI_BASE + ESPI098) |
++                                            AST_ESPI_HOST_RST_ACK;
++                               writel(v, AST_ESPI_BASE + ESPI098);
++                               DBG_ESPI("HOST_RST_WARN sent ack\n");
++                       }
++               }
++               if (sys_status & AST_ESPI_OOB_RST_WARN) {
++                       DBG_ESPI("OOB_RST_WARN evt: 0x%08X\n", sys_event);
++                       if (sys_event & AST_ESPI_OOB_RST_WARN) {
++                               uint32_t v = readl(AST_ESPI_BASE + ESPI098) |
++                                            AST_ESPI_OOB_RST_ACK;
++                               writel(v, AST_ESPI_BASE + ESPI098);
++                               DBG_ESPI("OOB_RST_WARN sent ack\n");
++                       }
++               }
++               if (sys_status & AST_ESPI_PLTRSTN) {
++                       DBG_ESPI("PLTRSTN: %c, evt: 0x%08X\n",
++                                (sys_event & AST_ESPI_PLTRSTN) ? '1' : '0',
++                                sys_event);
++               }
++               writel(sys_status, AST_ESPI_BASE + ESPI11C); /* clear status */
++       }
++
++       if (irq_status & AST_ESPI_VW_SYS_EV1) {
++               uint32_t sys1_status = readl(AST_ESPI_BASE + ESPI12C);
++               uint32_t sys1_event = readl(AST_ESPI_BASE + ESPI104);
++
++               DBG_ESPI("sys1_status : 0x%08X\n", sys1_status);
++               if (sys1_status & AST_ESPI_SUS_WARN) {
++                       DBG_ESPI("SUS WARN evt: 0x%08X\n", sys1_event);
++                       if (sys1_event & AST_ESPI_SUS_WARN) {
++                               uint32_t v = readl(AST_ESPI_BASE + ESPI104) |
++                                            AST_ESPI_SUS_ACK;
++                               writel(v, AST_ESPI_BASE + ESPI104);
++                               DBG_ESPI("SUS_WARN sent ack\n");
++                       }
++               }
++               writel(sys1_status, AST_ESPI_BASE + ESPI12C); /* clear status */
++       }
++
++       if (irq_status & AST_ESPI_HW_RST) {
++               uint32_t v = readl(AST_ESPI_BASE + ESPI000) & 0x00ffffffff;
++               writel(v, AST_ESPI_BASE + ESPI000);
++               v |= 0xff000000;
++               writel(v, AST_ESPI_BASE + ESPI000);
++
++               DBG_ESPI("HW_RESET\n");
++
++               espi_handshake_ack();
++       }
++
++       writel(irq_status, AST_ESPI_BASE + ESPI008); /* clear irq_status */
++
++       DBG_ESPI("end espi_irq_handler, ESPI008=0X%x, ESPI00c=0X%x,\
++               ESPI100=0X%x, ESPI11c=0X%x, ESPI094=0X%x,\
++               ESPI12c=0X%x, irq_status=0X%x\n",
++               readl(AST_ESPI_BASE + ESPI008),
++               readl(AST_ESPI_BASE + ESPI00C),
++               readl(AST_ESPI_BASE + ESPI100),
++               readl(AST_ESPI_BASE + ESPI11C),
++               readl(AST_ESPI_BASE + ESPI094),
++               readl(AST_ESPI_BASE + ESPI12C), irq_status);
++       return 0;
++}
++
++void espi_init(void)
++{
++               uint32_t v;
++               /*enable SCU HW strap2 espi mode*/
++               writel(SCU_HW_STRAP_ESPI_ENABLED, AST_SCU_BASE + SCU_HARDWARE_STRAP2_CLEAR);
++
++               DBG_ESPI("espi init\n");
++
++               writel(0xff000000, AST_SCU_BASE + 0x454); /* driving strength */
++
++               /* Block flash access from Host */
++               v = readl(AST_ESPI_BASE + ESPI000) & ~AST_ESPI_FLASH_SW_CHRDY;
++               v |= AST_ESPI_FLASH_SW_READ | AST_ESPI_OOB_CHRDY;
++               writel(v, AST_ESPI_BASE + ESPI000);
++
++               /*
++                * Set SIO register 0x28 to 0xa8 as a faked ASPEED ChipID for
++                * BIOS using in eSPI mode.
++                */
++               v = readl(AST_LPC_BASE + SCR0SIO) & ~0x000000ff;
++               writel(v, AST_LPC_BASE + SCR0SIO);
++               v = readl(AST_LPC_BASE + SCR0SIO) | 0xa8;
++               writel(v, AST_LPC_BASE + SCR0SIO);
++
++#if USE_HW_HANDSHAKE
++               v = readl(AST_ESPI_BASE + ESPI098) |
++                         AST_ESPI_SL_BT_STATUS | AST_ESPI_SL_BT_DONE;
++               writel(v, AST_ESPI_BASE + ESPI098);
++
++               return;
++#endif
++
++               v = readl(AST_ESPI_BASE + ESPI080);
++               v &= ~(AST_ESPI_AUTO_ACK_HOST_RST_WARN |
++                      AST_ESPI_AUTO_ACK_OOB_RST_WARN |
++                      AST_ESPI_AUTO_ACK_SUS_WARN);
++               writel(v, AST_ESPI_BASE + ESPI080); /* Disable auto H/W ack */
++
++               writel(0, AST_ESPI_BASE + ESPI110);
++               writel(0, AST_ESPI_BASE + ESPI114);
++               writel(AST_ESPI_HOST_RST_WARN | AST_ESPI_OOB_RST_WARN |
++                      AST_ESPI_PLTRSTN, AST_ESPI_BASE + ESPI118);
++               writel(AST_ESPI_HOST_RST_WARN | AST_ESPI_OOB_RST_WARN |
++                      AST_ESPI_PLTRSTN, AST_ESPI_BASE + ESPI094);
++
++               writel(AST_ESPI_SUS_WARN,
++                      AST_ESPI_BASE + ESPI120); /* int type 0 susp warn */
++               writel(0, AST_ESPI_BASE + ESPI124);
++               writel(0, AST_ESPI_BASE + ESPI128);
++               writel(AST_ESPI_SUS_WARN,
++                      AST_ESPI_BASE +
++                               ESPI100); /* Enable sysev1 ints for susp warn */
++
++               writel(AST_ESPI_IEN_HW_RST | AST_ESPI_IEN_SYS1_EV |
++                      AST_ESPI_IEN_SYS_EV, AST_ESPI_BASE + ESPI00C);
++
++               irq_install_handler(IRQ_SRC_ESPI, espi_irq_handler, NULL);
++}
++
++void VC_GPIO_Setting(void)
++{
++	ulong tmp;
++	
++	/*
++  	 * B6,B7,C4,C5,C7 is output
++  	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOABCD_BASE+GPIO_DIR);
++  	tmp |= 0xB0C000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOABCD_BASE+GPIO_DIR));
++	
++	/*
++  	 *  B7,C4,C5,C7 is high 
++  	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOABCD_BASE+GPIO_DAT); 
++  	tmp |= 0xB08000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOABCD_BASE+GPIO_DAT)); 
++	
++	/*
++  	 * G2,G3,G6 is output
++	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOEFGH_BASE+GPIO_DIR);
++  	tmp |= 0x4C0000;
++  	writel(tmp, (AST_GPIO_BASE+GPIOEFGH_BASE+GPIO_DIR));
++	
++	/*
++  	 * G2,G3,G6 is high
++ 	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOEFGH_BASE+GPIO_DAT);
++  	tmp |= 0x4C0000;
++  	writel(tmp, (AST_GPIO_BASE+GPIOEFGH_BASE+GPIO_DAT));
++	
++	/*
++     * I7,L4,L5 is output
++	 */
++    tmp = readl(AST_GPIO_BASE+GPIOIJKL_BASE+GPIO_DIR);
++    tmp |= 0x30000080;
++    writel(tmp, (AST_GPIO_BASE+GPIOIJKL_BASE+GPIO_DIR));
++
++	/*
++	 * I7,L4,L5 is high
++  	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOIJKL_BASE+GPIO_DAT);
++  	tmp |= 0x30000080;
++  	writel(tmp,(AST_GPIO_BASE+GPIOIJKL_BASE+GPIO_DAT));
++
++	/*
++ 	 * N7 is output
++ 	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOMNOP_BASE+GPIO_DIR);
++    tmp |= 0x8000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOMNOP_BASE+GPIO_DIR));
++
++	/*
++ 	 * N7 is High
++  	 */	  	
++	tmp = readl(AST_GPIO_BASE+GPIOMNOP_BASE+GPIO_DAT);
++  	tmp |= 0x8000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOMNOP_BASE+GPIO_DAT)); 
++
++	/*
++ 	 * S5 is output
++ 	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOQRST_BASE+GPIO_DIR);
++  	tmp |= 0x200000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOQRST_BASE+GPIO_DIR));
++
++	/*
++     * V2,V5,X3,X5,X7 is ouput
++     */
++    tmp = readl(AST_GPIO_BASE+GPIOUVWX_BASE+GPIO_DIR);
++    tmp |= 0xA8002400;
++    writel(tmp,(AST_GPIO_BASE+GPIOUVWX_BASE+GPIO_DIR));
++
++	/*
++  	 * V5,X5,X7 is High
++ 	 */
++  	tmp = readl(AST_GPIO_BASE+GPIOUVWX_BASE+GPIO_DAT);
++  	tmp |= 0xA0002000;
++  	writel(tmp,(AST_GPIO_BASE+GPIOUVWX_BASE+GPIO_DAT));
++
++	/*
++     * Z0 is output
++     */
++    tmp = readl(AST_GPIO_BASE+GPIOYZ_BASE+GPIO_DIR);
++    tmp |= 0x100;
++    writel(tmp,(AST_GPIO_BASE+GPIOYZ_BASE+GPIO_DIR));	
++
++}
++
++void board_init_uboot_setting()
++{
++	EnableSomeMutifunctionPin();
++	EnableNCSIRMIIPin();	
++	EnableUART1();
++	Redirect_port80h_sgpio();
++	Config_PWRGD();
++	Config_SCU_btn_PassThru();
++	espi_init();
++	VC_GPIO_Setting();
++}

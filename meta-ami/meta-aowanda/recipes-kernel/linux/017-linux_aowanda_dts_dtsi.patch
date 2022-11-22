@@ -1,0 +1,191 @@
+diff -Naur kernel_original/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts kernel_new/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+--- kernel_original/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts	2022-10-02 03:20:46.782320635 -0400
++++ kernel_new/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts	2022-10-03 12:46:50.214414280 -0400
+@@ -23,10 +23,10 @@
+                 bootargs = "console=ttyS4,115200n8";
+         };
+ 
+-        memory@80000000 {
+-                device_type = "memory";
+-                reg = <0x80000000 0x20000000>;
+-        };
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x80000000 0x40000000>;
++	};
+ 
+         reserved-memory {
+                 #address-cells = <1>;
+@@ -86,10 +86,10 @@
+         iio-hwmon {
+                 compatible = "iio-hwmon";
+                 io-channels = <&adc0 0>, <&adc0 1>, <&adc0 2>, <&adc0 3>,
+-                        <&adc0 4>, <&adc0 5>, <&adc0 6>, <&adc0 7>,
+-                        <&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>,
+-                        <&adc1 4>, <&adc1 5>, <&adc1 7>;
+-        };
++                                <&adc0 4>, <&adc0 5>, <&adc0 6>, <&adc0 7>,
++                                <&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>,
++                                <&adc1 4>, <&adc1 5>, <&adc1 6>, <&adc1 7>;
++    };
+ 
+ };
+ 
+@@ -438,9 +438,9 @@
+         status = "okay";
+ };
+ 
+-/*&sgpiom0 {
++&sgpiom0 {
+ 		status = "okay";
+-};*/
++};
+ 
+ &pinctrl {
+         pinctrl-names = "default";
+@@ -458,44 +458,76 @@
+ 
+ &gpio0 {
+         status = "okay";
+-
+-        /* Enable GPIOP0 and GPIOP2 pass-through by default 
+-         pinctrl-names = "pass-through";
+-         pinctrl-0 = <&pinctrl_thru0_default
+-                        &pinctrl_thru1_default>;*/
+-
++        /* Enable GPIOP0 and GPIOP2 pass-through by default */
++        /* pinctrl-names = "pass-through";
++        pinctrl-0 = <&pinctrl_thru0_default
++                        &pinctrl_thru1_default>; */
+         gpio-line-names =
+         /*A0-A7*/       "","","","","","","","",
+-        /*B0-B7*/       "","","","","","","","",
++        /*B0-B7*/       "AOWANDA_FM_DBP_PRESENT_N","AOWANDA_FM_BOARD_REV_ID0","AOWANDA_FM_CPU1_PROCHOT_LVT3_N","","AOWANDA_FM_RST_BMC_SMBUS_MUX_N","","AOWANDA_FM_BMC_BMCINIT_N","AOWANDA_FP_ID_LED_N",
+         /*C0-C7*/       "","","","","","","","",
+-        /*D0-D7*/       "","","","","","","","",
+-        /*E0-E7*/       "","","","","","","","",
+-        /*F0-F7*/       "","","","","","","ID_BUTTON","PS_PWROK",
+-        /*G0-G7*/       "","","","","","","FBRK","XDP_PRST_N",
+-        /*H0-H7*/       "","","","","","","","",
++        /*D0-D7*/       "","","","","AOWANDA_FM_CPU1_ERR0_LVT3_N","","","",
++        /*E0-E7*/       "AOWANDA_M2_SSD1_PRESENT_N","AOWANDA_M2_SSD2_PRESENT_N","","","","","","",
++        /*F0-F7*/       "CPU1_CPLD_CRC_ERROR","","","CPU2_CPLD_CRC_ERROR","","","","",
++        /*G0-G7*/       "","AOWANDA_FP_LED_STATUS_GREEN","AOWANDA_FP_LED_STATUS_BLUE","AOWANDA_FP_LED_STATUS_AMBER","","AOWANDA_PWRGD_P12V_SW","AOWANDA_FM_BMC_CPU_PWR_DEBUG_N","AOWANDA_DBP_PRESENT_N",
++        /*H0-H7*/       "","","","","AOWANDA_RST_PLTRST_N","AOWANDA_CPU_MSMI_CATERR_LVT3_N","AOWANDA_PCH_THERMTRIP_N","AOWANDA_THROTTLE_N",
+         /*I0-I7*/       "","","","","","","","",
+         /*J0-J7*/       "","","","","","","","",
+         /*K0-K7*/       "","","","","","","","",
+-        /*L0-L7*/       "","","","","PREQ_N","TCK_MUX_SEL","PLTRST_N","",
+-        /*M0-M7*/       "","","","","","","","",
+-        /*N0-N7*/       "","","","","","","","",
+-        /*O0-O7*/       "","","","","","","","",
+-        /*P0-P7*/       "RESET_BUTTON","RESET_OUT","POWER_BUTTON","POWER_OUT","NMI_BUTTON","","","",
++        /*L0-L7*/       "","","","","AOWANDA_DBP_CPU_PREQ_N","AOWANDA_JTAG_TCK_MUX_SEL","","",
++        /*M0-M7*/       "AOWANDA_FM_BOARD_SKU_ID5","AOWANDA_FM_BOARD_SKU_ID4","AOWANDA_FM_BOARD_SKU_ID3","AOWANDA_FM_BOARD_SKU_ID2","AOWANDA_FM_BOARD_SKU_ID1","AOWANDA_FM_BOARD_SKU_ID0","","",
++        /*N0-N7*/       "AOWANDA_FM_RMC_GPIO_SW0","AOWANDA_FM_RMC_GPIO_SW1","AOWANDA_FM_RMC_GPIO_SW2","AOWANDA_BMC_SLED_READY_N","AOWANDA_IRQ_RMC_ALERT_N","AOWANDA_FM_CPU1_ERR1_LVT3_N","","",
++        /*O0-O7*/       "","","","","AOWANDA_FM_PCIE_SLOT3_PRESENT_N","AOWANDA_FM_PCIE_SLOT2_PRESENT_N","AOWANDA_FM_PCIE_SLOT1_PRESENT_N","AOWANDA_FM_OCP3_PRESENT_N",
++        /*P0-P7*/       "AOWANDA_RST_SYSTEM_BTN_N","AOWANDA_BMC_SYSRST_BTN_OUT_N","AOWANDA_FM_PWR_BTN_N","AOWANDA_FM_BMC_PWRBTN_OUT_N","","","","AOWANDA_BMC_HB_LED_N",
+         /*Q0-Q7*/       "","","","","","","","",
+-        /*R0-R7*/       "","","","","","CPU_ERR0","CPU_ERR1","CPU_ERR2",
+-        /*S0-S7*/       "","","","","","","","",
++        /*R0-R7*/       "AOWANDA_FAN_FLOW_REVERSE","AOWANDA_FM_PASSWORD_CLEAR_N","AOWANDA_FM_CPU1_MEMHOT_LVT3_N","AOWANDA_FM_SLED_ADDR_0","AOWANDA_FM_SLED_ADDR_1","AOWANDA_FM_SLED_ADDR_2","AOWANDA_IRQ_SMB_M2_ALERT_N","AOWANDA_IRQ_NMI_EVENT_N",
++        /*S0-S7*/       "AOWANDA_BMC_IRQ_PCH_NMI","AOWANDA_FM_PCIE_SLOT4_PRESENT_N","","AOWANDA_RST_RSMRST_BMC_N","AOWANDA_FM_FORCE_ADR_N","AOWANDA_FM_BATTERY_SENSE_EN","AOWANDA_REMOTE_DEBUG_EN_DET","AOWANDA_HSC_TIMER_EXPIRE_N",
+         /*T0-T7*/       "","","","","","","","",
+         /*U0-U7*/       "","","","","","","","",
+-        /*V0-V7*/       "","SIO_S5","","SIO_ONCONTROL","SIO_POWER_GOOD","","","",
++        /*V0-V7*/       "","","","","","AOWANDA_IRQ_OC_DETECT_N","AOWANDA_FM_CPU1_ERR2_LVT3_N","AOWANDA_IRQ_BMC_P0_SMI_LPC_N",
+         /*W0-W7*/       "","","","","","","","",
+-        /*X0-X7*/       "PRDY_N","SMI_TIMEOUT","POST_COMPLETE","","IERR","","","",
+-        /*Y0-Y7*/       "","","","","","","","",
+-        /*Z0-Z7*/       "","","","","","","","",
+-        /*AA0-AA7*/     "","","","","","","","",
+-        /*AB0-AB7*/     "","","","","","","","",
+-        /*AC0-AC7*/     "","","","","","","","";
++        /*X0-X7*/       "AOWANDA_FM_EDSFF0_PRESENT_N","AOWANDA_IRQ_SMI_ACTIVE_N","AOWANDA_FM_BIOS_POST_CMPLT_N","AOWANDA_FM_EDSFF1_PRESENT_N","AOWANDA_FM_EDSFF2_PRESENT_N","AOWANDA_FM_EDSFF3_PRESENT_N","AOWANDA_FM_BIOS_POST_START_N","AOWANDA_FM_BIOS_ENTER_SETUP_N",
++        /*Y0-Y7*/       "AOWANDA_BMC_PRDY_N","AOWANDA_IRQ_SML0_ALERT_N","AOWANDA_SMB_HOST_STBY_BMC_LV3_RST_N","AOWANDA_IRQ_SML1_PMBUS_ALERT_N","","","","",
++        /*Z0-Z7*/       "","AOWANDA_FM_BOARD_REV_ID2","AOWANDA_FM_BOARD_REV_ID1","DISABLE_VGA_DEVICE","SELECT_LPC_OR_ESPI","","","";
++};
++
++&sgpiom0 {
++        ngpios = <80>;
++        bus-frequency = <2000000>;
++        status = "okay";
++
++       /* SGPIO lines. even: input, odd: output */
++
++       gpio-line-names =
++       /*A0-A7*/       "AOWANDA_CPU1_SKTOCC","","","","","","","","","","","","","","","",
++       /*B0-B7*/       "","","","","","","","","","","","","","","","",
++       /*C0-C7*/       "","","","","","","","","AOWANDA_PWRGD_SYS_PWROK","","","","","","","",
++       /*D0-D7*/       "","","","","","","","","","","","","","","","",
++       /*E0-E7*/       "","","","","","","","","","","","","","","","",
++       /*F0-F7*/       "","","","","","","","","","","","","","","","",
++       /*G0-G7*/       "","","","","","","","","","","","","","","","",
++       /*H0-H7*/       "","","","","","","","","","","","","","","","",
++       /*I0-I7*/       "","","","","","","","","","","","","","","","",
++       /*J0-J7*/       "","","","","","","","","AOWANDA_HSC_IN_PWR_UC_INFO_THROTTLE","","","","","","","";
++
++	aowanta_cpu1_sktocc {
++            default-state = "on";
++            gpios = <&sgpiom0 ASPEED_GPIO(A, 0) GPIO_ACTIVE_LOW>;
++	};
++
++	aowanta_pwrgd_sys_pwrok {
++            default-state = "on";
++            gpios = <&sgpiom0 ASPEED_GPIO(C, 4) GPIO_ACTIVE_LOW>;
++	};
++
++	aowanta_hsc_in_pwr_uc_info_throttle {
++            default-state = "on";
++            gpios = <&sgpiom0 ASPEED_GPIO(J, 4) GPIO_ACTIVE_LOW>;
++	};
++
+ };
+ 
++
+ &video {
+         status = "okay";
+         memory-region = <&video_engine_memory>;
+diff -Naur kernel_original/arch/arm/boot/dts/aspeed-g6-ami.dtsi kernel_new/arch/arm/boot/dts/aspeed-g6-ami.dtsi
+--- kernel_original/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2022-10-02 03:20:46.782320635 -0400
++++ kernel_new/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2022-10-02 03:21:02.934708800 -0400
+@@ -107,29 +107,7 @@
+             reg = <0x1a000000 0x2000>;
+         };
+ 
+-        ssp: secondary-service-processor {
+-            compatible = "aspeed,ast2600-ssp";
+-            #address-cells = <2>;
+-            #size-cells = <0>;
+-
+-            aspeed,cvic = <&cvic>;
+-            interrupts =    <GIC_SPI 182 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 185 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 190 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>,
+-                    <GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>;
+-        };
+-
++        
+ 		fmc: spi@1e620000 {
+ 			reg = < 0x1e620000 0xc4
+ 				0x20000000 0x10000000 >;
+@@ -354,7 +332,7 @@
+                         };
+ 
+ 			syscon: syscon@1e6e2000 {
+-				compatible = "aspeed,ast2600-scu", "syscon", "simple-mfd";
++				compatible = "aspeed,aspeed-scu", "aspeed,ast2600-scu", "syscon", "simple-mfd";
+ 				reg = <0x1e6e2000 0x1000>;
+ 				ranges = <0 0x1e6e2000 0x1000>;
+ 				#address-cells = <1>;

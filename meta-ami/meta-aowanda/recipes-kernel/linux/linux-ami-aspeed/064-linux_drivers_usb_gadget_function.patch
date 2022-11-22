@@ -1,0 +1,2562 @@
+diff -Naur a/drivers/usb/gadget/function/ami_gadget_ioctl.h b/drivers/usb/gadget/function/ami_gadget_ioctl.h
+--- a/drivers/usb/gadget/function/ami_gadget_ioctl.h	1970-01-01 05:30:00.000000000 +0530
++++ b/drivers/usb/gadget/function/ami_gadget_ioctl.h	2021-02-12 20:56:57.625484352 +0530
+@@ -0,0 +1,146 @@
++/****************************************************************
++ **                                                            **
++ **    (C)Copyright 2006-2022, American Megatrends Inc.        **
++ **                                                            **
++ **            All Rights Reserved.                            **
++ **                                                            **
++ **        5555 Oakbrook Pkwy Suite 200, Norcross,             **
++ **                                                            **
++ **        Georgia - 30093, USA. Phone-(770)-246-8600.         **
++ **                                                            **
++****************************************************************/
++
++#ifndef __AMI_GADGET_IOCTL_H__
++#define __AMI_GADGET_IOCTL_H__
++
++#include "coreTypes.h"
++
++/* Note :All Length Fields used in IUSB are Little Endian */
++
++#ifdef __GNUC__
++#define PACKED __attribute__ ((packed))
++#else
++#define PACKED
++#pragma pack( 1 )
++#endif
++#define AMI_USB_GADGET_MODE	(1)
++
++/*Ioctls */
++#define USB_CDROM_REQ		_IOC(_IOC_READ, 'U',0x31,0x3FFF)
++#define USB_CDROM_RES		_IOC(_IOC_WRITE,'U',0x32,0x3FFF)
++#define USB_CDROM_EXIT		_IOC(_IOC_WRITE,'U',0x33,0x3FFF)
++#define USB_CDROM_ACTIVATE	_IOC(_IOC_WRITE,'U',0x34,0x3FFF)
++
++#define USB_HDISK_REQ		_IOC(_IOC_READ, 'U',0x41,0x3FFF)
++#define USB_HDISK_RES		_IOC(_IOC_WRITE,'U',0x42,0x3FFF)
++#define USB_HDISK_EXIT		_IOC(_IOC_WRITE,'U',0x43,0x3FFF)
++#define USB_HDISK_ACTIVATE	_IOC(_IOC_WRITE,'U',0x44,0x3FFF)
++#define USB_HDISK_SET_TYPE	_IOC(_IOC_WRITE,'U',0x45,0x3FFF)
++#define USB_HDISK_GET_TYPE	_IOC(_IOC_READ, 'U',0x46,0x3FFF)
++
++#define USB_VENDOR_REQ		_IOC(_IOC_READ, 'U',0x61,0x3FFF)
++#define USB_VENDOR_RES		_IOC(_IOC_WRITE,'U',0x62,0x3FFF)
++#define USB_VENDOR_EXIT		_IOC(_IOC_WRITE,'U',0x63,0x3FFF)
++
++// Indicate the redirect_mode for gadget mass-storage;
++// 0: file-backed mode(handle SCSI command via origin gadget functions).
++// 1: virtual device mode(bypass SCSI command to remote client).
++#define USB_LUN_GET_REDIRECT_MODE	_IOC(_IOC_READ,'U',0x71,0x3FFF)
++#define USB_LUN_SET_REDIRECT_MODE	_IOC(_IOC_WRITE,'U',0x72,0x3FFF)
++
++/***************************************************/
++
++/* SCSI Command Packets */
++typedef struct
++{
++	uint8		OpCode;
++	uint8		Lun;
++	uint32		Lba;
++	union
++	{
++		struct
++		{
++			uint8		Reserved6;
++			uint16		Length;
++			uint8		Reserved9[3];
++		} PACKED Cmd10;
++		struct Len32
++		{
++			uint32		Length32;
++			uint8		Reserved10[2];
++		} PACKED Cmd12;
++	} PACKED CmdLen;
++} PACKED SCSI_COMMAND_PACKET;
++
++
++
++/**************** Values for Direction Field of IUSB Header ****************/
++#define TO_REMOTE	0x00
++#define FROM_REMOTE	0x80
++
++#define FLEXIBLE_DISK_PAGE_CODE	(0x05)
++typedef struct
++{
++	uint16 ModeDataLen;
++#define MEDIUM_TYPE_DEFAULT	(0x00)
++#define MEDIUM_TYPE_720KB	(0x1e)
++#define MEDIUM_TYPE_125_MB	(0x93)
++#define MEDIUM_TYPE_144_MB	(0x94)
++	uint8 MediumTypeCode;
++	uint8 WriteProtect; // bit(7):write protect, bit(6-5):reserved, bit(4):DPOFUA which should be zero, bit(3-0) reserved
++	uint8 Reserved[4];
++} PACKED MODE_SENSE_RESP_HDR;
++
++typedef struct
++{
++	MODE_SENSE_RESP_HDR	ModeSenseRespHdr;
++#define MAX_MODE_SENSE_RESP_DATA_LEN	(72)
++#define FLEXIBLE_DISK_PAGE_LEN	(32)
++	uint8	PageData[MAX_MODE_SENSE_RESP_DATA_LEN];
++} PACKED MODE_SENSE_RESPONSE;
++
++typedef struct
++{
++	uint8	PageCode;
++	uint8	PageLength; //1Eh
++	uint16	TransferRate;
++	uint8	NumberofHeads;
++	uint8	SectorsPerTrack;
++	uint16	DataBytesPerSector;
++	uint16	NumberofCylinders;
++	uint8	Reserved1[9];
++	uint8	MotorONDelay;
++	uint8	MotorOFFDelay;
++	uint8	Reserved2[7];
++	uint16	MediumRotationRate;
++	uint8	Reserved3;
++	uint8	Reserved4;
++} PACKED FLEXIBLE_DISK_PAGE;
++
++/******************* AMI Scsi Request/ResponsePacket ************************/
++#if (1 == AMI_USB_GADGET_MODE)
++typedef struct
++{
++	uint32	ReadLen;				/* Set by Initiator*/	// Determine the data length that host expected.
++	uint8		CurrentLUN;			// Determine the current USB mass-storage LUN(logic unit number) from remote client for data responded or commands of setup.
++									// Some SCSI CDB not include lun for request, so need to assign this for remote client.
++	SCSI_COMMAND_PACKET	CommandPkt;	/* Set by Initiator*/ // SCSI CDB from host to remote client.
++	uint32	DataLen;				/* Set by Initiator and Target */ // Host: Data length to client(WRITE 6/10/12...). Remote client: Actual data length send to host for request(READ 6/10/12...).
++	uint8	Data;					/* Set by Initiator and Target */ // Data for host/remote client.
++} PACKED GADGET_SCSI_PACKET;	// Instead of IUSB_SCSI_PACKET for gadget driver.
++
++#endif	// end #if (1 == AMI_USB_GADGET_MODE)
++
++/* Values for DataDir in ScsiRequest Packet */
++#define READ_DEVICE		0x01
++#define WRITE_DEVICE	0x02
++
++
++
++
++#ifndef __GNUC__
++#pragma pack()
++#endif
++
++#endif	// end #ifndef __AMI_GADGET_IOCTL_H__
++
+diff -Naur a/drivers/usb/gadget/function/coreTypes.h b/drivers/usb/gadget/function/coreTypes.h
+--- a/drivers/usb/gadget/function/coreTypes.h	1970-01-01 05:30:00.000000000 +0530
++++ b/drivers/usb/gadget/function/coreTypes.h	2021-02-12 20:56:57.625484352 +0530
+@@ -0,0 +1,136 @@
++/****************************************************************
++ **                                                            											 **
++ **    (C)Copyright 2006-2009, American Megatrends Inc.        			 **
++ **                                                            											 **
++ **            All Rights Reserved.                            									 **
++ **                                                            											 **
++ **        5555 Oakbrook Pkwy Suite 200, Norcross,             					 **
++ **                                                            											 **
++ **        Georgia - 30093, USA. Phone-(770)-246-8600.         				 **
++ **                                                            											 **
++ ****************************************************************/
++
++
++/*****************************************************************************
++ *
++ *   coreTypes.h
++ *
++ *****************************************************************************/
++#ifndef CORE_TYPES_H
++#define CORE_TYPES_H
++
++#ifdef __KERNEL__
++#include <linux/types.h>
++#include <linux/version.h>
++#endif
++
++/*@-incondefs@*/
++/*@-likelybool@*/
++/*@-constuse@*/
++/*@-typeuse@*/
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#ifndef __cplusplus                         /* thus must be a .c program */
++/*@-cppnames@*/
++#ifdef __KERNEL__
++#if (LINUX_VERSION_CODE <=  KERNEL_VERSION(2,6,15))  //NOTE: bool is already defined in linux/types.h
++    typedef unsigned char bool;
++#endif
++#else
++    typedef unsigned char bool;
++#endif
++    #define false (bool)0
++    #define true  (bool)1
++    typedef int BOOL ;
++/*@=cppnames@*/
++#else
++    #ifndef _WIN32
++        #define BOOL bool
++    #endif
++#endif
++
++
++#ifndef FALSE
++    #define      FALSE   0
++    #define      TRUE    1
++#endif
++
++typedef   char int8;
++typedef   signed char    int8s;
++typedef          char    CHAR;
++typedef unsigned char  	 uint8;
++#ifndef __KERNEL__
++typedef unsigned char    u8;
++#endif
++typedef unsigned char    UINT8;
++typedef unsigned char    UCHAR;
++typedef unsigned char    BYTE;            
++
++
++typedef          short   int16;
++typedef          short   INT16;
++typedef unsigned short   uint16;
++#ifndef __KERNEL__
++typedef unsigned short   u16;             
++#endif
++typedef unsigned short   UINT16;
++typedef unsigned short   TWOBYTES;         
++typedef unsigned short   WORD;         
++
++
++
++typedef          int     int32;
++typedef unsigned int     uint32;
++#ifndef __KERNEL__
++typedef unsigned int     u32;             
++#endif
++typedef unsigned int   FOURBYTES;
++
++
++typedef unsigned long long   uint64;
++
++
++#if defined(_MSC_VER)                       /* automatically specified by VisualStudio compiler */
++    /* already defined by basetsd.h, so to avoid warnings, don't define here */
++#else
++    typedef          bool    BOOLEAN;
++    typedef          int    INT32;
++    typedef unsigned int    UINT32;
++#endif
++
++#ifdef _WIN32
++ #define ssize_t size_t
++#endif
++
++#ifdef _WIN32
++#include <windows.h>
++#else
++	typedef void *			HANDLE;
++	typedef void *			LPVOID;
++        typedef unsigned int        	DWORD;         
++#endif
++
++/*-------------------------------------------------------------------------
++ *
++ *  types internal to the core library
++ *
++ *-------------------------------------------------------------------------*/
++#define CORE_CHAR_TO_Core_Id(a,b,c,d) ( ((Core_Id)a<<24) | ((Core_Id)b<<16) | (c<<8) | d )
++typedef uint32 Core_Id;
++
++#ifdef __cplusplus
++}
++#endif
++
++/*@=incondefs@*/
++/*@=likelybool@*/
++/*@=constuse@*/
++/*@=typeuse@*/
++
++#if defined ( __linux__ )
++typedef int SOCKET;
++#endif
++
++#endif /* __CORE_TYPES_H__ */
+diff -Naur a/drivers/usb/gadget/function/f_ecm.c b/drivers/usb/gadget/function/f_ecm.c
+--- a/drivers/usb/gadget/function/f_ecm.c	2021-02-12 20:55:06.928639383 +0530
++++ b/drivers/usb/gadget/function/f_ecm.c	2021-02-12 20:56:57.621484321 +0530
+@@ -91,24 +91,15 @@
+  * encapsulated commands (vendor-specific, using control-OUT).
+  */
+ 
+-#define ECM_STATUS_INTERVAL_MS		32
+-#define ECM_STATUS_BYTECOUNT		16	/* 8 byte header + data */
++#define ECM_STATUS_INTERVAL		1
++#define ECM_STATUS_BYTECOUNT		1024	/* 8 byte header + data */
+ 
+ 
+ /* interface descriptor: */
+ 
+-static struct usb_interface_assoc_descriptor
+-ecm_iad_descriptor = {
+-	.bLength =		sizeof ecm_iad_descriptor,
+-	.bDescriptorType =	USB_DT_INTERFACE_ASSOCIATION,
+ 
+ 	/* .bFirstInterface =	DYNAMIC, */
+-	.bInterfaceCount =	2,	/* control + data */
+-	.bFunctionClass =	USB_CLASS_COMM,
+-	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
+-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+ 	/* .iFunction =		DYNAMIC */
+-};
+ 
+ 
+ static struct usb_interface_descriptor ecm_control_intf = {
+@@ -192,7 +183,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		ECM_STATUS_INTERVAL_MS,
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor fs_ecm_in_desc = {
+@@ -213,7 +204,6 @@
+ 
+ static struct usb_descriptor_header *ecm_fs_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -225,8 +215,8 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &fs_ecm_in_desc,
+ 	(struct usb_descriptor_header *) &fs_ecm_out_desc,
++	(struct usb_descriptor_header *) &fs_ecm_in_desc,
+ 	NULL,
+ };
+ 
+@@ -239,7 +229,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(ECM_STATUS_INTERVAL_MS),
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor hs_ecm_in_desc = {
+@@ -262,7 +252,6 @@
+ 
+ static struct usb_descriptor_header *ecm_hs_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -274,8 +263,8 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &hs_ecm_in_desc,
+ 	(struct usb_descriptor_header *) &hs_ecm_out_desc,
++	(struct usb_descriptor_header *) &hs_ecm_in_desc,
+ 	NULL,
+ };
+ 
+@@ -288,7 +277,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(ECM_STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(ECM_STATUS_INTERVAL_MS),
++	.bInterval =		ECM_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_ss_ep_comp_descriptor ss_ecm_intr_comp_desc = {
+@@ -330,7 +319,6 @@
+ 
+ static struct usb_descriptor_header *ecm_ss_function[] = {
+ 	/* CDC ECM control descriptors */
+-	(struct usb_descriptor_header *) &ecm_iad_descriptor,
+ 	(struct usb_descriptor_header *) &ecm_control_intf,
+ 	(struct usb_descriptor_header *) &ecm_header_desc,
+ 	(struct usb_descriptor_header *) &ecm_union_desc,
+@@ -343,19 +331,19 @@
+ 	/* data interface, altsettings 0 and 1 */
+ 	(struct usb_descriptor_header *) &ecm_data_nop_intf,
+ 	(struct usb_descriptor_header *) &ecm_data_intf,
+-	(struct usb_descriptor_header *) &ss_ecm_in_desc,
+-	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
+ 	(struct usb_descriptor_header *) &ss_ecm_out_desc,
+ 	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
++	(struct usb_descriptor_header *) &ss_ecm_in_desc,
++	(struct usb_descriptor_header *) &ss_ecm_bulk_comp_desc,
+ 	NULL,
+ };
+ 
+ /* string descriptors: */
+ 
+ static struct usb_string ecm_string_defs[] = {
+-	[0].s = "CDC Ethernet Control Model (ECM)",
++	[0].s = "CDC Notification Interface",
+ 	[1].s = "",
+-	[2].s = "CDC Ethernet Data",
++	[2].s = "CDC Data Interface",
+ 	[3].s = "CDC ECM",
+ 	{  } /* end of list */
+ };
+@@ -721,14 +709,14 @@
+ 	ecm_control_intf.iInterface = us[0].id;
+ 	ecm_data_intf.iInterface = us[2].id;
+ 	ecm_desc.iMACAddress = us[1].id;
+-	ecm_iad_descriptor.iFunction = us[3].id;
++
+ 
+ 	/* allocate instance-specific interface IDs */
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+ 		goto fail;
+ 	ecm->ctrl_id = status;
+-	ecm_iad_descriptor.bFirstInterface = status;
++
+ 
+ 	ecm_control_intf.bInterfaceNumber = status;
+ 	ecm_union_desc.bMasterInterface0 = status;
+@@ -745,10 +733,10 @@
+ 	status = -ENODEV;
+ 
+ 	/* allocate instance-specific endpoints */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_in_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_notify_desc);
+ 	if (!ep)
+ 		goto fail;
+-	ecm->port.in_ep = ep;
++	ecm->notify = ep;
+ 
+ 	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_out_desc);
+ 	if (!ep)
+@@ -759,10 +747,10 @@
+ 	 * don't treat it that way.  It's simpler, and some newer CDC
+ 	 * profiles (wireless handsets) no longer treat it as optional.
+ 	 */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_notify_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_ecm_in_desc);
+ 	if (!ep)
+ 		goto fail;
+-	ecm->notify = ep;
++	ecm->port.in_ep = ep;
+ 
+ 	status = -ENOMEM;
+ 
+diff -Naur a/drivers/usb/gadget/function/f_mass_storage.c b/drivers/usb/gadget/function/f_mass_storage.c
+--- a/drivers/usb/gadget/function/f_mass_storage.c	2021-02-12 20:55:06.928639383 +0530
++++ b/drivers/usb/gadget/function/f_mass_storage.c	2021-02-12 20:56:57.625484352 +0530
+@@ -316,6 +316,32 @@
+ 	char inquiry_string[INQUIRY_STRING_LEN];
+ };
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++enum gadget_redirection_mode {
++	GADGET_REDIRECTION_MODE_ORIGIN = 0,// 0: file-backed mode(handle SCSI command via origin gadget functions).
++	GADGET_REDIRECTION_MODE_BYPASS = 1,// 1: virtual device mode(bypass SCSI command to remote client).
++	GADGET_REDIRECTION_MODE_MAX = 2,
++	GADGET_REDIRECTION_MODE_INVALID = 2,
++};
++typedef struct AMI_GADGET_PRIV {
++	// private data for each lun of mass storage.
++	// u8 redirect_mode: Indicate the redirect_mode;
++	// 0: file-backed mode(handle SCSI command via origin gadget functions).
++	// 1: virtual device mode(bypass SCSI command to remote client).
++	u8 redirect_mode;
++	u8 test;
++} PACKED AMI_GADGET_PRIV;
++
++enum gadget_mass_storage_node_id {
++	// helps to indicate the minor number of fsg and so on.
++	GADGET_MASS_STORAGE_NODE_ID_CD = 0,	// CD-ROM
++	GADGET_MASS_STORAGE_NODE_ID_HD = 1,	// HDD
++	GADGET_MASS_STORAGE_NODE_ID_MAX = 2,
++	GADGET_MASS_STORAGE_NODE_ID_INVALID = 2,
++};
++
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ struct fsg_dev {
+ 	struct usb_function	function;
+ 	struct usb_gadget	*gadget;	/* Copy of cdev->gadget */
+@@ -331,8 +357,42 @@
+ 
+ 	struct usb_ep		*bulk_in;
+ 	struct usb_ep		*bulk_out;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	int				minor;
++	struct cdev			cdev;	// For creating device node. not same as "struct usb_composite_dev *cdev";
++	spinlock_t		lock;		/* lock this structure */
++	AMI_GADGET_PRIV	ami_gadget_priv[FSG_MAX_LUNS];
++	u8			mass_storage_status;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ };
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++#define MSG_CLASS_NAME				"msg"	// a class under /sys/class/, for short of "Mass Storage Gadget"...
++#define MSG_NODE_NAME_PREFIX		"usb"	// device node name.
++#define MSG_MINORS					(GADGET_MASS_STORAGE_NODE_ID_MAX)	// minors indicates the number of device node that allow to create under /dev/.
++										// One node is for CD, and the other one is for HD.
++#define MAX_AMI_LUNS				(4)	// as max ami luns supported for cd and hd.
++static int major, minors;
++static struct class *msg_class;	// a class for mass storage gadget.
++static DEFINE_IDA(msg_ida);
++static DEFINE_MUTEX(msg_ida_lock); /* protects access to msg_ida */
++
++static wait_queue_head_t hd_req_wait[MAX_AMI_LUNS];	// waitqueue for remote request.
++static wait_queue_head_t hd_res_wait[MAX_AMI_LUNS];	// waitqueue for remote response.
++static uint8 hd_usb_hw_req_pkt[MAX_AMI_LUNS][(sizeof(GADGET_SCSI_PACKET) + MAX_SCSI_DATA)];
++static uint8 hd_usb_hw_res_pkt[MAX_AMI_LUNS][(sizeof(GADGET_SCSI_PACKET) + MAX_SCSI_DATA)];
++
++static int gmsg_remote_hd_wait_request(struct fsg_dev *fsg, const int Instance);
++static int gmsg_remtoe_hd_wake_up(const int Instance);
++static int gmsg_hd_wait_remote_response(struct fsg_dev *fsg, const int Instance);
++static int gmsg_hd_wake_up(const int Instance);
++
++// function wrapper for redirection mode.
++typedef int (*Wrapper_fsg_common) (struct fsg_common *);	// function pointer for wrappers with fsg_common.
++typedef int (*Wrapper_fsg_common_bh) (struct fsg_common *, struct fsg_buffhd *);	// function pointer for wrappers with fsg_common and fsg_buffhd.
++
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ static inline int __fsg_is_set(struct fsg_common *common,
+ 			       const char *func, unsigned line)
+ {
+@@ -1793,6 +1853,1107 @@
+ 			mask, needs_medium, name);
+ }
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++
++static int dummy_do_nothing_bh(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// dummy for wrapper.
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d dummy_do_nothing_bh overflow\n", common->lun);
++		return -EFAULT;
++	}
++	if (!common->fsg->ami_gadget_priv[common->lun].redirect_mode)
++	{
++		return 0;
++	}
++	printk("WARNING! bb LUN %d No handler op: %02X mode %d\n", common->lun, common->cmnd[0], common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	
++	return 0;
++}
++
++static int dummy_do_nothing(struct fsg_common *common)
++{	// dummy for wrapper.
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d dummy_do_nothing overflow\n", common->lun);
++		return -EFAULT;
++	}
++	if (!common->fsg->ami_gadget_priv[common->lun].redirect_mode)
++	{
++		return 0;
++	}
++	printk("WARNING! aa LUN %d No handler op: %02X mode %d\n", common->lun, common->cmnd[0], common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	dummy_do_nothing_bh(common, NULL);
++	return 0;
++}
++
++static int ami_do_inquiry(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_inquiry
++	// struct fsg_lun *curlun = common->curlun;
++	u8	*buf = (u8 *) bh->buf;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	if (NULL == common)
++	{
++		printk("ami_do_inquiry common invalid \n");
++		return 0;
++	}
++	if ((NULL == bh))
++	{
++		printk("ami_do_inquiry bh invalid \n");
++		return 0;
++	}
++#if (0)
++	if (!curlun) {		/* Unsupported LUNs are okay */
++		common->bad_lun_okay = 1;
++		memset(buf, 0, 36);
++		buf[0] = TYPE_NO_LUN;	/* Unsupported, no device-type */
++		buf[4] = 31;		/* Additional length */
++		return 36;
++	}
++#endif 
++	
++	// 
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_inquiry overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	memcpy(buf, pResData, pResPkt->DataLen);
++	
++	if (0 == len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_inquiry mode %d\n", common->lun, common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++		printk("WARNING! LUN %d No handler ami_do_inquiry len %d\n", common->lun, len);
++	}
++	return len;
++}
++
++static int ami_do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_mode_sense
++	u8		*buf = (u8 *) bh->buf;
++	int		len;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_mode_sense overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	memcpy(buf, pResData, pResPkt->DataLen);
++	
++	if (0 == len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_mode_sense mode %d\n", common->lun, common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	}
++	return len;
++}
++
++static int ami_do_prevent_allow(struct fsg_common *common)
++{	// refer to do_prevent_allow
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_prevent_allow overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	len = pResPkt->DataLen;
++	// No data is needed for this request...
++	if (0 < len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_prevent_allow len %d\n", common->lun, len);
++	}
++	
++	// printk("WARNING! LUN %d No handler ami_do_prevent_allow mode %d\n", common->lun, common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	
++	return 0;
++}
++
++/*
++ * Let response data from remote client to match fsg buffer for USB hw to host.
++*/
++static int ami_do_read(struct fsg_common *common)
++{	// refer to do_read
++	struct fsg_lun		*curlun = common->curlun;
++	struct fsg_buffhd	*bh;
++	int			rc;
++	uint8_t *pResData;
++	u32 offset, offset_tmp;
++	u32			amount_left;
++	unsigned int		amount;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_read overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// printk("LUN %d handle ami_do_read mode %d\n", common->lun, common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	amount = usb_long(pResPkt->DataLen);
++	bh = common->next_buffhd_to_fill;
++	// memcpy(bh->buf, &pResData[offset], amount);
++	bh->inreq->length = amount;
++	bh->state = BUF_STATE_FULL;
++	
++	
++	offset = 0;	// Always start from 0. Casue of it reads data from buffer not file.
++	
++	/* Carry out the file reads */
++	amount_left = usb_long(pResPkt->DataLen);
++	if (unlikely(amount_left == 0))
++	{
++		printk("LUN %d ami_do_read EIO\n", common->lun);
++		return -EIO;		/* No default reply */
++	}
++
++	for (;;) {
++		/*
++		 * Figure out how much we need to read:
++		 * Try to read the remaining amount.
++		 * But don't read more than the buffer size.
++		 * And don't try to read past the end of the file.
++		 */
++		amount = min(amount_left, FSG_BUFLEN);
++		amount = min(amount, (pResPkt->DataLen - offset));
++
++		/* Wait for the next buffer to become available */
++		bh = common->next_buffhd_to_fill;
++		rc = sleep_thread(common, false, bh);
++		if (rc)
++			return rc;
++
++		/*
++		 * If we were asked to read past the end of file,
++		 * end with an empty buffer.
++		 */
++		if (amount == 0) {
++			curlun->sense_data =
++					SS_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
++			// curlun->sense_data_info = file_offset >> curlun->blkbits;
++			printk("WARNING!!!TODO: SS_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE\n");
++			curlun->info_valid = 1;
++			bh->inreq->length = 0;
++			bh->state = BUF_STATE_FULL;
++			break;
++		}
++
++		/* Perform the read */
++		offset_tmp = offset;
++		memcpy(bh->buf, &pResData[offset_tmp], amount);
++		VLDBG(curlun, "data read %u @ %llu -> %d\n", amount,
++		      (unsigned long long)offset);
++		if (signal_pending(current))
++			return -EINTR;
++
++		/* It should not be happened.
++		if (nread < 0) {
++			LDBG(curlun, "error in file read: %d\n", (int)nread);
++			nread = 0;
++		} else if (nread < amount) {
++			LDBG(curlun, "partial file read: %d/%u\n",
++			     (int)nread, amount);
++			nread = round_down(nread, curlun->blksize);
++		}
++		*/
++		offset  += amount;
++		amount_left  -= amount;
++		common->residue -= amount;
++
++		/*
++		 * Except at the end of the transfer, nread will be
++		 * equal to the buffer size, which is divisible by the
++		 * bulk-in maxpacket size.
++		 */
++		bh->inreq->length = amount;
++		bh->state = BUF_STATE_FULL;
++
++		/* If an error occurred, report it and its position */
++		/* It should not be happened.
++		if (nread < amount) {
++			curlun->sense_data = SS_UNRECOVERED_READ_ERROR;
++			curlun->sense_data_info =
++					file_offset >> curlun->blkbits;
++			curlun->info_valid = 1;
++			break;
++		}
++		*/
++
++		if (amount_left == 0)
++			break;		/* No more left to read */
++
++		/* Send this buffer and go read some more */
++		bh->inreq->zero = 0;
++		if (!start_in_transfer(common, bh))
++			/* Don't know what to do if common->fsg is NULL */
++			return -EIO;
++		common->next_buffhd_to_fill = bh->next;
++	}
++	
++	// printk("HD, test passed with Bootable_1.44M.img\n");
++
++	return -EIO;		/* No default reply */
++}
++
++static int ami_do_read_capacity(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_read_capacity
++	struct fsg_lun	*curlun = common->curlun;
++	u32		lba = get_unaligned_be32(&common->cmnd[2]);
++	int		pmi = common->cmnd[8];
++	u8		*buf = (u8 *)bh->buf;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_read_capacity overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	/* Check the PMI and LBA fields */
++	if (pmi > 1 || (pmi == 0 && lba != 0)) {
++		curlun->sense_data = SS_INVALID_FIELD_IN_CDB;
++		return -EINVAL;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	memcpy(buf, pResData, pResPkt->DataLen);
++	
++	if (0 == len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_read_capacity len %d LBA %04X blksize %04X\n", common->lun, len, *(int*)&pResData[0], *(int*)&pResData[4]);
++	}
++	
++	return len;
++}
++
++static int ami_do_read_header(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_read_header, but this is obsoleted.
++	struct fsg_lun	*curlun = common->curlun;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++
++	if (common->cmnd[1] & ~0x02) {		/* Mask away MSF */
++		curlun->sense_data = SS_INVALID_FIELD_IN_CDB;
++		return -EINVAL;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	if (0 == len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_read_header len %d\n", common->lun, len);
++	}
++	
++	return len;
++}
++
++static int ami_do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_read_toc
++	u8		*buf = (u8 *)bh->buf;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_read_toc overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	memcpy(buf, pResData, pResPkt->DataLen);
++	
++	return len;
++}
++
++static int ami_do_read_format_capacities(struct fsg_common *common, struct fsg_buffhd *bh)
++{	// refer to do_read_format_capacities
++	u8		*buf = (u8 *) bh->buf;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_read_format_capacities overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	memcpy(buf, pResData, pResPkt->DataLen);
++	
++	if (0 == len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_read_format_capacities len %d \n", common->lun, len);
++	}
++	
++	return len;
++}
++
++static int ami_do_start_stop(struct fsg_common *common)
++{	// refer to do_start_stop
++	struct fsg_lun	*curlun = common->curlun;
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_start_stop overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	// No data is needed for this request...
++	if (0 < len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_start_stop len %d\n", common->lun, len);
++	}
++	
++	up_read(&common->filesem);
++	down_write(&common->filesem);
++	fsg_lun_close(curlun);
++	up_write(&common->filesem);
++	down_read(&common->filesem);
++	printk("INFO! LUN %d ejected\n", common->lun);
++	return 0;
++}
++
++static int ami_do_synchronize_cache(struct fsg_common *common)
++{	// refer to do_synchronize_cache
++	// nothing to do for vmedia mode.
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_synchronize_cache overflow\n", common->lun);
++		return -EFAULT;
++	}
++	printk("WARNING! LUN %d No handler ami_do_synchronize_cache mode %d\n", common->lun, common->fsg->ami_gadget_priv[common->lun].redirect_mode);
++	return 0;
++}
++
++static int ami_do_verify(struct fsg_common *common)
++{	// refer to do_verify
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_verify overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	// No data is needed for this request...
++	if (0 < len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_verify len %d\n", common->lun, len);
++	}
++	return 0;
++}
++
++static int ami_do_write(struct fsg_common *common)
++{	// refer to do_write
++	struct fsg_lun		*curlun = common->curlun;
++	u32			lba;
++	struct fsg_buffhd	*bh;
++	int			get_some_more;
++	u32			amount_left_to_req, amount_left_to_write;
++	loff_t			usb_offset, file_offset, file_offset_tmp;
++	unsigned int		amount;
++	int			rc;
++	int instance = 0;
++	
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	uint8_t *pResData;
++	int len;
++	GADGET_SCSI_PACKET *pReqPkt = NULL;
++	uint8_t *pReqData;
++#if (0)
++// debugging.
++	SCSI_COMMAND_PACKET *pScsiPkt;
++	uint8_t *pCDB;
++#endif
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_do_write overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	if (curlun->ro) {
++		curlun->sense_data = SS_WRITE_PROTECTED;
++		return -EINVAL;
++	}
++	
++	if (common->cmnd[0] == WRITE_6)
++		lba = get_unaligned_be24(&common->cmnd[1]);
++	else {
++		lba = get_unaligned_be32(&common->cmnd[2]);
++
++		/*
++		 * We allow DPO (Disable Page Out = don't save data in the
++		 * cache) and FUA (Force Unit Access = write directly to the
++		 * medium).  We don't implement DPO; we implement FUA by
++		 * performing synchronous output.
++		 */
++		if (common->cmnd[1] & ~0x18) {
++			curlun->sense_data = SS_INVALID_FIELD_IN_CDB;
++			return -EINVAL;
++		}
++		if (!curlun->nofua && (common->cmnd[1] & 0x08)) { /* FUA */
++			/* nothing to do for vmedia redirectiion.
++			spin_lock(&curlun->filp->f_lock);
++			curlun->filp->f_flags |= O_SYNC;
++			spin_unlock(&curlun->filp->f_lock);
++			*/
++		}
++	}
++	
++	/* Carry out the file writes */
++	get_some_more = 1;
++	file_offset = usb_offset = 0;	// Always start at 0 of buffer for remote client.
++	amount_left_to_req = common->data_size_from_cmnd;
++	amount_left_to_write = common->data_size_from_cmnd;
++	instance = common->lun;
++	pReqPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_req_pkt[instance];
++	pReqPkt->DataLen = common->data_size_from_cmnd;
++	pReqData = &pReqPkt->Data;
++	// printk("LUN %d ami_do_write lba %08X len %08X\n", common->lun, lba, amount_left_to_req);
++	while (amount_left_to_write > 0) {
++		// starting copy data to buf for remote client.
++		/* Queue a request for more data from the host */
++		bh = common->next_buffhd_to_fill;
++		if (bh->state == BUF_STATE_EMPTY && get_some_more) {
++
++			/*
++			 * Figure out how much we want to get:
++			 * Try to get the remaining amount,
++			 * but not more than the buffer size.
++			 */
++			amount = min(amount_left_to_req, FSG_BUFLEN);
++
++			/* Beyond the end of the backing file? */
++			if (usb_offset >= MAX_SCSI_DATA) {	// never out of buffer size for remte client.
++				get_some_more = 0;
++				curlun->sense_data =
++					SS_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
++				curlun->sense_data_info =
++					usb_offset >> curlun->blkbits;
++				curlun->info_valid = 1;
++				continue;
++			}
++
++			/* Get the next buffer */
++			usb_offset += amount;
++			common->usb_amount_left -= amount;
++			amount_left_to_req -= amount;
++			if (amount_left_to_req == 0)
++				get_some_more = 0;
++
++			/*
++			 * Except at the end of the transfer, amount will be
++			 * equal to the buffer size, which is divisible by
++			 * the bulk-out maxpacket size.
++			 */
++			set_bulk_out_req_length(common, bh, amount);
++			if (!start_out_transfer(common, bh))
++				/* Dunno what to do if common->fsg is NULL */
++				return -EIO;
++			common->next_buffhd_to_fill = bh->next;
++			continue;
++		}
++
++		/* Write the received data to the backing file */
++		bh = common->next_buffhd_to_drain;
++		if (bh->state == BUF_STATE_EMPTY && !get_some_more)
++			break;			/* We stopped early */
++
++		/* Wait for the data to be received */
++		rc = sleep_thread(common, false, bh);
++		if (rc)
++			return rc;
++
++		common->next_buffhd_to_drain = bh->next;
++		bh->state = BUF_STATE_EMPTY;
++
++		/* Did something go wrong with the transfer? */
++		if (bh->outreq->status != 0) {
++			curlun->sense_data = SS_COMMUNICATION_FAILURE;
++			curlun->sense_data_info =
++					file_offset >> curlun->blkbits;
++			curlun->info_valid = 1;
++			break;
++		}
++
++		amount = bh->outreq->actual;
++		if (MAX_SCSI_DATA - file_offset < amount) {
++			LERROR(curlun, "write %u @ %llu beyond end %u\n",
++				       amount, (unsigned long long)file_offset,
++				       MAX_SCSI_DATA);
++			amount = MAX_SCSI_DATA - file_offset;
++		}
++
++		/*
++		 * Don't accept excess data.  The spec doesn't say
++		 * what to do in this case.  We'll ignore the error.
++		 */
++		amount = min(amount, bh->bulk_out_intended_length);
++
++		/* Don't write a partial block */
++		amount = round_down(amount, curlun->blksize);
++		if (amount == 0)
++			goto empty_copy;
++
++		/* Copy data to buffer for remote client */
++		file_offset_tmp = file_offset;
++		if ((file_offset_tmp + amount) > MAX_SCSI_DATA)
++		{
++			printk("ERROR!!! LUN %d copy overflow %llu > %u\n", instance, (file_offset_tmp + amount), MAX_SCSI_DATA);
++			goto empty_copy;
++		}
++		memcpy(&pReqData[file_offset_tmp], bh->buf, amount);
++		VLDBG(curlun, "data copy %u @ %llu \n", amount,
++				(unsigned long long)file_offset);
++		if (signal_pending(current))
++			return -EINTR;		/* Interrupted! */
++
++		file_offset += amount;
++		amount_left_to_write -= amount;
++		common->residue -= amount;
++
++ empty_copy:
++		/* Did the host decide to stop early? */
++		if (bh->outreq->actual < bh->bulk_out_intended_length) {
++			common->short_packet_received = 1;
++			break;
++		}
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	pResData = &pResPkt->Data;
++	
++	len = pResPkt->DataLen;
++	
++	// No data is needed for this request...
++	if (0 < len)
++	{
++		printk("WARNING! LUN %d No handler ami_do_write len %d\n", common->lun, len);
++	}
++#if (0) // for debugging...
++	instance = common->lun;
++	pReqPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_req_pkt[instance];
++	pScsiPkt = &pReqPkt->CommandPkt;
++	pCDB = (uint8_t*)pScsiPkt;
++	printk("pCDB[0] %02X\n", pCDB[0]);
++	printk("pCDB[1] %02X\n", pCDB[1]);
++	printk("pCDB[2] %08X\n", *(uint32_t*)&pCDB[2]);
++	printk("pCDB[6] %02X\n", pCDB[6]);
++	printk("pCDB[7] %04X\n", *(uint16_t*)&pCDB[7]);
++	printk("pCDB[9] %02X\n", pCDB[9]);
++#endif 
++	
++	return -EIO;		/* No default reply */
++}
++
++static int ami_test_unit_ready(struct fsg_common *common)
++{
++	int instance = 0;
++	GADGET_SCSI_PACKET *pResPkt = NULL;
++	int len;
++	
++	if (0 > (common->lun) || ( FSG_MAX_LUNS <= common->lun))
++	{
++		printk("LUN %d ami_test_unit_ready overflow\n", common->lun);
++		return -EFAULT;
++	}
++	
++	// wake up for ioctl.
++	instance = common->lun;
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_EMPTY);
++	gmsg_remtoe_hd_wake_up(instance);
++	
++	// wait for remote...
++	gmsg_hd_wait_remote_response(common->fsg, instance);
++	
++	pResPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	len = pResPkt->DataLen;
++	// No data is needed for this request...
++	if (0 < len)
++	{
++		printk("WARNING! LUN %d No handler ami_test_unit_ready len %d\n", common->lun, len);
++	}
++	
++	return 0;
++}
++
++// wrapper functions set for scsi commands.
++Wrapper_fsg_common_bh wrapper_do_inquiry[GADGET_REDIRECTION_MODE_MAX] = {do_inquiry, ami_do_inquiry};
++Wrapper_fsg_common_bh wrapper_do_mode_select[GADGET_REDIRECTION_MODE_MAX] = {do_mode_select, do_mode_select}; // mode_select is unsopported by default;
++Wrapper_fsg_common_bh wrapper_do_mode_sense[GADGET_REDIRECTION_MODE_MAX] = {do_mode_sense, ami_do_mode_sense};
++Wrapper_fsg_common wrapper_do_prevent_allow[GADGET_REDIRECTION_MODE_MAX] = {do_prevent_allow, ami_do_prevent_allow};
++Wrapper_fsg_common wrapper_do_read[GADGET_REDIRECTION_MODE_MAX] = {do_read, ami_do_read};
++Wrapper_fsg_common_bh wrapper_do_read_capacity[GADGET_REDIRECTION_MODE_MAX] = {do_read_capacity, ami_do_read_capacity};
++Wrapper_fsg_common_bh wrapper_do_read_header[GADGET_REDIRECTION_MODE_MAX] = {do_read_header, ami_do_read_header};
++Wrapper_fsg_common_bh wrapper_do_read_toc[GADGET_REDIRECTION_MODE_MAX] = {do_read_toc, ami_do_read_toc};
++Wrapper_fsg_common_bh wrapper_do_read_format_capacities[GADGET_REDIRECTION_MODE_MAX] = {do_read_format_capacities, ami_do_read_format_capacities};
++Wrapper_fsg_common_bh wrapper_do_request_sense[GADGET_REDIRECTION_MODE_MAX] = {do_request_sense, do_request_sense}; // request_sense, the sense data is maintained by driver.
++Wrapper_fsg_common wrapper_do_start_stop[GADGET_REDIRECTION_MODE_MAX] = {do_start_stop, ami_do_start_stop};
++Wrapper_fsg_common wrapper_do_synchronize_cache[GADGET_REDIRECTION_MODE_MAX] = {do_synchronize_cache, ami_do_synchronize_cache}; // no thing do to for redirection mode.
++Wrapper_fsg_common wrapper_do_verify[GADGET_REDIRECTION_MODE_MAX] = {do_verify, ami_do_verify};
++Wrapper_fsg_common wrapper_do_write[GADGET_REDIRECTION_MODE_MAX] = {do_write, ami_do_write};
++Wrapper_fsg_common wrapper_do_test_unit_ready[GADGET_REDIRECTION_MODE_MAX] = {dummy_do_nothing, ami_test_unit_ready};
++Wrapper_fsg_common wrapper_do_event_status_notifacation[GADGET_REDIRECTION_MODE_MAX] = {dummy_do_nothing, dummy_do_nothing}; // needed but not implemented.
++
++static int do_scsi_command(struct fsg_common *common)
++{
++	struct fsg_buffhd	*bh;
++	int			rc;
++	int			reply = -EINVAL;
++	int			i;
++	static char		unknown[16];
++	int redirection_mode = 0;
++
++	dump_cdb(common);
++
++	/* Wait for the next buffer to become available for data or status */
++	bh = common->next_buffhd_to_fill;
++	common->next_buffhd_to_drain = bh;
++	rc = sleep_thread(common, false, bh);
++	if (rc)
++		return rc;
++
++	common->phase_error = 0;
++	common->short_packet_received = 0;
++	
++	redirection_mode = common->fsg->ami_gadget_priv[common->lun].redirect_mode;
++
++	down_read(&common->filesem);	/* We're using the backing file */
++	switch (common->cmnd[0]) {
++
++	case INQUIRY:
++		common->data_size_from_cmnd = common->cmnd[4];
++		reply = check_command(common, 6, DATA_DIR_TO_HOST,
++				      (1<<4), 0,
++				      "INQUIRY");
++		if (reply == 0)
++			reply = wrapper_do_inquiry[redirection_mode](common, bh);
++		break;
++
++	case MODE_SELECT:
++		common->data_size_from_cmnd = common->cmnd[4];
++		reply = check_command(common, 6, DATA_DIR_FROM_HOST,
++				      (1<<1) | (1<<4), 0,
++				      "MODE SELECT(6)");
++		if (reply == 0)
++			reply = wrapper_do_mode_select[redirection_mode](common, bh);
++		break;
++
++	case MODE_SELECT_10:
++		common->data_size_from_cmnd =
++			get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command(common, 10, DATA_DIR_FROM_HOST,
++				      (1<<1) | (3<<7), 0,
++				      "MODE SELECT(10)");
++		if (reply == 0)
++			reply = wrapper_do_mode_select[redirection_mode](common, bh);
++		break;
++
++	case MODE_SENSE:
++		common->data_size_from_cmnd = common->cmnd[4];
++		reply = check_command(common, 6, DATA_DIR_TO_HOST,
++				      (1<<1) | (1<<2) | (1<<4), 0,
++				      "MODE SENSE(6)");
++		if (reply == 0)
++			reply = wrapper_do_mode_sense[redirection_mode](common, bh);
++		break;
++
++	case MODE_SENSE_10:
++		common->data_size_from_cmnd =
++			get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command(common, 10, DATA_DIR_TO_HOST,
++				      (1<<1) | (1<<2) | (3<<7), 0,
++				      "MODE SENSE(10)");
++		if (reply == 0)
++			reply = wrapper_do_mode_sense[redirection_mode](common, bh);
++		break;
++
++	case ALLOW_MEDIUM_REMOVAL:
++		common->data_size_from_cmnd = 0;
++		reply = check_command(common, 6, DATA_DIR_NONE,
++				      (1<<4), 0,
++				      "PREVENT-ALLOW MEDIUM REMOVAL");
++		if (reply == 0)
++			reply = wrapper_do_prevent_allow[redirection_mode](common);
++		break;
++
++	case READ_6:
++		i = common->cmnd[4];
++		common->data_size_from_cmnd = (i == 0) ? 256 : i;
++		reply = check_command_size_in_blocks(common, 6,
++				      DATA_DIR_TO_HOST,
++				      (7<<1) | (1<<4), 1,
++				      "READ(6)");
++		if (reply == 0)
++			reply = wrapper_do_read[redirection_mode](common);
++		break;
++
++	case READ_10:
++		common->data_size_from_cmnd =
++				get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command_size_in_blocks(common, 10,
++				      DATA_DIR_TO_HOST,
++				      (1<<1) | (0xf<<2) | (3<<7), 1,
++				      "READ(10)");
++		if (reply == 0)
++			reply = wrapper_do_read[redirection_mode](common);
++		else
++		{
++			printk("read_10 error: %d\n", reply);
++		}
++		break;
++
++	case READ_12:
++		common->data_size_from_cmnd =
++				get_unaligned_be32(&common->cmnd[6]);
++		reply = check_command_size_in_blocks(common, 12,
++				      DATA_DIR_TO_HOST,
++				      (1<<1) | (0xf<<2) | (0xf<<6), 1,
++				      "READ(12)");
++		if (reply == 0)
++			reply = wrapper_do_read[redirection_mode](common);
++		else
++		{
++			printk("READ_12 error: %d\n", reply);
++		}
++		break;
++
++	case READ_CAPACITY:
++		common->data_size_from_cmnd = 8;
++		reply = check_command(common, 10, DATA_DIR_TO_HOST,
++				      (0xf<<2) | (1<<8), 1,
++				      "READ CAPACITY");
++		if (reply == 0)
++			reply = wrapper_do_read_capacity[redirection_mode](common, bh);
++		break;
++
++	case READ_HEADER:
++		if (!common->curlun || !common->curlun->cdrom)
++			goto unknown_cmnd;
++		common->data_size_from_cmnd =
++			get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command(common, 10, DATA_DIR_TO_HOST,
++				      (3<<7) | (0x1f<<1), 1,
++				      "READ HEADER");
++		if (reply == 0)
++			reply = wrapper_do_read_header[redirection_mode](common, bh);
++		break;
++
++	case READ_TOC:
++		if (!common->curlun || !common->curlun->cdrom)
++			goto unknown_cmnd;
++		common->data_size_from_cmnd =
++			get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command(common, 10, DATA_DIR_TO_HOST,
++				      (7<<6) | (1<<1), 1,
++				      "READ TOC");
++		if (reply == 0)
++			reply = wrapper_do_read_toc[redirection_mode](common, bh);
++		break;
++
++	case READ_FORMAT_CAPACITIES:
++		common->data_size_from_cmnd =
++			get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command(common, 10, DATA_DIR_TO_HOST,
++				      (3<<7), 1,
++				      "READ FORMAT CAPACITIES");
++		if (reply == 0)
++			reply = wrapper_do_read_format_capacities[redirection_mode](common, bh);
++		break;
++
++	case REQUEST_SENSE:
++		common->data_size_from_cmnd = common->cmnd[4];
++		reply = check_command(common, 6, DATA_DIR_TO_HOST,
++				      (1<<4), 0,
++				      "REQUEST SENSE");
++		if (reply == 0)
++			reply = wrapper_do_request_sense[redirection_mode](common, bh);
++		break;
++
++	case START_STOP:
++		common->data_size_from_cmnd = 0;
++		reply = check_command(common, 6, DATA_DIR_NONE,
++				      (1<<1) | (1<<4), 0,
++				      "START-STOP UNIT");
++		if (reply == 0)
++			reply = wrapper_do_start_stop[redirection_mode](common);
++		break;
++
++	case SYNCHRONIZE_CACHE:
++		common->data_size_from_cmnd = 0;
++		reply = check_command(common, 10, DATA_DIR_NONE,
++				      (0xf<<2) | (3<<7), 1,
++				      "SYNCHRONIZE CACHE");
++		if (reply == 0)
++			reply = wrapper_do_synchronize_cache[redirection_mode](common);
++		break;
++
++	case TEST_UNIT_READY:
++		common->data_size_from_cmnd = 0;
++		reply = check_command(common, 6, DATA_DIR_NONE,
++				0, 1,
++				"TEST UNIT READY");
++		wrapper_do_test_unit_ready[redirection_mode](common);
++		break;
++
++	/*
++	 * Although optional, this command is used by MS-Windows.  We
++	 * support a minimal version: BytChk must be 0.
++	 */
++	case VERIFY:
++		common->data_size_from_cmnd = 0;
++		reply = check_command(common, 10, DATA_DIR_NONE,
++				      (1<<1) | (0xf<<2) | (3<<7), 1,
++				      "VERIFY");
++		if (reply == 0)
++			reply = wrapper_do_verify[redirection_mode](common);
++		break;
++
++	case WRITE_6:
++		i = common->cmnd[4];
++		common->data_size_from_cmnd = (i == 0) ? 256 : i;
++		reply = check_command_size_in_blocks(common, 6,
++				      DATA_DIR_FROM_HOST,
++				      (7<<1) | (1<<4), 1,
++				      "WRITE(6)");
++		if (reply == 0)
++			reply = wrapper_do_write[redirection_mode](common);
++		break;
++
++	case WRITE_10:
++		common->data_size_from_cmnd =
++				get_unaligned_be16(&common->cmnd[7]);
++		reply = check_command_size_in_blocks(common, 10,
++				      DATA_DIR_FROM_HOST,
++				      (1<<1) | (0xf<<2) | (3<<7), 1,
++				      "WRITE(10)");
++		if (reply == 0)
++			reply = wrapper_do_write[redirection_mode](common);
++		break;
++
++	case WRITE_12:
++		common->data_size_from_cmnd =
++				get_unaligned_be32(&common->cmnd[6]);
++		reply = check_command_size_in_blocks(common, 12,
++				      DATA_DIR_FROM_HOST,
++				      (1<<1) | (0xf<<2) | (0xf<<6), 1,
++				      "WRITE(12)");
++		if (reply == 0)
++			reply = wrapper_do_write[redirection_mode](common);
++		break;
++
++	/*
++	 * Some mandatory commands that we recognize but don't implement.
++	 * They don't mean much in this setting.  It's left as an exercise
++	 * for anyone interested to implement RESERVE and RELEASE in terms
++	 * of Posix locks.
++	 */
++	case FORMAT_UNIT:
++	case RELEASE:
++	case RESERVE:
++	case SEND_DIAGNOSTIC:
++		/* Fall through */
++
++	default:
++unknown_cmnd:
++		common->data_size_from_cmnd = 0;
++		sprintf(unknown, "Unknown x%02x", common->cmnd[0]);
++		reply = check_command(common, common->cmnd_size,
++				      DATA_DIR_UNKNOWN, ~0, 0, unknown);
++		if (reply == 0) {
++			common->curlun->sense_data = SS_INVALID_COMMAND;
++			reply = -EINVAL;
++		}
++		break;
++	}
++	up_read(&common->filesem);
++
++	if (reply == -EINTR || signal_pending(current))
++		return -EINTR;
++
++	/* Set up the single reply buffer for finish_reply() */
++	if (reply == -EINVAL)
++		reply = 0;		/* Error reply length */
++	if (reply >= 0 && common->data_dir == DATA_DIR_TO_HOST) {
++		reply = min((u32)reply, common->data_size_from_cmnd);
++		bh->inreq->length = reply;
++		bh->state = BUF_STATE_FULL;
++		common->residue -= reply;
++	}				/* Otherwise it's already set */
++
++	return 0;
++}
++
++#elif (0 == ENABLE_MASS_STORAGE_NODE)
++
+ static int do_scsi_command(struct fsg_common *common)
+ {
+ 	struct fsg_buffhd	*bh;
+@@ -1892,6 +3053,10 @@
+ 				      "READ(10)");
+ 		if (reply == 0)
+ 			reply = do_read(common);
++		else
++		{
++			printk("read_10 error: %d\n", reply);
++		}
+ 		break;
+ 
+ 	case READ_12:
+@@ -1903,6 +3068,10 @@
+ 				      "READ(12)");
+ 		if (reply == 0)
+ 			reply = do_read(common);
++		else
++		{
++			printk("READ_12 error: %d\n", reply);
++		}
+ 		break;
+ 
+ 	case READ_CAPACITY:
+@@ -2070,6 +3239,59 @@
+ 	return 0;
+ }
+ 
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
++/*-------------------------------------------------------------------------*/
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++/* Let SCSI request from host to match ami virtual media protocol... */
++/* struct fsg_common *common: for getting lun and other info.
++ * struct fsg_buffhd *bh: for getting cbw info.
++ * GADGET_SCSI_PACKET *pReqPkt: for setting info to remote client.
++*/
++int ami_do_cbw_to_ami_scsi_protocol(const struct fsg_common *common, const struct fsg_buffhd *bh, GADGET_SCSI_PACKET *pReqPkt)
++{
++	struct usb_request	*req = bh->outreq;
++	struct bulk_cb_wrap	*cbw = req->buf;
++	SCSI_COMMAND_PACKET *pScsiPkt;
++	int rc = -1;
++	if (!pReqPkt)
++		return -EFAULT;
++	
++	/*scsi CDB filling */
++	pScsiPkt = &pReqPkt->CommandPkt;
++	memcpy(pScsiPkt, cbw->CDB, cbw->Length);
++	
++	/* iusb scsi packet filling */
++	if (FROM_REMOTE & cbw->Flags)
++	{	// data from remote client to host.
++		pReqPkt->ReadLen		= cbw->DataTransferLength;
++		pReqPkt->DataLen		= usb_long(0);
++	}
++	else
++	{	// data from host to remote client.
++		pReqPkt->ReadLen		= cbw->DataTransferLength;
++		if (0 == pReqPkt->ReadLen)
++		{	// dir == none.
++			// printk("TODO: no handler for dir none remote scsi, op: %02X\n", pScsiPkt->OpCode);
++		}
++		else
++		{	// dir == From HOST
++			// pReqPkt->DataLen = ???; // get the length from for each write command in do_scsi_command().
++		}
++		
++		// pReqPkt->DataLen		= usb_long(MassData->ScsiDataLen);
++		// TODO:
++		// memcpy(&(iUsbScsiPkt->Data),&(MassData->ScsiData),MassData->ScsiDataLen);
++	}
++	
++	pReqPkt->CurrentLUN = common->lun;
++	
++	rc = 0;
++	return rc;
++}
++
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+@@ -2125,6 +3347,10 @@
+ 		}
+ 		return -EINVAL;
+ 	}
++	
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	ami_do_cbw_to_ami_scsi_protocol(common, bh, (GADGET_SCSI_PACKET*)hd_usb_hw_req_pkt[cbw->Lun]);
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
+ 	/* Save the command for later */
+ 	common->cmnd_size = cbw->Length;
+@@ -2891,6 +4117,268 @@
+ 
+ /*-------------------------------------------------------------------------*/
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++/* Functions for remote request and response */
++void gmsg_ami_init_device(const unsigned int Instance)
++{
++	init_waitqueue_head(&hd_req_wait[Instance]);
++	init_waitqueue_head(&hd_res_wait[Instance]);
++}
++
++/* Functions for Device node */
++static int f_msg_release(struct inode *inode, struct file *fd)
++{
++	fd->private_data = NULL;
++	return 0;
++}
++
++static int f_msg_open(struct inode *inode, struct file *fd)
++{
++	struct fsg_dev *fsg =
++		container_of(inode->i_cdev, struct fsg_dev, cdev);
++
++	fd->private_data = fsg;
++	return 0;
++}
++
++static int gmsg_remote_hd_wait_request(struct fsg_dev *fsg, const int Instance)
++{
++	int retval;
++	retval = wait_event_interruptible(hd_req_wait[Instance], 
++				smp_load_acquire(&fsg->mass_storage_status) ==
++					BUF_STATE_EMPTY);
++	if (retval)
++	{
++		printk("%d wait_request -EINTR\n", Instance);
++	}
++#if (0)// debug...
++	switch(fsg->mass_storage_status)
++	{
++		case BUF_STATE_EMPTY:
++			printk("req status: empty\n");
++			break;
++		case BUF_STATE_FULL:
++			printk("req status: full\n");
++			break;
++	}
++#endif
++	return retval;
++}
++
++static int gmsg_remtoe_hd_wake_up(const int Instance)
++{	// wake up the upper layer that wait for host request.
++	wake_up(&hd_req_wait[Instance]);
++	return 0;
++}
++
++static int gmsg_hd_wait_remote_response(struct fsg_dev *fsg, const int Instance)
++{
++	int retval;
++	retval = wait_event_interruptible(hd_res_wait[Instance], 
++				smp_load_acquire(&fsg->mass_storage_status) >=
++					BUF_STATE_FULL);
++	if (retval)
++	{
++		printk("%d wait_response -EINTR\n", Instance);
++	}
++#if (0)// debug...
++	switch(fsg->mass_storage_status)
++	{
++		case BUF_STATE_EMPTY:
++			printk("%d res status: empty\n", Instance);
++			break;
++		case BUF_STATE_FULL:
++			printk("%d res status: full\n", Instance);
++			break;
++	}
++#endif
++	return retval;
++}
++
++static int gmsg_hd_wake_up(const int Instance)
++{	// wake up kernel thread that wait for remote response.
++	wake_up(&hd_res_wait[Instance]);
++	return 0;
++}
++
++/* Only copy data to kernel buffer. */
++static int gmsg_receive_remote_response(struct fsg_dev *fsg, GADGET_SCSI_PACKET *pResPkt)
++{
++	struct fsg_common *common = fsg->common;
++	// struct fsg_lun		*curlun = common->curlun;
++	uint32 SendSize;
++	int err;
++	GADGET_SCSI_PACKET *pPkt; // point to kernel space buffer.
++	
++	if (!pResPkt)
++		return -EFAULT;
++	
++	if (0 != common->lun)
++	{
++		printk("gmsg_receive_remote_response common->lun: %d overflow\n", common->lun);
++	}
++	pPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_res_pkt[common->lun];
++	
++	err=__copy_from_user((void *)(pPkt), (void *)pResPkt, sizeof(GADGET_SCSI_PACKET));
++	if(err != 0)
++		printk("Copy data from user error1\n");
++	// 
++	SendSize = usb_long(pPkt->DataLen);
++	// printk("gmsg_receive_remote_response SendSize: %d\n", SendSize);
++	err=__copy_from_user((void *)(&(pPkt->Data)),(void *)&(pResPkt->Data), SendSize);
++	if(err != 0)
++		printk("Copy data from user error2\n");
++	
++	// wake up kernel thread to send data to host.
++	smp_store_release(&common->fsg->mass_storage_status, BUF_STATE_FULL);
++	gmsg_hd_wake_up(0);
++	
++	return err;
++}
++
++static int gmsg_send_host_request(struct fsg_dev *fsg, GADGET_SCSI_PACKET *pReqPkt)
++{
++	struct fsg_common *common = fsg->common;
++	// struct fsg_lun		*curlun = common->curlun;
++	GADGET_SCSI_PACKET *pPkt; // point to kernel space buffer.
++	uint8 Instance = common->lun;
++	if (!pReqPkt)
++		return -EFAULT;
++	
++	if (0 != common->lun)
++	{
++		printk("gmsg_receive_remote_response common->lun: %d overflow\n", common->lun);
++	}
++	pPkt = (GADGET_SCSI_PACKET*)hd_usb_hw_req_pkt[common->lun];
++	
++	/* Copy kernel data area to user data area*/
++	if (__copy_to_user((void *)pReqPkt,(void *)pPkt,sizeof(GADGET_SCSI_PACKET)))
++	{
++		printk ("gmsg_send_host_request():__copy_to_user scsipkt failed for Instance %d\n", Instance);
++		return -EFAULT;
++	}
++	
++	if(pPkt->DataLen)   /*if Data needs to be Xfered */
++	{
++		if(__copy_to_user((void *)(&(pReqPkt->Data)),(void *)(&(pPkt->Data)),
++						pPkt->DataLen))
++		{
++			printk ("gmsg_send_host_request():__copy_to_user data failed for Instance %d\n", Instance);
++			return -EFAULT;
++		}
++	}
++	return 0;
++}
++
++// ref to ffs_ep0_ioctl, dev_ioctl, printer_ioctl.
++static long ami_f_msg_ioctl(struct file *fd, unsigned int code, unsigned long arg)
++{
++	struct fsg_dev *fsg = fd->private_data;
++	struct fsg_common *common = fsg->common;
++	uint8 Instance = common->lun;
++	// struct usb_gadget *gadget = fsg->gadget; // for gadget ioctl....
++	// unsigned long		flags;
++	LUN_INFO_CMD lun_info;
++	int			status = 0;
++
++	DBG(fsg, "ami_f_msg_ioctl: cmd=0x%4.4x, arg=%lu\n", code, arg);
++	
++	if (0 > (Instance) || ( FSG_MAX_LUNS <= Instance))
++	{
++		printk("invalid dev lun %d \n", Instance);
++		return -1;
++	}
++
++	/* handle ioctls */
++
++	/* TODO */
++	// spin_lock_irqsave(&fsg->lock, flags);
++	
++	// status = gadget->ops->ioctl (gadget, code, value);
++	switch (code) {
++		case USB_LUN_GET_REDIRECT_MODE:
++			status = copy_from_user(&lun_info, (void __user *)arg, sizeof(LUN_INFO_CMD));
++			if ((0  > lun_info.lun) || ( FSG_MAX_LUNS <= lun_info.lun))
++			{	// check boundary.
++				printk("invalid lun %d \n", lun_info.lun);
++				return -EINVAL;
++			}
++			lun_info.mode = fsg->ami_gadget_priv[lun_info.lun].redirect_mode;
++			status = copy_to_user((void __user *)arg, &lun_info, sizeof(LUN_INFO_CMD));
++			break;
++		case USB_LUN_SET_REDIRECT_MODE:
++			status = copy_from_user(&lun_info, (void __user *)arg, sizeof(LUN_INFO_CMD));
++			if ((0  >  lun_info.lun) || ( FSG_MAX_LUNS <= lun_info.lun))
++			{	// check boundary.
++				printk("invalid lun %d \n", lun_info.lun);
++				return -EINVAL;
++			}
++			if ((0  > lun_info.mode) || ( 2 <= lun_info.mode))
++			{
++				printk("invalid mode %d \n", lun_info.mode);
++				return -EINVAL;
++			}
++			fsg->ami_gadget_priv[lun_info.lun].redirect_mode = lun_info.mode;
++			break;
++		case USB_CDROM_REQ:	// cd request...
++			/* ret = copy_to_user((void __user *)value, desc, desc->bLength); */
++			// printk("USB_CDROM_REQ cp to user\n");
++			status = gmsg_remote_hd_wait_request(fsg, Instance);
++			status = gmsg_send_host_request(fsg, (GADGET_SCSI_PACKET *)arg);
++			if (status)
++			{
++				printk("something error with gmsg_send_host_request: %d\n", status);
++			}
++			break;
++		case USB_CDROM_RES:	// cd response...
++			/* ret = copy_from_user(desc, (void __user *)value, desc->bLength); */
++			// printk("USB_CDROM_RES cp from user\n");
++			status = gmsg_receive_remote_response(fsg, (GADGET_SCSI_PACKET *)arg);
++			if (status)
++			{
++				printk("something error with gmsg_receive_remote_response: %d\n", status);
++			}
++			break;
++		case USB_HDISK_REQ:	// harddisk request...
++			/* ret = copy_to_user((void __user *)value, desc, desc->bLength); */
++			// printk("USB_HDISK_REQ cp to user\n");
++			status = gmsg_remote_hd_wait_request(fsg, Instance);
++			status = gmsg_send_host_request(fsg, (GADGET_SCSI_PACKET *)arg);
++			if (status)
++			{
++				printk("something error with gmsg_send_host_request: %d\n", status);
++			}
++			break;
++		case USB_HDISK_RES:	// harddisk response...
++			/* ret = copy_from_user(desc, (void __user *)value, desc->bLength); */
++			// printk("USB_HDISK_RES cp from user\n");
++			status = gmsg_receive_remote_response(fsg, (GADGET_SCSI_PACKET *)arg);
++			if (status)
++			{
++				printk("something error with gmsg_receive_remote_response: %d\n", status);
++			}
++			// fsg->mass_storage_status = (u8)arg;
++			break;
++		default:
++			/* could not handle ioctl */
++			DBG(fsg, "ami_f_msg_ioctl: ERROR cmd=0x%4.4xis not supported\n",
++					code);
++			status = -ENOTTY;
++	}
++
++	// spin_unlock_irqrestore(&fsg->lock, flags);
++
++	return status;
++}
++
++static const struct file_operations f_msg_fops = {
++	.owner		= THIS_MODULE,
++	.open		= f_msg_open,
++	.release	= f_msg_release,
++	.unlocked_ioctl = ami_f_msg_ioctl	// TODO....
++};
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ static int fsg_bind(struct usb_configuration *c, struct usb_function *f)
+ {
+ 	struct fsg_dev		*fsg = fsg_from_func(f);
+@@ -2901,6 +4389,10 @@
+ 	unsigned		max_burst;
+ 	int			ret;
+ 	struct fsg_opts		*opts;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	struct device		*device;
++	dev_t			dev;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
+ 	/* Don't allow to bind if we don't have at least one LUN */
+ 	ret = _fsg_common_get_max_lun(common);
+@@ -2975,8 +4467,28 @@
+ 	if (ret)
+ 		goto autoconf_fail;
+ 
+-	return 0;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	/* create char device */
++	cdev_init(&fsg->cdev, &f_msg_fops);
++	dev = MKDEV(major, fsg->minor);
++	ret = cdev_add(&fsg->cdev, dev, 1);
++	if (ret)
++		goto autoconf_fail;
++
++	device = device_create(msg_class, NULL, dev, NULL,
++			       "%s%d", MSG_NODE_NAME_PREFIX, fsg->minor);
++	if (IS_ERR(device)) {
++		ret = PTR_ERR(device);
++		goto del;
++	}
++	gmsg_ami_init_device(fsg->minor); // 
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
++	return 0;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++del:
++	cdev_del(&fsg->cdev);
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ autoconf_fail:
+ 	ERROR(fsg, "unable to autoconfigure all endpoints\n");
+ 	i = -ENOTSUPP;
+@@ -2989,6 +4501,34 @@
+ 	return i;
+ }
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++
++static inline int gmsg_get_minor(void)
++{
++	int ret;
++
++	ret = ida_simple_get(&msg_ida, 0, 0, GFP_KERNEL);
++	if (ret >= MSG_MINORS) {
++		ida_simple_remove(&msg_ida, ret);
++		ret = -ENODEV;
++	}
++
++	return ret;
++}
++
++static inline void gmsg_put_minor(int minor)
++{
++	mutex_lock(&msg_ida_lock);
++
++	ida_simple_remove(&msg_ida, minor);
++	if (ida_is_empty(&msg_ida))
++		gmsg_cleanup();
++
++	mutex_unlock(&msg_ida_lock);
++}
++
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ /****************************** ALLOCATE FUNCTION *************************/
+ 
+ static void fsg_unbind(struct usb_configuration *c, struct usb_function *f)
+@@ -3002,6 +4542,10 @@
+ 		/* FIXME: make interruptible or killable somehow? */
+ 		wait_event(common->fsg_wait, common->fsg != fsg);
+ 	}
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	device_destroy(msg_class, MKDEV(major, fsg->minor));
++	cdev_del(&fsg->cdev);
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
+ 	usb_free_all_descriptors(&fsg->function);
+ }
+@@ -3338,6 +4882,9 @@
+ 	struct fsg_opts *opts;
+ 
+ 	opts = fsg_opts_from_func_inst(fi);
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	gmsg_put_minor(opts->minor);
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 	fsg_common_release(opts->common);
+ 	kfree(opts);
+ }
+@@ -3347,6 +4894,10 @@
+ 	struct fsg_opts *opts;
+ 	struct fsg_lun_config config;
+ 	int rc;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	struct usb_function_instance *ret;
++	int status = 0;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
+ 	opts = kzalloc(sizeof(*opts), GFP_KERNEL);
+ 	if (!opts)
+@@ -3375,6 +4926,29 @@
+ 
+ 	opts->lun0.lun = opts->common->luns[0];
+ 	opts->lun0.lun_id = 0;
++	
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	mutex_lock(&msg_ida_lock);
++
++	if (ida_is_empty(&msg_ida)) {
++		status = gmsg_setup(NULL, MSG_MINORS);
++		if (status)  {
++			ret = ERR_PTR(status);
++			kfree(opts);
++			goto unlock;
++		}
++	}
++	opts->minor = gmsg_get_minor();
++	if (opts->minor < 0) {
++		ret = ERR_PTR(opts->minor);
++		kfree(opts);
++		if (ida_is_empty(&msg_ida))
++			gmsg_cleanup();
++		goto unlock;
++	}
++unlock:
++	mutex_unlock(&msg_ida_lock);
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 
+ 	config_group_init_type_name(&opts->func_inst.group, "", &fsg_func_type);
+ 
+@@ -3420,7 +4994,9 @@
+ 	mutex_lock(&opts->lock);
+ 	opts->refcnt++;
+ 	mutex_unlock(&opts->lock);
+-
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	fsg->minor = opts->minor;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ 	fsg->function.name	= FSG_DRIVER_DESC;
+ 	fsg->function.bind	= fsg_bind;
+ 	fsg->function.unbind	= fsg_unbind;
+@@ -3474,3 +5050,43 @@
+ 	cfg->fsg_num_buffers = fsg_num_buffers;
+ }
+ EXPORT_SYMBOL_GPL(fsg_config_from_params);
++
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++int gmsg_setup(struct usb_gadget *g, int count)
++{
++	int status;
++	dev_t dev;
++
++	msg_class = class_create(THIS_MODULE, MSG_CLASS_NAME);
++	if (IS_ERR(msg_class)) {
++		status = PTR_ERR(msg_class);
++		msg_class = NULL;
++		pr_err("unable to create usb_gadget MSG class %d\n", status);
++		return status;
++	}
++
++	status = alloc_chrdev_region(&dev, 0, count, MSG_CLASS_NAME);
++	if (status) {
++		pr_err("MSG alloc_chrdev_region %d\n", status);
++		class_destroy(msg_class);
++		msg_class = NULL;
++		return status;
++	}
++
++	major = MAJOR(dev);
++	minors = count;
++
++	return 0;
++}
++
++void gmsg_cleanup(void)
++{
++	if (major) {
++		unregister_chrdev_region(MKDEV(major, 0), minors);
++		major = minors = 0;
++	}
++
++	class_destroy(msg_class);
++	msg_class = NULL;
++}
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+diff -Naur a/drivers/usb/gadget/function/f_mass_storage.h b/drivers/usb/gadget/function/f_mass_storage.h
+--- a/drivers/usb/gadget/function/f_mass_storage.h	2021-02-12 20:55:06.928639383 +0530
++++ b/drivers/usb/gadget/function/f_mass_storage.h	2021-02-12 20:56:57.625484352 +0530
+@@ -5,6 +5,8 @@
+ #include <linux/usb/composite.h>
+ #include "storage_common.h"
+ 
++#define ENABLE_MASS_STORAGE_NODE	(1)	// let bind() able to create a node(name: usb) under /dev/. refer to f_hid.c...
++
+ struct fsg_module_parameters {
+ 	char		*file[FSG_MAX_LUNS];
+ 	bool		ro[FSG_MAX_LUNS];
+@@ -82,6 +84,9 @@
+ 	 */
+ 	struct mutex			lock;
+ 	int				refcnt;
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++	int minor;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
+ };
+ 
+ struct fsg_lun_config {
+@@ -141,4 +146,20 @@
+ 			    const struct fsg_module_parameters *params,
+ 			    unsigned int fsg_num_buffers);
+ 
++#if (1 == ENABLE_MASS_STORAGE_NODE)
++#include "ami_gadget_ioctl.h"	// for ami media redirection.
++#include <linux/cdev.h>	// need for struct cdev...
++#define  usb_long(x)	(x)
++#define MAX_SCSI_DATA 	(64*2048)
++void gmsg_ami_init_device(const unsigned int Instance);
++int gmsg_setup(struct usb_gadget *g, int count);
++void gmsg_cleanup(void);
++
++typedef struct LUN_INFO_CMD {
++	u8 type;	// device type:cd/hd.
++	u8 lun;	// lun idx.
++	u8 mode;	// redirect mode.
++}PACKED LUN_INFO_CMD;
++#endif // end #if (1 == ENABLE_MASS_STORAGE_NODE)
++
+ #endif /* USB_F_MASS_STORAGE_H */
+diff -Naur a/drivers/usb/gadget/function/f_rndis.c b/drivers/usb/gadget/function/f_rndis.c
+--- a/drivers/usb/gadget/function/f_rndis.c	2021-02-12 20:55:06.924639353 +0530
++++ b/drivers/usb/gadget/function/f_rndis.c	2021-02-12 20:56:57.609484230 +0530
+@@ -69,7 +69,7 @@
+ struct f_rndis {
+ 	struct gether			port;
+ 	u8				ctrl_id, data_id;
+-	u8				ethaddr[ETH_ALEN];
++	u8				ethaddr[14];
+ 	u32				vendorID;
+ 	const char			*manufacturer;
+ 	struct rndis_params		*params;
+@@ -100,8 +100,8 @@
+ /*
+  */
+ 
+-#define RNDIS_STATUS_INTERVAL_MS	32
+-#define STATUS_BYTECOUNT		8	/* 8 bytes data */
++#define RNDIS_STATUS_INTERVAL			1
++#define STATUS_BYTECOUNT			1024	/* 1024 bytes data */
+ 
+ 
+ /* interface descriptor: */
+@@ -116,7 +116,7 @@
+ 	.bInterfaceClass =	USB_CLASS_COMM,
+ 	.bInterfaceSubClass =   USB_CDC_SUBCLASS_ACM,
+ 	.bInterfaceProtocol =   USB_CDC_ACM_PROTO_VENDOR,
+-	/* .iInterface = DYNAMIC */
++    .iInterface = 		0x04,
+ };
+ 
+ static struct usb_cdc_header_desc header_desc = {
+@@ -148,8 +148,21 @@
+ 	.bLength =		sizeof(rndis_union_desc),
+ 	.bDescriptorType =	USB_DT_CS_INTERFACE,
+ 	.bDescriptorSubType =	USB_CDC_UNION_TYPE,
+-	/* .bMasterInterface0 =	DYNAMIC */
+-	/* .bSlaveInterface0 =	DYNAMIC */
++	.bMasterInterface0 =	0x00,
++	.bSlaveInterface0 =	0x01,
++};
++
++static struct usb_cdc_ether_desc ecm_desc = {
++	.bLength =		sizeof ecm_desc,
++	.bDescriptorType =	USB_DT_CS_INTERFACE,
++	.bDescriptorSubType =	USB_CDC_ETHERNET_TYPE,
++
++	/* this descriptor actually adds value, surprise! */
++	.iMACAddress = 0x05,
++	.bmEthernetStatistics =	cpu_to_le32(0), /* no statistics */
++	.wMaxSegmentSize =	cpu_to_le16(ETH_FRAME_LEN),
++	.wNumberMCFilters =	cpu_to_le16(0),
++	.bNumberPowerFilters =	0,
+ };
+ 
+ /* the data interface has two bulk endpoints */
+@@ -163,22 +176,12 @@
+ 	.bInterfaceClass =	USB_CLASS_CDC_DATA,
+ 	.bInterfaceSubClass =	0,
+ 	.bInterfaceProtocol =	0,
+-	/* .iInterface = DYNAMIC */
++	.iInterface = 		0x06,
+ };
+ 
+ 
+-static struct usb_interface_assoc_descriptor
+-rndis_iad_descriptor = {
+-	.bLength =		sizeof rndis_iad_descriptor,
+-	.bDescriptorType =	USB_DT_INTERFACE_ASSOCIATION,
+ 
+-	.bFirstInterface =	0, /* XXX, hardcoded */
+-	.bInterfaceCount = 	2,	// control + data
+-	.bFunctionClass =	USB_CLASS_COMM,
+-	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
+-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+ 	/* .iFunction = DYNAMIC */
+-};
+ 
+ /* full speed support: */
+ 
+@@ -189,7 +192,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		RNDIS_STATUS_INTERVAL_MS,
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor fs_in_desc = {
+@@ -209,7 +212,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_fs_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -217,12 +219,13 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,	
+ 	(struct usb_descriptor_header *) &fs_notify_desc,
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &fs_in_desc,
+ 	(struct usb_descriptor_header *) &fs_out_desc,
++	(struct usb_descriptor_header *) &fs_in_desc,
+ 	NULL,
+ };
+ 
+@@ -235,7 +238,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(RNDIS_STATUS_INTERVAL_MS)
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_endpoint_descriptor hs_in_desc = {
+@@ -257,7 +260,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_hs_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -265,12 +267,14 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,
++
+ 	(struct usb_descriptor_header *) &hs_notify_desc,
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &hs_in_desc,
+ 	(struct usb_descriptor_header *) &hs_out_desc,
++	(struct usb_descriptor_header *) &hs_in_desc,
+ 	NULL,
+ };
+ 
+@@ -283,7 +287,7 @@
+ 	.bEndpointAddress =	USB_DIR_IN,
+ 	.bmAttributes =		USB_ENDPOINT_XFER_INT,
+ 	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
+-	.bInterval =		USB_MS_TO_HS_INTERVAL(RNDIS_STATUS_INTERVAL_MS)
++	.bInterval =		RNDIS_STATUS_INTERVAL,
+ };
+ 
+ static struct usb_ss_ep_comp_descriptor ss_intr_comp_desc = {
+@@ -324,7 +328,6 @@
+ };
+ 
+ static struct usb_descriptor_header *eth_ss_function[] = {
+-	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+ 
+ 	/* control interface matches ACM, not Ethernet */
+ 	(struct usb_descriptor_header *) &rndis_control_intf,
+@@ -332,24 +335,26 @@
+ 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
+ 	(struct usb_descriptor_header *) &rndis_union_desc,
++	(struct usb_descriptor_header *) &ecm_desc,
+ 	(struct usb_descriptor_header *) &ss_notify_desc,
+ 	(struct usb_descriptor_header *) &ss_intr_comp_desc,
+ 
+ 	/* data interface has no altsetting */
+ 	(struct usb_descriptor_header *) &rndis_data_intf,
+-	(struct usb_descriptor_header *) &ss_in_desc,
+-	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+ 	(struct usb_descriptor_header *) &ss_out_desc,
+ 	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
++	(struct usb_descriptor_header *) &ss_in_desc,
++	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+ 	NULL,
+ };
+ 
+ /* string descriptors: */
+ 
+ static struct usb_string rndis_string_defs[] = {
+-	[0].s = "RNDIS Communications Control",
+-	[1].s = "RNDIS Ethernet Data",
+-	[2].s = "RNDIS",
++	[0].s = "",
++	[1].s = "RNDIS Notification Interface.",
++	[2].s = "RNDIS Data Interface.",
++	[3].s = "RNDIS",
+ 	{  } /* end of list */
+ };
+ 
+@@ -398,7 +403,7 @@
+ 	 */
+ 	data[0] = cpu_to_le32(1);
+ 	data[1] = cpu_to_le32(0);
+-
++	req->length = 8;
+ 	status = usb_ep_queue(rndis->notify, req, GFP_ATOMIC);
+ 	if (status) {
+ 		atomic_dec(&rndis->notify_count);
+@@ -679,6 +684,9 @@
+ 
+ 	rndis_opts = container_of(f->fi, struct f_rndis_opts, func_inst);
+ 
++	if(rndis_opts->borrowed_net) {
++		rndis->port.ioport = netdev_priv(rndis_opts->net);
++	}
+ 	if (cdev->use_os_string) {
+ 		f->os_desc_table = kzalloc(sizeof(*f->os_desc_table),
+ 					   GFP_KERNEL);
+@@ -688,9 +696,6 @@
+ 		f->os_desc_table[0].os_desc = &rndis_opts->rndis_os_desc;
+ 	}
+ 
+-	rndis_iad_descriptor.bFunctionClass = rndis_opts->class;
+-	rndis_iad_descriptor.bFunctionSubClass = rndis_opts->subclass;
+-	rndis_iad_descriptor.bFunctionProtocol = rndis_opts->protocol;
+ 
+ 	/*
+ 	 * in drivers/usb/gadget/configfs.c:configfs_composite_bind()
+@@ -706,30 +711,33 @@
+ 			goto fail;
+ 		rndis_opts->bound = true;
+ 	}
+-
++	status = gether_get_host_addr_cdc(rndis_opts->net, rndis->ethaddr,
++					  sizeof(rndis->ethaddr));
++	if (status < 12) {
++		kfree(rndis);
++		return ERR_PTR(-EINVAL);
++	}
++	rndis_string_defs[0].s = rndis->ethaddr;
+ 	us = usb_gstrings_attach(cdev, rndis_strings,
+ 				 ARRAY_SIZE(rndis_string_defs));
+ 	if (IS_ERR(us)) {
+ 		status = PTR_ERR(us);
+ 		goto fail;
+ 	}
+-	rndis_control_intf.iInterface = us[0].id;
+-	rndis_data_intf.iInterface = us[1].id;
+-	rndis_iad_descriptor.iFunction = us[2].id;
++	ecm_desc.iMACAddress = us[0].id;
++	rndis_control_intf.iInterface = us[1].id;
++	rndis_data_intf.iInterface = us[2].id;
+ 
+ 	/* allocate instance-specific interface IDs */
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+ 		goto fail;
+ 	rndis->ctrl_id = status;
+-	rndis_iad_descriptor.bFirstInterface = status;
++
+ 
+ 	rndis_control_intf.bInterfaceNumber = status;
+ 	rndis_union_desc.bMasterInterface0 = status;
+ 
+-	if (cdev->use_os_string)
+-		f->os_desc_table[0].if_id =
+-			rndis_iad_descriptor.bFirstInterface;
+ 
+ 	status = usb_interface_id(c, f);
+ 	if (status < 0)
+@@ -742,10 +750,10 @@
+ 	status = -ENODEV;
+ 
+ 	/* allocate instance-specific endpoints */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_in_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_notify_desc);
+ 	if (!ep)
+ 		goto fail;
+-	rndis->port.in_ep = ep;
++	rndis->notify = ep;
+ 
+ 	ep = usb_ep_autoconfig(cdev->gadget, &fs_out_desc);
+ 	if (!ep)
+@@ -756,10 +764,10 @@
+ 	 * optional.  We don't treat it that way though!  It's simpler,
+ 	 * and some newer profiles don't treat it as optional.
+ 	 */
+-	ep = usb_ep_autoconfig(cdev->gadget, &fs_notify_desc);
++	ep = usb_ep_autoconfig(cdev->gadget, &fs_in_desc);
+ 	if (!ep)
+ 		goto fail;
+-	rndis->notify = ep;
++	rndis->port.in_ep = ep;
+ 
+ 	status = -ENOMEM;
+ 
+@@ -931,9 +939,7 @@
+ 	}
+ 	INIT_LIST_HEAD(&opts->rndis_os_desc.ext_prop);
+ 
+-	opts->class = rndis_iad_descriptor.bFunctionClass;
+-	opts->subclass = rndis_iad_descriptor.bFunctionSubClass;
+-	opts->protocol = rndis_iad_descriptor.bFunctionProtocol;
++
+ 
+ 	descs[0] = &opts->rndis_os_desc;
+ 	names[0] = "rndis";
+diff -Naur a/drivers/usb/gadget/function/rndis.c b/drivers/usb/gadget/function/rndis.c
+--- a/drivers/usb/gadget/function/rndis.c	2021-02-12 20:55:06.928639383 +0530
++++ b/drivers/usb/gadget/function/rndis.c	2021-02-12 20:56:57.613484260 +0530
+@@ -815,11 +815,11 @@
+ 	case RNDIS_MSG_HALT:
+ 		pr_debug("%s: RNDIS_MSG_HALT\n",
+ 			__func__);
+-		params->state = RNDIS_UNINITIALIZED;
++		/*params->state = RNDIS_UNINITIALIZED;
+ 		if (params->dev) {
+ 			netif_carrier_off(params->dev);
+ 			netif_stop_queue(params->dev);
+-		}
++		}*/
+ 		return 0;
+ 
+ 	case RNDIS_MSG_QUERY:

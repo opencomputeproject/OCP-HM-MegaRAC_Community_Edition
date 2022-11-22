@@ -1,0 +1,110 @@
+--- a/drivers/mtd/spi-nor/spi-nor.c	2020-12-01 18:15:32.363733438 -0500
++++ b/drivers/mtd/spi-nor/spi-nor.c	2020-12-01 18:40:53.020810908 -0500
+@@ -1890,7 +1890,36 @@
+ 
+ 	return nor->read_reg(nor, SPINOR_OP_RDSR2, sr2, 1);
+ }
++/*---------------------------------------------------------------*/
++static int spi_nor_write_sr3(struct spi_nor *nor, u8 *sr3)
++{
++	if (nor->spimem) {
++		struct spi_mem_op op =
++			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_WRSR3, 1),
++				   SPI_MEM_OP_NO_ADDR,
++				   SPI_MEM_OP_NO_DUMMY,
++				   SPI_MEM_OP_DATA_OUT(1, sr3, 1));
+ 
++		return spi_mem_exec_op(nor->spimem, &op);
++	}
++
++	return nor->write_reg(nor, SPINOR_OP_WRSR3, sr3, 1);
++}
++
++static int spi_nor_read_sr3(struct spi_nor *nor, u8 *sr3)
++{
++	if (nor->spimem) {
++		struct spi_mem_op op =
++			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_RDSR3, 1),
++				   SPI_MEM_OP_NO_ADDR,
++				   SPI_MEM_OP_NO_DUMMY,
++				   SPI_MEM_OP_DATA_IN(1, sr3, 1));
++
++		return spi_mem_exec_op(nor->spimem, &op);
++	}
++
++	return nor->read_reg(nor, SPINOR_OP_RDSR3, sr3, 1);
++}
+ /**
+  * sr2_bit7_quad_enable() - set QE bit in Status Register 2.
+  * @nor:	pointer to a 'struct spi_nor'
+@@ -4837,6 +4866,8 @@
+ 	struct spi_nor_flash_parameter *params = &nor->params;
+ 	int ret;
+ 	int i;
++    u8 *sr3;
++    char* type="w25q512jv";
+ 
+ 	ret = spi_nor_check(nor);
+ 	if (ret)
+@@ -4858,6 +4889,7 @@
+ 	nor->bouncebuf_size = PAGE_SIZE;
+ 	nor->bouncebuf = devm_kmalloc(dev, nor->bouncebuf_size,
+ 				      GFP_KERNEL);
++    sr3 = nor->bouncebuf;
+ 	if (!nor->bouncebuf)
+ 		return -ENOMEM;
+ 
+@@ -4961,7 +4993,6 @@
+ 
+ 	dev_info(dev, "%s (%lld Kbytes)\n", info->name,
+ 			(long long)mtd->size >> 10);
+-
+ 	dev_dbg(dev,
+ 		"mtd .name = %s, .size = 0x%llx (%lldMiB), "
+ 		".erasesize = 0x%.8x (%uKiB) .numeraseregions = %d\n",
+@@ -4978,7 +5009,22 @@
+ 				mtd->eraseregions[i].erasesize,
+ 				mtd->eraseregions[i].erasesize / 1024,
+ 				mtd->eraseregions[i].numblocks);
++
++    //Change Winbond Driver Output Strength 50%
++    if(strcmp(nor->info->name, type)==0)
++    {
++        ret = spi_nor_read_sr3(nor, sr3);
++        printk("Default status register 3 : 0x%x\n",sr3[0]);
++        ret = write_enable(nor);
++        ret = spi_nor_read_sr3(nor, sr3);
++        *sr3 &= 0xDF; //DRV0 - 0
++        *sr3 |= 0x40; //DRV1 - 1
++        ret = spi_nor_write_sr3(nor, sr3);
++        ret = spi_nor_read_sr3(nor, sr3);
++        printk("Changed status register 3 : 0x%x\n",sr3[0]);
++    }
+ 	return 0;
++    
+ }
+ EXPORT_SYMBOL_GPL(spi_nor_scan);
+ 
+@@ -4987,7 +5033,8 @@
+ 	struct spi_device *spi = spimem->spi;
+ 	struct flash_platform_data *data = dev_get_platdata(&spi->dev);
+ 	struct spi_nor *nor;
+-	/*
++    u8 *sr3 = nor->bouncebuf;
++    /*
+ 	 * Enable all caps by default. The core will mask them after
+ 	 * checking what's really supported using spi_mem_supports_op().
+ 	 */
+--- a/include/linux/mtd/spi-nor.h	2020-12-02 16:03:00.621228077 -0500
++++ b/include/linux/mtd/spi-nor.h	2020-12-02 16:03:19.109101673 -0500
+@@ -66,7 +66,9 @@
+ #define SPINOR_OP_CLFSR		0x50	/* Clear flag status register */
+ #define SPINOR_OP_RDEAR		0xc8	/* Read Extended Address Register */
+ #define SPINOR_OP_WREAR		0xc5	/* Write Extended Address Register */
+-
++#define SPINOR_OP_RDSR3		0x15	/* Read status register 3 */
++#define SPINOR_OP_WRSR3		0x11	/* Write status register 3 */
++ 
+ /* 4-byte address opcodes - used on Spansion and some Macronix flashes. */
+ #define SPINOR_OP_READ_4B	0x13	/* Read data bytes (low frequency) */
+ #define SPINOR_OP_READ_FAST_4B	0x0c	/* Read data bytes (high frequency) */

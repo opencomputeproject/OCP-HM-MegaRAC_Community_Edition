@@ -1,0 +1,124 @@
+diff -Naur a/arch/arm/mach-aspeed/ast2600/scu_info.c b/arch/arm/mach-aspeed/ast2600/scu_info.c
+--- a/arch/arm/mach-aspeed/ast2600/scu_info.c	2021-04-23 16:21:27.287657479 +0530
++++ b/arch/arm/mach-aspeed/ast2600/scu_info.c	2021-04-23 16:26:29.949925016 +0530
+@@ -9,6 +9,8 @@
+ #include <asm/io.h>
+ #include <asm/arch/aspeed_scu_info.h>
+ 
++DECLARE_GLOBAL_DATA_PTR;
++
+ /* SoC mapping Table */
+ #define SOC_ID(str, rev) { .name = str, .rev_id = rev, }
+ 
+@@ -260,6 +262,8 @@
+ 			writel(SYS_EXT_RESET, ASPEED_SYS_RESET_CTRL);
+ 		}	
+ 	}
++
++	gd->reset_reason = rest;
+ }
+ 
+ #define SOC_FW_INIT_DRAM		BIT(7)
+diff -Naur a/board/aspeed/evb_ast2600/vc_ast2600.c b/board/aspeed/evb_ast2600/vc_ast2600.c
+--- a/board/aspeed/evb_ast2600/vc_ast2600.c	2021-04-23 16:22:43.516229885 +0530
++++ b/board/aspeed/evb_ast2600/vc_ast2600.c	2021-04-28 13:19:54.134223156 +0530
+@@ -10,6 +10,7 @@
+ #include <asm/arch/timer.h>
+ #include <linux/err.h>
+ #include <dm/uclass.h>
++#include <malloc.h>
+ 
+ /* muti function pin register*/
+ #define SCU_BASE	0x1e6e2000
+@@ -611,6 +612,73 @@
+ 
+ }
+ 
++static void update_bootargs_cmd(const char *key, const char *value)
++{
++	int buf_len;
++	char *buf;
++	char *cmdline;
++	char comp_key[128];
++
++	if (!key || (key[0] == '\0')) {
++		printf("%s - Empty key not allowed\n", __func__);
++		return;
++	}
++
++	cmdline = env_get("bootargs");
++
++	/* Allocate space for maximum possible new command line */
++	if (value)
++		buf_len = strlen(cmdline) + strlen(key) + 3 + strlen(value);
++	else
++		buf_len = strlen(cmdline) + strlen(key) + 3;
++
++	buf = malloc(buf_len);
++	if (!buf) {
++		printf("%s: out of memory\n", __func__);
++		return;
++	}
++	memset(buf, 0, buf_len);
++
++	if (!cmdline) {
++		/* lets add key-value, though bootargs are empty */
++		snprintf(buf, buf_len, "%s=%s", key, (value ? value : ""));
++		env_set("bootargs", buf);
++		free(buf);
++		return;
++	}
++
++	snprintf(comp_key, sizeof(comp_key), "%s=", key);
++	char *start = strstr(cmdline, comp_key);
++
++	/* Check for full word match. Match should be start of cmdline
++	 * or there should be space before match */
++	if (start && ((start == cmdline) || (*(start-1) == ' '))) {
++		char *end = strchr(start, ' ');
++		strncpy(buf, cmdline, (start - cmdline));
++
++		if (end)
++			snprintf(buf, buf_len, "%s%s=%s %s", buf, key,
++				 (value ? value : ""), end+1);
++		else
++			snprintf(buf, buf_len, "%s%s=%s", buf, key,
++				 (value ? value : ""));
++	} else {
++		snprintf(buf, buf_len, "%s %s=%s", cmdline, key,
++			 (value ? value : ""));
++	}
++
++	env_set("bootargs", buf);
++	free(buf);
++}
++
++int rstreason_setting(void)
++{
++        char value[11];
++        /* Add reset reason to bootargs */
++        snprintf(value, sizeof(value), "0x%x", gd->reset_reason);
++        update_bootargs_cmd("resetreason", value);
++}
++
+ void board_init_uboot_setting()
+ {
+ 	EnableSomeMutifunctionPin();
+@@ -621,4 +689,6 @@
+ 	Config_SCU_btn_PassThru();
+ 	espi_init();
+ 	VC_GPIO_Setting();
++
++	rstreason_setting();
+ }
+diff -Naur a/include/asm-generic/global_data.h b/include/asm-generic/global_data.h
+--- a/include/asm-generic/global_data.h	2021-04-23 16:23:22.320520899 +0530
++++ b/include/asm-generic/global_data.h	2021-04-23 16:35:19.281287363 +0530
+@@ -133,6 +133,7 @@
+ 	struct spl_handoff *spl_handoff;
+ # endif
+ #endif
++	u32 reset_reason;
+ } gd_t;
+ #endif
+ 
