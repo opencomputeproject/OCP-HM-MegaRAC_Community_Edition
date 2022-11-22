@@ -1,0 +1,110 @@
+diff -Naur a/drivers/pinctrl/aspeed/pinctrl-aspeed.c b/drivers/pinctrl/aspeed/pinctrl-aspeed.c
+--- a/drivers/pinctrl/aspeed/pinctrl-aspeed.c	2021-08-06 02:52:42.783186941 +0530
++++ b/drivers/pinctrl/aspeed/pinctrl-aspeed.c	2021-08-06 04:08:43.233509545 +0530
+@@ -376,6 +376,59 @@
+ 	return 0;
+ }
+ 
++void aspeed_gpio_disable_free(struct pinctrl_dev *pctldev,
++                              struct pinctrl_gpio_range *range,
++                              unsigned int offset)
++{
++        struct aspeed_pinctrl_data *pdata = pinctrl_dev_get_drvdata(pctldev);
++        const struct aspeed_pin_desc *pdesc = pdata->pins[offset].drv_data;
++        const struct aspeed_sig_expr ***prios, **funcs, *expr;
++        int ret;
++
++        if (!pdesc)
++                return;
++
++        dev_dbg(pctldev->dev,
++                "Freeing pass-through pin %s (%d). Re-enabling pass-through.\n",
++                pdesc->name, offset);
++
++        prios = pdesc->prios;
++
++        if (!prios)
++                return;
++
++        /* Disable any functions of higher priority than GPIO just in case */
++        while ((funcs = *prios)) {
++                if (aspeed_gpio_in_exprs(funcs))
++                        break;
++
++                ret = aspeed_disable_sig(&pdata->pinmux, funcs);
++                if (ret)
++                        return;
++
++                prios++;
++        }
++
++        if (!funcs) {
++                char *signals = get_defined_signals(pdesc);
++
++                pr_warn("No GPIO signal type found on pin %s (%d). Found: %s\n",
++                        pdesc->name, offset, signals);
++                kfree(signals);
++
++                return;
++        }
++
++        /*
++         * Pass-through should be one priority higher than the GPIO function,
++         * so decrement our prios and enable that function
++         */
++        prios--;
++        funcs = *prios;
++        expr = *funcs;
++        aspeed_sig_expr_enable(&pdata->pinmux, expr);
++}
++
+ int aspeed_pinctrl_probe(struct platform_device *pdev,
+ 			 struct pinctrl_desc *pdesc,
+ 			 struct aspeed_pinctrl_data *pdata)
+diff -Naur a/drivers/pinctrl/aspeed/pinctrl-aspeed-g6.c b/drivers/pinctrl/aspeed/pinctrl-aspeed-g6.c
+--- a/drivers/pinctrl/aspeed/pinctrl-aspeed-g6.c	2021-08-06 02:52:27.743233716 +0530
++++ b/drivers/pinctrl/aspeed/pinctrl-aspeed-g6.c	2021-08-06 02:36:27.110240587 +0530
+@@ -2655,6 +2655,22 @@
+ 	return 0;
+ }
+ 
++#define GPIOP1 121
++#define GPIOP3 123
++static void aspeed_g6_gpio_disable_free(struct pinctrl_dev *pctldev,
++                              struct pinctrl_gpio_range *range,
++                              unsigned int offset)
++{
++        /*
++         * If we're freeing GPIOP1 (121) or GPIOP3 (123) then re-enable the
++         * pass-through mux setting; otherwise, do nothing.
++         */
++        if (offset != GPIOP1 && offset != GPIOP3)
++                return;
++
++        aspeed_gpio_disable_free(pctldev, range, offset);
++}
++
+ static const struct aspeed_pin_config_map aspeed_g6_pin_config_map[] = {
+ 	{ PIN_CONFIG_BIAS_PULL_DOWN,  0,   1, BIT_MASK(0)},
+ 	{ PIN_CONFIG_BIAS_PULL_DOWN, -1,   0, BIT_MASK(0)},
+@@ -2695,6 +2711,7 @@
+ 	.get_function_groups = aspeed_pinmux_get_fn_groups,
+ 	.set_mux = aspeed_pinmux_set_mux,
+ 	.gpio_request_enable = aspeed_gpio_request_enable,
++	.gpio_disable_free = aspeed_g6_gpio_disable_free,
+ 	.strict = true,
+ };
+ 
+diff -Naur a/drivers/pinctrl/aspeed/pinctrl-aspeed.h b/drivers/pinctrl/aspeed/pinctrl-aspeed.h
+--- a/drivers/pinctrl/aspeed/pinctrl-aspeed.h	2021-08-06 02:52:42.783186941 +0530
++++ b/drivers/pinctrl/aspeed/pinctrl-aspeed.h	2021-08-06 02:35:59.122329263 +0530
+@@ -101,6 +101,9 @@
+ int aspeed_gpio_request_enable(struct pinctrl_dev *pctldev,
+ 		struct pinctrl_gpio_range *range,
+ 		unsigned int offset);
++void aspeed_gpio_disable_free(struct pinctrl_dev *pctldev,
++                struct pinctrl_gpio_range *range,
++                unsigned int offset);
+ int aspeed_pinctrl_probe(struct platform_device *pdev,
+ 		struct pinctrl_desc *pdesc,
+ 		struct aspeed_pinctrl_data *pdata);

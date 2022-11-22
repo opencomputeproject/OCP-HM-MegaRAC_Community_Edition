@@ -1,0 +1,51 @@
+diff -Naur a/arch/arm/boot/dts/aspeed-g6-ami.dtsi b/arch/arm/boot/dts/aspeed-g6-ami.dtsi
+--- a/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2021-02-23 18:30:12.009658957 +0530
++++ b/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2021-02-23 18:22:59.869873613 +0530
+@@ -401,28 +401,26 @@
+                                 status = "disabled";
+                         };
+ 
+-            		jtag0: jtag@1e6e4000 {
+-                		compatible = "aspeed,ast2600-jtag";
+-                		reg= <0x1e6e4000 0x20>;
+-                		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+-                		clocks = <&syscon ASPEED_CLK_APB1>;
+-                		resets = <&syscon ASPEED_RESET_JTAG_MASTER>;
+-                		reset-names = "jtag";
+-                		status = "disabled";
+-            		};
+-
+-            		jtag1: jtag@1e6e4100 {
+-                		compatible = "aspeed,ast2600-jtag";
+-                		reg= <0x1e6e4100 0x20>;
+-                		interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
+-                		clocks = <&syscon ASPEED_CLK_APB1>;
+-                		resets = <&syscon ASPEED_RESET_JTAG_MASTER2>;
+-                		reset-names = "jtag";
+-                		pinctrl-names = "default";
+-                		pinctrl-0 = <&pinctrl_jtagm_default>;
+-                		status = "disabled";
+-            		};
++			jtag0: jtag@1e6e4000 {
++                                compatible = "aspeed,ast2600-jtag";
++                                reg = <0x1e6e4000 0x40>;
++                                clocks = <&syscon ASPEED_CLK_APB1>;
++                                resets = <&syscon ASPEED_RESET_JTAG_MASTER>;
++                                interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
++                                status = "disabled";
++                        };
+ 
++                        jtag1: jtag@1e6e4100 {
++                                compatible = "aspeed,ast2600-jtag";
++                                reg = <0x1e6e4100 0x40>;
++                                clocks = <&syscon ASPEED_CLK_APB1>;
++                                resets = <&syscon ASPEED_RESET_JTAG_MASTER2>;
++                                interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
++                                pinctrl-names = "default";
++                                pinctrl-0 = <&pinctrl_jtagm_default>;
++                                status = "disabled";
++                        };
++			 
+ 			rng: hwrng@1e6e2524 {
+ 				compatible = "timeriomem_rng";
+ 				reg = <0x1e6e2524 0x4>;

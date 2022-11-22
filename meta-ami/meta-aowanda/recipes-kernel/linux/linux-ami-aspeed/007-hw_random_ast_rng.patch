@@ -1,0 +1,103 @@
+diff -Naur linux/drivers/char/hw_random/ast_rng.c linux-new/drivers/char/hw_random/ast_rng.c
+--- linux/drivers/char/hw_random/ast_rng.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/char/hw_random/ast_rng.c	2020-12-23 15:32:33.215315442 -0500
+@@ -0,0 +1,69 @@
++/****************************************************************
++ **                                                            **   
++ **    (C)Copyright 2009-2015, American Megatrends Inc.        **
++ **                                                            **
++ **            All Rights Reserved.                            **
++ **                                                            **
++ **        5555 Oakbrook Pkwy Suite 200, Norcross              **
++ **                                                            **
++ **        Georgia - 30093, USA. Phone-(770)-246-8600.         **
++ **                                                            **
++ ****************************************************************/
++
++/****************************************************************
++ *
++ * ast_rng.c
++ * AST2600 HW random number generator driver
++ *
++*****************************************************************/
++
++#include <linux/module.h>
++#include <linux/random.h>
++#include <linux/platform_device.h>
++#include <linux/hw_random.h>
++#include <linux/io.h>
++
++#define AST_SCU_REG_BASE            0x1e6e2000 
++#define AST_SCU_RAMDOM_DATA         0x524        /*  random number generator data output*/ 
++#define ASTRNG_NAME                 "ast_rng"
++#define BYTES_READ                  4
++
++void __iomem *reg = NULL;
++
++
++int ast_rng_data_read(struct hwrng *rng, u32 *data)
++{
++	*data = ioread32(reg+AST_SCU_RAMDOM_DATA);   
++	return BYTES_READ;
++}
++
++static struct hwrng ast_rng_ops = {
++	.name		= ASTRNG_NAME,
++	.data_read	= ast_rng_data_read,
++	.quality	= 700,
++};
++
++
++static int ast_rng_probe(void)
++{
++	return hwrng_register(&ast_rng_ops);
++}
++
++static void ast_rng_remove(void)
++{
++	hwrng_unregister(&ast_rng_ops);
++}
++
++
++static int __init ast_rng_init(void)
++{
++    reg = ioremap((AST_SCU_REG_BASE+AST_SCU_RAMDOM_DATA), 0x4);
++    return ast_rng_probe();
++}
++
++module_init(ast_rng_init); 
++module_exit(ast_rng_remove); 
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("American Megatrends Inc.");
++MODULE_DESCRIPTION("HW random number generator driver");
+diff -Naur linux/drivers/char/hw_random/Kconfig linux-new/drivers/char/hw_random/Kconfig
+--- linux/drivers/char/hw_random/Kconfig	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/char/hw_random/Kconfig	2020-12-23 15:33:14.724522341 -0500
+@@ -21,6 +21,15 @@
+ 
+ if HW_RANDOM
+ 
++config HW_RANDOM_AST
++   tristate "AST HW Random Number Generator support"
++    depends on HW_RANDOM && ARCH_ASPEED
++    default HW_RANDOM
++   ---help---
++      This driver provides kernel-side support for the Random Number
++      Generator hardware found on aspeed SOC.
++
++
+ config HW_RANDOM_TIMERIOMEM
+ 	tristate "Timer IOMEM HW Random Number Generator support"
+ 	depends on HAS_IOMEM
+diff -Naur linux/drivers/char/hw_random/Makefile linux-new/drivers/char/hw_random/Makefile
+--- linux/drivers/char/hw_random/Makefile	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/char/hw_random/Makefile	2020-12-23 15:33:21.552720925 -0500
+@@ -5,6 +5,7 @@
+ 
+ obj-$(CONFIG_HW_RANDOM) += rng-core.o
+ rng-core-y := core.o
++obj-$(CONFIG_HW_RANDOM_AST) += ast_rng.o
+ obj-$(CONFIG_HW_RANDOM_TIMERIOMEM) += timeriomem-rng.o
+ obj-$(CONFIG_HW_RANDOM_INTEL) += intel-rng.o
+ obj-$(CONFIG_HW_RANDOM_AMD) += amd-rng.o

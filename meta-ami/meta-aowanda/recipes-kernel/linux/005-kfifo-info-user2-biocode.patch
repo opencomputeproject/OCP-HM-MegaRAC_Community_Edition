@@ -1,0 +1,80 @@
+diff -Naur a/include/linux/kfifo.h b/include/linux/kfifo.h
+--- a/include/linux/kfifo.h	2020-11-19 16:42:54.967864771 +0800
++++ b/include/linux/kfifo.h	2020-11-19 16:10:56.945967267 +0800
+@@ -629,6 +629,20 @@
+ }) \
+ )
+ 
++#define	kfifo_to_user2(fifo, to, len, copied) \
++__kfifo_uint_must_check_helper( \
++({ \
++	typeof((fifo) + 1) __tmp = (fifo); \
++	void __user *__to = (to); \
++	unsigned int __len = (len); \
++	unsigned int *__copied = (copied); \
++	const size_t __recsize = sizeof(*__tmp->rectype); \
++	struct __kfifo *__kfifo = &__tmp->kfifo; \
++	(__recsize) ? \
++	__kfifo_to_user_r2(__kfifo, __to, __len, __copied, __recsize) : \
++	__kfifo_to_user2(__kfifo, __to, __len, __copied); \
++}) \
++)
+ /**
+  * kfifo_dma_in_prepare - setup a scatterlist for DMA input
+  * @fifo: address of the fifo to be used
+@@ -775,6 +789,9 @@
+ extern int __kfifo_to_user(struct __kfifo *fifo,
+ 	void __user *to, unsigned long len, unsigned int *copied);
+ 
++extern int __kfifo_to_user2(struct __kfifo *fifo,
++	void __user *to, unsigned long len, unsigned int *copied);
++
+ extern unsigned int __kfifo_dma_in_prepare(struct __kfifo *fifo,
+ 	struct scatterlist *sgl, int nents, unsigned int len);
+ 
+@@ -797,6 +814,9 @@
+ extern int __kfifo_to_user_r(struct __kfifo *fifo, void __user *to,
+ 	unsigned long len, unsigned int *copied, size_t recsize);
+ 
++extern int __kfifo_to_user_r2(struct __kfifo *fifo, void __user *to,
++	unsigned long len, unsigned int *copied, size_t recsize);
++
+ extern unsigned int __kfifo_dma_in_prepare_r(struct __kfifo *fifo,
+ 	struct scatterlist *sgl, int nents, unsigned int len, size_t recsize);
+ 
+diff -Naur a/lib/kfifo.c b/lib/kfifo.c
+--- a/lib/kfifo.c	2020-11-19 16:38:47.791350841 +0800
++++ b/lib/kfifo.c	2020-11-19 16:11:10.609627659 +0800
+@@ -292,6 +292,32 @@
+ }
+ EXPORT_SYMBOL(__kfifo_to_user);
+ 
++int __kfifo_to_user2(struct __kfifo *fifo, void __user *to,
++		unsigned long len, unsigned int *copied)
++{
++	unsigned int l;
++	unsigned long ret;
++	unsigned int esize = fifo->esize;
++	int err;
++
++	if (esize != 1)
++		len /= esize;
++
++	l = fifo->in - fifo->out;
++	if (len > l)
++		len = l;
++	ret = kfifo_copy_to_user(fifo, to, len, fifo->out, copied);
++	if (unlikely(ret)) {
++		len -= ret;
++		err = -EFAULT;
++	} else
++		err = 0;
++	//fifo->out += len;
++	return err;
++}
++EXPORT_SYMBOL(__kfifo_to_user2);
++
++
+ static int setup_sgl_buf(struct scatterlist *sgl, void *buf,
+ 		int nents, unsigned int len)
+ {

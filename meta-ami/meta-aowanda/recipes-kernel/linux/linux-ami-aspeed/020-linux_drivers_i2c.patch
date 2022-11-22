@@ -1,0 +1,607 @@
+diff -Naur linux/drivers/i2c/busses/i2c-aspeed.c linux-new/drivers/i2c/busses/i2c-aspeed.c
+--- linux/drivers/i2c/busses/i2c-aspeed.c	2020-12-23 15:21:13.975693322 -0500
++++ linux-new/drivers/i2c/busses/i2c-aspeed.c	2020-12-22 15:08:02.000000000 -0500
+@@ -96,6 +96,8 @@
+ 		 ASPEED_I2CD_INTR_TX_NAK |				       \
+ 		 ASPEED_I2CD_INTR_TX_ACK)
+ 
++#define ASPEED_I2CD_INTR_RESERVE_BIT24		BIT(24)
++
+ /* 0x14 : I2CD Command/Status Register   */
+ #define ASPEED_I2CD_SCL_LINE_STS			BIT(18)
+ #define ASPEED_I2CD_SDA_LINE_STS			BIT(17)
+@@ -642,10 +644,12 @@
+ #endif /* CONFIG_I2C_SLAVE */
+ 
+ 	irq_remaining &= ~irq_handled;
+-	if (irq_remaining)
+-		dev_err(bus->dev,
++	if (irq_remaining){
++		if (irq_remaining != ASPEED_I2CD_INTR_RESERVE_BIT24)
++			dev_err(bus->dev,
+ 			"irq handled != irq. expected 0x%08x, but was 0x%08x\n",
+ 			irq_received, irq_handled);
++	}
+ 
+ 	/* Ack Rx done */
+ 	if (irq_received & ASPEED_I2CD_INTR_RX_DONE) {
+@@ -957,6 +961,10 @@
+ 		.compatible = "aspeed,ast2500-i2c-bus",
+ 		.data = aspeed_i2c_25xx_get_clk_reg_val,
+ 	},
++	{
++		.compatible = "aspeed,ast2600-i2c-bus",
++		.data = aspeed_i2c_25xx_get_clk_reg_val,
++	},
+ 	{ },
+ };
+ MODULE_DEVICE_TABLE(of, aspeed_i2c_bus_of_table);
+diff -Naur linux/drivers/i2c/busses/irq-aspeed-i2c-ic.c linux-new/drivers/i2c/busses/irq-aspeed-i2c-ic.c
+--- linux/drivers/i2c/busses/irq-aspeed-i2c-ic.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/i2c/busses/irq-aspeed-i2c-ic.c	2020-12-21 09:55:59.000000000 -0500
+@@ -0,0 +1,331 @@
++/*
++ *  Aspeed I2C Interrupt Controller.
++ *
++ *  Copyright (C) 2012-2017 ASPEED Technology Inc.
++ *  Copyright 2017 IBM Corporation
++ *  Copyright 2017 Google, Inc.
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License version 2 as
++ *  published by the Free Software Foundation.
++ */
++#include <linux/clk.h>
++#include <linux/irq.h>
++#include <linux/irqchip.h>
++#include <linux/irqchip/chained_irq.h>
++#include <linux/irqdomain.h>
++#include <linux/module.h>
++#include <linux/of_platform.h>
++#include <linux/platform_device.h>
++#include <linux/of_address.h>
++#include <linux/of_irq.h>
++#include <linux/io.h>
++#include <linux/reset.h>
++#include <linux/delay.h>
++#include <linux/clk-provider.h>
++
++
++#define ASPEED_I2CG_ISR				0x00
++#define ASPEED_I2CG_SLAVE_ISR		0x04	/* ast2600 */
++#define ASPEED_I2CG_OWNER			0x08
++#define ASPEED_I2CG_CTRL			0x0C
++#define ASPEED_I2CG_CLK_DIV_CTRL	0x10	/* ast2600 */
++
++/* 0x0C : I2CG SRAM Buffer Enable  */
++#define ASPEED_I2CG_SRAM_BUFFER_ENABLE		BIT(0)
++
++/*ast2600 */
++#define ASPEED_I2CG_SLAVE_PKT_NAK		BIT(4)
++#define ASPEED_I2CG_M_S_SEPARATE_INTR	BIT(3)
++#define ASPEED_I2CG_CTRL_NEW_REG		BIT(2)
++#define ASPEED_I2CG_CTRL_NEW_CLK_DIV	BIT(1)
++
++struct aspeed_i2c_ic {
++	void __iomem		*base;
++	int			parent_irq;
++	u32			i2c_irq_mask;
++	struct reset_control	*rst;
++	struct irq_domain	*irq_domain;
++	int			bus_num;	
++};
++
++static const struct of_device_id aspeed_i2c_ic_of_match[] = {
++	{ .compatible = "aspeed,ast2400-i2c-ic", .data = (void *) 14},
++	{ .compatible = "aspeed,ast2500-i2c-ic", .data = (void *) 14},
++	{ .compatible = "aspeed,ast2600-i2c-global", .data = (void *) 0},	
++	{},
++};
++
++/*
++ * The aspeed chip provides a single hardware interrupt for all of the I2C
++ * busses, so we use a dummy interrupt chip to translate this single interrupt
++ * into multiple interrupts, each associated with a single I2C bus.
++ */
++static void aspeed_g6_i2c_ic_irq_handler(struct irq_desc *desc)
++{
++	struct aspeed_i2c_ic *i2c_ic = irq_desc_get_handler_data(desc);
++	struct irq_chip *chip = irq_desc_get_chip(desc);
++	unsigned long bit, status;
++	unsigned int bus_irq;
++
++	chained_irq_enter(chip, desc);
++	if(readl(i2c_ic->base + ASPEED_I2CG_CTRL) & ASPEED_I2CG_M_S_SEPARATE_INTR) {
++		status = readl(i2c_ic->base);
++		status &= i2c_ic->i2c_irq_mask;
++		status |= (readl(i2c_ic->base + ASPEED_I2CG_SLAVE_ISR) & i2c_ic->i2c_irq_mask) << 16;
++	} else {
++		status = readl(i2c_ic->base);
++		status &= i2c_ic->i2c_irq_mask;
++	}
++	for_each_set_bit(bit, &status, i2c_ic->bus_num) {
++		bus_irq = irq_find_mapping(i2c_ic->irq_domain, bit);
++		generic_handle_irq(bus_irq);
++	}
++	chained_irq_exit(chip, desc);
++}
++ 
++static void aspeed_i2c_ic_irq_handler(struct irq_desc *desc)
++{
++	struct aspeed_i2c_ic *i2c_ic = irq_desc_get_handler_data(desc);
++	struct irq_chip *chip = irq_desc_get_chip(desc);
++	unsigned long bit, status;
++	unsigned int bus_irq;
++
++	chained_irq_enter(chip, desc);
++	status = readl(i2c_ic->base);
++	status &= i2c_ic->i2c_irq_mask;
++	for_each_set_bit(bit, &status, i2c_ic->bus_num) {
++		bus_irq = irq_find_mapping(i2c_ic->irq_domain, bit);
++		generic_handle_irq(bus_irq);
++	}
++	chained_irq_exit(chip, desc);
++}
++
++static void noop(struct irq_data *data) { }
++
++static unsigned int noop_ret(struct irq_data *data)
++{
++	return 0;
++}
++
++static struct irq_chip i2c_irq_chip = {
++	.name			= "i2c-ic",
++	.irq_startup	= noop_ret,
++	.irq_shutdown	= noop,
++	.irq_enable		= noop,
++	.irq_disable	= noop,
++	.irq_ack		= noop,
++	.irq_mask		= noop,
++	.irq_unmask		= noop,
++	.flags			= IRQCHIP_SKIP_SET_WAKE,
++};
++/*
++ * Set simple handler and mark IRQ as valid. Nothing interesting to do here
++ * since we are using a dummy interrupt chip.
++ */
++static int aspeed_i2c_ic_map_irq_domain(struct irq_domain *domain,
++					unsigned int irq, irq_hw_number_t hwirq)
++{
++	irq_set_chip_and_handler(irq, &i2c_irq_chip, handle_simple_irq);
++	irq_set_chip_data(irq, domain->host_data);
++
++	return 0;
++}
++
++static const struct irq_domain_ops aspeed_i2c_ic_irq_domain_ops = {
++	.map = aspeed_i2c_ic_map_irq_domain,
++};
++
++struct aspeed_i2c_base_clk {
++	const char	*name;
++	unsigned long	base_freq;
++};
++
++/* assign 4 base clock 
++ * base clk1 : 1M for 1KHz
++ * base clk2 : 4M for 400KHz	 
++ * base clk3 : 10M for 1MHz  
++ * base clk4 : 35M for 3.4MHz	 
++*/
++
++#define BASE_CLK_COUNT 4
++
++static const struct aspeed_i2c_base_clk i2c_base_clk[BASE_CLK_COUNT] = {
++	/* name	target_freq */
++	{  "base_clk0",	1000000 },	//1M
++	{  "base_clk1",	4000000 },	//4M
++	{  "base_clk2",	10000000 },	//10M
++	{  "base_clk3",	35000000 },	//35M
++};
++
++
++
++static u32 aspeed_i2c_ic_get_new_clk_divider(unsigned long	base_clk, struct device_node *node)
++{
++	struct clk_hw_onecell_data *onecell;
++	struct clk_hw *hw;
++	int err;
++	u32 clk_divider = 0;
++	int i, j;
++	unsigned long base_freq;
++
++
++	onecell = kzalloc(sizeof(*onecell) + (BASE_CLK_COUNT * sizeof(struct clk_hw *)), GFP_KERNEL);
++	if (!onecell) {
++		pr_err("allocate clk_hw \n");		
++		return 0;
++	}
++
++	onecell->num = BASE_CLK_COUNT;
++
++	printk("base_clk %ld \n", base_clk);
++	for(j = 0; j < BASE_CLK_COUNT; j++) {
++		printk("target clk : %ld \n", i2c_base_clk[j].base_freq);		
++		for(i = 0; i < 0xff; i++) {
++			base_freq = (base_clk * 2) / (2 + i);
++			if(base_freq <= i2c_base_clk[j].base_freq) {
++				break;
++			}
++		}
++		printk("base clk [%d] : %ld \n", j, base_freq);
++		hw = clk_hw_register_fixed_rate(NULL, i2c_base_clk[j].name, NULL, 0, base_freq);
++		if (IS_ERR(hw)) {
++			pr_err("failed to register input clock: %ld\n", PTR_ERR(hw));
++			break;
++		}
++		onecell->hws[j] = hw;
++		clk_divider &= (i << (8 * j));
++	}
++
++	err = of_clk_add_hw_provider(node, of_clk_hw_onecell_get, onecell);
++	if (err) {
++		pr_err("failed to add i2c base clk provider: %d\n", err);
++	}
++	
++	return clk_divider;
++}
++
++static int aspeed_i2c_ic_probe(struct platform_device *pdev)
++{
++	struct aspeed_i2c_ic *i2c_ic;
++	struct device_node *node = pdev->dev.of_node;
++	const struct of_device_id *match;
++	u32 bus_owner;
++	int ret = 0;
++
++	match = of_match_node(aspeed_i2c_ic_of_match, node);
++	if (!match)
++		return -ENOMEM;
++
++	i2c_ic = kzalloc(sizeof(*i2c_ic), GFP_KERNEL);
++	if (!i2c_ic)
++		return -ENOMEM;
++
++	i2c_ic->base = of_iomap(node, 0);
++	if (!i2c_ic->base) {
++		ret = -ENOMEM;
++		goto err_free_ic;
++	}
++
++	i2c_ic->bus_num = (int) match->data;
++
++	if (i2c_ic->bus_num) {
++		i2c_ic->parent_irq = irq_of_parse_and_map(node, 0);
++		if (i2c_ic->parent_irq < 0) {
++			ret = i2c_ic->parent_irq;
++			goto err_iounmap;
++		}
++	} 
++
++	i2c_ic->rst = devm_reset_control_get_exclusive(&pdev->dev, NULL);
++
++	if (IS_ERR(i2c_ic->rst)) {
++		dev_err(&pdev->dev,
++			"missing or invalid reset controller device tree entry");
++		return PTR_ERR(i2c_ic->rst);
++	}
++
++	//SCU I2C Reset 
++	reset_control_assert(i2c_ic->rst);
++	udelay(3);
++	reset_control_deassert(i2c_ic->rst);
++
++	/* ast2600 init */
++	if (of_device_is_compatible(node, "aspeed,ast2600-i2c-global")) {
++		/* only support in ast-g6 platform */
++		if (of_property_read_bool(pdev->dev.of_node, "new-mode")) {
++			struct clk *parent_clk;
++			unsigned long	parent_clk_frequency;
++			u32 clk_divider;
++			writel(ASPEED_I2CG_SLAVE_PKT_NAK | ASPEED_I2CG_CTRL_NEW_REG, i2c_ic->base + ASPEED_I2CG_CTRL);
++			parent_clk = devm_clk_get(&pdev->dev, NULL);
++			if (IS_ERR(parent_clk))
++				return PTR_ERR(parent_clk);
++			parent_clk_frequency = clk_get_rate(parent_clk);
++			printk("parent_clk_frequency %ld \n", parent_clk_frequency);
++			clk_divider = aspeed_i2c_ic_get_new_clk_divider(parent_clk_frequency, node);
++			writel(clk_divider, i2c_ic->base + ASPEED_I2CG_CLK_DIV_CTRL);
++		}
++	} else if(of_device_is_compatible(node, "aspeed,ast2500-i2c-ic")) {		
++		writel(ASPEED_I2CG_SRAM_BUFFER_ENABLE, i2c_ic->base + ASPEED_I2CG_CTRL);
++	} else {
++		//legacy 
++	}
++	
++	if (!of_property_read_u32(node, "bus-owner", &bus_owner)) {
++		writel(bus_owner, i2c_ic->base + ASPEED_I2CG_OWNER);
++		i2c_ic->i2c_irq_mask = ~bus_owner;
++	} else {
++		writel(0, i2c_ic->base + ASPEED_I2CG_OWNER);
++		i2c_ic->i2c_irq_mask = 0xffffffff;
++	}
++
++	if(i2c_ic->bus_num) {
++		i2c_ic->irq_domain = irq_domain_add_linear(node,
++				     i2c_ic->bus_num,
++				     &aspeed_i2c_ic_irq_domain_ops,
++				     i2c_ic);
++		if (!i2c_ic->irq_domain) {
++			ret = -ENOMEM;
++			goto err_iounmap;
++		}
++
++		i2c_ic->irq_domain->name = "aspeed-i2c-domain";
++
++		if(of_device_is_compatible(node, "aspeed,ast2600-i2c-ic")) {
++			irq_set_chained_handler_and_data(i2c_ic->parent_irq,
++							 aspeed_g6_i2c_ic_irq_handler, i2c_ic);
++		} else {
++			irq_set_chained_handler_and_data(i2c_ic->parent_irq,
++							 aspeed_i2c_ic_irq_handler, i2c_ic);
++		}
++		pr_info("i2c controller registered, irq %d\n", i2c_ic->parent_irq);
++	} else 
++		pr_info("i2c global registered \n");
++
++	return 0;
++
++err_iounmap:
++	iounmap(i2c_ic->base);
++err_free_ic:
++	kfree(i2c_ic);
++	return ret;
++}
++
++static struct platform_driver aspeed_i2c_ic_driver = {
++	.probe  = aspeed_i2c_ic_probe,
++	.driver = {
++		.name = KBUILD_MODNAME,
++		.of_match_table = aspeed_i2c_ic_of_match,
++	},
++};
++
++static int __init aspeed_i2c_ic_init(void)
++{
++	return platform_driver_register(&aspeed_i2c_ic_driver);
++}
++postcore_initcall(aspeed_i2c_ic_init);
++
++MODULE_AUTHOR("Ryan Chen");
++MODULE_DESCRIPTION("ASPEED I2C INTC Driver");
++MODULE_LICENSE("GPL v2");
+diff -Naur linux/drivers/i2c/busses/Makefile linux-new/drivers/i2c/busses/Makefile
+--- linux/drivers/i2c/busses/Makefile	2020-12-23 15:21:13.975693322 -0500
++++ linux-new/drivers/i2c/busses/Makefile	2020-12-22 15:59:53.000000000 -0500
+@@ -34,7 +34,7 @@
+ # Embedded system I2C/SMBus host controller drivers
+ obj-$(CONFIG_I2C_ALTERA)	+= i2c-altera.o
+ obj-$(CONFIG_I2C_AMD_MP2)	+= i2c-amd-mp2-pci.o i2c-amd-mp2-plat.o
+-obj-$(CONFIG_I2C_ASPEED)	+= i2c-aspeed.o
++obj-$(CONFIG_I2C_ASPEED)        += irq-aspeed-i2c-ic.o i2c-aspeed.o
+ obj-$(CONFIG_I2C_AT91)		+= i2c-at91.o
+ i2c-at91-objs			:= i2c-at91-core.o i2c-at91-master.o
+ ifeq ($(CONFIG_I2C_AT91_SLAVE_EXPERIMENTAL),y)
+diff -Naur linux/drivers/i2c/i2c-slave-read.c linux-new/drivers/i2c/i2c-slave-read.c
+--- linux/drivers/i2c/i2c-slave-read.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/i2c/i2c-slave-read.c	2020-12-21 09:56:00.000000000 -0500
+@@ -0,0 +1,207 @@
++#include <linux/i2c.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/slab.h>
++#include <linux/spinlock.h>
++#include <linux/sysfs.h>
++
++#define MQ_MSGBUF_SIZE		128
++#define MQ_QUEUE_SIZE		32
++#define MQ_QUEUE_NEXT(x)	(((x) + 1) & (MQ_QUEUE_SIZE - 1))
++
++struct mq_msg {
++	int	len;
++	u8	*buf;
++};
++
++struct mq_queue {
++	struct bin_attribute	bin;
++	struct kernfs_node	*kn;
++
++	spinlock_t		lock; /* spinlock for queue index handling */
++	int			in;
++	int			out;
++
++	struct mq_msg		*curr;
++	int			truncated; /* drop current if truncated */
++	struct mq_msg		queue[MQ_QUEUE_SIZE];
++};
++
++static int i2c_slave_mqueue_callback(struct i2c_client *client,
++				     enum i2c_slave_event event, u8 *val)
++{
++	struct mq_queue *mq = i2c_get_clientdata(client);
++	struct mq_msg *msg = mq->curr;
++	int ret = 0;
++
++	switch (event) {
++	case I2C_SLAVE_WRITE_REQUESTED:
++		mq->truncated = 0;
++
++		msg->len = 1;
++		msg->buf[0] = client->addr << 1;
++		break;
++
++	case I2C_SLAVE_WRITE_RECEIVED:
++		if (msg->len < MQ_MSGBUF_SIZE) {
++			msg->buf[msg->len++] = *val;
++		} else {
++			dev_err(&client->dev, "message is truncated!\n");
++			mq->truncated = 1;
++			ret = -EINVAL;
++		}
++		break;
++
++	case I2C_SLAVE_STOP:
++		if (unlikely(mq->truncated || msg->len < 2))
++			break;
++
++		spin_lock(&mq->lock);
++		mq->in = MQ_QUEUE_NEXT(mq->in);
++		mq->curr = &mq->queue[mq->in];
++		mq->curr->len = 0;
++
++		/* Flush the oldest message */
++		if (mq->out == mq->in)
++			mq->out = MQ_QUEUE_NEXT(mq->out);
++		spin_unlock(&mq->lock);
++
++		kernfs_notify(mq->kn);
++		break;
++
++	default:
++		*val = 0xFF;
++		break;
++	}
++
++	return ret;
++}
++
++static ssize_t i2c_slave_mqueue_bin_read(struct file *filp,
++					 struct kobject *kobj,
++					 struct bin_attribute *attr,
++					 char *buf, loff_t pos, size_t count)
++{
++	struct mq_queue *mq;
++	struct mq_msg *msg;
++	unsigned long flags;
++	bool more = false;
++	ssize_t ret = 0;
++
++	mq = dev_get_drvdata(container_of(kobj, struct device, kobj));
++
++	spin_lock_irqsave(&mq->lock, flags);
++	if (mq->out != mq->in) {
++		msg = &mq->queue[mq->out];
++
++		if (msg->len <= count) {
++			ret = msg->len;
++			memcpy(buf, msg->buf, ret);
++		} else {
++			ret = -EOVERFLOW; /* Drop this HUGE one. */
++		}
++
++		mq->out = MQ_QUEUE_NEXT(mq->out);
++		if (mq->out != mq->in)
++			more = true;
++	}
++	spin_unlock_irqrestore(&mq->lock, flags);
++
++	if (more)
++		kernfs_notify(mq->kn);
++
++	return ret;
++}
++
++static int i2c_slave_mqueue_probe(struct i2c_client *client,
++				  const struct i2c_device_id *id)
++{
++	struct device *dev = &client->dev;
++	struct mq_queue *mq;
++	int ret, i;
++	void *buf;
++
++	mq = devm_kzalloc(dev, sizeof(*mq), GFP_KERNEL);
++	if (!mq)
++		return -ENOMEM;
++
++	BUILD_BUG_ON(!is_power_of_2(MQ_QUEUE_SIZE));
++
++	buf = devm_kmalloc_array(dev, MQ_QUEUE_SIZE, MQ_MSGBUF_SIZE,
++				 GFP_KERNEL);
++	if (!buf)
++		return -ENOMEM;
++
++	for (i = 0; i < MQ_QUEUE_SIZE; i++)
++		mq->queue[i].buf = buf + i * MQ_MSGBUF_SIZE;
++
++	i2c_set_clientdata(client, mq);
++
++	spin_lock_init(&mq->lock);
++	mq->curr = &mq->queue[0];
++
++	sysfs_bin_attr_init(&mq->bin);
++	mq->bin.attr.name = "slave-mqueue";
++	mq->bin.attr.mode = 0400;
++	mq->bin.read = i2c_slave_mqueue_bin_read;
++	mq->bin.size = MQ_MSGBUF_SIZE * MQ_QUEUE_SIZE;
++
++	ret = sysfs_create_bin_file(&dev->kobj, &mq->bin);
++	if (ret)
++		return ret;
++
++	mq->kn = kernfs_find_and_get(dev->kobj.sd, mq->bin.attr.name);
++	if (!mq->kn) {
++		sysfs_remove_bin_file(&dev->kobj, &mq->bin);
++		return -EFAULT;
++	}
++
++	ret = i2c_slave_register(client, i2c_slave_mqueue_callback);
++	if (ret) {
++		kernfs_put(mq->kn);
++		sysfs_remove_bin_file(&dev->kobj, &mq->bin);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int i2c_slave_mqueue_remove(struct i2c_client *client)
++{
++	struct mq_queue *mq = i2c_get_clientdata(client);
++
++	i2c_slave_unregister(client);
++
++	kernfs_put(mq->kn);
++	sysfs_remove_bin_file(&client->dev.kobj, &mq->bin);
++
++	return 0;
++}
++
++static const struct i2c_device_id i2c_slave_mqueue_id[] = {
++	{ "slave-mqueue", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, i2c_slave_mqueue_id);
++
++static const struct of_device_id i2c_slave_of_match[] = {
++	{ .compatible = "slave-ipmb", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, i2c_slave_of_match);
++
++static struct i2c_driver i2c_slave_mqueue_driver = {
++	.driver = {
++		.name	= "i2c-slave-mqueue",
++		.of_match_table = i2c_slave_of_match,
++	},
++	.probe		= i2c_slave_mqueue_probe,
++	.remove		= i2c_slave_mqueue_remove,
++	.id_table	= i2c_slave_mqueue_id,
++};
++module_i2c_driver(i2c_slave_mqueue_driver);
++
++MODULE_LICENSE("GPL v2");
++MODULE_AUTHOR("Haiyue Wang <haiyue.wang at linux.intel.com>");
++MODULE_DESCRIPTION("I2C slave mode for receiving and queuing messages");
+diff -Naur linux/drivers/i2c/Makefile linux-new/drivers/i2c/Makefile
+--- linux/drivers/i2c/Makefile	2020-12-23 15:30:36.000000000 -0500
++++ linux-new/drivers/i2c/Makefile	2020-12-22 16:38:22.000000000 -0500
+@@ -16,6 +16,7 @@
+ obj-y				+= algos/ busses/ muxes/
+ obj-$(CONFIG_I2C_STUB)		+= i2c-stub.o
+ obj-$(CONFIG_I2C_SLAVE_EEPROM)	+= i2c-slave-eeprom.o
++obj-$(CONFIG_I2C_SLAVE)     += i2c-slave-read.o
+ 
+ ccflags-$(CONFIG_I2C_DEBUG_CORE) := -DDEBUG
+ ccflags-y += -DI2C_BUS_RECOVERY

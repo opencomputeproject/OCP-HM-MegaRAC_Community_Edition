@@ -1,0 +1,30 @@
+--- a/pwmtach.c	2021-05-13 09:01:38.631040872 +0530
++++ b/pwmtach.c	2021-05-13 09:01:51.483518133 +0530
+@@ -55,7 +55,7 @@
+ 	}
+ 	return retval;
+ }
+-//Notice: dutycycle_value is one byte (0-19)
++//Notice: dutycycle_value is one byte (0-255)
+ static int SET_PWM_DUTYCYCLE_VALUE ( pwmtach_ioctl_data  *ppwmtach_arg )
+ {
+ 	int retval = 0;
+@@ -104,7 +104,8 @@
+ 		return -1;
+ 	}
+ 
+-	dutycycle_value = (ppwmtach_arg->dutycycle*19)/100;
++	//dutycycle_value = (ppwmtach_arg->dutycycle*19)/100;
++	dutycycle_value = (ppwmtach_arg->dutycycle*255)/100;
+ 	ppwmtach_arg->dutycycle = dutycycle_value;
+ 	retval = SET_PWM_DUTYCYCLE_VALUE(ppwmtach_arg);
+ 	return retval;
+@@ -276,7 +277,7 @@
+ 	return retval;
+ }
+ 
+-//Notice: dutycycle_value is one byte (0-19)
++//Notice: dutycycle_value is one byte (0-255)
+ int set_pwm_dutycycle_value ( unsigned int dev_id, unsigned char pwm_number, unsigned char dutycycle_value )
+ {
+ 	pwmtach_ioctl_data pwmtach_arg;

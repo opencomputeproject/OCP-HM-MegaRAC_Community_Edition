@@ -1,0 +1,135 @@
+diff -Naur b/adcapp.c a/adcapp.c
+--- b/adcapp.c	2020-02-11 15:08:59.355160753 +0530
++++ a/adcapp.c	2020-02-11 15:29:30.673085263 +0530
+@@ -63,6 +63,7 @@
+ 	get_adc_value_t get_adc_value;
+ 	int max_adc_channels;
+ 	int i,ret_val;
++	int dev_channel;
+ 	unsigned short reading=0;
+ 	if ( !(argc >= 3 ) )
+ 	{
+@@ -84,8 +85,16 @@
+ 			{	
+ 				get_adc_value.channel_num  = i;
+ 				get_adc_value.channel_value = 0;
++				if(get_adc_value.channel_num == 8)
++				{
++					dev_channel=0;
++				}
++				else if((get_adc_value.channel_num > 8) && (get_adc_value.channel_num <= 15))
++				{
++					dev_channel++;
++				}
+ 
+-				ret_val = get_adc_val(get_adc_value.channel_num, &reading);
++				ret_val = get_adc_val(get_adc_value.channel_num, &reading, dev_channel);
+ 
+ 				if (ret_val == -1)
+ 				{
+diff -Naur b/adcifc.c a/adcifc.c
+--- b/adcifc.c	2020-02-11 15:08:59.355160753 +0530
++++ a/adcifc.c	2020-02-11 15:29:30.673085263 +0530
+@@ -26,19 +26,30 @@
+   \brief Source for all adc interface code
+  */
+ 
+-static int adc_directory_check()
++static int adc_directory_check(int channel_no)
+ {
+ 	int retval = 0;
+ 	struct stat sb;
+-	if (!(stat("/sys/bus/iio/devices/iio:device0", &sb) == 0 && S_ISDIR(sb.st_mode)))
++	if((channel_no >= 0) && (channel_no <=7))			//check device0 is exist
+ 	{
+-		printf("\"/sys/bus/iio/devices/iio:device0\" is not exist!\n");
+-		retval = -1;
++		if (!(stat("/sys/bus/iio/devices/iio:device0", &sb) == 0 && S_ISDIR(sb.st_mode)))
++		{
++			printf("\"/sys/bus/iio/devices/iio:device0\" is not exist!\n");
++			retval = -1;
++		}
++	}
++	else if((channel_no >= 8) && (channel_no <= 15))		//check device1 is exist
++	{
++		if (!(stat("/sys/bus/iio/devices/iio:device1", &sb) == 0 && S_ISDIR(sb.st_mode)))
++		{
++			printf("\"/sys/bus/iio/devices/iio:device1\" is not exist!\n");
++			retval = -1;
++		}
+ 	}
+ 	return retval;
+ }
+ 
+-static int sys_get_adc_vol( get_adc_value_t *argp )
++static int sys_get_adc_vol( get_adc_value_t *argp ,int dev_channel)
+ {
+ 	int retval = -1;
+ 	int fd;
+@@ -46,16 +57,28 @@
+ 	char stringArray[50];
+ 	char val[5];
+ 	if(argp->channel_num > 15)	retval = -1;
+-	retval = adc_directory_check();
++	retval = adc_directory_check(argp->channel_num);
+ 	if(retval != 0)
+ 	{
+ 		return retval;
+ 	}
+-	snprintf(stringArray, sizeof(stringArray), "%s%s%d%s", "/sys/bus/iio/devices/iio:device0","/in_voltage", argp->channel_num,"_raw");
+-	retval = access(stringArray,F_OK);
+-	if(retval != 0)
++	if((argp->channel_num >= 0) && (argp->channel_num <= 7))				//read value from device0
+ 	{
+-		return retval;
++		snprintf(stringArray, sizeof(stringArray), "%s%s%d%s", "/sys/bus/iio/devices/iio:device0","/in_voltage", argp->channel_num,"_raw");
++		retval = access(stringArray,F_OK);
++		if(retval != 0)
++		{
++			return retval;
++		}
++	}
++	else if((argp->channel_num >= 8) && (argp->channel_num <= 15))				//read value from device1
++	{
++		snprintf(stringArray, sizeof(stringArray), "%s%s%d%s", "/sys/bus/iio/devices/iio:device1","/in_voltage", dev_channel,"_raw");
++		retval = access(stringArray,F_OK);
++		if(retval != 0)
++		{
++			return retval;
++		}
+ 	}
+ 	fd = sigwrap_open(stringArray, O_RDONLY);
+ 	if (fd < 0) {
+@@ -73,7 +96,7 @@
+  * get_adc_val
+  *
+  **/
+-int get_adc_val( int channel , unsigned short *data)
++int get_adc_val( int channel , unsigned short *data ,int dev_channel)
+ {
+ 	get_adc_value_t adc_arg;
+ 
+@@ -81,7 +104,10 @@
+ 	adc_arg.channel_num   = channel;
+ 	adc_arg.channel_value = 0;
+ 
+-	if ( -1 == sys_get_adc_vol(&adc_arg)) { return -1; }
++	if ( -1 == sys_get_adc_vol(&adc_arg,dev_channel) )
++	{ 
++		return -1;
++	}
+ 	*data = (unsigned short)(adc_arg.channel_value);
+ 
+ 	return ( 0 );
+diff -Naur b/adcifc.h a/adcifc.h
+--- b/adcifc.h	2020-02-11 15:08:59.355160753 +0530
++++ a/adcifc.h	2020-02-11 15:29:30.673085263 +0530
+@@ -42,7 +42,7 @@
+ 	 *  etc.)
+ 	 */
+ 
+-	extern  int get_adc_val( int channel , unsigned short *data);
++	extern  int get_adc_val( int channel , unsigned short *data ,int dev_channel);
+ 
+ #ifdef __cplusplus
+ }

@@ -1,0 +1,27 @@
+--- a/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2021-04-27 15:34:47.650562941 -0400
++++ b/arch/arm/boot/dts/aspeed-g6-ami.dtsi	2021-04-27 16:41:09.665895474 -0400
+@@ -375,12 +375,6 @@
+                                         interrupt-controller;
+                                         parity-check;
+                                 };
+-				uart_routing: uart_routing@9c {
+-                                        compatible = "aspeed,ast2500-uart-routing";
+-                                        reg = <0x9c 0x4>;
+-                                        status = "disabled";
+-                                };
+-
+ 				smp-memram@180 {
+ 					compatible = "aspeed,ast2600-smpmem";
+ 					reg = <0x180 0x40>;
+@@ -732,6 +726,11 @@
+ 					status = "disabled";
+                         	};
+ 
++                    uart_routing: uart_routing@9c {
++                                       compatible = "aspeed,ast2500-uart-routing";
++                                       reg = <0x9c 0x4>;
++                                       status = "disabled";
++                                       };
+ 			};
+ 
+ 			sdc: sdc@1e740000 {

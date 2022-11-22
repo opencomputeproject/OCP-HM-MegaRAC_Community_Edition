@@ -1,0 +1,15 @@
+diff -Naur a/xyz/openbmc_project/Control/Power/RestoreDelay.interface.yaml b/xyz/openbmc_project/Control/Power/RestoreDelay.interface.yaml
+--- a/xyz/openbmc_project/Control/Power/RestoreDelay.interface.yaml	1970-01-01 05:30:00.000000000 +0530
++++ b/xyz/openbmc_project/Control/Power/RestoreDelay.interface.yaml	2021-04-26 10:13:15.917463073 +0530
+@@ -0,0 +1,11 @@
++description: >
++    Implement to specify power transition behavior on a BMC reset.
++    The implementation based on restore policy and set a delay time
++    for power restore.
++
++properties:
++    - name: PowerRestoreDelay
++      type: uint16
++      description: >
++          The delay time for power restore.
++          Power Restore Delay is NOT applied on power policy is "Always Off"

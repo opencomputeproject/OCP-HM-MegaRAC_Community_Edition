@@ -1,0 +1,72 @@
+diff -Naur a/drivers/usb/gadget/composite.c b/drivers/usb/gadget/composite.c
+--- a/drivers/usb/gadget/composite.c	2021-02-12 21:02:32.220041288 +0530
++++ b/drivers/usb/gadget/composite.c	2021-02-12 21:15:28.791277649 +0530
+@@ -840,9 +840,9 @@
+ 		result = 0;
+ 	}
+ 
+-	INFO(cdev, "%s config #%d: %s\n",
+-	     usb_speed_string(gadget->speed),
+-	     number, c ? c->label : "unconfigured");
++	DBG(cdev, "%s config #%d: %s\n",
++	    usb_speed_string(gadget->speed),
++	    number, c ? c->label : "unconfigured");
+ 
+ 	if (!c)
+ 		goto done;
+diff -Naur a/drivers/usb/gadget/configfs.c b/drivers/usb/gadget/configfs.c
+--- a/drivers/usb/gadget/configfs.c	2021-02-12 21:02:32.220041288 +0530
++++ b/drivers/usb/gadget/configfs.c	2021-02-12 21:15:28.815277851 +0530
+@@ -9,6 +9,9 @@
+ #include "configfs.h"
+ #include "u_f.h"
+ #include "u_os_desc.h"
++#include "function/u_ecm.h"
++#include "function/u_ether.h"
++#include "function/u_rndis.h"
+ 
+ int check_user_usb_string(const char *name,
+ 		struct usb_gadget_strings *stringtab_dev)
+@@ -1236,6 +1239,34 @@
+ 	}
+ }
+ 
++static void borrow_network_to_rndis(struct gadget_info *gi,struct usb_composite_dev *cdev)
++{
++	struct usb_function_instance	*ecm_fi;
++	struct usb_function_instance	*rndis_fi;
++	struct f_ecm_opts		*ecm_opts = NULL;
++	if(!list_empty(&gi->available_func)) {
++		list_for_each_entry(ecm_fi, &gi->available_func, cfs_list) {
++			//if(strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) {
++			if((strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb0") == 0) || (strcmp(ecm_fi->group.cg_item.ci_name, "ecm.usb1") == 0) )  {
++				ecm_opts = container_of(ecm_fi, struct f_ecm_opts, func_inst);
++				if(cdev->gadget != NULL) {
++					mutex_lock(&ecm_opts->lock);
++					gether_set_gadget(ecm_opts->net, cdev->gadget);
++					gether_register_netdev(ecm_opts->net);
++					mutex_unlock(&ecm_opts->lock);
++					ecm_opts->bound = true;
++					list_for_each_entry(rndis_fi, &gi->available_func, cfs_list) {
++						//if(strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) {
++						if((strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb0") == 0) || (strcmp(rndis_fi->group.cg_item.ci_name, "rndis.usb1") == 0)) {
++
++							rndis_borrow_net(rndis_fi, ecm_opts->net);
++						}
++					}
++				}
++			}
++		}
++	}
++}
+ static int configfs_composite_bind(struct usb_gadget *gadget,
+ 		struct usb_gadget_driver *gdriver)
+ {
+@@ -1257,6 +1288,7 @@
+ 		return ret;
+ 	/* and now the gadget bind */
+ 	ret = -EINVAL;
++	borrow_network_to_rndis(gi, cdev);
+ 
+ 	if (list_empty(&gi->cdev.configs)) {
+ 		pr_err("Need at least one configuration in %s.\n",

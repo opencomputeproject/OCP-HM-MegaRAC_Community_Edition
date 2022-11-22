@@ -1,0 +1,73 @@
+diff -Naur a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+--- a/drivers/usb/gadget/function/f_hid.c	2021-03-19 13:14:29.137063031 +0530
++++ b/drivers/usb/gadget/function/f_hid.c	2021-03-19 13:39:52.602189211 +0530
+@@ -319,10 +319,14 @@
+ {
+ 	struct f_hidg *hidg = (struct f_hidg *)ep->driver_data;
+ 	unsigned long flags;
++/*
++ * Endpoint Request error: -108 is about host os shutdown the USB connection between BMC and HOST.
++ * because of BMC is USB device mode, in BMC's point of view, this error is just an information
++ * */
+ 
+ 	if (req->status != 0) {
+ 		ERROR(hidg->func.config->cdev,
+-			"End Point Request ERROR: %d\n", req->status);
++			"End Point Request failed since HOST OS shutdown USB connection: %d\n", req->status);
+ 	}
+ 
+ 	spin_lock_irqsave(&hidg->write_spinlock, flags);
+diff -Naur a/drivers/usb/gadget/function/f_mass_storage.c b/drivers/usb/gadget/function/f_mass_storage.c
+--- a/drivers/usb/gadget/function/f_mass_storage.c	2021-03-19 13:14:29.137063031 +0530
++++ b/drivers/usb/gadget/function/f_mass_storage.c	2021-03-19 13:41:08.834645748 +0530
+@@ -1728,9 +1728,9 @@
+ 	if (common->data_dir != DATA_DIR_UNKNOWN)
+ 		sprintf(hdlen, ", H%c=%u", dirletter[(int) common->data_dir],
+ 			common->data_size);
+-	VDBG(common, "SCSI command: %s;  Dc=%d, D%c=%u;  Hc=%d%s\n",
+-	     name, cmnd_size, dirletter[(int) data_dir],
+-	     common->data_size_from_cmnd, common->cmnd_size, hdlen);
++//	VDBG(common, "SCSI command: %s;  Dc=%d, D%c=%u;  Hc=%d%s\n",
++//	   name, cmnd_size, dirletter[(int) data_dir],
++//	     common->data_size_from_cmnd, common->cmnd_size, hdlen);
+ 
+ 	/*
+ 	 * We can't reply at all until we know the correct data direction
+diff -Naur a/drivers/usb/gadget/function/storage_common.c b/drivers/usb/gadget/function/storage_common.c
+--- a/drivers/usb/gadget/function/storage_common.c	2021-03-19 13:14:29.137063031 +0530
++++ b/drivers/usb/gadget/function/storage_common.c	2021-03-19 13:40:20.402355713 +0530
+@@ -241,15 +241,15 @@
+ 
+ 	num_sectors = size >> blkbits; /* File size in logic-block-size blocks */
+ 	min_sectors = 1;
+-	if (curlun->cdrom) {
+-		min_sectors = 300;	/* Smallest track is 300 frames */
+-		if (num_sectors >= 256*60*75) {
+-			num_sectors = 256*60*75 - 1;
+-			LINFO(curlun, "file too big: %s\n", filename);
+-			LINFO(curlun, "using only first %d blocks\n",
+-					(int) num_sectors);
+-		}
+-	}
++//	if (curlun->cdrom) {
++//		min_sectors = 300;	/* Smallest track is 300 frames */
++//		if (num_sectors >= 256*60*75) {
++//			num_sectors = 256*60*75 - 1;
++//			LINFO(curlun, "file too big: %s\n", filename);
++//			LINFO(curlun, "using only first %d blocks\n",
++//					(int) num_sectors);
++//		}
++//	}
+ 	if (num_sectors < min_sectors) {
+ 		LINFO(curlun, "file too small: %s\n", filename);
+ 		rc = -ETOOSMALL;
+@@ -301,6 +301,9 @@
+ 		addr /= 75;
+ 		dest[2] = addr % 60;	/* Seconds */
+ 		addr /= 60;
++		if ( addr > 255 )
++			printk("store_cdrom_address: overflow \n");
++
+ 		dest[1] = addr;		/* Minutes */
+ 		dest[0] = 0;		/* Reserved */
+ 	} else {
