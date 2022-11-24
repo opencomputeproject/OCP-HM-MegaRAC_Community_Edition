@@ -75,3 +75,4 @@ bitbake obmc-phosphor-image
 * Remote KVM
 * User management
 * Power Operations
+* Sensor Porting
