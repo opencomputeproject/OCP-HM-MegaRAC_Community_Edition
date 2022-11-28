@@ -1,4 +1,4 @@
-import git
+#import git
 import os
 import yaml
 import re
