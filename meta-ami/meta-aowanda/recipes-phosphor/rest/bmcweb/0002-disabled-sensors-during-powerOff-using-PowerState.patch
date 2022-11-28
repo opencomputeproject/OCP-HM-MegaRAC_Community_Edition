@@ -1,0 +1,84 @@
+--- /include/openbmc_dbus_rest.hpp	2022-11-25 09:27:05.520812874 -0500
++++ /include/openbmc_dbus_rest.hpp	2022-11-25 09:27:29.921294531 -0500
+@@ -51,6 +51,8 @@
+ const char* forbiddenPropDesc = "The specified property cannot be created";
+ const char* forbiddenResDesc = "The specified resource cannot be created";
+ 
++std::vector<std::string> Object_path_skip {};
++
+ void setErrorResponse(crow::Response& res, boost::beast::http::status result,
+                       const std::string& desc, const std::string_view msg)
+ {
+@@ -177,6 +179,10 @@
+             // An enumerate does not return the target path's properties
+             continue;
+         }
++	if (std::find(Object_path_skip.begin(), Object_path_skip.end(), path) != Object_path_skip.end())
++        {
++            continue;
++        }
+         if (dataJson.find(path) == dataJson.end())
+         {
+             for (const auto& [service, interfaces] : interface_map)
+@@ -231,6 +237,9 @@
+                                  << " failed with code " << ec;
+                 return;
+             }
++	    int available_interface = 0;
++
++            nlohmann::json dataJson_ref = transaction->asyncResp->res.jsonValue["data"];
+ 
+             nlohmann::json& dataJson =
+                 transaction->asyncResp->res.jsonValue["data"];
+@@ -239,6 +248,51 @@
+             {
+                 if (boost::starts_with(objectPath.first.str, object_name))
+                 {
++		    nlohmann::json objectJson_ref = dataJson_ref[objectPath.first.str];
++                    if (objectJson_ref.is_null())
++                    {
++                        objectJson_ref = nlohmann::json::object();
++                    }
++                    available_interface = 0;
++
++                    for (const auto& interface : objectPath.second)
++                    {
++                        if(boost::starts_with(interface.first, "xyz.openbmc_project.State.Decorator.Availability"))
++                        {
++                                available_interface = 1;
++                        }
++                        else
++                        {
++                                available_interface = 0;
++                        }
++
++                        for (const auto& property : interface.second)
++                        {
++                            nlohmann::json& propertyJson =
++                                objectJson_ref[property.first];
++
++                            std::visit([&propertyJson](
++                                           auto&& val) { propertyJson = val; },
++                                       property.second);
++
++                            std::string property_value = propertyJson.dump();
++                            if ((available_interface == 1) && (!property_value.compare("false")))
++                            {
++                                available_interface = 2;
++                                break;
++                            }
++                        }
++                        if(available_interface == 2)
++                        {
++                                break;
++                        }
++                    }
++                    if(available_interface == 2)
++                    {
++                        Object_path_skip.push_back(objectPath.first.str);
++                        continue;
++                    }
++
+                     BMCWEB_LOG_DEBUG << "Reading object "
+                                      << objectPath.first.str;
+                     nlohmann::json& objectJson = dataJson[objectPath.first.str];
