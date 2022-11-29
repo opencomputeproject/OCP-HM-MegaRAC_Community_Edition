@@ -1,0 +1,337 @@
+/xyz/openbmc_project/control/minimum_ship_level_required:
+    - Interface: xyz.openbmc_project.Control.MinimumShipLevel
+      Properties:
+          MinimumShipLevelRequired:
+             Default: 'true'
+
+/xyz/openbmc_project/control/host0/auto_reboot:
+    - Interface: xyz.openbmc_project.Control.Boot.RebootPolicy
+      Properties:
+          AutoReboot:
+             Default: 'true'
+
+/xyz/openbmc_project/control/host0/auto_reboot/one_time:
+    - Interface: xyz.openbmc_project.Control.Boot.RebootPolicy
+      Properties:
+          AutoReboot:
+             Default: 'true'
+
+/xyz/openbmc_project/control/host0/boot:
+    - Interface: xyz.openbmc_project.Control.Boot.BootType
+      Properties:
+          Type:
+              Default: BootType::Types::Legacy
+    - Interface: xyz.openbmc_project.Control.Boot.Source
+      Properties:
+          BootSource:
+              Default: Source::Sources::Default
+    - Interface: xyz.openbmc_project.Control.Boot.Mode
+      Properties:
+          BootMode:
+              Default: Mode::Modes::Regular
+    - Interface: xyz.openbmc_project.Control.Boot.BootOptValid
+      Properties:
+          BootSetInProgressValid:
+              Default: 'false'
+          BootServicePartitionSelectorValid:
+              Default: 'false'
+          BootServicePartitionScanValid:
+              Default: 'false'
+          BootFlagValidClearingValid:
+              Default: 'false'
+          BootInfoAckValid:
+              Default: 'false'
+          BootFlagsParamValid:
+              Default: 'false'
+          BootInitiatorInfoValid:
+              Default: 'false'
+          BootInitiatorMailboxValid:
+              Default: 'false'
+          BootFlagsValid:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ResetLockout
+      Properties:
+          ResetLockout:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ConsoleRedirection
+      Properties:
+          ConsoleRedirection:
+              Default: ConsoleRedirection::Redirections::Default
+    - Interface: xyz.openbmc_project.Control.Boot.LockSleep
+      Properties:
+          LockSleep:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.PasswordBypass
+      Properties:
+          PasswordBypass:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ForceProgressTraps
+      Properties:
+          ForceProgressEventTraps:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.FirmwareVerbosity
+      Properties:
+          FirmwareVerbosity:
+              Default: FirmwareVerbosity::Levels::Default
+    - Interface: xyz.openbmc_project.Control.Boot.LockPower
+      Properties:
+          LockPower:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.SetInProgress
+      Properties:
+          SetInProgress:
+              Default: SetInProgress::Statuses::SetComplete
+    - Interface: xyz.openbmc_project.Control.Boot.ServicePartitionSelect
+      Properties:
+          ServicePartition:
+              Default: 0
+    - Interface: xyz.openbmc_project.Control.Boot.ServicePartitionScan
+      Properties:
+          RequestScan:
+              Default: 'false'
+          PartitionDiscovered:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.BootFlagValidClearing
+      Properties:
+          NoClearOnPEFReset:
+              Default: 'false'
+          NoClearOnTimeout:
+              Default: 'false'
+          NoClearOnWatchdogReset:
+              Default: 'false'
+          NoClearOnPushbuttonReset:
+              Default: 'false'
+          NoClearOnPowerup:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.BootInfoAck
+      Properties:
+          OEMAck:
+              Default: 'false'
+          SMSAck:
+              Default: 'false'
+          OSAck:
+              Default: 'false'
+          OSLoaderAck:
+              Default: 'false'
+          BIOSAck:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.BootMailbox
+      Properties:
+          BlockSelector:
+              Default: 0
+          Mailbox0L:
+              Default: 0
+          Mailbox0U:
+              Default: 0
+          Mailbox1L:
+              Default: 0
+          Mailbox1U:
+              Default: 0
+          Mailbox2L:
+              Default: 0
+          Mailbox2U:
+              Default: 0
+          Mailbox3L:
+              Default: 0
+          Mailbox3U:
+              Default: 0
+          Mailbox4L:
+              Default: 0
+          Mailbox4U:
+              Default: 0
+    - Interface: xyz.openbmc_project.Control.Boot.BootInitiatorInfo
+      Properties:
+          Channel:
+              Default: 0
+          SessionID:
+              Default: 0
+          Timestamp:
+              Default: 0
+    - Interface: xyz.openbmc_project.Control.Boot.DeviceInstance
+      Properties:
+          DeviceInstance:
+              Default: 0
+
+/xyz/openbmc_project/control/host0/boot/one_time:
+    - Interface: xyz.openbmc_project.Object.Enable
+      Properties:
+          Enabled:
+              Default: 'true'
+    - Interface: xyz.openbmc_project.Control.Boot.Source
+      Properties:
+          BootSource:
+              Default: Source::Sources::Default
+    - Interface: xyz.openbmc_project.Control.Boot.Mode
+      Properties:
+          BootMode:
+              Default: Mode::Modes::Regular
+    - Interface: xyz.openbmc_project.Control.Boot.CMOSClear
+      Properties:
+          CMOSClear:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.LockKeyboard
+      Properties:
+          LockKeyboard:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ResetLockout
+      Properties:
+          ResetLockout:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ScreenBlank
+      Properties:
+          ScreenBlank:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ConsoleRedirection
+      Properties:
+          ConsoleRedirection:
+              Default: ConsoleRedirection::Redirections::Default
+    - Interface: xyz.openbmc_project.Control.Boot.LockSleep
+      Properties:
+          LockSleep:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.PasswordBypass
+      Properties:
+          PasswordBypass:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.ForceProgressTraps
+      Properties:
+          ForceProgressEventTraps:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.FirmwareVerbosity
+      Properties:
+          FirmwareVerbosity:
+              Default: FirmwareVerbosity::Levels::Default
+    - Interface: xyz.openbmc_project.Control.Boot.LockPower
+      Properties:
+          LockPower:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.MuxOverride
+      Properties:
+          MuxOverride:
+              Default: MuxOverride::Modes::Default
+    - Interface: xyz.openbmc_project.Control.Boot.SharedModeOverride
+      Properties:
+          SharedModeOverride:
+              Default: 'false'
+    - Interface: xyz.openbmc_project.Control.Boot.DeviceInstance
+      Properties:
+          DeviceInstance:
+              Default: 0
+
+/xyz/openbmc_project/control/host0/power_cap:
+    - Interface: xyz.openbmc_project.Control.Power.Cap
+      Properties:
+          PowerCap:
+              Default: 0
+              Validation:
+                  Type: "range"
+                  Validator: "0..1000"
+                  Unit: "Watts"
+          PowerCapEnable:
+               Default: 'false'
+
+/xyz/openbmc_project/control/host0/power_restore_policy:
+    - Interface: xyz.openbmc_project.Control.Power.RestorePolicy
+      Properties:
+          PowerRestorePolicy:
+              Default: RestorePolicy::Policy::AlwaysOff
+
+/xyz/openbmc_project/time/sync_method:
+    - Interface: xyz.openbmc_project.Time.Synchronization
+      Properties:
+          TimeSyncMethod:
+              Default: Synchronization::Method::NTP
+
+/xyz/openbmc_project/network/host0/intf:
+    - Interface: xyz.openbmc_project.Network.MACAddress
+      Properties:
+          MACAddress:
+              Default: '"00:00:00:00:00:00"'
+              Validation:
+                  Type: "regex"
+                  Validator: '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+
+#needs to implement address validation TODO openbmc/issues/2046
+/xyz/openbmc_project/network/host0/intf/addr:
+    - Interface: xyz.openbmc_project.Network.IP
+      Properties:
+          Address:
+              Default: '"0.0.0.0"'
+          PrefixLength:
+              Default: 0
+              Validation:
+                  Type: "range"
+                  Validator: 0..128
+                  Unit: "bits"
+          Origin:
+              Default: IP::AddressOrigin::Static
+          Gateway:
+              Default: '"0.0.0.0"'
+          Type:
+              Default: IP::Protocol::IPv4
+
+/xyz/openbmc_project/control/host0/restriction_mode:
+    - Interface: xyz.openbmc_project.Control.Security.RestrictionMode
+      Properties:
+          RestrictionMode:
+              Default: RestrictionMode::Modes::None
+
+/xyz/openbmc_project/control/host0/TPMEnable:
+    - Interface: xyz.openbmc_project.Control.TPM.Policy
+      Properties:
+          TPMEnable:
+             Default: 'false'
+
+/xyz/openbmc_project/control/power_supply_attributes:
+    - Interface: xyz.openbmc_project.Control.PowerSupplyAttributes
+      Properties:
+          DeratingFactor:
+             Default: 90
+
+/xyz/openbmc_project/control/power_supply_redundancy:
+    - Interface: xyz.openbmc_project.Control.PowerSupplyRedundancy
+      Properties:
+          PowerSupplyRedundancyEnabled:
+             Default: 'true'
+
+/xyz/openbmc_project/control/host0/turbo_allowed:
+    - Interface: xyz.openbmc_project.Control.Host.TurboAllowed
+      Properties:
+          TurboAllowed:
+             Default: 'true'
+
+/xyz/openbmc_project/logging/rest_api_logs:
+    - Interface: xyz.openbmc_project.Object.Enable
+      Properties:
+          Enabled:
+             Default: 'false'
+
+/xyz/openbmc_project/logging/settings:
+    - Interface: xyz.openbmc_project.Logging.Settings
+      Properties:
+          QuiesceOnHwError:
+             Default: 'false'
+
+/xyz/openbmc_project/software/apply_time:
+    - Interface: xyz.openbmc_project.Software.ApplyTime
+      Properties:
+          RequestedApplyTime:
+             Default: ApplyTime::RequestedApplyTimes::OnReset
+
+/xyz/openbmc_project/state/chassis0:
+    - Interface: xyz.openbmc_project.State.PowerOnHours
+      Properties:
+          POHCounter:
+             Default: 0
+
+/xyz/openbmc_project/control/host0/ac_boot:
+    - Interface: xyz.openbmc_project.Common.ACBoot
+      Properties:
+          ACBoot:
+             Default: '"Unknown"'
+
+/xyz/openbmc_project/control/power_restore_delay:
+    - Interface: xyz.openbmc_project.Control.Power.RestoreDelay
+      Properties:
+          PowerRestoreDelay:
+             Default: 0

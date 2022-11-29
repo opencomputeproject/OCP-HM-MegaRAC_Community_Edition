@@ -1,0 +1,50 @@
+--- linux/drivers/soc/aspeed/aspeed-lpc-snoop.c	2020-12-21 16:36:07.026531122 +0800
++++ linux/drivers/soc/aspeed/aspeed-lpc-snoop.c	2021-01-11 17:30:09.000000000 +0800
+@@ -35,26 +35,26 @@
+ #define NUM_SNOOP_CHANNELS 2
+ #define SNOOP_FIFO_SIZE 2048
+ 
+-#define HICR5	0x0
++#define HICR5	0x80
+ #define HICR5_EN_SNP0W		BIT(0)
+ #define HICR5_ENINT_SNP0W	BIT(1)
+ #define HICR5_EN_SNP1W		BIT(2)
+ #define HICR5_ENINT_SNP1W	BIT(3)
+ 
+-#define HICR6	0x4
++#define HICR6	0x84
+ #define HICR6_STR_SNP0W		BIT(0)
+ #define HICR6_STR_SNP1W		BIT(1)
+-#define SNPWADR	0x10
++#define SNPWADR	0x90
+ #define SNPWADR_CH0_MASK	GENMASK(15, 0)
+ #define SNPWADR_CH0_SHIFT	0
+ #define SNPWADR_CH1_MASK	GENMASK(31, 16)
+ #define SNPWADR_CH1_SHIFT	16
+-#define SNPWDR	0x14
++#define SNPWDR	0x94
+ #define SNPWDR_CH0_MASK		GENMASK(7, 0)
+ #define SNPWDR_CH0_SHIFT	0
+ #define SNPWDR_CH1_MASK		GENMASK(15, 8)
+ #define SNPWDR_CH1_SHIFT	8
+-#define HICRB	0x80
++#define HICRB	0x100
+ #define HICRB_ENSNP0D		BIT(14)
+ #define HICRB_ENSNP1D		BIT(15)
+ 
+@@ -109,13 +109,13 @@
+ 	return ret ? ret : copied;
+ }
+ 
+-static unsigned int snoop_file_poll(struct file *file,
++static __poll_t snoop_file_poll(struct file *file,
+ 				    struct poll_table_struct *pt)
+ {
+ 	struct aspeed_lpc_snoop_channel *chan = snoop_file_to_chan(file);
+ 
+ 	poll_wait(file, &chan->wq, pt);
+-	return !kfifo_is_empty(&chan->fifo) ? POLLIN : 0;
++	return !kfifo_is_empty(&chan->fifo) ? EPOLLIN : 0;
+ }
+ 
+ static const struct file_operations snoop_fops = {

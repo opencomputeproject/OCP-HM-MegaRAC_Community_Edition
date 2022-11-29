@@ -1,0 +1,103 @@
+--- linux/drivers/i2c/busses/i2c-aspeed.c	2021-01-04 16:35:34.687578000 +0800
++++ linux_n/drivers/i2c/busses/i2c-aspeed.c	2021-01-05 09:56:28.780734000 +0800
+@@ -19,14 +19,23 @@
+ #include <linux/irqchip/chained_irq.h>
+ #include <linux/irqdomain.h>
+ #include <linux/kernel.h>
++#include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+ #include <linux/of_address.h>
+ #include <linux/of_irq.h>
+ #include <linux/of_platform.h>
+ #include <linux/platform_device.h>
++#include <linux/regmap.h>
+ #include <linux/reset.h>
+ #include <linux/slab.h>
+ 
++/* I2C Global Registers */
++/* 0x00 : I2CG Interrupt Status Register  */
++/* 0x08 : I2CG Interrupt Target Assignment  */
++/* 0x0c : I2CG Global Control Register (AST2500)  */
++#define ASPEED_I2CG_GLOBAL_CTRL_REG			0x0c
++#define  ASPEED_I2CG_SRAM_BUFFER_EN			BIT(0)
++
+ /* I2C Register */
+ #define ASPEED_I2C_FUN_CTRL_REG				0x00
+ #define ASPEED_I2C_AC_TIMING_REG1			0x04
+@@ -69,7 +78,6 @@
+  * These share bit definitions, so use the same values for the enable &
+  * status bits.
+  */
+-#define ASPEED_I2CD_INTR_RECV_MASK			0xf000ffff
+ #define ASPEED_I2CD_INTR_SDA_DL_TIMEOUT			BIT(14)
+ #define ASPEED_I2CD_INTR_BUS_RECOVER_DONE		BIT(13)
+ #define ASPEED_I2CD_INTR_SLAVE_MATCH			BIT(7)
+@@ -96,8 +104,6 @@
+ 		 ASPEED_I2CD_INTR_TX_NAK |				       \
+ 		 ASPEED_I2CD_INTR_TX_ACK)
+ 
+-#define ASPEED_I2CD_INTR_RESERVE_BIT24		BIT(24)
+-
+ /* 0x14 : I2CD Command/Status Register   */
+ #define ASPEED_I2CD_SCL_LINE_STS			BIT(18)
+ #define ASPEED_I2CD_SDA_LINE_STS			BIT(17)
+@@ -607,7 +613,6 @@
+ 	writel(irq_received & ~ASPEED_I2CD_INTR_RX_DONE,
+ 	       bus->base + ASPEED_I2C_INTR_STS_REG);
+ 	readl(bus->base + ASPEED_I2C_INTR_STS_REG);
+-	irq_received &= ASPEED_I2CD_INTR_RECV_MASK;
+ 	irq_remaining = irq_received;
+ 
+ #if IS_ENABLED(CONFIG_I2C_SLAVE)
+@@ -644,12 +649,10 @@
+ #endif /* CONFIG_I2C_SLAVE */
+ 
+ 	irq_remaining &= ~irq_handled;
+-	if (irq_remaining){
+-		if (irq_remaining != ASPEED_I2CD_INTR_RESERVE_BIT24)
+-			dev_err(bus->dev,
++	if (irq_remaining)
++		dev_err(bus->dev,
+ 			"irq handled != irq. expected 0x%08x, but was 0x%08x\n",
+ 			irq_received, irq_handled);
+-	}
+ 
+ 	/* Ack Rx done */
+ 	if (irq_received & ASPEED_I2CD_INTR_RX_DONE) {
+@@ -977,6 +980,20 @@
+ 	struct resource *res;
+ 	int irq, ret;
+ 
++	if (of_device_is_compatible(pdev->dev.of_node,
++					"aspeed,ast2600-i2c-bus")) {
++		u32 global_ctrl;
++		struct regmap *gr_regmap = syscon_regmap_lookup_by_compatible("aspeed,ast2600-i2c-global");
++
++		if (IS_ERR(gr_regmap))
++			ret = PTR_ERR(gr_regmap);
++		else {
++			regmap_read(gr_regmap, ASPEED_I2CG_GLOBAL_CTRL_REG, &global_ctrl);
++			if(global_ctrl & BIT(2))
++				return -EIO;
++		}
++	}
++
+ 	bus = devm_kzalloc(&pdev->dev, sizeof(*bus), GFP_KERNEL);
+ 	if (!bus)
+ 		return -ENOMEM;
+--- linux/drivers/i2c/busses/i2c-fsi.c	2020-12-21 20:27:07.000000000 +0800
++++ linux_n/drivers/i2c/busses/i2c-fsi.c	2021-01-05 10:02:20.112681000 +0800
+@@ -703,7 +703,12 @@
+ 
+ 	for (port_no = 0; port_no < ports; port_no++) {
+ 		np = fsi_i2c_find_port_of_node(dev->of_node, port_no);
+-		if (np && !of_device_is_available(np))
++		/* Do not add port if it is not described in the device tree */
++		if (!np)
++			continue;
++
++		/* Do not add port if it is described as disabled */
++		if (!of_device_is_available(np))
+ 			continue;
+ 
+ 		port = kzalloc(sizeof(*port), GFP_KERNEL);

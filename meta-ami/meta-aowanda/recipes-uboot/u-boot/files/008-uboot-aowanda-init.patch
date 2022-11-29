@@ -1,0 +1,112 @@
+diff -Naur uboot_original/common/board_r.c uboot_new/common/board_r.c
+--- uboot_original/common/board_r.c	2022-10-02 03:15:20.342477130 -0400
++++ uboot_new/common/board_r.c	2022-10-12 06:08:44.966420964 -0400
+@@ -49,6 +49,8 @@
+ #include <linux/err.h>
+ #include <efi_loader.h>
+ 
++void Aowanda_init(void);
++
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ ulong monitor_flash_len;
+@@ -623,7 +625,8 @@
+ 
+ static int board_for_VC_init(void)
+ {
+-       board_init_uboot_setting();
++       //board_init_uboot_setting();
++       Aowanda_init();
+        return 0;
+ }
+ 
+@@ -866,3 +869,89 @@
+ 	/* NOTREACHED - run_main_loop() does not return */
+ 	hang();
+ }
++
++void Aowanda_init(void)
++{
++   volatile unsigned long reg;
++
++   *((volatile ulong*) 0x1e6e2000) = 0x1688A8A8; /* unlock SCU */
++   /***********************************************************************************/
++   *((volatile ulong*) 0x1e6e2400) = 0xFF000000; /* SCU400 */
++   *((volatile ulong*) 0x1e6e2404) = 0x0000000F; /* SCU404 */
++
++   *((volatile ulong*) 0x1e6e2410) = 0x0F4E0000; /* SCU410 */
++   *((volatile ulong*) 0x1e6e2414) = 0x0F000000; /* SCU414 */
++   *((volatile ulong*) 0x1e6e2418) = 0xCFFF00FF; /* SCU418 */
++   //*((volatile ulong*) 0x1e6e241C) = 0x00FF00C0; /* SCU41C */ //V0, Disable PWM for GPIOP0-P7
++   *((volatile ulong*) 0x1e6e241C) = 0x000F00C0; /* SCU41C */   //V1, Disable PWM for GPIOP0-P7 and GPIOO4-7
++
++
++   *((volatile ulong*) 0x1e6e2430) = 0x000000FF; /* SCU430 */
++   *((volatile ulong*) 0x1e6e2438) = 0x000000F0; /* SCU438 */
++   *((volatile ulong*) 0x1e6e2450) = 0x0000A000; /* SCU450 */
++
++   *((volatile ulong*) 0x1e6e24B0) = 0xF00000FF; /* SCU4B0 */
++   *((volatile ulong*) 0x1e6e24B4) = 0x000000FC; /* SCU4B4 */
++   *((volatile ulong*) 0x1e6e24B8) = 0x0000FF00; /* SCU4B8 */
++   *((volatile ulong*) 0x1e6e24BC) = 0x3F000000; /* SCU4BC */ //Enable Pass-through for GPIOP0-P5
++
++   *((volatile ulong*) 0x1e6e24D4) = 0x00000000; /* SCU4D4 */
++   *((volatile ulong*) 0x1e6e24D8) = 0x00300000; /* SCU4D8 */
++
++   *((volatile ulong*) 0x1e6e2690) = 0x00000000; /* SCU690 */
++   *((volatile ulong*) 0x1e6e2694) = 0x00000000; /* SCU694 */
++
++
++   /***********************************************************************************/
++   // configure SCU610~SCU638 to control GPIO internal pull-down/ pull-up^M
++
++   // Disable GPIOI5-I7 internal pull-down^M
++   *((volatile ulong*) 0x1e6e2618) = 0x000000E0; /* SCU618 */
++   reg = *((volatile unsigned long *) (0x1e6e2618));   /* Read SCU618 */
++   printf("SCU618 = 0x%lx\n", reg);
++
++   // Disable GPIOI5-I7 internal pull-down^M
++   *((volatile ulong*) 0x1E780068) = 0x00000900; /* D22 and C23 */
++   reg = *((volatile unsigned long *) (0x1E780068));   /* Read D22 */
++
++ 
++   // Disable GPIOP0-P3 internal pull-down
++   *((volatile ulong*) 0x1e6e261C) = 0x0F000000; /* SCU61C */
++
++
++   reg = *((volatile unsigned long *) (0x1e6e261C));   /* Read SCU61C */
++   printf("SCU61C = 0x%lx\n", reg);
++
++   /***********************************************************************************/
++   // SCU500 HW Strap 1 Reg
++   reg = *((volatile unsigned long *) (0x1e6e2500));   /* Read SCU500 */
++   printf("Origin SCU500 = 0x%lx\n", reg);
++
++   // Clear SCU500[7:5]
++   *((volatile ulong*) 0x1e6e2504) = 0x000000E0; /* SCU500 HW strap 1 Reg can be clear by write SCU504 */
++   reg = *((volatile unsigned long *) (0x1e6e2500));   /* Read SCU500 */
++   printf("SCU500 = 0x%lx\n", reg);
++
++
++   // V1, Set SCU500[14:13]=01b Select 16MB VGA memory
++   reg |= 0x00002000;
++   *((volatile ulong*) 0x1e6e2500) = reg;
++
++
++   // SCU510 HW Strap 2 Reg
++   reg = *((volatile unsigned long *) (0x1e6e2510));   /* Read SCU510 */
++   printf("Origin SCU510 = 0x%lx\n", reg);
++
++   // Clear SCU510[0], SCU510[1], SCU510[6] (Enable MAC3, MAC4 NCSI, Enable eSPI)
++   *((volatile ulong*) 0x1e6e2514) = 0x00000043; /* SCU510 HW strap 2 Reg can be clear by write SCU514 */
++   reg = *((volatile unsigned long *) (0x1e6e2510));   /* Read SCU510 */
++   printf("SCU510 = 0x%lx\n", reg);
++
++   // Set SCU510[5]=1 (Enable ACPI)^M
++   reg |= 0x00000020;
++   *((volatile ulong*) 0x1e6e2510) = reg;
++
++   reg = *((volatile unsigned long *) (0x1e6e2510));   /* Read SCU510 */
++   printf("SCU510 = 0x%lx\n", reg);
++}
++

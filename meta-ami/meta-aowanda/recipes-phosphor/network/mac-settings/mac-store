@@ -1,0 +1,40 @@
+#!/bin/sh
+
+read_hw_mac() {
+	local iface="$1"
+	cat /sys/class/net/"$iface"/address
+}
+
+read_fw_env_mac() {
+	local envname="$1"
+	fw_printenv "$envname" 2>/dev/null | sed "s/^$envname=//"
+}
+
+set_fw_env_mac() {
+	local envname="$1"
+	local mac="$2"
+	fw_setenv "$envname" "$mac"
+}
+
+mac_check() {
+	local iface="$1"
+	local envname="$2"
+
+	# read current HW MAC addr
+	local hw_mac=$(read_hw_mac "$iface")
+
+	# read saved fw_env MAC addr
+	local fw_env_mac=$(read_fw_env_mac "$envname")
+
+	# save to fw_env if not the same as HW addr
+	if [ -z "$fw_env_mac" ] || [ "$fw_env_mac" != "$hw_mac" ]; then
+		set_fw_env_mac "$envname" "$hw_mac"
+	fi
+}
+
+while read IFACE UBDEV; do
+	mac_check "$IFACE" "$UBDEV"
+done <<-END_CONF
+	eth0 eth2addr
+	eth1 eth3addr
+END_CONF

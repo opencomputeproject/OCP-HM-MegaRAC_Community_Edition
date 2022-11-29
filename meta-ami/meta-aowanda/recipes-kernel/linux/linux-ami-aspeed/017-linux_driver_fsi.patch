@@ -1,0 +1,909 @@
+diff -Naur linux/drivers/fsi/fsi-core.c linux-new/drivers/fsi/fsi-core.c
+--- linux/drivers/fsi/fsi-core.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/fsi/fsi-core.c	2020-12-23 16:05:33.323496296 -0500
+@@ -1264,6 +1264,19 @@
+ 
+ static DEVICE_ATTR(break, 0200, NULL, master_break_store);
+ 
++static struct attribute *master_attrs[] = {
++	&dev_attr_break.attr,
++	&dev_attr_rescan.attr,
++	NULL
++};
++
++ATTRIBUTE_GROUPS(master);
++
++static struct class fsi_master_class = {
++	.name = "fsi-master",
++	.dev_groups = master_groups,
++};
++
+ int fsi_master_register(struct fsi_master *master)
+ {
+ 	int rc;
+@@ -1272,6 +1285,7 @@
+ 	mutex_init(&master->scan_lock);
+ 	master->idx = ida_simple_get(&master_ida, 0, INT_MAX, GFP_KERNEL);
+ 	dev_set_name(&master->dev, "fsi%d", master->idx);
++	master->dev.class = &fsi_master_class;
+ 
+ 	rc = device_register(&master->dev);
+ 	if (rc) {
+@@ -1279,20 +1293,6 @@
+ 		return rc;
+ 	}
+ 
+-	rc = device_create_file(&master->dev, &dev_attr_rescan);
+-	if (rc) {
+-		device_del(&master->dev);
+-		ida_simple_remove(&master_ida, master->idx);
+-		return rc;
+-	}
+-
+-	rc = device_create_file(&master->dev, &dev_attr_break);
+-	if (rc) {
+-		device_del(&master->dev);
+-		ida_simple_remove(&master_ida, master->idx);
+-		return rc;
+-	}
+-
+ 	np = dev_of_node(&master->dev);
+ 	if (!of_property_read_bool(np, "no-scan-on-init")) {
+ 		mutex_lock(&master->scan_lock);
+@@ -1373,8 +1373,15 @@
+ 	rc = bus_register(&fsi_bus_type);
+ 	if (rc)
+ 		goto fail_bus;
++
++	rc = class_register(&fsi_master_class);
++	if (rc)
++		goto fail_class;
++
+ 	return 0;
+ 
++ fail_class:
++	bus_unregister(&fsi_bus_type);
+  fail_bus:
+ 	unregister_chrdev_region(fsi_base_dev, FSI_CHAR_MAX_DEVICES);
+ 	return rc;
+@@ -1383,6 +1390,7 @@
+ 
+ static void fsi_exit(void)
+ {
++	class_unregister(&fsi_master_class);
+ 	bus_unregister(&fsi_bus_type);
+ 	unregister_chrdev_region(fsi_base_dev, FSI_CHAR_MAX_DEVICES);
+ 	ida_destroy(&fsi_minor_ida);
+diff -Naur linux/drivers/fsi/fsi-master-aspeed.c linux-new/drivers/fsi/fsi-master-aspeed.c
+--- linux/drivers/fsi/fsi-master-aspeed.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/drivers/fsi/fsi-master-aspeed.c	2020-12-23 16:05:33.323496296 -0500
+@@ -0,0 +1,544 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++// Copyright (C) IBM Corporation 2018
++// FSI master driver for AST2600
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/fsi.h>
++#include <linux/io.h>
++#include <linux/mfd/syscon.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/slab.h>
++#include <linux/iopoll.h>
++
++#include "fsi-master.h"
++
++struct fsi_master_aspeed {
++	struct fsi_master	master;
++	struct device		*dev;
++	void __iomem		*base;
++	struct clk		*clk;
++};
++
++#define to_fsi_master_aspeed(m) \
++	container_of(m, struct fsi_master_aspeed, master)
++
++/* Control register (size 0x400) */
++static const u32 ctrl_base = 0x80000000;
++
++static const u32 fsi_base = 0xa0000000;
++
++#define OPB_FSI_VER	0x00
++#define OPB_TRIGGER	0x04
++#define OPB_CTRL_BASE	0x08
++#define OPB_FSI_BASE	0x0c
++#define OPB_CLK_SYNC	0x3c
++#define OPB_IRQ_CLEAR	0x40
++#define OPB_IRQ_MASK	0x44
++#define OPB_IRQ_STATUS	0x48
++
++#define OPB0_SELECT	0x10
++#define OPB0_RW		0x14
++#define OPB0_XFER_SIZE	0x18
++#define OPB0_FSI_ADDR	0x1c
++#define OPB0_FSI_DATA_W	0x20
++#define OPB0_STATUS	0x80
++#define OPB0_FSI_DATA_R	0x84
++
++#define OPB0_WRITE_ORDER1	0x4c
++#define OPB0_WRITE_ORDER2	0x50
++#define OPB1_WRITE_ORDER1	0x54
++#define OPB1_WRITE_ORDER2	0x58
++#define OPB0_READ_ORDER1	0x5c
++#define OPB1_READ_ORDER2	0x60
++
++#define OPB_RETRY_COUNTER	0x64
++
++/* OPBn_STATUS */
++#define STATUS_HALFWORD_ACK	BIT(0)
++#define STATUS_FULLWORD_ACK	BIT(1)
++#define STATUS_ERR_ACK		BIT(2)
++#define STATUS_RETRY		BIT(3)
++#define STATUS_TIMEOUT		BIT(4)
++
++/* OPB_IRQ_MASK */
++#define OPB1_XFER_ACK_EN BIT(17)
++#define OPB0_XFER_ACK_EN BIT(16)
++
++/* OPB_RW */
++#define CMD_READ	BIT(0)
++#define CMD_WRITE	0
++
++/* OPBx_XFER_SIZE */
++#define XFER_FULLWORD	(BIT(1) | BIT(0))
++#define XFER_HALFWORD	(BIT(0))
++#define XFER_BYTE	(0)
++
++#define CREATE_TRACE_POINTS
++#include <trace/events/fsi_master_aspeed.h>
++
++#define FSI_LINK_ENABLE_SETUP_TIME	10	/* in mS */
++
++#define DEFAULT_DIVISOR			14
++#define OPB_POLL_TIMEOUT		10000
++
++static int __opb_write(struct fsi_master_aspeed *aspeed, u32 addr,
++		       u32 val, u32 transfer_size)
++{
++	void __iomem *base = aspeed->base;
++	u32 reg, status;
++	int ret;
++
++	writel(CMD_WRITE, base + OPB0_RW);
++	writel(transfer_size, base + OPB0_XFER_SIZE);
++	writel(addr, base + OPB0_FSI_ADDR);
++	writel(val, base + OPB0_FSI_DATA_W);
++	writel(0x1, base + OPB_IRQ_CLEAR);
++	writel(0x1, base + OPB_TRIGGER);
++
++	ret = readl_poll_timeout(base + OPB_IRQ_STATUS, reg,
++				(reg & OPB0_XFER_ACK_EN) != 0,
++				0, OPB_POLL_TIMEOUT);
++
++	status = readl(base + OPB0_STATUS);
++
++	trace_fsi_master_aspeed_opb_write(addr, val, transfer_size, status, reg);
++
++	/* Return error when poll timed out */
++	if (ret)
++		return ret;
++
++	/* Command failed, master will reset */
++	if (status & STATUS_ERR_ACK)
++		return -EIO;
++
++	return 0;
++}
++
++static int opb_writeb(struct fsi_master_aspeed *aspeed, u32 addr, u8 val)
++{
++	return __opb_write(aspeed, addr, val, XFER_BYTE);
++}
++
++static int opb_writew(struct fsi_master_aspeed *aspeed, u32 addr, __be16 val)
++{
++	return __opb_write(aspeed, addr, (__force u16)val, XFER_HALFWORD);
++}
++
++static int opb_writel(struct fsi_master_aspeed *aspeed, u32 addr, __be32 val)
++{
++	return __opb_write(aspeed, addr, (__force u32)val, XFER_FULLWORD);
++}
++
++static int __opb_read(struct fsi_master_aspeed *aspeed, uint32_t addr,
++		      u32 transfer_size, void *out)
++{
++	void __iomem *base = aspeed->base;
++	u32 result, reg;
++	int status, ret;
++
++	writel(CMD_READ, base + OPB0_RW);
++	writel(transfer_size, base + OPB0_XFER_SIZE);
++	writel(addr, base + OPB0_FSI_ADDR);
++	writel(0x1, base + OPB_IRQ_CLEAR);
++	writel(0x1, base + OPB_TRIGGER);
++
++	ret = readl_poll_timeout(base + OPB_IRQ_STATUS, reg,
++			   (reg & OPB0_XFER_ACK_EN) != 0,
++			   0, OPB_POLL_TIMEOUT);
++
++	status = readl(base + OPB0_STATUS);
++
++	result = readl(base + OPB0_FSI_DATA_R);
++
++	trace_fsi_master_aspeed_opb_read(addr, transfer_size, result,
++			readl(base + OPB0_STATUS),
++			reg);
++
++	/* Return error when poll timed out */
++	if (ret)
++		return ret;
++
++	/* Command failed, master will reset */
++	if (status & STATUS_ERR_ACK)
++		return -EIO;
++
++	if (out) {
++		switch (transfer_size) {
++		case XFER_BYTE:
++			*(u8 *)out = result;
++			break;
++		case XFER_HALFWORD:
++			*(u16 *)out = result;
++			break;
++		case XFER_FULLWORD:
++			*(u32 *)out = result;
++			break;
++		default:
++			return -EINVAL;
++		}
++
++	}
++
++	return 0;
++}
++
++static int opb_readl(struct fsi_master_aspeed *aspeed, uint32_t addr, __be32 *out)
++{
++	return __opb_read(aspeed, addr, XFER_FULLWORD, out);
++}
++
++static int opb_readw(struct fsi_master_aspeed *aspeed, uint32_t addr, __be16 *out)
++{
++	return __opb_read(aspeed, addr, XFER_HALFWORD, (void *)out);
++}
++
++static int opb_readb(struct fsi_master_aspeed *aspeed, uint32_t addr, u8 *out)
++{
++	return __opb_read(aspeed, addr, XFER_BYTE, (void *)out);
++}
++
++static int check_errors(struct fsi_master_aspeed *aspeed, int err)
++{
++	int ret;
++
++	if (trace_fsi_master_aspeed_opb_error_enabled()) {
++		__be32 mresp0, mstap0, mesrb0;
++
++		opb_readl(aspeed, ctrl_base + FSI_MRESP0, &mresp0);
++		opb_readl(aspeed, ctrl_base + FSI_MSTAP0, &mstap0);
++		opb_readl(aspeed, ctrl_base + FSI_MESRB0, &mesrb0);
++
++		trace_fsi_master_aspeed_opb_error(
++				be32_to_cpu(mresp0),
++				be32_to_cpu(mstap0),
++				be32_to_cpu(mesrb0));
++	}
++
++	if (err == -EIO) {
++		/* Check MAEB (0x70) ? */
++
++		/* Then clear errors in master */
++		ret = opb_writel(aspeed, ctrl_base + FSI_MRESP0,
++				cpu_to_be32(FSI_MRESP_RST_ALL_MASTER));
++		if (ret) {
++			/* TODO: log? return different code? */
++			return ret;
++		}
++		/* TODO: confirm that 0x70 was okay */
++	}
++
++	/* This will pass through timeout errors */
++	return err;
++}
++
++static int aspeed_master_read(struct fsi_master *master, int link,
++			uint8_t id, uint32_t addr, void *val, size_t size)
++{
++	struct fsi_master_aspeed *aspeed = to_fsi_master_aspeed(master);
++	int ret;
++
++	if (id != 0)
++		return -EINVAL;
++
++	addr += link * FSI_HUB_LINK_SIZE;
++
++	switch (size) {
++	case 1:
++		ret = opb_readb(aspeed, fsi_base + addr, val);
++		break;
++	case 2:
++		ret = opb_readw(aspeed, fsi_base + addr, val);
++		break;
++	case 4:
++		ret = opb_readl(aspeed, fsi_base + addr, val);
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	ret = check_errors(aspeed, ret);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int aspeed_master_write(struct fsi_master *master, int link,
++			uint8_t id, uint32_t addr, const void *val, size_t size)
++{
++	struct fsi_master_aspeed *aspeed = to_fsi_master_aspeed(master);
++	int ret;
++
++	if (id != 0)
++		return -EINVAL;
++
++	addr += link * FSI_HUB_LINK_SIZE;
++
++	switch (size) {
++	case 1:
++		ret = opb_writeb(aspeed, fsi_base + addr, *(u8 *)val);
++		break;
++	case 2:
++		ret = opb_writew(aspeed, fsi_base + addr, *(__be16 *)val);
++		break;
++	case 4:
++		ret = opb_writel(aspeed, fsi_base + addr, *(__be32 *)val);
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	ret = check_errors(aspeed, ret);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int aspeed_master_link_enable(struct fsi_master *master, int link)
++{
++	struct fsi_master_aspeed *aspeed = to_fsi_master_aspeed(master);
++	int idx, bit, ret;
++	__be32 reg, result;
++
++	idx = link / 32;
++	bit = link % 32;
++
++	reg = cpu_to_be32(0x80000000 >> bit);
++
++	ret = opb_writel(aspeed, ctrl_base + FSI_MSENP0 + (4 * idx), reg);
++	if (ret)
++		return ret;
++
++	mdelay(FSI_LINK_ENABLE_SETUP_TIME);
++
++	ret = opb_readl(aspeed, ctrl_base + FSI_MENP0 + (4 * idx), &result);
++	if (ret)
++		return ret;
++
++	if (result != reg) {
++		dev_err(aspeed->dev, "%s failed: %08x\n", __func__, result);
++		return -EIO;
++	}
++
++	return 0;
++}
++
++static int aspeed_master_term(struct fsi_master *master, int link, uint8_t id)
++{
++	uint32_t addr;
++	__be32 cmd;
++
++	addr = 0x4;
++	cmd = cpu_to_be32(0xecc00000);
++
++	return aspeed_master_write(master, link, id, addr, &cmd, 4);
++}
++
++static int aspeed_master_break(struct fsi_master *master, int link)
++{
++	uint32_t addr;
++	__be32 cmd;
++
++	addr = 0x0;
++	cmd = cpu_to_be32(0xc0de0000);
++
++	return aspeed_master_write(master, link, 0, addr, &cmd, 4);
++}
++
++static void aspeed_master_release(struct device *dev)
++{
++	struct fsi_master_aspeed *aspeed =
++		to_fsi_master_aspeed(dev_to_fsi_master(dev));
++
++	kfree(aspeed);
++}
++
++/* mmode encoders */
++static inline u32 fsi_mmode_crs0(u32 x)
++{
++	return (x & FSI_MMODE_CRS0MASK) << FSI_MMODE_CRS0SHFT;
++}
++
++static inline u32 fsi_mmode_crs1(u32 x)
++{
++	return (x & FSI_MMODE_CRS1MASK) << FSI_MMODE_CRS1SHFT;
++}
++
++static int aspeed_master_init(struct fsi_master_aspeed *aspeed)
++{
++	__be32 reg;
++
++	reg = cpu_to_be32(FSI_MRESP_RST_ALL_MASTER | FSI_MRESP_RST_ALL_LINK
++			| FSI_MRESP_RST_MCR | FSI_MRESP_RST_PYE);
++	opb_writel(aspeed, ctrl_base + FSI_MRESP0, reg);
++
++	/* Initialize the MFSI (hub master) engine */
++	reg = cpu_to_be32(FSI_MRESP_RST_ALL_MASTER | FSI_MRESP_RST_ALL_LINK
++			| FSI_MRESP_RST_MCR | FSI_MRESP_RST_PYE);
++	opb_writel(aspeed, ctrl_base + FSI_MRESP0, reg);
++
++	reg = cpu_to_be32(FSI_MECTRL_EOAE | FSI_MECTRL_P8_AUTO_TERM);
++	opb_writel(aspeed, ctrl_base + FSI_MECTRL, reg);
++
++	reg = cpu_to_be32(FSI_MMODE_ECRC | FSI_MMODE_EPC | FSI_MMODE_RELA
++			| fsi_mmode_crs0(DEFAULT_DIVISOR)
++			| fsi_mmode_crs1(DEFAULT_DIVISOR)
++			| FSI_MMODE_P8_TO_LSB);
++	opb_writel(aspeed, ctrl_base + FSI_MMODE, reg);
++
++	reg = cpu_to_be32(0xffff0000);
++	opb_writel(aspeed, ctrl_base + FSI_MDLYR, reg);
++
++	reg = cpu_to_be32(~0);
++	opb_writel(aspeed, ctrl_base + FSI_MSENP0, reg);
++
++	/* Leave enabled long enough for master logic to set up */
++	mdelay(FSI_LINK_ENABLE_SETUP_TIME);
++
++	opb_writel(aspeed, ctrl_base + FSI_MCENP0, reg);
++
++	opb_readl(aspeed, ctrl_base + FSI_MAEB, NULL);
++
++	reg = cpu_to_be32(FSI_MRESP_RST_ALL_MASTER | FSI_MRESP_RST_ALL_LINK);
++	opb_writel(aspeed, ctrl_base + FSI_MRESP0, reg);
++
++	opb_readl(aspeed, ctrl_base + FSI_MLEVP0, NULL);
++
++	/* Reset the master bridge */
++	reg = cpu_to_be32(FSI_MRESB_RST_GEN);
++	opb_writel(aspeed, ctrl_base + FSI_MRESB0, reg);
++
++	reg = cpu_to_be32(FSI_MRESB_RST_ERR);
++	opb_writel(aspeed, ctrl_base + FSI_MRESB0, reg);
++
++	return 0;
++}
++
++static int fsi_master_aspeed_probe(struct platform_device *pdev)
++{
++	struct fsi_master_aspeed *aspeed;
++	struct resource *res;
++	int rc, links, reg;
++	__be32 raw;
++
++	aspeed = devm_kzalloc(&pdev->dev, sizeof(*aspeed), GFP_KERNEL);
++	if (!aspeed)
++		return -ENOMEM;
++
++	aspeed->dev = &pdev->dev;
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	aspeed->base = devm_ioremap_resource(&pdev->dev, res);
++	if (IS_ERR(aspeed->base))
++		return PTR_ERR(aspeed->base);
++
++	aspeed->clk = devm_clk_get(aspeed->dev, NULL);
++	if (IS_ERR(aspeed->clk)) {
++		dev_err(aspeed->dev, "couldn't get clock\n");
++		return PTR_ERR(aspeed->clk);
++	}
++	rc = clk_prepare_enable(aspeed->clk);
++	if (rc) {
++		dev_err(aspeed->dev, "couldn't enable clock\n");
++		return rc;
++	}
++
++	writel(0x1, aspeed->base + OPB_CLK_SYNC);
++	writel(OPB1_XFER_ACK_EN | OPB0_XFER_ACK_EN,
++			aspeed->base + OPB_IRQ_MASK);
++
++	/* TODO: determine an appropriate value */
++	writel(0x10, aspeed->base + OPB_RETRY_COUNTER);
++
++	writel(ctrl_base, aspeed->base + OPB_CTRL_BASE);
++	writel(fsi_base, aspeed->base + OPB_FSI_BASE);
++
++	/* Set read data order */
++	writel(0x00030b1b, aspeed->base + OPB0_READ_ORDER1);
++
++	/* Set write data order */
++	writel(0x0011101b, aspeed->base + OPB0_WRITE_ORDER1);
++	writel(0x0c330f3f, aspeed->base + OPB0_WRITE_ORDER2);
++
++	/*
++	 * Select OPB0 for all operations.
++	 * Will need to be reworked when enabling DMA or anything that uses
++	 * OPB1.
++	 */
++	writel(0x1, aspeed->base + OPB0_SELECT);
++
++	rc = opb_readl(aspeed, ctrl_base + FSI_MVER, &raw);
++	if (rc) {
++		dev_err(&pdev->dev, "failed to read hub version\n");
++		return rc;
++	}
++
++	reg = be32_to_cpu(raw);
++	links = (reg >> 8) & 0xff;
++	dev_info(&pdev->dev, "hub version %08x (%d links)\n", reg, links);
++
++	aspeed->master.dev.parent = &pdev->dev;
++	aspeed->master.dev.release = aspeed_master_release;
++	aspeed->master.dev.of_node = of_node_get(dev_of_node(&pdev->dev));
++
++	aspeed->master.n_links = links;
++	aspeed->master.read = aspeed_master_read;
++	aspeed->master.write = aspeed_master_write;
++	aspeed->master.send_break = aspeed_master_break;
++	aspeed->master.term = aspeed_master_term;
++	aspeed->master.link_enable = aspeed_master_link_enable;
++
++	dev_set_drvdata(&pdev->dev, aspeed);
++
++	aspeed_master_init(aspeed);
++
++	rc = fsi_master_register(&aspeed->master);
++	if (rc)
++		goto err_release;
++
++	/* At this point, fsi_master_register performs the device_initialize(),
++	 * and holds the sole reference on master.dev. This means the device
++	 * will be freed (via ->release) during any subsequent call to
++	 * fsi_master_unregister.  We add our own reference to it here, so we
++	 * can perform cleanup (in _remove()) without it being freed before
++	 * we're ready.
++	 */
++	get_device(&aspeed->master.dev);
++	return 0;
++
++err_release:
++	clk_disable_unprepare(aspeed->clk);
++	return rc;
++}
++
++static int fsi_master_aspeed_remove(struct platform_device *pdev)
++{
++	struct fsi_master_aspeed *aspeed = platform_get_drvdata(pdev);
++
++	fsi_master_unregister(&aspeed->master);
++	clk_disable_unprepare(aspeed->clk);
++
++	return 0;
++}
++
++static const struct of_device_id fsi_master_aspeed_match[] = {
++	{ .compatible = "aspeed,ast2600-fsi-master" },
++	{ },
++};
++
++static struct platform_driver fsi_master_aspeed_driver = {
++	.driver = {
++		.name		= "fsi-master-aspeed",
++		.of_match_table	= fsi_master_aspeed_match,
++	},
++	.probe	= fsi_master_aspeed_probe,
++	.remove = fsi_master_aspeed_remove,
++};
++
++module_platform_driver(fsi_master_aspeed_driver);
++MODULE_LICENSE("GPL");
+diff -Naur linux/drivers/fsi/fsi-master.h linux-new/drivers/fsi/fsi-master.h
+--- linux/drivers/fsi/fsi-master.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/fsi/fsi-master.h	2020-12-23 16:05:33.323496296 -0500
+@@ -12,6 +12,71 @@
+ #include <linux/device.h>
+ #include <linux/mutex.h>
+ 
++/*
++ * Master registers
++ *
++ * These are used by hardware masters, such as the one in the FSP2, AST2600 and
++ * the hub master in POWER processors.
++ */
++
++/* Control Registers */
++#define FSI_MMODE		0x0		/* R/W: mode */
++#define FSI_MDLYR		0x4		/* R/W: delay */
++#define FSI_MCRSP		0x8		/* R/W: clock rate */
++#define FSI_MENP0		0x10		/* R/W: enable */
++#define FSI_MLEVP0		0x18		/* R: plug detect */
++#define FSI_MSENP0		0x18		/* S: Set enable */
++#define FSI_MCENP0		0x20		/* C: Clear enable */
++#define FSI_MAEB		0x70		/* R: Error address */
++#define FSI_MVER		0x74		/* R: master version/type */
++#define FSI_MSTAP0		0xd0		/* R: Port status */
++#define FSI_MRESP0		0xd0		/* W: Port reset */
++#define FSI_MESRB0		0x1d0		/* R: Master error status */
++#define FSI_MRESB0		0x1d0		/* W: Reset bridge */
++#define FSI_MSCSB0		0x1d4		/* R: Master sub command stack */
++#define FSI_MATRB0		0x1d8		/* R: Master address trace */
++#define FSI_MDTRB0		0x1dc		/* R: Master data trace */
++#define FSI_MECTRL		0x2e0		/* W: Error control */
++
++/* MMODE: Mode control */
++#define FSI_MMODE_EIP		0x80000000	/* Enable interrupt polling */
++#define FSI_MMODE_ECRC		0x40000000	/* Enable error recovery */
++#define FSI_MMODE_RELA		0x20000000	/* Enable relative address commands */
++#define FSI_MMODE_EPC		0x10000000	/* Enable parity checking */
++#define FSI_MMODE_P8_TO_LSB	0x00000010	/* Timeout value LSB */
++						/*   MSB=1, LSB=0 is 0.8 ms */
++						/*   MSB=0, LSB=1 is 0.9 ms */
++#define FSI_MMODE_CRS0SHFT	18		/* Clk rate selection 0 shift */
++#define FSI_MMODE_CRS0MASK	0x3ff		/* Clk rate selection 0 mask */
++#define FSI_MMODE_CRS1SHFT	8		/* Clk rate selection 1 shift */
++#define FSI_MMODE_CRS1MASK	0x3ff		/* Clk rate selection 1 mask */
++
++/* MRESB: Reset brindge */
++#define FSI_MRESB_RST_GEN	0x80000000	/* General reset */
++#define FSI_MRESB_RST_ERR	0x40000000	/* Error Reset */
++
++/* MRESP: Reset port */
++#define FSI_MRESP_RST_ALL_MASTER 0x20000000	/* Reset all FSI masters */
++#define FSI_MRESP_RST_ALL_LINK	0x10000000	/* Reset all FSI port contr. */
++#define FSI_MRESP_RST_MCR	0x08000000	/* Reset FSI master reg. */
++#define FSI_MRESP_RST_PYE	0x04000000	/* Reset FSI parity error */
++#define FSI_MRESP_RST_ALL	0xfc000000	/* Reset any error */
++
++/* MECTRL: Error control */
++#define FSI_MECTRL_EOAE		0x8000		/* Enable machine check when */
++						/* master 0 in error */
++#define FSI_MECTRL_P8_AUTO_TERM	0x4000		/* Auto terminate */
++
++#define FSI_HUB_LINK_OFFSET		0x80000
++#define FSI_HUB_LINK_SIZE		0x80000
++#define FSI_HUB_MASTER_MAX_LINKS	8
++
++/*
++ * Protocol definitions
++ *
++ * These are used by low level masters that bit-bang out the protocol
++ */
++
+ /* Various protocol delays */
+ #define	FSI_ECHO_DELAY_CLOCKS	16	/* Number clocks for echo delay */
+ #define	FSI_SEND_DELAY_CLOCKS	16	/* Number clocks for send delay */
+@@ -47,6 +112,12 @@
+ /* fsi-master definition and flags */
+ #define FSI_MASTER_FLAG_SWCLOCK		0x1
+ 
++/*
++ * Structures and function prototypes
++ *
++ * These are common to all masters
++ */
++
+ struct fsi_master {
+ 	struct device	dev;
+ 	int		idx;
+diff -Naur linux/drivers/fsi/fsi-master-hub.c linux-new/drivers/fsi/fsi-master-hub.c
+--- linux/drivers/fsi/fsi-master-hub.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/fsi/fsi-master-hub.c	2020-12-23 16:05:33.323496296 -0500
+@@ -13,53 +13,7 @@
+ 
+ #include "fsi-master.h"
+ 
+-/* Control Registers */
+-#define FSI_MMODE		0x0		/* R/W: mode */
+-#define FSI_MDLYR		0x4		/* R/W: delay */
+-#define FSI_MCRSP		0x8		/* R/W: clock rate */
+-#define FSI_MENP0		0x10		/* R/W: enable */
+-#define FSI_MLEVP0		0x18		/* R: plug detect */
+-#define FSI_MSENP0		0x18		/* S: Set enable */
+-#define FSI_MCENP0		0x20		/* C: Clear enable */
+-#define FSI_MAEB		0x70		/* R: Error address */
+-#define FSI_MVER		0x74		/* R: master version/type */
+-#define FSI_MRESP0		0xd0		/* W: Port reset */
+-#define FSI_MESRB0		0x1d0		/* R: Master error status */
+-#define FSI_MRESB0		0x1d0		/* W: Reset bridge */
+-#define FSI_MECTRL		0x2e0		/* W: Error control */
+-
+-/* MMODE: Mode control */
+-#define FSI_MMODE_EIP		0x80000000	/* Enable interrupt polling */
+-#define FSI_MMODE_ECRC		0x40000000	/* Enable error recovery */
+-#define FSI_MMODE_EPC		0x10000000	/* Enable parity checking */
+-#define FSI_MMODE_P8_TO_LSB	0x00000010	/* Timeout value LSB */
+-						/*   MSB=1, LSB=0 is 0.8 ms */
+-						/*   MSB=0, LSB=1 is 0.9 ms */
+-#define FSI_MMODE_CRS0SHFT	18		/* Clk rate selection 0 shift */
+-#define FSI_MMODE_CRS0MASK	0x3ff		/* Clk rate selection 0 mask */
+-#define FSI_MMODE_CRS1SHFT	8		/* Clk rate selection 1 shift */
+-#define FSI_MMODE_CRS1MASK	0x3ff		/* Clk rate selection 1 mask */
+-
+-/* MRESB: Reset brindge */
+-#define FSI_MRESB_RST_GEN	0x80000000	/* General reset */
+-#define FSI_MRESB_RST_ERR	0x40000000	/* Error Reset */
+-
+-/* MRESB: Reset port */
+-#define FSI_MRESP_RST_ALL_MASTER 0x20000000	/* Reset all FSI masters */
+-#define FSI_MRESP_RST_ALL_LINK	0x10000000	/* Reset all FSI port contr. */
+-#define FSI_MRESP_RST_MCR	0x08000000	/* Reset FSI master reg. */
+-#define FSI_MRESP_RST_PYE	0x04000000	/* Reset FSI parity error */
+-#define FSI_MRESP_RST_ALL	0xfc000000	/* Reset any error */
+-
+-/* MECTRL: Error control */
+-#define FSI_MECTRL_EOAE		0x8000		/* Enable machine check when */
+-						/* master 0 in error */
+-#define FSI_MECTRL_P8_AUTO_TERM	0x4000		/* Auto terminate */
+-
+ #define FSI_ENGID_HUB_MASTER		0x1c
+-#define FSI_HUB_LINK_OFFSET		0x80000
+-#define FSI_HUB_LINK_SIZE		0x80000
+-#define FSI_HUB_MASTER_MAX_LINKS	8
+ 
+ #define FSI_LINK_ENABLE_SETUP_TIME	10	/* in mS */
+ 
+diff -Naur linux/drivers/fsi/Kconfig linux-new/drivers/fsi/Kconfig
+--- linux/drivers/fsi/Kconfig	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/fsi/Kconfig	2020-12-23 16:05:33.323496296 -0500
+@@ -53,6 +53,14 @@
+ 	lines driven by the internal ColdFire coprocessor. This requires
+ 	the corresponding machine specific ColdFire firmware to be available.
+ 
++config FSI_MASTER_ASPEED
++	tristate "FSI ASPEED master"
++	help
++	 This option enables a FSI master that is present behind an OPB bridge
++	 in the AST2600.
++
++	 Enable it for your BMC kernel in an OpenPower or IBM Power system.
++
+ config FSI_SCOM
+ 	tristate "SCOM FSI client device driver"
+ 	---help---
+diff -Naur linux/drivers/fsi/Makefile linux-new/drivers/fsi/Makefile
+--- linux/drivers/fsi/Makefile	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/fsi/Makefile	2020-12-23 16:05:33.323496296 -0500
+@@ -2,6 +2,7 @@
+ 
+ obj-$(CONFIG_FSI) += fsi-core.o
+ obj-$(CONFIG_FSI_MASTER_HUB) += fsi-master-hub.o
++obj-$(CONFIG_FSI_MASTER_ASPEED) += fsi-master-aspeed.o
+ obj-$(CONFIG_FSI_MASTER_GPIO) += fsi-master-gpio.o
+ obj-$(CONFIG_FSI_MASTER_AST_CF) += fsi-master-ast-cf.o
+ obj-$(CONFIG_FSI_SCOM) += fsi-scom.o
+diff -Naur linux/include/trace/events/fsi.h linux-new/include/trace/events/fsi.h
+--- linux/include/trace/events/fsi.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/trace/events/fsi.h	2020-12-23 16:06:46.357697681 -0500
+@@ -26,7 +26,7 @@
+ 		__entry->addr = addr;
+ 		__entry->size = size;
+ 	),
+-	TP_printk("fsi%d:%02d:%02d %08x[%zd]",
++	TP_printk("fsi%d:%02d:%02d %08x[%zu]",
+ 		__entry->master_idx,
+ 		__entry->link,
+ 		__entry->id,
+@@ -56,7 +56,7 @@
+ 		__entry->data = 0;
+ 		memcpy(&__entry->data, data, size);
+ 	),
+-	TP_printk("fsi%d:%02d:%02d %08x[%zd] <= {%*ph}",
++	TP_printk("fsi%d:%02d:%02d %08x[%zu] <= {%*ph}",
+ 		__entry->master_idx,
+ 		__entry->link,
+ 		__entry->id,
+@@ -93,7 +93,7 @@
+ 		if (__entry->write || !__entry->ret)
+ 			memcpy(&__entry->data, data, size);
+ 	),
+-	TP_printk("fsi%d:%02d:%02d %08x[%zd] %s {%*ph} ret %d",
++	TP_printk("fsi%d:%02d:%02d %08x[%zu] %s {%*ph} ret %d",
+ 		__entry->master_idx,
+ 		__entry->link,
+ 		__entry->id,
+diff -Naur linux/include/trace/events/fsi_master_aspeed.h linux-new/include/trace/events/fsi_master_aspeed.h
+--- linux/include/trace/events/fsi_master_aspeed.h	1969-12-31 19:00:00.000000000 -0500
++++ linux-new/include/trace/events/fsi_master_aspeed.h	2020-12-23 16:07:00.650128147 -0500
+@@ -0,0 +1,77 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM fsi_master_aspeed
++
++#if !defined(_TRACE_FSI_MASTER_ASPEED_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_FSI_MASTER_ASPEED_H
++
++#include <linux/tracepoint.h>
++
++TRACE_EVENT(fsi_master_aspeed_opb_read,
++	TP_PROTO(uint32_t addr, size_t size, uint32_t result, uint32_t status, uint32_t irq_status),
++	TP_ARGS(addr, size, result, status, irq_status),
++	TP_STRUCT__entry(
++		__field(uint32_t,  addr)
++		__field(size_t,    size)
++		__field(uint32_t,  result)
++		__field(uint32_t,  status)
++		__field(uint32_t,  irq_status)
++		),
++	TP_fast_assign(
++		__entry->addr = addr;
++		__entry->size = size;
++		__entry->result = result;
++		__entry->status = status;
++		__entry->irq_status = irq_status;
++		),
++	TP_printk("addr %08x size %zu: result %08x sts: %08x irq_sts: %08x",
++		__entry->addr, __entry->size, __entry->result,
++		__entry->status, __entry->irq_status
++	   )
++);
++
++TRACE_EVENT(fsi_master_aspeed_opb_write,
++	TP_PROTO(uint32_t addr, uint32_t val, size_t size, uint32_t status, uint32_t irq_status),
++	TP_ARGS(addr, val, size, status, irq_status),
++	TP_STRUCT__entry(
++		__field(uint32_t,    addr)
++		__field(uint32_t,    val)
++		__field(size_t,    size)
++		__field(uint32_t,  status)
++		__field(uint32_t,  irq_status)
++		),
++	TP_fast_assign(
++		__entry->addr = addr;
++		__entry->val = val;
++		__entry->size = size;
++		__entry->status = status;
++		__entry->irq_status = irq_status;
++		),
++	TP_printk("addr %08x val %08x size %zu status: %08x irq_sts: %08x",
++		__entry->addr, __entry->val, __entry->size,
++		__entry->status, __entry->irq_status
++		)
++	);
++
++TRACE_EVENT(fsi_master_aspeed_opb_error,
++	TP_PROTO(uint32_t mresp0, uint32_t mstap0, uint32_t mesrb0),
++	TP_ARGS(mresp0, mstap0, mesrb0),
++	TP_STRUCT__entry(
++		__field(uint32_t,  mresp0)
++		__field(uint32_t,  mstap0)
++		__field(uint32_t,  mesrb0)
++		),
++	TP_fast_assign(
++		__entry->mresp0 = mresp0;
++		__entry->mstap0 = mstap0;
++		__entry->mesrb0 = mesrb0;
++		),
++	TP_printk("mresp0 %08x mstap0 %08x mesrb0 %08x",
++		__entry->mresp0, __entry->mstap0, __entry->mesrb0
++		)
++	);
++
++#endif
++
++#include <trace/define_trace.h>

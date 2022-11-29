@@ -1,0 +1,27 @@
+From 575738ca8564950ca54f3800a5cec34ce7dd7a66 Mon Sep 17 00:00:00 2001
+From: muthukkumaranr <muthukkumaranr@ami.com>
+Date: Mon, 10 Oct 2022 07:00:44 -0400
+Subject: [PATCH] removed extra sgiom0 block in dts
+
+---
+ arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+index a01fda380..09ec918d3 100644
+--- a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
++++ b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+@@ -438,10 +438,6 @@
+         status = "okay";
+ };
+ 
+-&sgpiom0 {
+-		status = "okay";
+-};
+-
+ &pinctrl {
+         pinctrl-names = "default";
+         pinctrl-0 = <&pinctrl_sgpm1_default 
+-- 
+2.17.1
+

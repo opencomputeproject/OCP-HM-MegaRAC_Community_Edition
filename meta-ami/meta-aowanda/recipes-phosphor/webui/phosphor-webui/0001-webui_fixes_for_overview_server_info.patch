@@ -1,0 +1,17 @@
+diff -Naur original/app/common/services/api-utils.js updated/app/common/services/api-utils.js
+--- original/app/common/services/api-utils.js	2022-11-28 06:47:18.673834409 -0500
++++ updated/app/common/services/api-utils.js	2022-11-28 06:49:21.908249214 -0500
+@@ -1377,11 +1377,11 @@
+           return $http({
+                    method: 'GET',
+                    url: DataService.getHost() +
+-                       '/xyz/openbmc_project/inventory/system',
++                       '/redfish/v1/Systems/system',
+                    withCredentials: true
+                  })
+               .then(function(response) {
+-                return response.data;
++                return response;
+               });
+         },
+         getBMCTime: function() {

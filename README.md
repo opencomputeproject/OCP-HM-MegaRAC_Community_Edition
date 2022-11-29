@@ -52,10 +52,10 @@ It will list of all the available target machines in the repo.
 Root User:
 Use root user to build the image for the targetted platform.
 
-Once you know the target, then set it as mentioned below, Currently we are supporting tiogapass platform:
+Once you know the target, then set it as mentioned below, Currently we are supporting Mitac Aowanda platform:
 
 ```
-TEMPLATECONF=meta-ami/meta-tiogapass/conf  . openbmc-env
+TEMPLATECONF=meta-ami/meta-aowanda/conf  . openbmc-env
 
 ```
 
@@ -68,26 +68,11 @@ bitbake obmc-phosphor-image
 ## Supported Features
 
 **Feature List**
-* IPMI v2.0 and DCMI v1.5
-* Sensor monitoring, Event log and FRU
 * Web-based user interface
 * REST interfaces
 * D-Bus based interfaces
+* Serial over Lan (SOL)
 * Remote KVM
 * User management
-* Virtual media
-* Fimware Update
-* Redfish v1.9
-* Lan, KCS and IPMB interfaces
-* Certificate management
-* LDAP
-* Chassis Power control
-* Post code
-* Thermal management
-* Watchdog
-* NTP
-* I2c, Fan and PWM, ADC, Snoop, GPIO, UART, LPC and PECI
-
-## More documents can be found from
-
-[docs](https://github.com/opencomputeproject/AMI-Tioga-Pass-OpenBMC/tree/master/docs) repository.
+* Power Operations
+* Sensor Porting

@@ -1,0 +1,25 @@
+From e521718495377b3be4e6e42a815bb8a2bff22c56 Mon Sep 17 00:00:00 2001
+From: muthukkumaranr <muthukkumaranr@ami.com>
+Date: Sun, 2 Oct 2022 10:36:04 -0400
+Subject: [PATCH] adding power good pin
+
+---
+ arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+index 4791bd606..b214350fe 100644
+--- a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
++++ b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+@@ -488,7 +488,7 @@
+         /*W0-W7*/       "","","","","","","","",
+         /*X0-X7*/       "AOWANDA_FM_EDSFF0_PRESENT_N","AOWANDA_IRQ_SMI_ACTIVE_N","AOWANDA_FM_BIOS_POST_CMPLT_N","AOWANDA_FM_EDSFF1_PRESENT_N","AOWANDA_FM_EDSFF2_PRESENT_N","AOWANDA_FM_EDSFF3_PRESENT_N","AOWANDA_FM_BIOS_POST_START_N","AOWANDA_FM_BIOS_ENTER_SETUP_N",
+         /*Y0-Y7*/       "AOWANDA_BMC_PRDY_N","AOWANDA_IRQ_SML0_ALERT_N","AOWANDA_SMB_HOST_STBY_BMC_LV3_RST_N","AOWANDA_IRQ_SML1_PMBUS_ALERT_N","","","","",
+-        /*Z0-Z7*/       "","AOWANDA_FM_BOARD_REV_ID2","AOWANDA_FM_BOARD_REV_ID1","DISABLE_VGA_DEVICE","SELECT_LPC_OR_ESPI","","","";
++        /*Z0-Z7*/       "AOWANDA_PS_PWROK","AOWANDA_FM_BOARD_REV_ID2","AOWANDA_FM_BOARD_REV_ID1","DISABLE_VGA_DEVICE","SELECT_LPC_OR_ESPI","","","";
+ };
+ 
+ &sgpiom0 {
+-- 
+2.17.1
+
