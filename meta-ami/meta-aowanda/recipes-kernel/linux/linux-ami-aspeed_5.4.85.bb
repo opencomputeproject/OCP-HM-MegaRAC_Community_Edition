@@ -19,6 +19,7 @@ do_cpy_kernel_src() {
 
 SRC_URI += "file://aowanda.cfg"
 SRC_URI += "file://phosphor-gpio-keys.cfg"
+SRC_URI += "file://phosphor-gpio-keys.scc"
 SRC_URI += "file://0001-aowanda-dts-makefile.patch"
 SRC_URI += "file://001-aspeed-bmc-mitac-aowanda.dts.patch"
 SRC_URI += "file://002-disabled-rmii-pin-dtsi.patch"
