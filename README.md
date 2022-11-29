@@ -30,7 +30,7 @@ sudo dnf groupinstall "C Development Tools and Libraries"
 ```
 ### 2) Download the source
 ```
-git clone https://github.com/opencomputeproject/MegaRAC-OpenEdition openbmc
+git clone -b oe2.2_mitac_aowanda https://github.com/opencomputeproject/MegaRAC-OpenEdition openbmc
 cd openbmc
 ```
 
