@@ -1,0 +1,209 @@
+diff -Naur linux/drivers/reset/Kconfig linux-new/drivers/reset/Kconfig
+--- linux/drivers/reset/Kconfig	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/reset/Kconfig	2020-12-23 16:42:12.930940246 -0500
+@@ -128,7 +128,7 @@
+ 	  firmware controlling all the reset signals.
+ 
+ config RESET_SIMPLE
+-	bool "Simple Reset Controller Driver" if COMPILE_TEST
++	bool "Simple Reset Controller Driver"
+ 	default ARCH_STM32 || ARCH_STRATIX10 || ARCH_SUNXI || ARCH_ZX || ARCH_ASPEED || ARCH_BITMAIN || ARC
+ 	help
+ 	  This enables a simple reset controller driver for reset lines that
+diff -Naur linux/drivers/reset/reset-simple.c linux-new/drivers/reset/reset-simple.c
+--- linux/drivers/reset/reset-simple.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/reset/reset-simple.c	2020-12-23 16:42:12.934940363 -0500
+@@ -17,11 +17,22 @@
+ #include <linux/of.h>
+ #include <linux/of_device.h>
+ #include <linux/platform_device.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
+ #include <linux/reset-controller.h>
+ #include <linux/spinlock.h>
+-
++#include <linux/interrupt.h>
++#include <linux/fs.h>
++#include <linux/uaccess.h>
+ #include "reset-simple.h"
+ 
++#define DEVICE_NAME "lpc_rst"
++
++static DECLARE_WAIT_QUEUE_HEAD (reset_wait_queue);
++wait_queue_head_t * tmp_reset_wait_queue = &reset_wait_queue;
++
++unsigned int reset_event = 1;
++
+ static inline struct reset_simple_data *
+ to_reset_simple_data(struct reset_controller_dev *rcdev)
+ {
+@@ -125,6 +136,7 @@
+ 		.data = &reset_simple_active_low },
+ 	{ .compatible = "aspeed,ast2400-lpc-reset" },
+ 	{ .compatible = "aspeed,ast2500-lpc-reset" },
++	{ .compatible = "aspeed,ast2600-lpc-reset" },
+ 	{ .compatible = "bitmain,bm1880-reset",
+ 		.data = &reset_simple_active_low },
+ 	{ .compatible = "snps,dw-high-reset" },
+@@ -133,14 +145,76 @@
+ 	{ /* sentinel */ },
+ };
+ 
++inline uint32_t ast_lpcreset_read_reg(void __iomem * membase, uint32_t offset)
++{
++    u32 reg;
++    reg = readl(membase + offset);
++    return reg;
++}
++
++inline void ast_lpcreset_write_reg(void __iomem * membase, uint32_t data, uint32_t offset)
++{
++    writel( data, membase + offset);
++}
++
++
++static irqreturn_t aspeed_lpc_reset_handler(int irq, void *dev_id)
++{
++    uint32_t reg = 0;
++    unsigned int handled = 0;
++    struct reset_simple_data *data = dev_id;
++
++    handled = 0;
++    reg = ast_lpcreset_read_reg(data->membase, AST_LPC_HICR2);
++
++    if (reg & AST_LPC_HICR2_LRST) 
++    {
++        /* clear interrupt flag */
++        reg &= ~(AST_LPC_HICR2_LRST);
++        ast_lpcreset_write_reg(data->membase, reg, AST_LPC_HICR2);
++        printk (KERN_INFO "LPC RESET\n");
++
++        reset_event = 1;
++        //wake up all processes waiting on reset event
++        wake_up_interruptible_all( tmp_reset_wait_queue );
++        handled = 1;
++    }
++
++    if (reg & AST_LPC_HICR2_SDWN) {
++        /* clear interrupt flag */
++        reg &= ~AST_LPC_HICR2_SDWN;
++        ast_lpcreset_write_reg(data->membase, reg, AST_LPC_HICR2);
++        printk(KERN_INFO "LPC SWDN\n");
++        handled = 1;
++    }
++
++    if (reg & AST_LPC_HICR2_ABRT) {
++        /* clear interrupt flag */
++        reg &= ~AST_LPC_HICR2_ABRT;
++        ast_lpcreset_write_reg(data->membase, reg, AST_LPC_HICR2);
++        printk(KERN_INFO "LPC ABORT\n");
++        handled = 1;
++    }
++
++    if(handled == 1)
++    {
++        return IRQ_HANDLED;
++    }
++    
++    return IRQ_NONE;
++}
++
+ static int reset_simple_probe(struct platform_device *pdev)
+ {
++    int ret = 0;
+ 	struct device *dev = &pdev->dev;
+ 	const struct reset_simple_devdata *devdata;
+ 	struct reset_simple_data *data;
+ 	void __iomem *membase;
+ 	struct resource *res;
+ 	u32 reg_offset = 0;
++	u32 reg_lpc_mode;
++	void __iomem *scu_base;
+ 
+ 	devdata = of_device_get_match_data(dev);
+ 
+@@ -153,8 +227,43 @@
+ 	if (IS_ERR(membase))
+ 		return PTR_ERR(membase);
+ 
++    membase = devm_ioremap(dev, res->start, res->end - res->start);
++
+ 	spin_lock_init(&data->lock);
+ 	data->membase = membase;
++
++	scu_base = ioremap( 0x1e6e2000, 0x1000 );
++	reg_lpc_mode = readl( scu_base + 0x510 );
++	iounmap(scu_base);
++
++    printk( "simple-reset: Enable LPC mode: %d\n", (reg_lpc_mode >> 6) & 0x01 );
++	
++	if( (reg_lpc_mode & 0x40) != 0 )
++	{
++        data->miscdev.minor   = MISC_DYNAMIC_MINOR;
++        data->miscdev.name    = DEVICE_NAME;
++        data->miscdev.parent  = dev;
++	
++        /*LPC RESET: GPIO detect - GPIOW7*/
++        data->gpio_irq = platform_get_irq(pdev, 1);
++
++        if (data->gpio_irq >= 0)
++        {
++            ret = devm_request_irq(&pdev->dev, data->gpio_irq, aspeed_lpc_reset_handler,
++                               0, DEVICE_NAME, data);
++            if (ret) {
++                printk("AST LPC_RST Unable to get GPIO IRQ %d\n", ret);
++                return ret;
++            }
++
++            ret = misc_register(&data->miscdev);
++            if (ret) {
++                printk(KERN_ERR "LPC_RST : failed misc_register\n");
++                return ret;
++            }
++        }
++	}
++
+ 	data->rcdev.owner = THIS_MODULE;
+ 	data->rcdev.nr_resets = resource_size(res) * BITS_PER_BYTE;
+ 	data->rcdev.ops = &reset_simple_ops;
+@@ -180,4 +289,10 @@
+ 		.of_match_table	= reset_simple_dt_ids,
+ 	},
+ };
++
+ builtin_platform_driver(reset_simple_driver);
++
++MODULE_DESCRIPTION("LPC Reset Driver");
++MODULE_LICENSE("GPL");
++EXPORT_SYMBOL(tmp_reset_wait_queue);
++EXPORT_SYMBOL(reset_event);
+diff -Naur linux/drivers/reset/reset-simple.h linux-new/drivers/reset/reset-simple.h
+--- linux/drivers/reset/reset-simple.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/reset/reset-simple.h	2020-12-23 16:42:12.934940363 -0500
+@@ -16,6 +16,14 @@
+ #include <linux/reset-controller.h>
+ #include <linux/spinlock.h>
+ 
++/* KCS-related registers of AST LPC controller */
++#define AST_LPC_HICR2           0x08
++
++/* bits of HICR2, interrupt control register */
++#define AST_LPC_HICR2_LRST          0x40
++#define AST_LPC_HICR2_SDWN          0x20
++#define AST_LPC_HICR2_ABRT          0x10   
++
+ /**
+  * struct reset_simple_data - driver data for simple reset controllers
+  * @lock: spinlock to protect registers during read-modify-write cycles
+@@ -31,9 +39,11 @@
+ struct reset_simple_data {
+ 	spinlock_t			lock;
+ 	void __iomem			*membase;
++    struct miscdevice       miscdev;
+ 	struct reset_controller_dev	rcdev;
+ 	bool				active_low;
+ 	bool				status_active_low;
++    int                 gpio_irq;                   //GPIO IRQ number
+ };
+ 
+ extern const struct reset_control_ops reset_simple_ops;

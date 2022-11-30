@@ -1,0 +1,43 @@
+--- a/drivers/media/platform/aspeed-video.c	2020-07-30 13:21:52.648863313 -0400
++++ b/drivers/media/platform/aspeed-video.c	2020-07-30 13:28:24.660009749 -0400
+@@ -72,8 +72,8 @@
+ #define  VE_SEQ_CTRL_CAP_BUSY		BIT(16)
+ #define  VE_SEQ_CTRL_COMP_BUSY		BIT(18)
+ 
+-#ifdef CONFIG_MACH_ASPEED_G5
+-#define  VE_SEQ_CTRL_JPEG_MODE		BIT(13)	/* AST2500 */
++#if defined(CONFIG_MACH_ASPEED_G5) || defined(CONFIG_MACH_ASPEED_G6)
++#define  VE_SEQ_CTRL_JPEG_MODE         BIT(13) /* AST2500/2600 */
+ #else
+ #define  VE_SEQ_CTRL_JPEG_MODE		BIT(8)	/* AST2400 */
+ #endif /* CONFIG_MACH_ASPEED_G5 */
+@@ -135,6 +135,12 @@
+ 
+ #define VE_OFFSET_COMP_STREAM		0x078
+ 
++#ifdef CONFIG_MACH_ASPEED_G6
++#define VE_JPEG_COMP_SIZE_READ_BACK    0x084   /* AST2600 */
++#else
++#define VE_JPEG_COMP_SIZE_READ_BACK    VE_OFFSET_COMP_STREAM
++#endif
++
+ #define VE_SRC_LR_EDGE_DET		0x090
+ #define  VE_SRC_LR_EDGE_DET_LEFT	GENMASK(11, 0)
+ #define  VE_SRC_LR_EDGE_DET_NO_V	BIT(12)
+@@ -572,7 +578,7 @@
+ 	if (sts & VE_INTERRUPT_COMP_COMPLETE) {
+ 		struct aspeed_video_buffer *buf;
+ 		u32 frame_size = aspeed_video_read(video,
+-						   VE_OFFSET_COMP_STREAM);
++						   VE_JPEG_COMP_SIZE_READ_BACK);
+ 
+ 		spin_lock(&video->lock);
+ 		clear_bit(VIDEO_FRAME_INPRG, &video->flags);
+@@ -1719,6 +1725,7 @@
+ static const struct of_device_id aspeed_video_of_match[] = {
+ 	{ .compatible = "aspeed,ast2400-video-engine" },
+ 	{ .compatible = "aspeed,ast2500-video-engine" },
++	{ .compatible = "aspeed,ast2600-video-engine" },
+ 	{}
+ };
+ MODULE_DEVICE_TABLE(of, aspeed_video_of_match);

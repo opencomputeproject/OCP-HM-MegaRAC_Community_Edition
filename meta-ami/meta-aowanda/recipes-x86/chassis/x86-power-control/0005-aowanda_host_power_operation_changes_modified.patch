@@ -1,0 +1,91 @@
+From 609e36a9cd5298186f9c17c8661041966e34a0a2 Mon Sep 17 00:00:00 2001
+From: muthukkumaranr <muthukkumaranr@ami.com>
+Date: Wed, 12 Oct 2022 02:21:57 -0400
+Subject: [PATCH] aowanda_host_power_operation_changes_modified
+
+---
+ power-control-x86/src/power_control.cpp | 53 +++++++++++++++++++++----
+ 1 file changed, 46 insertions(+), 7 deletions(-)
+
+diff --git a/power-control-x86/src/power_control.cpp b/power-control-x86/src/power_control.cpp
+index ab704d8..9fec9a9 100644
+--- a/power-control-x86/src/power_control.cpp
++++ b/power-control-x86/src/power_control.cpp
+@@ -2147,6 +2147,37 @@ static int loadConfigValues()
+     return 0;
+ }
+ 
++static void aowanda_powerOn()
++{
++    gpiod::line gpioLine_40;
++    gpiod::line gpioLine_43;
++    
++    setGPIOOutput("CPU1_CPLD_CRC_ERROR", 0, gpioLine_40);
++    setGPIOOutput("CPU2_CPLD_CRC_ERROR", 0, gpioLine_43);
++
++    sleep(1);
++
++    setGPIOOutput("CPU1_CPLD_CRC_ERROR", 1, gpioLine_40);
++    setGPIOOutput("CPU2_CPLD_CRC_ERROR", 1, gpioLine_43);
++
++    setPowerState(power_control::PowerState::on);
++
++}
++
++static void aowanda_powerOff()
++{
++    gpiod::line gpioLine_40;
++    gpiod::line gpioLine_43;
++    
++    setGPIOOutput("CPU1_CPLD_CRC_ERROR", 0, gpioLine_40);
++    setGPIOOutput("CPU2_CPLD_CRC_ERROR", 0, gpioLine_43);
++
++    sleep(1);
++    
++    setPowerState(power_control::PowerState::off);
++
++}
++
+ } // namespace power_control
+ 
+ int main(int argc, char* argv[])
+@@ -2353,21 +2384,29 @@ int main(int argc, char* argv[])
+         [](const std::string& requested, std::string& resp) {
+             if (requested == "xyz.openbmc_project.State.Host.Transition.Off")
+             {
+-                sendPowerControlEvent(
+-                    power_control::Event::gracefulPowerOffRequest);
+-                addRestartCause(power_control::RestartCause::command);
++
++		power_control::aowanda_powerOff();
++
++            //    sendPowerControlEvent(power_control::Event::gracefulPowerOffRequest);
++            //    addRestartCause(power_control::RestartCause::command);
+             }
+             else if (requested ==
+                      "xyz.openbmc_project.State.Host.Transition.On")
+             {
+-                sendPowerControlEvent(power_control::Event::powerOnRequest);
+-                addRestartCause(power_control::RestartCause::command);
++
++		power_control::aowanda_powerOn();
++
++            //    sendPowerControlEvent(power_control::Event::powerOnRequest);
++            //    addRestartCause(power_control::RestartCause::command);
+             }
+             else if (requested ==
+                      "xyz.openbmc_project.State.Host.Transition.Reboot")
+             {
+-                sendPowerControlEvent(power_control::Event::powerCycleRequest);
+-                addRestartCause(power_control::RestartCause::command);
++
++		power_control::aowanda_powerOn();
++
++            //    sendPowerControlEvent(power_control::Event::powerCycleRequest);
++            //    addRestartCause(power_control::RestartCause::command);
+             }
+             else if (requested == "xyz.openbmc_project.State.Host.Transition."
+                                   "GracefulWarmReboot")
+-- 
+2.17.1
+

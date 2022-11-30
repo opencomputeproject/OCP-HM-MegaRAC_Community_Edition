@@ -1,0 +1,24 @@
+From c26ed9293f7e6bc7979549466cc38768761cf9e3 Mon Sep 17 00:00:00 2001
+From: choppadk <choppadk@ami.com>
+Date: Thu, 10 Nov 2022 12:06:43 -0500
+Subject: [PATCH] Added aspeed config in makefile
+
+---
+ drivers/soc/aspeed/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/soc/aspeed/Makefile b/drivers/soc/aspeed/Makefile
+index 64c5f1ae9..ffec16e57 100644
+--- a/drivers/soc/aspeed/Makefile
++++ b/drivers/soc/aspeed/Makefile
+@@ -7,6 +7,7 @@ obj-$(CONFIG_ASPEED_LPC_SNOOP)	+= aspeed-lpc-snoop.o
+ obj-$(CONFIG_ASPEED_P2A_CTRL)	+= aspeed-p2a-ctrl.o
+ obj-$(CONFIG_ASPEED_LPC_PCC)	+= aspeed-lpc-pcc.o
+ obj-$(CONFIG_ASPEED_LPC_MBOX)	+= aspeed-lpc-mbox.o
++obj-$(CONFIG_ASPEED_UDMA)      += aspeed-udma.o
+ obj-$(CONFIG_ASPEED_ESPI)	+= aspeed-espi.o
+ obj-$(CONFIG_ASPEED_ESPI_MMBI)	+= aspeed-espi-mmbi.o
+ obj-$(CONFIG_ASPEED_SSP)        += ast_ssp.o
+-- 
+2.25.1
+

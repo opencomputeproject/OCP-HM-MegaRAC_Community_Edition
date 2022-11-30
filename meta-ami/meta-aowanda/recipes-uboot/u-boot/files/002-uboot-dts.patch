@@ -1,0 +1,108 @@
+--- a/arch/arm/dts/ast2600a1-evb.dts	2020-09-30 19:34:11.070230825 -0400
++++ b/arch/arm/dts/ast2600a1-evb.dts	2020-09-30 19:38:56.196813210 -0400
+@@ -19,8 +19,8 @@
+ 		spi0 = &fmc;
+ 		spi1 = &spi1;
+ 		spi2 = &spi2;
+-		ethernet0 = &mac0;
+-		ethernet1 = &mac1;
++/*		ethernet0 = &mac0;
++		ethernet1 = &mac1;*/
+ 		ethernet2 = &mac2;
+ 		ethernet3 = &mac3;
+ 	};
+@@ -58,7 +58,7 @@
+ 
+ &mdio {
+ 	status = "okay";
+-	pinctrl-names = "default";
++/*	pinctrl-names = "default";
+ 	pinctrl-0 = <	&pinctrl_mdio1_default &pinctrl_mdio2_default
+ 			&pinctrl_mdio3_default &pinctrl_mdio4_default>;
+ 	#address-cells = <1>;
+@@ -77,10 +77,10 @@
+ 
+ 	ethphy3: ethernet-phy@3 {
+ 		reg = <0>;
+-	};
++	}; */
+ };
+ 
+-&mac0 {
++/*&mac0 {
+ 	status = "okay";
+ 	phy-mode = "rgmii";
+ 	phy-handle = <&ethphy0>;
+@@ -110,6 +110,24 @@
+ 	phy-handle = <&ethphy3>;
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&pinctrl_rgmii4_default &pinctrl_mac4link_default>;	
++};*/
++
++&mac2 {
++        status = "okay";
++
++        phy-mode = "NC-SI";
++        use-ncsi;
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_rmii3_default>;
++};
++
++&mac3 {
++        status = "okay";
++
++        phy-mode = "NC-SI";
++        use-ncsi;
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_rmii4_default>;
+ };
+ 
+ &fmc {
+@@ -200,7 +218,8 @@
+ 	};
+ };
+ 
+-&emmc {
++
++/*&emmc {
+ 	u-boot,dm-pre-reloc;
+ 	timing-phase = <0x700ff>;
+ };
+@@ -236,7 +255,7 @@
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&pinctrl_sd2_default>;
+ 	sdhci-drive-type = <1>;
+-};
++};*/
+ 
+ &i2c4 {
+ 	status = "okay";
+@@ -273,6 +292,7 @@
+ 	pinctrl-0 = <&pinctrl_i2c9_default>;
+ };
+ 
++#if 0
+ &pcie_bridge1 {
+ 	status = "okay";
+ };
+@@ -281,7 +301,6 @@
+ 	status = "okay";
+ };
+ 
+-#if 0
+ &fsim0 {
+ 	status = "okay";
+ };
+@@ -289,11 +308,11 @@
+ &fsim1 {
+ 	status = "okay";
+ };
+-#endif
+ 
+ &ehci1 {
+ 	status = "okay";
+ };
++#endif
+ 
+ &display_port {
+ 	status = "okay";

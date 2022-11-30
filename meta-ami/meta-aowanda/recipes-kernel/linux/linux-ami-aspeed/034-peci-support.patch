@@ -1,0 +1,18 @@
+diff -Naur linux/drivers/Kconfig linux-new/drivers/Kconfig
+--- linux/drivers/Kconfig	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/Kconfig	2020-12-23 16:57:55.234879515 -0500
+@@ -228,4 +228,6 @@
+ 
+ source "drivers/counter/Kconfig"
+ 
++source "drivers/peci/Kconfig"
++
+ endmenu
+diff -Naur linux/drivers/Makefile linux-new/drivers/Makefile
+--- linux/drivers/Makefile	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/Makefile	2020-12-23 16:58:00.843049135 -0500
+@@ -186,3 +186,4 @@
+ obj-$(CONFIG_GNSS)		+= gnss/
+ obj-$(CONFIG_INTERCONNECT)	+= interconnect/
+ obj-$(CONFIG_COUNTER)		+= counter/
++obj-$(CONFIG_PECI)		+= peci/

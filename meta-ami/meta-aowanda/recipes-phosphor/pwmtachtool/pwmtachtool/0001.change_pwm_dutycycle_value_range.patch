@@ -1,0 +1,41 @@
+diff -Naur a/pwmtach.c b/pwmtach.c
+--- a/pwmtach.c	2020-02-14 19:08:31.614950313 +0530
++++ b/pwmtach.c	2020-02-14 19:02:38.337474344 +0530
+@@ -34,8 +34,8 @@
+ #define HWMON_DIR "/sys/class/hwmon"
+ 
+ //build the pwm and tach access device node file name, and mapping pwm/tach number starting from 1.
+-#define BUILD_PWM_NODE_NAME(buffer,DEV_ID,PWM_NUM)	    snprintf(buffer, sizeof(buffer), "%s%d%s%d", HWMON_DIR "/hwmon",DEV_ID, "/pwm", PWM_NUM+1)
+-#define BUILD_TACH_NODE_NAME(buffer,DEV_ID,TACH_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/fan", TACH_NUM+1,"_input")
++#define BUILD_PWM_NODE_NAME(buffer,DEV_ID,PWM_NUM)	    snprintf(buffer, sizeof(buffer), "%s%d%s%d", HWMON_DIR "/hwmon",DEV_ID, "/pwm", PWM_NUM)
++#define BUILD_TACH_NODE_NAME(buffer,DEV_ID,TACH_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/fan", TACH_NUM,"_input")
+ #define BUILD_FAN_REG_NAME(buffer,DEV_ID,FAN_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/of_node/fan@", FAN_NUM,"/reg")
+ 
+ //predefine FAN RPM range, must defined at some where for configuration.
+@@ -55,7 +55,7 @@
+ 	}
+ 	return retval;
+ }
+-//Notice: dutycycle_value is one byte (0-255)
++//Notice: dutycycle_value is one byte (0-19)
+ static int SET_PWM_DUTYCYCLE_VALUE ( pwmtach_ioctl_data  *ppwmtach_arg )
+ {
+ 	int retval = 0;
+@@ -104,7 +104,7 @@
+ 		return -1;
+ 	}
+ 
+-	dutycycle_value = (ppwmtach_arg->dutycycle*255)/100;
++	dutycycle_value = (ppwmtach_arg->dutycycle*19)/100;
+ 	ppwmtach_arg->dutycycle = dutycycle_value;
+ 	retval = SET_PWM_DUTYCYCLE_VALUE(ppwmtach_arg);
+ 	return retval;
+@@ -276,7 +276,7 @@
+ 	return retval;
+ }
+ 
+-//Notice: dutycycle_value is one byte (0-255)
++//Notice: dutycycle_value is one byte (0-19)
+ int set_pwm_dutycycle_value ( unsigned int dev_id, unsigned char pwm_number, unsigned char dutycycle_value )
+ {
+ 	pwmtach_ioctl_data pwmtach_arg;

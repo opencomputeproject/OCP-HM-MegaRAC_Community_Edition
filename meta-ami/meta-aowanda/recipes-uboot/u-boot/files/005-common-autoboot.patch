@@ -1,0 +1,26 @@
+--- a/common/autoboot.c	2020-08-13 00:35:17.240067372 -0400
++++ b/common/autoboot.c	2020-08-13 20:48:08.175564951 -0400
+@@ -14,6 +14,7 @@
+ #include <post.h>
+ #include <u-boot/sha256.h>
+ #include <bootcount.h>
++#include <asm/arch/platform.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+@@ -259,6 +260,15 @@
+ {
+ 	int abort = 0;
+ 
++	// ByPass support (skip BMC Boot) for Intel VC Platforms,
++	// GPIO seems same for all intel platforms, so just stick to hard-coding style.
++	// Read the FORCE_UPDATE_N (GPIO_Y0), if Low - Skip Boot, if High - Normal Boot.
++	if (!(readl(ASPEED_GPIO_YZ_DATA & 0x1)))
++	{
++		printf("FORCE_UPDATE Enabled, Skip BMC Booting... \n");
++		return 1;
++	}
++
+ 	if (bootdelay >= 0)
+ 		abort = __abortboot(bootdelay);
+ 

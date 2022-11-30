@@ -1,0 +1,26 @@
+diff -Naur linux/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi linux-new/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi
+--- linux/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi	2020-12-23 15:49:33.477993169 -0500
+@@ -858,8 +858,8 @@
+ 	};
+ 
+ 	pinctrl_emmc_default: emmc_default {
+-		function = "SD3";
+-		groups = "EMMC";
++		function = "EMMC";
++		groups = "EMMCG4";
+ 	};
+ 
+ 	pinctrl_sgpm1_default: sgpm1_default {
+@@ -1117,6 +1117,11 @@
+ 		groups = "UART9";
+ 	};
+ 
++	pinctrl_usb2ad_default: usb2ad_default {
++		function = "USB2AD";
++		groups = "USBA";
++	};
++
+ 	pinctrl_vb_default: vb_default {
+ 		function = "VB";
+ 		groups = "VB";

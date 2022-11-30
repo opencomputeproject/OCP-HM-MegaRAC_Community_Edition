@@ -1,0 +1,53 @@
+diff -Naur linux/include/dt-bindings/clock/ast2600-clock.h linux-new/include/dt-bindings/clock/ast2600-clock.h
+--- linux/include/dt-bindings/clock/ast2600-clock.h	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/include/dt-bindings/clock/ast2600-clock.h	2020-12-23 15:56:41.067323146 -0500
+@@ -83,10 +83,22 @@
+ #define ASPEED_CLK_MAC12		64
+ #define ASPEED_CLK_MAC34		65
+ #define ASPEED_CLK_USBPHY_40M		66
++#define ASPEED_CLK_MAC1RCLK		67
++#define ASPEED_CLK_MAC2RCLK		68
++#define ASPEED_CLK_MAC3RCLK		69
++#define ASPEED_CLK_MAC4RCLK		70
+ 
+ /* Only list resets here that are not part of a gate */
+ #define ASPEED_RESET_ADC		55
+ #define ASPEED_RESET_JTAG_MASTER2	54
++#define ASPEED_RESET_I3C7		47
++#define ASPEED_RESET_I3C6               46
++#define ASPEED_RESET_I3C5               45
++#define ASPEED_RESET_I3C4               44
++#define ASPEED_RESET_I3C3               43
++#define ASPEED_RESET_I3C2               42
++#define ASPEED_RESET_I3C1               41
++#define ASPEED_RESET_I3C0               40
+ #define ASPEED_RESET_I3C_DMA		39
+ #define ASPEED_RESET_PWM		37
+ #define ASPEED_RESET_PECI		36
+@@ -106,8 +118,23 @@
+ #define ASPEED_RESET_PCIE_DEV_OEN	20
+ #define ASPEED_RESET_PCIE_RC_O		19
+ #define ASPEED_RESET_PCIE_RC_OEN	18
+-#define ASPEED_RESET_PCI_DP		5
+-#define ASPEED_RESET_AHB		1
+-#define ASPEED_RESET_SDRAM		0
++#define ASPEED_RESET_RESERVED17	(17)
++#define ASPEED_RESET_EMMC		(16)
++#define ASPEED_RESET_UHCI		(15)
++#define ASPEED_RESET_EHCI_P1	(14)
++#define ASPEED_RESET_CRT		(13)	//for controller register
++#define ASPEED_RESET_MAC2		(12)
++#define ASPEED_RESET_MAC1		(11)
++#define ASPEED_RESET_RESERVED10	(10)
++#define ASPEED_RESET_RVAS		(9)
++#define ASPEED_RESET_PCI_VGA	(8)
++#define ASPEED_RESET_2D			(7)
++#define ASPEED_RESET_VIDEO		(6)
++#define ASPEED_RESET_PCI_DP		(5)
++#define ASPEED_RESET_HACE		(4)
++#define ASPEED_RESET_EHCI_P2	(3)
++#define ASPEED_RESET_RESERVED2	(2)
++#define ASPEED_RESET_AHB		(1)
++#define ASPEED_RESET_SDRAM		(0)
+ 
+ #endif

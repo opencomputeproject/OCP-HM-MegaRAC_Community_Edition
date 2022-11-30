@@ -1,0 +1,23 @@
+diff -Naur a/power-control-x86/src/power_control.cpp b/power-control-x86/src/power_control.cpp
+--- a/power-control-x86/src/power_control.cpp	2021-04-23 16:58:33.998102958 +0530
++++ b/power-control-x86/src/power_control.cpp	2021-04-28 13:28:32.595671845 +0530
+@@ -698,6 +698,11 @@
+         sendPowerControlEvent(Event::powerOnRequest);
+         setRestartCauseProperty(getRestartCause(RestartCause::powerPolicyOn));
+     }
++    else if (policy ==
++        "xyz.openbmc_project.Control.Power.RestorePolicy.Policy.AlwaysOff")
++    {
++       sendPowerControlEvent(Event::powerOffRequest);
++    }
+     else if (policy == "xyz.openbmc_project.Control.Power.RestorePolicy."
+                        "Policy.Restore")
+     {
+@@ -710,6 +715,7 @@
+         }
+         else
+         {
++	    sendPowerControlEvent(Event::powerOffRequest);
+             std::cerr << "No power drop, restoring Host Off state\n";
+         }
+     }

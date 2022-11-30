@@ -1,0 +1,26 @@
+diff -Naur a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+--- a/drivers/misc/Kconfig	2021-04-19 16:59:18.134324962 -0400
++++ b/drivers/misc/Kconfig	2021-04-19 17:01:07.912461872 -0400
+@@ -466,6 +466,14 @@
+ 	  a paravirtualized device provided by QEMU; it lets a virtual machine
+ 	  (guest) communicate panic events to the host.
+ 
++
++config ASPEED_UART_ROUTING
++   tristate "Aspeed ast2500 UART routing control"
++   help
++     If you want to configure UART routing on Aspeed BMC platforms, enable
++     this option.
++
++
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
+diff -Naur a/drivers/misc/Makefile b/drivers/misc/Makefile
+--- a/drivers/misc/Makefile	2021-04-19 16:59:18.130324884 -0400
++++ b/drivers/misc/Makefile	2021-04-19 17:01:54.301364117 -0400
+@@ -57,3 +57,4 @@
+ obj-$(CONFIG_PVPANIC)   	+= pvpanic.o
+ obj-$(CONFIG_HABANA_AI)		+= habanalabs/
+ obj-$(CONFIG_XILINX_SDFEC)	+= xilinx_sdfec.o
++obj-$(CONFIG_ASPEED_UART_ROUTING) += aspeed-uart-routing.o

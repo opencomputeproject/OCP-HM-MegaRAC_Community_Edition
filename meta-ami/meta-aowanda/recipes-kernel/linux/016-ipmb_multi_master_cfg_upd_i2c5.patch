@@ -1,0 +1,11 @@
+diff -Nuar a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts
+--- a/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts	2021-05-31 19:09:35.439355480 +0530
++++ b/arch/arm/boot/dts/aspeed-bmc-mitac-aowanda.dts	2021-05-31 19:09:52.383603057 +0530
+@@ -249,6 +249,7 @@
+ &i2c5 {
+         status = "okay";
+         bus-frequency = <1000000>;
++        multi-master;
+ 	ipmb@10 {
+                compatible = "ipmb-dev";
+                reg = <0x10>;

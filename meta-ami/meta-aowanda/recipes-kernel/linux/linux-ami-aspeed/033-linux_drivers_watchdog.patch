@@ -1,0 +1,235 @@
+diff -Naur linux/drivers/watchdog/aspeed_wdt.c linux-new/drivers/watchdog/aspeed_wdt.c
+--- linux/drivers/watchdog/aspeed_wdt.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/watchdog/aspeed_wdt.c	2020-12-23 16:56:16.871897338 -0500
+@@ -96,6 +96,12 @@
+ #define WDT_DEFAULT_TIMEOUT	30
+ #define WDT_RATE_1MHZ		1000000
+ 
++#define OFFSET_CALCULATOR 0x40
++
++extern int *current_wdt_no ;
++static int old_wdt_no = 1;
++int *old_wdt =& old_wdt_no ;
++
+ static struct aspeed_wdt *to_aspeed_wdt(struct watchdog_device *wdd)
+ {
+ 	return container_of(wdd, struct aspeed_wdt, wdd);
+@@ -105,10 +111,10 @@
+ {
+ 	wdt->ctrl |= WDT_CTRL_ENABLE;
+ 
+-	writel(0, wdt->base + WDT_CTRL);
+-	writel(count, wdt->base + WDT_RELOAD_VALUE);
+-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
+-	writel(wdt->ctrl, wdt->base + WDT_CTRL);
++	writel(0, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_CTRL);
++	writel(count, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR)  + WDT_RELOAD_VALUE);
++	writel(WDT_RESTART_MAGIC, (wdt->base + (*current_wdt_no - 1)*OFFSET_CALCULATOR)  + WDT_RESTART);
++	writel(wdt->ctrl, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_CTRL);
+ }
+ 
+ static int aspeed_wdt_start(struct watchdog_device *wdd)
+@@ -116,6 +122,7 @@
+ 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
+ 
+ 	aspeed_wdt_enable(wdt, wdd->timeout * WDT_RATE_1MHZ);
++	old_wdt_no = *current_wdt_no;
+ 
+ 	return 0;
+ }
+@@ -125,7 +132,8 @@
+ 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
+ 
+ 	wdt->ctrl &= ~WDT_CTRL_ENABLE;
+-	writel(wdt->ctrl, wdt->base + WDT_CTRL);
++	writel(wdt->ctrl, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_CTRL);
++	old_wdt_no = *current_wdt_no;
+ 
+ 	return 0;
+ }
+@@ -134,7 +142,8 @@
+ {
+ 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
+ 
+-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
++	writel(WDT_RESTART_MAGIC, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_RESTART);
++	old_wdt_no = *current_wdt_no;
+ 
+ 	return 0;
+ }
+@@ -149,8 +158,8 @@
+ 
+ 	actual = min(timeout, wdd->max_hw_heartbeat_ms * 1000);
+ 
+-	writel(actual * WDT_RATE_1MHZ, wdt->base + WDT_RELOAD_VALUE);
+-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
++	writel(actual * WDT_RATE_1MHZ, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_RELOAD_VALUE);
++	writel(WDT_RESTART_MAGIC, wdt->base +((*current_wdt_no - 1)*OFFSET_CALCULATOR)  + WDT_RESTART);
+ 
+ 	return 0;
+ }
+@@ -173,7 +182,7 @@
+ 			       struct device_attribute *attr, char *buf)
+ {
+ 	struct aspeed_wdt *wdt = dev_get_drvdata(dev);
+-	u32 status = readl(wdt->base + WDT_TIMEOUT_STATUS);
++	u32 status = readl(wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_TIMEOUT_STATUS);
+ 
+ 	return sprintf(buf, "%u\n",
+ 		      !(status & WDT_TIMEOUT_STATUS_BOOT_SECONDARY));
+@@ -191,7 +200,7 @@
+ 
+ 	if (val)
+ 		writel(WDT_CLEAR_TIMEOUT_AND_BOOT_CODE_SELECTION,
+-		       wdt->base + WDT_CLEAR_TIMEOUT_STATUS);
++		       wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_CLEAR_TIMEOUT_STATUS);
+ 
+ 	return size;
+ }
+@@ -309,7 +318,7 @@
+ 	if (of_property_read_bool(np, "aspeed,alt-boot"))
+ 		wdt->ctrl |= WDT_CTRL_BOOT_SECONDARY;
+ 
+-	if (readl(wdt->base + WDT_CTRL) & WDT_CTRL_ENABLE)  {
++	if (readl(wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_CTRL) & WDT_CTRL_ENABLE)  {
+ 		/*
+ 		 * The watchdog is running, but invoke aspeed_wdt_start() to
+ 		 * write wdt->ctrl to WDT_CTRL to ensure the watchdog's
+@@ -322,7 +331,7 @@
+ 
+ 	if ((of_device_is_compatible(np, "aspeed,ast2500-wdt")) ||
+ 		(of_device_is_compatible(np, "aspeed,ast2600-wdt"))) {
+-		u32 reg = readl(wdt->base + WDT_RESET_WIDTH);
++		u32 reg = readl(wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_RESET_WIDTH);
+ 
+ 		reg &= config->ext_pulse_width_mask;
+ 		if (of_property_read_bool(np, "aspeed,ext-push-pull"))
+@@ -330,7 +339,7 @@
+ 		else
+ 			reg |= WDT_OPEN_DRAIN_MAGIC;
+ 
+-		writel(reg, wdt->base + WDT_RESET_WIDTH);
++		writel(reg, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR)  + WDT_RESET_WIDTH);
+ 
+ 		reg &= config->ext_pulse_width_mask;
+ 		if (of_property_read_bool(np, "aspeed,ext-active-high"))
+@@ -338,7 +347,7 @@
+ 		else
+ 			reg |= WDT_ACTIVE_LOW_MAGIC;
+ 
+-		writel(reg, wdt->base + WDT_RESET_WIDTH);
++		writel(reg, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_RESET_WIDTH);
+ 	}
+ 
+ 	if (!of_property_read_u32(np, "aspeed,ext-pulse-duration", &duration)) {
+@@ -364,10 +373,10 @@
+ 		 *
+ 		 * This implies a value of 0 gives a 1us pulse.
+ 		 */
+-		writel(duration - 1, wdt->base + WDT_RESET_WIDTH);
++		writel(duration - 1, wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) + WDT_RESET_WIDTH);
+ 	}
+ 
+-	status = readl(wdt->base + WDT_TIMEOUT_STATUS);
++	status = readl(wdt->base + ((*current_wdt_no - 1)*OFFSET_CALCULATOR) +  WDT_TIMEOUT_STATUS);
+ 	if (status & WDT_TIMEOUT_STATUS_BOOT_SECONDARY) {
+ 		wdt->wdd.bootstatus = WDIOF_CARDRESET;
+ 
+diff -Naur linux/drivers/watchdog/watchdog_dev.c linux-new/drivers/watchdog/watchdog_dev.c
+--- linux/drivers/watchdog/watchdog_dev.c	2020-12-21 07:27:07.000000000 -0500
++++ linux-new/drivers/watchdog/watchdog_dev.c	2020-12-23 16:56:16.883897704 -0500
+@@ -38,6 +38,7 @@
+ #include <linux/miscdevice.h>	/* For handling misc devices */
+ #include <linux/module.h>	/* For module stuff/... */
+ #include <linux/mutex.h>	/* For mutexes */
++#include <linux/reboot.h>	/* For reboot notifier */
+ #include <linux/slab.h>		/* For memory functions */
+ #include <linux/types.h>	/* For standard types (like size_t) */
+ #include <linux/watchdog.h>	/* For watchdog specific items */
+@@ -79,6 +80,10 @@
+ 
+ static struct kthread_worker *watchdog_kworker;
+ 
++static int current_wdt_device = 1;
++int *current_wdt_no = & current_wdt_device ;
++extern int *old_wdt;
++
+ static bool handle_boot_enabled =
+ 	IS_ENABLED(CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED);
+ 
+@@ -310,7 +315,7 @@
+ 
+ 	if (test_bit(WDOG_NO_WAY_OUT, &wdd->status)) {
+ 		pr_info("watchdog%d: nowayout prevents watchdog being stopped!\n",
+-			wdd->id);
++			*old_wdt);
+ 		return -EBUSY;
+ 	}
+ 
+@@ -905,7 +910,7 @@
+ 
+ 	/* If the watchdog was not stopped, send a keepalive ping */
+ 	if (err < 0) {
+-		pr_crit("watchdog%d: watchdog did not stop!\n", wdd->id);
++		pr_crit("watchdog%d: watchdog did not stop!\n", *old_wdt);
+ 		watchdog_ping(wdd);
+ 	}
+ 
+@@ -1079,6 +1084,25 @@
+ 	put_device(&wd_data->dev);
+ }
+ 
++static int watchdog_reboot_notifier(struct notifier_block *nb,
++				    unsigned long code, void *data)
++{
++	struct watchdog_device *wdd;
++
++	wdd = container_of(nb, struct watchdog_device, reboot_nb);
++	if (code == SYS_DOWN || code == SYS_HALT) {
++		if (watchdog_active(wdd)) {
++			int ret;
++
++			ret = wdd->ops->stop(wdd);
++			if (ret)
++				return NOTIFY_BAD;
++		}
++	}
++
++	return NOTIFY_DONE;
++}
++
+ /*
+  *	watchdog_dev_register: register a watchdog device
+  *	@wdd: watchdog device
+@@ -1097,8 +1121,22 @@
+ 		return ret;
+ 
+ 	ret = watchdog_register_pretimeout(wdd);
+-	if (ret)
++	if (ret) {
+ 		watchdog_cdev_unregister(wdd);
++		return ret;
++	}
++
++	if (test_bit(WDOG_STOP_ON_REBOOT, &wdd->status)) {
++		wdd->reboot_nb.notifier_call = watchdog_reboot_notifier;
++
++		ret = devm_register_reboot_notifier(&wdd->wd_data->dev,
++						    &wdd->reboot_nb);
++		if (ret) {
++			pr_err("watchdog%d: Cannot register reboot notifier (%d)\n",
++			       wdd->id, ret);
++			watchdog_dev_unregister(wdd);
++		}
++	}
+ 
+ 	return ret;
+ }
+@@ -1170,6 +1208,7 @@
+ }
+ 
+ module_param(handle_boot_enabled, bool, 0444);
++module_param(current_wdt_device,int,0660);
+ MODULE_PARM_DESC(handle_boot_enabled,
+ 	"Watchdog core auto-updates boot enabled watchdogs before userspace takes over (default="
+ 	__MODULE_STRING(IS_ENABLED(CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED)) ")");
