@@ -1,0 +1,184 @@
+From b9341319c12e68152ed9e1b555edba53e7862271 Mon Sep 17 00:00:00 2001
+From: Tim Lee <timlee660101@gmail.com>
+Date: Tue, 26 Jul 2022 16:02:13 +0800
+Subject: [PATCH] HwmonTempSensor: Add BMCOnDieThermalSensor type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Now we add new sensor type BMCOnDieThermalSensor in HWmon temperatue
+sensors to support thermal sensors. User need to define thermal sensor
+in thermal zone in DTS.
+To identify each thermal sensor per each zone, we use "Index" to match
+them. User can refer following example to add BMCOnDieThermalSensor into
+HWmon temperature sensor.
+
+Example:
+
+Entity manager configuration =>
+        {
+            "Index": "0",
+            "Name": "BMC_CPU_Temp0",
+            "Thresholds": [
+...
+            ],
+            "Type": "BMCOnDieThermalSensor"
+        },
+        {
+            "Index": "1",
+            "Name": "BMC_CPU_Temp1",
+...
+            "Type": "BMCOnDieThermalSensor"
+        },
+
+root@evb-npcm845:~# busctl tree xyz.openbmc_project.HwmonTempSensor
+└─/xyz
+  └─/xyz/openbmc_project
+    └─/xyz/openbmc_project/sensors
+      └─/xyz/openbmc_project/sensors/temperature
+        ├─/xyz/openbmc_project/sensors/temperature/BMC_CPU_Temp0
+        ├─/xyz/openbmc_project/sensors/temperature/BMC_CPU_Temp1
+        └─ ...
+
+Signed-off-by: Brian Ma <chma0@nuvoton.com>
+Signed-off-by: Tim Lee <timlee660101@gmail.com>
+---
+ src/HwmonTempMain.cpp | 92 ++++++++++++++++++++++++++++++-------------
+ 1 file changed, 65 insertions(+), 27 deletions(-)
+
+diff --git a/src/HwmonTempMain.cpp b/src/HwmonTempMain.cpp
+index 988e8b9c..565ab7cb 100644
+--- a/src/HwmonTempMain.cpp
++++ b/src/HwmonTempMain.cpp
+@@ -71,7 +71,8 @@ static auto sensorTypes{
+                                 "xyz.openbmc_project.Configuration.TMP421",
+                                 "xyz.openbmc_project.Configuration.TMP441",
+                                 "xyz.openbmc_project.Configuration.TMP75",
+-                                "xyz.openbmc_project.Configuration.W83773G"})};
++                                "xyz.openbmc_project.Configuration.W83773G",
++                                "xyz.openbmc_project.Configuration.BMCOnDieThermalSensor"})};
+ 
+ static struct SensorParams
+     getSensorParameters(const std::filesystem::path& path)
+@@ -194,16 +195,32 @@ static SensorConfigMap
+             const SensorBaseConfigMap& cfg = cfgmap.second;
+             auto busCfg = cfg.find("Bus");
+             auto addrCfg = cfg.find("Address");
+-            if ((busCfg == cfg.end()) || (addrCfg == cfg.end()))
++            auto indexCfg = cfg.find("Index");
++            SensorConfigKey key;
++            if (indexCfg == cfg.end())
+             {
+-                continue;
++                if ((busCfg == cfg.end()) || (addrCfg == cfg.end()))
++                {
++                    continue;
++                }
++                if ((!std::get_if<uint64_t>(&busCfg->second)) ||
++                    (!std::get_if<uint64_t>(&addrCfg->second)))
++                {
++                    std::cerr << sensor.first.str
++                              << " Bus or Address invalid\n";
++                    continue;
++                }
++                key = {.bus = std::get<uint64_t>(busCfg->second),
++                       .addr = std::get<uint64_t>(addrCfg->second)};
+             }
+-
+-            if ((std::get_if<uint64_t>(&busCfg->second) == nullptr) ||
+-                (std::get_if<uint64_t>(&addrCfg->second) == nullptr))
++            else
+             {
+-                std::cerr << sensor.first.str << " Bus or Address invalid\n";
+-                continue;
++                if (!std::get_if<uint64_t>(&indexCfg->second))
++                {
++                    std::cerr << sensor.first.str << " Index invalid\n";
++                    continue;
++                }
++                key = {.bus = 0, .addr = std::get<uint64_t>(indexCfg->second)};
+             }
+ 
+             std::vector<std::string> hwmonNames;
+@@ -225,8 +242,6 @@ static SensorConfigMap
+                 }
+             }
+ 
+-            SensorConfigKey key = {std::get<uint64_t>(busCfg->second),
+-                                   std::get<uint64_t>(addrCfg->second)};
+             SensorConfig val = {sensor.first.str, sensor.second, cfgmap.first,
+                                 cfg, hwmonNames};
+ 
+@@ -299,29 +314,52 @@ void createSensors(
+                 device = directory / "device";
+                 deviceName = fs::canonical(device).stem();
+             }
+-            auto findHyphen = deviceName.find('-');
+-            if (findHyphen == std::string::npos)
+-            {
+-                std::cerr << "found bad device " << deviceName << "\n";
+-                continue;
+-            }
+-            std::string busStr = deviceName.substr(0, findHyphen);
+-            std::string addrStr = deviceName.substr(findHyphen + 1);
+ 
+             uint64_t bus = 0;
+             uint64_t addr = 0;
+-            std::from_chars_result res{};
+-            res = std::from_chars(busStr.data(), busStr.data() + busStr.size(),
+-                                  bus);
+-            if (res.ec != std::errc{})
++            std::string busStr, addrStr;
++            auto findHyphen = deviceName.find('-');
++            if (findHyphen == std::string::npos)
+             {
+-                continue;
++                static const std::string thermalZone = "thermal_zone";
++                auto findBmcThermal = deviceName.find(thermalZone);
++                if (findBmcThermal == std::string::npos)
++                {
++                    std::cerr << "found bad device " << deviceName << "\n";
++                    continue;
++                }
++                // ex: thermal_zone0
++                addrStr =
++                    deviceName.substr(findBmcThermal + thermalZone.length());
++                try
++                {
++                    addr = std::stoi(addrStr);
++                }
++                catch (const std::invalid_argument&)
++                {
++                    std::cerr << "Cannot get zone number: " << deviceName
++                              << "\n";
++                    continue;
++                }
+             }
+-            res = std::from_chars(addrStr.data(),
+-                                  addrStr.data() + addrStr.size(), addr, 16);
+-            if (res.ec != std::errc{})
++            else
+             {
+-                continue;
++                busStr = deviceName.substr(0, findHyphen);
++                addrStr = deviceName.substr(findHyphen + 1);
++                std::from_chars_result res;
++                res = std::from_chars(busStr.data(),
++                                      busStr.data() + busStr.size(), bus);
++
++                if (res.ec != std::errc{})
++                {
++                    continue;
++                }
++                res = std::from_chars(
++                    addrStr.data(), addrStr.data() + addrStr.size(), addr, 16);
++                if (res.ec != std::errc{})
++                {
++                    continue;
++                }
+             }
+ 
+             auto thisSensorParameters = getSensorParameters(path);
+-- 
+2.17.1
+
