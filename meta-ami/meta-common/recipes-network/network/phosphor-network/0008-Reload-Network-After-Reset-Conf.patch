@@ -1,0 +1,16 @@
+diff --git a/src/network_manager.cpp b/src/network_manager.cpp
+index 82c6817..ce08fb1 100644
+--- a/src/network_manager.cpp
++++ b/src/network_manager.cpp
+@@ -659,6 +659,11 @@ void Manager::reset()
+         log<level::ERR>("Network ARP Control Factory Reset failed.");
+         return;
+     }
++
++    auto method = bus.new_method_call(NETWORKD_BUSNAME, NETWORKD_PATH,
++                                        NETWORKD_INTERFACE, "Reload");
++    bus.call_noreply(method);
++    log<level::INFO>("Reloaded systemd-networkd");
+ }
+ 
+ // Need to merge the below function with the code which writes the

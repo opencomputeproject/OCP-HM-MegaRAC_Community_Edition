@@ -1,0 +1,59 @@
+From cf0ef8d70ca474bcc47d2df3d0a38979cb3c5f6a Mon Sep 17 00:00:00 2001
+From: Sandeep <sandeepap@ami.com>
+Date: Wed, 21 Jun 2023 20:10:36 +0530
+Subject: [PATCH] Fixes TrustedModuleRequiredToBoot Property patch issue
+
+Signed-off-by: Sandeep Patil <sandeepap@ami.com>
+---
+ redfish-core/lib/systems.hpp | 25 +++++++++++++++++++++++--
+ 1 file changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+index 9e929f0b..54a7e8ed 100644
+--- a/redfish-core/lib/systems.hpp
++++ b/redfish-core/lib/systems.hpp
+@@ -1456,10 +1456,31 @@ inline void getTrustedModuleRequiredToBoot(
+  * @return None.
+  */
+ inline void setTrustedModuleRequiredToBoot(
+-    const std::shared_ptr<bmcweb::AsyncResp>& aResp, const bool tpmRequired)
++    const std::shared_ptr<bmcweb::AsyncResp>& aResp,
++    const std::string& bootTrustedModuleRequired)
+ {
+     BMCWEB_LOG_DEBUG << "Set TrustedModuleRequiredToBoot.";
+ 
++    bool tpmRequired = false;
++
++    if (bootTrustedModuleRequired == "Required")
++    {
++        tpmRequired = true;
++    }
++    else if (bootTrustedModuleRequired == "Disabled")
++    {
++        tpmRequired = false;
++    }
++    else
++    {
++        BMCWEB_LOG_DEBUG
++            << "Invalid property value for bootTrustedModuleRequired: "
++            << bootTrustedModuleRequired;
++        messages::propertyValueNotInList(aResp->res, bootTrustedModuleRequired,
++                                         "TrustedModuleRequiredToBoot");
++        return;
++    }
++
+     crow::connections::systemBus->async_method_call(
+         [aResp, tpmRequired](const boost::system::error_code ec,
+                              dbus::utility::MapperGetSubTreeResponse& subtree) {
+@@ -3281,7 +3302,7 @@ inline void requestRoutesSystems(App& app)
+         std::optional<std::string> bootType;
+         std::optional<std::string> bootEnable;
+         std::optional<std::string> bootAutomaticRetry;
+-        std::optional<bool> bootTrustedModuleRequired;
++        std::optional<std::string> bootTrustedModuleRequired;
+         std::optional<bool> ipsEnable;
+         std::optional<uint8_t> ipsEnterUtil;
+         std::optional<uint64_t> ipsEnterTime;
+-- 
+2.17.1
+

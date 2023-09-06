@@ -1,0 +1,28 @@
+From ee3c0782f161083feb712260457268678c54eb10 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Wed, 7 Jun 2023 16:38:45 +0530
+Subject: [PATCH] Fix for elevate user privilege and also disable admin user
+ from operator users session
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/store/api.js | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/store/api.js b/src/store/api.js
+index f80a746..4821525 100644
+--- a/src/store/api.js
++++ b/src/store/api.js
+@@ -4,6 +4,9 @@ import Axios from 'axios';
+ //dotenv customizations.
+ import store from '../store';
+ 
++Axios.defaults.headers.common['Accept'] = 'application/json';
++Axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
++
+ const api = Axios.create({
+   withCredentials: true,
+ });
+-- 
+2.25.1
+

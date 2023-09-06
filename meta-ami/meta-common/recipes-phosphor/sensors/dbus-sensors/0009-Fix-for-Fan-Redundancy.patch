@@ -1,0 +1,39 @@
+From 1280fe9a51eeffb82988d1acc45d49948f147610 Mon Sep 17 00:00:00 2001
+From: thrishalig <thrishalig@ami.com>
+Date: Mon, 15 May 2023 14:47:17 +0530
+Subject: [PATCH] Fix for Fan Redundancy
+
+added redundancy if it is a i2c FanType
+
+Tested:
+
+changed Threshold values of Fans lower critical and tested status property of Fan redundancy tach is changing or not as per
+implementation
+
+if one fan is in critical state , status property will change from full to degraded , if more than one fan is in critical state
+status property will change to Failed .
+
+Busctl command for Fan redundancy
+busctl introspect xyz.openbmc_project.FanSensor /xyz/openbmc_project/control/FanRedundancy/Tach
+
+Signed-off-by: thrishalig <thrishalig@ami.com>
+---
+ src/FanMain.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/FanMain.cpp b/src/FanMain.cpp
+index 87b3246..5b01ac8 100644
+--- a/src/FanMain.cpp
++++ b/src/FanMain.cpp
+@@ -421,7 +421,7 @@ void createSensors(
+                 }
+             }
+             std::optional<RedundancySensor>* redundancy = nullptr;
+-            if (fanType == FanTypes::aspeed)
++            if ((fanType == FanTypes::aspeed) || (fanType == FanTypes::i2c))
+             {
+                 redundancy = &systemRedundancy;
+             }
+-- 
+2.25.1
+

@@ -1,0 +1,316 @@
+From a2a67249aadf42c92d33cbba83d3224231bed8a6 Mon Sep 17 00:00:00 2001
+From: Krishna raj <krishnar@ami.com>
+Date: Wed, 12 Apr 2023 17:31:58 +0530
+Subject: [PATCH] updated-dts
+
+---
+ arch/arm/boot/dts/aspeed-ast2600-evb.dts | 263 ++++++++++++++++++++++-
+ 1 file changed, 262 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-ast2600-evb.dts b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+index 33194ec63251..dea7b69e2b75 100644
+--- a/arch/arm/boot/dts/aspeed-ast2600-evb.dts
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+@@ -10,7 +10,11 @@ / {
+ 	model = "AST2600 EVB";
+ 	compatible = "aspeed,ast2600-evb-a1", "aspeed,ast2600";
+ 
+-	aliases {
++        aliases {
++		serial0 = &uart1;
++		serial1 = &uart2;
++		serial2 = &uart3;
++		serial3 = &uart4;
+ 		serial4 = &uart5;
+ 	};
+ 
+@@ -82,8 +86,147 @@ vccq_sdhci1: regulator-vccq-sdhci1 {
+ 		states = <3300000 1>,
+ 			 <1800000 0>;
+ 	};
++
++       iio-hwmon {
++        compatible = "iio-hwmon";
++        io-channels = <&adc0 0>, <&adc0 1>, <&adc0 2>, <&adc0 3>,
++                        <&adc0 4>, <&adc0 5>, <&adc0 6>, <&adc0 7>,
++                        <&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>,
++                        <&adc1 4>, <&adc1 5>, <&adc1 6>, <&adc1 7>;
++       };
++
++};
++
++&syscon {
++        uart-clock-high-speed;
++        status = "okay";
++		
++		mac0-clk-delay = <0x10 0x0a
++				  0x10 0x10
++				  0x10 0x10>;
++		mac1-clk-delay = <0x10 0x0a
++				  0x10 0x10
++				  0x10 0x10>;
++		mac2-clk-delay = <0x08 0x04
++				  0x08 0x04
++				  0x08 0x04>;
++		mac3-clk-delay = <0x08 0x04
++				  0x08 0x04
++				  0x08 0x04>;		
++};
++
++&pwm_tacho {
++        status = "okay";
++        #pwm-cells = <3>;
++        aspeed,pwm-outputs = <7>;
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_pwm0_default &pinctrl_tach0_default
++                        &pinctrl_pwm1_default &pinctrl_tach1_default
++                        &pinctrl_pwm2_default &pinctrl_tach2_default
++                        &pinctrl_pwm3_default &pinctrl_tach3_default
++                        &pinctrl_pwm4_default &pinctrl_tach4_default
++                        &pinctrl_pwm5_default &pinctrl_tach5_default
++                        &pinctrl_pwm12g1_default &pinctrl_tach6_default
++                        &pinctrl_pwm13g1_default &pinctrl_tach7_default
++                        &pinctrl_pwm14g1_default &pinctrl_tach8_default
++                        &pinctrl_pwm15g1_default &pinctrl_tach9_default
++                        &pinctrl_pwm7_default>;
++
++        fan@0 {
++                reg = <0x00>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x00>;
++        };
++        fan@1 {
++                reg = <0x01>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x01>;
++        };
++        fan@2 {
++                reg = <0x02>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x02>;
++        };
++        fan@3 {
++                reg = <0x03>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x03>;
++        };
++        fan@4 {
++                reg = <0x04>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x04>;
++        };
++        fan@5 {
++                reg = <0x05>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x05>;
++        };
++        fan@6 {
++                reg = <0x0c>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x06>;
++        };
++        fan@7 {
++                reg = <0x0d>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x07>;
++        };
++        fan@8 {
++                reg = <0x0e>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x08>;
++        };
++        fan@9 {
++                reg = <0x0f>;
++                aspeed,fan-tach-ch = /bits/ 8 <0x09>;
++        };
++};
++
++&kcs1 {
++        aspeed,lpc-io-reg = <0xCA0>;
++        status = "okay";
++};
++
++&kcs2 {
++        aspeed,lpc-io-reg = <0xCA8>;
++        status = "okay";
++};
++
++&kcs3 {
++        aspeed,lpc-io-reg = <0xCA2>;
++        status = "okay";
++};
++
++&peci0 {
++    status = "okay";
++};
++
++&lpc {
++    status = "okay";
++};
++
++&jtag0 {
++        status = "okay";
++};
++
++&jtag1 {
++        status = "okay";
++};
++
++&mctp {
++    status = "okay";
++};
++
++&lpc_reset {
++        status = "okay";
++};
++
++&lpc_sio {
++        status = "okay";
++};
++
++&lpc_snoop {
++        snoop-ports = <0x80>;
++        status = "okay";
++};
++
++&rng {
++        status = "okay";
+ };
+ 
++
+ &mdio0 {
+ 	status = "okay";
+ 
+@@ -161,6 +304,40 @@ &mac3 {
+ 	pinctrl-0 = <&pinctrl_rgmii4_default>;
+ };
+ 
++&adc0 {
++    status = "okay";
++
++    aspeed,int-vref-microvolt = <2500000>;
++
++    /*If you want to set external reference voltage(i.e. not 1.2V or 2.5V).
++      You should add vref-supply property as below and set the microvolt 
++      value at vdd_adc_vref node.*/
++    //vref-supply = <&vdd_adc_vref>;
++
++    pinctrl-names = "default";
++    pinctrl-0 = <&pinctrl_adc0_default &pinctrl_adc1_default
++		&pinctrl_adc2_default &pinctrl_adc3_default
++		&pinctrl_adc4_default &pinctrl_adc5_default
++		&pinctrl_adc6_default &pinctrl_adc7_default>;
++};
++
++&adc1 {
++    status = "okay";
++    
++    aspeed,int-vref-microvolt = <2500000>;
++
++    /*If you want to set external reference voltage(i.e. not 1.2V or 2.5V).
++      You should add vref-supply property as below and set the microvolt 
++      value at vdd_adc_vref node.*/
++    //vref-supply = <&vdd_adc_vref>;
++
++    pinctrl-names = "default";
++    pinctrl-0 = <&pinctrl_adc8_default &pinctrl_adc9_default
++		&pinctrl_adc10_default &pinctrl_adc11_default
++		&pinctrl_adc12_default &pinctrl_adc13_default
++		&pinctrl_adc14_default &pinctrl_adc15_default>;
++};
++
+ &emmc_controller {
+ 	status = "okay";
+ };
+@@ -202,6 +379,83 @@ flash@0 {
+ 	};
+ };
+ 
++&spi2 {
++        spi-dma-write;
++        low-spi-clk-write;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2cs1_default
++				&pinctrl_spi2cs2_default &pinctrl_qspi2_default>;
++	status = "okay";
++
++	flash@0 {
++		status = "okay";
++		m25p,fast-read;
++		label = "spi2:0";
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <4>;
++		spi-rx-bus-width = <4>;
++	};
++	
++	spidev@0 {
++	        status = "okay";
++	};
++
++	spidev@1 {
++	        status = "okay";
++	};
++
++	spidev@2 {
++	        status = "okay";
++	};
++};
++
++&uart1 {
++	status = "okay";
++};
++
++&uart2 {
++	status = "okay";
++};
++
++&uart3 {
++	status = "okay";
++};
++
++&uart4 {
++	status = "okay";
++};
++
++&uart5 {
++	status = "okay";
++};
++
++&i3c0 {
++        status = "okay";
++        jdec-spd;
++        /* IDT IMX3102 multiplexer w/ thermal sensor */
++        imx3102: i3cmux@0f,3C000000000 {
++                reg = <0x0f 0x3C0 0x00000000>;
++                assigned-address = <0x0f>;
++        };
++
++        /* Renesas SPD5118 */
++        spd5118: spd@50,3C000000001 {
++                reg = <0x50 0x3C0 0x00000001>;
++                assigned-address = <0x50>;
++        };
++};
++&i3c2 {
++	status = "okay";
++    i3c_0: mipi_i3c@0,7ec05031000 {
++	compatible = "i3c-ibi-mqueue";
++	reg = <0x0 0x7ec 0x05031000>;
++	};	
++};
++&i3c1 {
++	status = "okay";
++	secondary;
++};
++
+ &i2c0 {
+ 	status = "okay";
+ 
+@@ -263,6 +517,13 @@ &i2c15 {
+ 	status = "okay";
+ };
+ 
++&sgpiom0 {
++        status = "okay";
++};
++&sgpiom1 { 
++	status = "okay"; 
++}; 
++
+ &fsim0 {
+ 	status = "okay";
+ };
+-- 
+2.25.1
+

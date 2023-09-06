@@ -1,0 +1,51 @@
+From 9bd575139eccacb1b1fba96c6b5677a0eda09b72 Mon Sep 17 00:00:00 2001
+From: Sandeep <sandeepap@ami.com>
+Date: Wed, 14 Jun 2023 15:36:52 +0530
+Subject: [PATCH] Fixes LED Button display issue in Overview Page
+
+Signed-off-by: Sandeep <sandeepap@ami.com>
+---
+ redfish-core/lib/managers.hpp | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index 26ac91b0..fbf7ca93 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -2377,7 +2377,8 @@ inline void requestRoutesManager(App& app)
+                                              "FirmwareVersion", true);
+ 
+         managerGetLastResetTime(asyncResp);
+-
++	getLocationIndicatorActive(asyncResp);
++	
+         // ManagerDiagnosticData is added for all BMCs.
+         nlohmann::json& managerDiagnosticData =
+             asyncResp->res.jsonValue["ManagerDiagnosticData"];
+@@ -2554,9 +2555,11 @@ inline void requestRoutesManager(App& app)
+         std::optional<nlohmann::json> links;
+         std::optional<std::string> datetime;
+        std::optional<std::string> timeZone;
++	std::optional<bool> locationIndicatorActive;
+ 
+         if (!json_util::readJsonPatch(req, asyncResp->res, "Oem", oem,
+-                                      "DateTime", datetime, "Links", links, "DateTimeLocalOffset", timeZone))
++                                      "DateTime", datetime, "Links", links, "DateTimeLocalOffset", timeZone,
++				      "LocationIndicatorActive", locationIndicatorActive))
+         {
+             return;
+         }
+@@ -2630,6 +2633,10 @@ inline void requestRoutesManager(App& app)
+                 {
+                     setTimeZone(asyncResp, std::move(*timeZone));
+                 }
++	if (locationIndicatorActive)
++        {
++            setLocationIndicatorActive(asyncResp, *locationIndicatorActive);
++        }	
+ 
+         });
+ }
+-- 
+2.17.1
+

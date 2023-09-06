@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect network connections information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="network connection"
+file_name="netstat.log"
+command="netstat -ane"
+
+add_cmd_output "$command" "$file_name" "$desc"

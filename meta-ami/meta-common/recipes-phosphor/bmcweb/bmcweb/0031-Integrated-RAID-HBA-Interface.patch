@@ -1,0 +1,1344 @@
+From c18a5423dc1d1d8ecc309ee44a1a092bdcc9853b Mon Sep 17 00:00:00 2001
+From: PranoyGoru <gorumanip@ami.com>
+Date: Fri, 2 Jun 2023 12:06:15 +0530
+Subject: [PATCH] Integrated RAID interface in redfish
+
+Description
+Added RAID and HBA interface in redfish
+
+# busctl tree xyz.openbmc_project.hba.manager
+`-/xyz
+  `-/xyz/openbmc_project
+    `-/xyz/openbmc_project/HBA
+      `-/xyz/openbmc_project/HBA/0
+        `-/xyz/openbmc_project/HBA/0/pd
+          |-/xyz/openbmc_project/HBA/0/pd/0
+          `-/xyz/openbmc_project/HBA/0/pd/1
+
+# busctl tree xyz.openbmc_project.raid.manager
+`-/xyz
+  `-/xyz/openbmc_project
+    `-/xyz/openbmc_project/Raid
+      |-/xyz/openbmc_project/Raid/0
+      | |-/xyz/openbmc_project/Raid/0/ld
+      | `-/xyz/openbmc_project/Raid/0/pd
+      `-/xyz/openbmc_project/Raid/1
+        |-/xyz/openbmc_project/Raid/1/ld
+        `-/xyz/openbmc_project/Raid/1/pd
+
+Test case:
+
+1) Get RAID and HBA Device count
+
+https://localhost:2443/redfish/v1/Systems/system/Storage
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage",
+    "@odata.type": "#StorageCollection.StorageCollection",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/1"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_0"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0"
+        }
+    ],
+    "Members@odata.count": 4,
+    "Name": "Storage Collection"
+}
+
+2) Get RAID instance 
+
+https://localhost:2443/redfish/v1/Systems/system/Storage/Raid_1
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1",
+    "@odata.type": "#Storage.v1_10_1.Storage",
+    "Actions": {
+        "Oem": {
+            "#StorageCollection.CreateDrive": {
+                "target": "/redfish/v1/Systems/system/Storage/Raid_1/Actions/StorageLDrive.Create"
+            },
+            "#StorageCollection.DeleteDrive": {
+                "target": "/redfish/v1/Systems/system/Storage/Raid_1/Actions/StorageLDrive.Delete"
+            }
+        }
+    },
+    "Description": "Integrated Raid Controller",
+    "Drives": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Drives/0"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Drives/1"
+        }
+    ],
+    "Drives@odata.count": 2,
+    "Id": "Raid_1",
+    "Name": "Local Storage Controller",
+    "Oem": {
+        "OpenBmc": {
+            "configComplete": 0,
+            "manageRAIDConfigStatus": 0,
+            "setRAIDDeleteLDStatus": 0
+        }
+    },
+    "Status": {
+        "Health": "OK"
+    },
+    "StorageControllers": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1#/StorageControllers/0",
+            "FirmwareVersion": "5.210.02-3663",
+            "MemberId": "1",
+            "Name": "MegaRAID 9560-16i 4GB",
+            "SerialNumber": "SK01071465",
+            "SupportedRAIDTypes": [
+                "RAID0",
+                "RAID1",
+                "RAID10"
+            ]
+        }
+    ],
+    "Volumes": {
+        "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Volumes"
+    }
+}
+
+3) Get Physical Drive Count
+
+
+https://localhost:2443/redfish/v1/Systems/system/Storage/Raid_1/Volumes
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Volumes",
+    "@odata.type": "#VolumeCollection.VolumeCollection",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Volumes/0"
+        }
+    ],
+    "Members@odata.count": 1,
+    "Name": "Volume Collection"
+}
+
+4) Get Physical Drive instance
+
+https://localhost:2443/redfish/v1/Systems/system/Storage/Raid_1/Volumes/0
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Volumes/0",
+    "@odata.type": "#Volume.v1_6_2.Volume",
+    "CapacityBytes": 499021512704,
+    "DriveList": [
+        34,
+        99
+    ],
+    "Id": "0",
+    "Links": {
+        "Drives": [
+            {
+                "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Drives/0"
+            },
+            {
+                "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Drives/1"
+            }
+        ],
+        "Drives@odata.count": 2
+    },
+    "Name": "AMIRaid5",
+    "RAIDType": "RAID0",
+    "ReadCachePolicy": "NoReadAhead",
+    "Status": {
+        "Health": "OK"
+    },
+    "StripSizeBytes": 262144,
+    "WriteCachePolicy": "WriteThrough"
+}
+
+5) Get Logical Drive instance
+https://localhost:2443/redfish/v1/Systems/system/Storage/Raid_1/Drives/0
+
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Drives/0",
+    "@odata.type": "#Drive.v1_13_0.Drive",
+    "BlockSizeBytes": 512,
+    "FailurePredicted": 0,
+    "Id": "34",
+    "Links": {
+        "Volumes": [
+            {
+                "@odata.id": "/redfish/v1/Systems/system/Storage/Raid_1/Volumes/0"
+            }
+        ],
+        "Volumes@odata.count": 1
+    },
+    "Manufacturer": "ATA",
+    "Name": "PhysicalDisk_34",
+    "NegotiatedSpeedGbs": 3.0,
+    "Oem": {
+        "OpenBmc": {
+            "@odata.type": "#OemDrive.v1_0_0.Drive",
+            "ProductID": "ST9250421AS",
+            "SlotNumber": 1
+        }
+    },
+    "Protocol": "SATA",
+    "Revision": "SD13",
+    "SerialNumber": "5TH06AQE",
+    "Status": {
+        "Health": "NG"
+    }
+}
+
+6) Get HBA instance 
+
+
+https://localhost:2443/redfish/v1/Systems/system/Storage/HBA_0
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0",
+    "@odata.type": "#Storage.v1_10_1.Storage",
+    "Description": "Integrated HBA Controller",
+    "Drives": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0/Drives/0"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0/Drives/1"
+        }
+    ],
+    "Drives@odata.count": 2,
+    "Id": "HBA_0",
+    "Name": "Local Storage Controller",
+    "Oem": {
+        "OpenBmc": {
+            "configComplete": 0,
+            "manageRAIDConfigStatus": 0,
+            "setRAIDDeleteLDStatus": 0
+        }
+    },
+    "Status": {
+        "Health": "OK"
+    },
+    "StorageControllers": [
+        {
+            "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0#/StorageControllers/0",
+            "FirmwareVersion": "24.00.00.00",
+            "MemberId": "83886080",
+            "Name": "HBA 9500-16i",
+            "SerialNumber": "SPC1719977"
+        }
+    ]
+}
+
+5) Get Logical HBA Drive instance
+https://localhost:2443/redfish/v1/Systems/system/Storage/Raid_1/Drives/0
+
+{
+    "@odata.id": "/redfish/v1/Systems/system/Storage/HBA_0/Drives/0",
+    "@odata.type": "#Drive.v1_13_0.Drive",
+    "BlockSizeBytes": 512,
+    "Id": "1",
+    "Manufacturer": "ATA",
+    "Name": "PhysicalDisk_1",
+    "NegotiatedSpeedGbs": 3.0,
+    "Oem": {
+        "OpenBmc": {
+            "@odata.type": "#OemDrive.v1_0_0.Drive",
+            "ProductID": "ST9250421AS",
+            "SlotNumber": 1
+        }
+    },
+    "Protocol": "SATA",
+    "Revision": "SD13",
+    "SerialNumber": "5TH06AQE",
+    "Status": {
+        "Health": "OK"
+    }
+}
+
+Signed-off-by: PranoyGoru <gorumanip@ami.com>
+---
+ redfish-core/include/redfish.hpp  |    7 +
+ redfish-core/lib/storage.hpp      |    2 +
+ redfish-core/lib/storage_mctp.hpp | 1036 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 1045 insertions(+)
+
+diff --git a/redfish-core/include/redfish.hpp b/redfish-core/include/redfish.hpp
+index 7fb577d..4d3f3d6 100644
+--- a/redfish-core/include/redfish.hpp
++++ b/redfish-core/include/redfish.hpp
+@@ -106,6 +106,13 @@ class RedfishService
+         requestRoutesNvmeStorage(app);
+         requestRoutesNvmeDrive(app);
+ 
++        requestRoutesRaidLogical(app);
++        requestRoutesRaidLogicalDrive(app);
++        requestRoutesStorages(app);
++        requestRoutesPhysicalDrive(app);
++        requestRoutesCreateLogicalDriveAction(app);
++        requestRoutesDeleteLogicalDriveAction(app);
++
+         requestRoutesCable(app);
+         requestRoutesCableCollection(app);
+ #ifdef BMCWEB_INSECURE_ENABLE_REDFISH_FW_TFTP_UPDATE
+diff --git a/redfish-core/lib/storage.hpp b/redfish-core/lib/storage.hpp
+index 73c212f..a5f1792 100644
+--- a/redfish-core/lib/storage.hpp
++++ b/redfish-core/lib/storage.hpp
+@@ -61,6 +61,8 @@ inline void requestRoutesStorageCollection(App& app)
+ 		asyncResp->res.jsonValue["Members@odata.count"];
+ 	count = 1;
+ 	getNvmeDevices(asyncResp, count, storageControllerArray);
++	getRaidDevices(asyncResp, count, storageControllerArray);
++	getHBADevices(asyncResp, count, storageControllerArray);
+         });
+ }
+ 
+diff --git a/redfish-core/lib/storage_mctp.hpp b/redfish-core/lib/storage_mctp.hpp
+index 83e92f8..32feeec 100644
+--- a/redfish-core/lib/storage_mctp.hpp
++++ b/redfish-core/lib/storage_mctp.hpp
+@@ -594,4 +594,1040 @@ inline void requestRoutesNvmeDrive(App& app)
+         });
+ }
+ 
++inline void getLogicalDrives(std::shared_ptr<bmcweb::AsyncResp> asyncResp,
++                             const std::string& raidName,
++                             nlohmann::json& storageArray,
++                             nlohmann::json& count)
++
++{
++    const std::string& ldPath = "/xyz/openbmc_project/Raid/" + raidName + "/ld";
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, raidName, &storageArray,
++         &count](const boost::system::error_code ec,
++                 const std::vector<std::string>& storageList) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Volume mapper call error";
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            for (const std::string& objpath : storageList)
++            {
++                std::size_t lastPos = objpath.rfind('/');
++                if (lastPos == std::string::npos ||
++                    (objpath.size() <= lastPos + 1))
++                {
++                    BMCWEB_LOG_ERROR << "Failed to find '/' in " << objpath;
++                    continue;
++                }
++                storageArray.push_back(
++                    {{"@odata.id", "/redfish/v1/Systems/system/Storage/Raid_" +
++                                       raidName + "/Volumes/" +
++                                       objpath.substr(lastPos + 1)}});
++            }
++            count = storageArray.size();
++        },
++        "xyz.openbmc_project.ObjectMapper",
++        "/xyz/openbmc_project/object_mapper",
++        "xyz.openbmc_project.ObjectMapper", "GetSubTreePaths", ldPath, 0,
++        std::array<const char*, 1>{"xyz.openbmc_project.raid.LogicalDrive"});
++}
++
++inline void requestRoutesDeleteLogicalDriveAction(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/"
++                      "<str>/Actions/StorageLDrive.Delete")
++        .privileges(redfish::privileges::postChassis)
++        .methods(
++            boost::beast::http::verb::
++                post)([](const crow::Request& req,
++                         const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                         const std::string& name) {
++//            if (!redfish::utils::checkLicenseStatus(asyncResp,
++//                                                    "StorageLDrive.Delete"))
++//            {
++//                return;
++//            }
++            crow::connections::systemBus->async_method_call(
++                [asyncResp, req, name](const boost::system::error_code ec1,
++                                       const std::variant<uint32_t>& val) {
++                    if (ec1)
++                    {
++                        BMCWEB_LOG_DEBUG
++                            << "Failed to get property Value  " << ec1;
++                        return;
++                    }
++
++                    const uint32_t* status = std::get_if<uint32_t>(&val);
++
++                    if (*status == 0)
++                    {
++
++                        std::size_t type = name.find("_");
++                        if (type != std::string::npos)
++                        {
++                            const std::string& path =
++                                "/xyz/openbmc_project/" + name.substr(0, type) +
++                                "/" + name.substr(type + 1);
++
++                            crow::connections::systemBus->async_method_call(
++                                [asyncResp, req, name,
++                                 type](const boost::system::error_code ec,
++                                       const std::variant<uint32_t> value) {
++                                    if (ec)
++                                    {
++                                        BMCWEB_LOG_DEBUG
++                                            << "failed to get property Value  "
++                                            << ec;
++                                        return;
++                                    }
++
++                                    const uint32_t* ctrlId =
++                                        std::get_if<uint32_t>(&value);
++
++                                    std::string ldriveId;
++
++                                    if (!json_util::readJsonAction(
++                                            req, asyncResp->res, "LDriveId",
++                                            ldriveId))
++                                    {
++                                        BMCWEB_LOG_DEBUG
++                                            << "Paramaters are not provided";
++                                        return;
++                                    }
++
++                                    const std::string& ldpath =
++                                        "/xyz/openbmc_project/" +
++                                        name.substr(0, type) + "/" +
++                                        name.substr(type + 1) + "/ld/" +
++                                        ldriveId;
++
++                                    const uint32_t val = *ctrlId;
++
++                                    crow::connections::systemBus->async_method_call(
++                                        [asyncResp, val](
++                                            const boost::system::error_code ec,
++                                            const std::variant<uint16_t>
++                                                value) {
++                                            if (ec)
++                                            {
++                                                BMCWEB_LOG_DEBUG
++                                                    << "failed to get property Value  "
++                                                    << ec;
++                                                return;
++                                            }
++                                            const uint16_t* targetId =
++                                                std::get_if<uint16_t>(&value);
++
++                                            crow::connections::systemBus
++                                                ->async_method_call(
++                                                    [asyncResp](
++                                                        const boost::system::
++                                                            error_code ec) {
++                                                        if (ec)
++                                                        {
++                                                            BMCWEB_LOG_ERROR
++                                                                << "Bad D-Bus request error: "
++                                                                << ec;
++                                                            messages::
++                                                                internalError(
++                                                                    asyncResp
++                                                                        ->res);
++                                                            return;
++                                                        }
++                                                    },
++                                                    "xyz.openbmc_project.raid.manager",
++                                                    "/xyz/openbmc_project/Raid",
++                                                    "xyz.openbmc_project.raid.Base",
++                                                    "setRAIDDeleteLD", val,
++                                                    *targetId);
++                                        },
++                                        "xyz.openbmc_project.raid.manager",
++                                        ldpath,
++                                        "org.freedesktop.DBus.Properties",
++                                        "Get",
++                                        "xyz.openbmc_project.raid.LogicalDrive",
++                                        "TargetId");
++                                },
++                                "xyz.openbmc_project.raid.manager", path,
++                                "org.freedesktop.DBus.Properties", "Get",
++                                "xyz.openbmc_project.raid.Controller",
++                                "MemberId");
++                        }
++                        else
++                        {
++                            messages::internalError(asyncResp->res);
++                            return;
++                        }
++                    }
++                    else
++                    {
++                        messages::actionNotSupported(
++                            asyncResp->res,
++                            "StorageLDrive.Delete already running and it");
++                        return;
++                    }
++                },
++                "xyz.openbmc_project.raid.manager", "/xyz/openbmc_project/Raid",
++                "org.freedesktop.DBus.Properties", "Get",
++                "xyz.openbmc_project.raid.Base", "configComplete");
++
++        });
++}
++
++inline void requestRoutesCreateLogicalDriveAction(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/"
++                      "<str>/Actions/StorageLDrive.Create")
++        .privileges(redfish::privileges::postChassis)
++        .methods(boost::beast::http::verb::post)(
++            [](const crow::Request& req,
++               const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++               const std::string& name) {
++//                if (!redfish::utils::checkLicenseStatus(asyncResp,
++//                                                        "StorageLDrive.Create"))
++//                {
++//                    return;
++//                }
++
++                crow::connections::systemBus->async_method_call(
++                    [asyncResp, req, name](const boost::system::error_code ec1,
++                                           const std::variant<uint32_t>& val) {
++                        if (ec1)
++                        {
++                            BMCWEB_LOG_DEBUG
++                                << "Failed to get property Value "
++                                << ec1;
++                            return;
++                        }
++
++                        const uint32_t* status = std::get_if<uint32_t>(&val);
++
++                        if (*status == 0)
++                        {
++
++                            std::size_t type = name.find("_");
++                            if (type != std::string::npos)
++                            {
++
++                                const std::string& path =
++                                    "/xyz/openbmc_project/" +
++                                    name.substr(0, type) + "/" +
++                                    name.substr(type + 1);
++                                crow::connections::systemBus->async_method_call(
++                                    [asyncResp,
++                                     req](const boost::system::error_code ec,
++                                          const std::variant<uint32_t> value) {
++                                        if (ec)
++                                        {
++                                            BMCWEB_LOG_DEBUG
++                                                << "Failed to get property Value  "
++                                                << ec;
++                                            return;
++                                        }
++                                        std::uint8_t cmdParm;
++                                        std::uint8_t prl;
++                                        std::uint8_t stripeSize;
++                                        std::uint8_t initState;
++                                        std::uint8_t diskCachePolicy;
++                                        std::uint32_t sizeLow;
++                                        std::uint32_t sizeHigh;
++                                        std::uint8_t readpolicy;
++                                        std::uint8_t writepolicy;
++                                        std::uint8_t iopolicy;
++                                        std::uint8_t accesspolicy;
++                                        std::uint8_t spanDepth;
++                                        std::uint8_t numDrives;
++                                        std::uint8_t Accelerator;
++                                        std::uint8_t ParityGroupCount;
++                                        std::uint16_t ArrayNumber;
++                                  //      std::string VdNameBuf;
++                                        std::vector<uint8_t> VDName;
++                                        std::vector<uint8_t> SpanID;
++                                        std::vector<uint16_t> deviceID;
++                                        if (!json_util::readJsonAction(
++                                                req, asyncResp->res, "CmdParm",
++                                                cmdParm, "Prl", prl,
++                                                "StripeSize", stripeSize,
++                                                "InitState", initState,
++                                                "DiskCachePolicy",
++                                                diskCachePolicy, "SizeLow",
++                                                sizeLow, "SizeHigh", sizeHigh,
++                                                "Readpolicy", readpolicy,
++                                                "Writepolicy", writepolicy,
++                                                "Iopolicy", iopolicy,
++                                                "Accesspolicy", accesspolicy,
++                                                "SpanDepth", spanDepth,
++                                                "NumDrives", numDrives,
++                                                "Accelerator", Accelerator,
++                                                "ParityGroupCount",
++                                                ParityGroupCount, "ArrayNumber",
++                                                ArrayNumber, "VDName",
++                                                VDName, "SpanID", SpanID,
++                                                "DeviceID", deviceID))
++                                        {
++                                            BMCWEB_LOG_DEBUG
++                                                << "Paramaters are not provided";
++                                            return;
++                                        }
++                                        const uint32_t* ctrlId =
++                                            std::get_if<uint32_t>(&value);
++
++//                                        for (char ch : VdNameBuf)
++//                                        {
++//                                            VDName.push_back(
++//                                                static_cast<uint8_t>(ch));
++//                                        }
++
++                                        crow::connections::systemBus
++                                            ->async_method_call(
++                                                [asyncResp](
++                                                    const boost::system::
++                                                        error_code ec) {
++                                                    if (ec)
++                                                    {
++                                                        BMCWEB_LOG_ERROR
++                                                            << "Bad Invalid Arguments D-Bus "
++                                                               "request error:  "
++                                                            << ec;
++                                                        messages::internalError(
++                                                            asyncResp->res);
++                                                        return;
++                                                    }
++                                                },
++                                                "xyz.openbmc_project.raid.manager",
++                                                "/xyz/openbmc_project/Raid",
++                                                "xyz.openbmc_project.raid.Base",
++                                                "manageRAIDConfig", *ctrlId,
++                                                cmdParm, prl, stripeSize,
++                                                initState, diskCachePolicy,
++                                                sizeLow, sizeHigh, readpolicy,
++                                                writepolicy, iopolicy,
++                                                accesspolicy, spanDepth,
++                                                numDrives, Accelerator,
++                                                ParityGroupCount, ArrayNumber,
++                                                VDName, SpanID, deviceID);
++                                    },
++                                    "xyz.openbmc_project.raid.manager", path,
++                                    "org.freedesktop.DBus.Properties", "Get",
++                                    "xyz.openbmc_project.raid.Controller",
++                                    "MemberId");
++                            }
++                            else
++                            {
++                                messages::internalError(asyncResp->res);
++                                return;
++                            }
++                        }
++                        else
++                        {
++                            messages::actionNotSupported(
++                                asyncResp->res,
++                                "StorageLDrive.Create already running and it");
++                            return;
++                        }
++                    },
++                    "xyz.openbmc_project.raid.manager",
++                    "/xyz/openbmc_project/Raid",
++                    "org.freedesktop.DBus.Properties", "Get",
++                    "xyz.openbmc_project.raid.Base", "configComplete");
++
++            });
++}
++
++inline void getPhysicalDrives(std::shared_ptr<bmcweb::AsyncResp> asyncResp,
++                              const std::string& name,
++                              nlohmann::json& storageArray,
++                              nlohmann::json& count, int flag,
++                              const std::string& pdPath,
++                              const std::array<const char*, 1> interfaces)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, name, &storageArray, &count,
++         flag](const boost::system::error_code ec,
++               const std::vector<std::string>& storageList) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Drive mapper call error";
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            for (const std::string& objpath : storageList)
++            {
++                std::size_t lastPos = objpath.rfind('/');
++                if (lastPos == std::string::npos ||
++                    (objpath.size() <= lastPos + 1))
++                {
++                    BMCWEB_LOG_ERROR << "Failed to find '/' in " << objpath;
++                    continue;
++                }
++                if (flag == 1)
++                    storageArray.push_back(
++                        {{"@odata.id",
++                          "/redfish/v1/Systems/system/Storage/Raid_" + name +
++                              "/Drives/" + objpath.substr(lastPos + 1)}});
++                else
++                    storageArray.push_back(
++                        {{"@odata.id",
++                          "/redfish/v1/Systems/system/Storage/HBA_" + name +
++                              "/Drives/" + objpath.substr(lastPos + 1)}});
++            }
++            count = storageArray.size();
++        },
++        "xyz.openbmc_project.ObjectMapper",
++        "/xyz/openbmc_project/object_mapper",
++        "xyz.openbmc_project.ObjectMapper", "GetSubTreePaths", pdPath, 0,
++        interfaces);
++}
++
++inline void getRaidDevices(std::shared_ptr<bmcweb::AsyncResp> asyncResp,
++                           nlohmann::json& count,
++                           nlohmann::json& storageControllerArray)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, &count,
++         &storageControllerArray](const boost::system::error_code ec,
++                                  const std::vector<std::string>& storageList) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "DBUS error: no matched iface "
++                                 << "\n";
++                messages::internalError(asyncResp->res);
++                return;
++            }
++            for (const std::string& objpath : storageList)
++            {
++                std::size_t lastPos = objpath.rfind('/');
++                if (lastPos == std::string::npos ||
++                    (objpath.size() <= lastPos + 1))
++                {
++                    BMCWEB_LOG_ERROR << "Failed to find '/' in " << objpath;
++                    continue;
++                }
++                storageControllerArray.push_back(
++                    {{"@odata.id", "/redfish/v1/Systems/system/Storage/Raid_" +
++                                       objpath.substr(lastPos + 1)}});
++            } // object path loop
++            count = storageControllerArray.size();
++        },
++        "xyz.openbmc_project.ObjectMapper",
++        "/xyz/openbmc_project/object_mapper",
++        "xyz.openbmc_project.ObjectMapper", "GetSubTreePaths",
++        "/xyz/openbmc_project/Raid", 0,
++        std::array<const char*, 1>{"xyz.openbmc_project.raid.Controller"});
++}
++
++inline void requestRoutesRaidLogical(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/Raid_"
++                      "<str>"
++                      "/Volumes/")
++        .privileges(redfish::privileges::getStorage)
++        .methods(boost::beast::http::verb::get)(
++            [](const crow::Request&,
++               const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++               const std::string& raidName) {
++//                if (!redfish::utils::checkLicenseStatus(asyncResp,
++//                                                        "Raid_" + raidName))
++//                {
++//                    return;
++//                }
++                asyncResp->res.jsonValue["@odata.type"] =
++                    "#VolumeCollection.VolumeCollection";
++                asyncResp->res.jsonValue["@odata.id"] =
++                    "/redfish/v1/Systems/system/Storage/Raid_" + raidName +
++                    "/Volumes";
++                asyncResp->res.jsonValue["Name"] = "Volume Collection";
++                nlohmann::json& storageControllerArray =
++                    asyncResp->res.jsonValue["Members"];
++                storageControllerArray = nlohmann::json::array();
++                nlohmann::json& count =
++                    asyncResp->res.jsonValue["Members@odata.count"];
++                getLogicalDrives(asyncResp, raidName, storageControllerArray,
++                                 count);
++            });
++}
++
++inline void requestRoutesRaidLogicalDrive(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/Raid_"
++                      "<str>"
++                      "/Volumes/"
++                      "<str>")
++        .privileges(redfish::privileges::getStorage)
++        .methods(
++            boost::beast::http::verb::get)([](const crow::Request&,
++                                              const std::shared_ptr<
++                                                  bmcweb::AsyncResp>& asyncResp,
++                                              const std::string& raidName,
++                                              const std::string& driveName) {
++//            if (!redfish::utils::checkLicenseStatus(asyncResp,
++//                                                    "Raid_" + raidName))
++//            {
++//                return;
++//            }
++            asyncResp->res.jsonValue["@odata.type"] = "#Volume.v1_6_2.Volume";
++            asyncResp->res.jsonValue["@odata.id"] =
++                "/redfish/v1/Systems/system/Storage/Raid_" + raidName +
++                "/Volumes/" + driveName;
++            asyncResp->res.jsonValue["Id"] = driveName;
++            const std::string& ldPath =
++                "/xyz/openbmc_project/Raid/" + raidName + "/ld/" + driveName;
++            crow::connections::systemBus->async_method_call(
++                [asyncResp](
++                    const boost::system::error_code ec2,
++                    const std::vector<std::pair<
++                        std::string,
++                        std::variant<std::string, uint64_t, uint32_t,
++                                     std::vector<uint16_t>>>>& propertiesList) {
++                    if (ec2)
++                    {
++                        return;
++                    }
++                    for (const std::pair<
++                             std::string,
++                             std::variant<std::string, uint64_t, uint32_t,
++                                          std::vector<uint16_t>>>& property :
++                         propertiesList)
++                    {
++                        const std::string& propertyName = property.first;
++
++                        if (propertyName == "StripSizeBytes")
++                        {
++                            const uint32_t* value =
++                                std::get_if<uint32_t>(&property.second);
++                            if (value != nullptr)
++                            {
++                                asyncResp->res.jsonValue[propertyName] = *value;
++                            }
++                        }
++                        else if (propertyName == "CapacityBytes")
++                        {
++                            const uint64_t* value =
++                                std::get_if<uint64_t>(&property.second);
++                            if (value != nullptr)
++                            {
++                                asyncResp->res.jsonValue[propertyName] = *value;
++                            }
++                        }
++                        else if ((propertyName == "RAIDType") ||
++                                 (propertyName == "ReadCachePolicyType") ||
++                                 (propertyName == "WriteCachePolicyType"))
++                        {
++                            const std::string* value =
++                                std::get_if<std::string>(&property.second);
++                            if (value != nullptr)
++                            {
++                                if (propertyName == "ReadCachePolicyType")
++                                {
++                                    asyncResp->res
++                                        .jsonValue["ReadCachePolicy"] = *value;
++                                }
++                                else if (propertyName == "WriteCachePolicyType")
++                                {
++                                    asyncResp->res
++                                        .jsonValue["WriteCachePolicy"] = *value;
++                                }
++                                else
++                                    asyncResp->res.jsonValue[propertyName] =
++                                        *value;
++                            }
++                        }
++                        else if (propertyName == "Health")
++                        {
++                            const std::string* value =
++                                std::get_if<std::string>(&property.second);
++                            if (*value == "ok")
++                                asyncResp->res
++                                    .jsonValue["Status"][propertyName] = *value;
++                            else
++                                asyncResp->res
++                                    .jsonValue["Status"][propertyName] = *value;
++                        }
++                        else if (propertyName == "DriveList")
++                        {
++                            const std::vector<uint16_t>* value =
++                                std::get_if<std::vector<uint16_t>>(
++                                    &property.second);
++                            if (value != nullptr)
++                            {
++                                asyncResp->res.jsonValue[propertyName] = *value;
++                            }
++                        }
++                        else if (propertyName == "Name")
++                        {
++                            const std::string* value =
++                                std::get_if<std::string>(&property.second);
++                            asyncResp->res.jsonValue[propertyName] = *value;
++                        }
++                    }
++                },
++                "xyz.openbmc_project.raid.manager", ldPath,
++                "org.freedesktop.DBus.Properties", "GetAll",
++                "xyz.openbmc_project.raid.LogicalDrive");
++            nlohmann::json& storageControllerArray =
++                asyncResp->res.jsonValue["Links"]["Drives"];
++            storageControllerArray = nlohmann::json::array();
++            nlohmann::json& count =
++                asyncResp->res.jsonValue["Links"]["Drives@odata.count"];
++            const std::string& pdPath =
++                "/xyz/openbmc_project/Raid/" + raidName + "/pd";
++            const std::array<const char*, 1> interfaces = {
++                "xyz.openbmc_project.raid.PhysicalDrive"};
++
++            getPhysicalDrives(asyncResp, raidName, storageControllerArray,
++                              count, 1, pdPath, interfaces);
++        });
++}
++
++inline void getHBADevices(std::shared_ptr<bmcweb::AsyncResp> asyncResp,
++                          nlohmann::json& count,
++                          nlohmann::json& storageControllerArray)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, &count,
++         &storageControllerArray](const boost::system::error_code ec,
++                                  const std::vector<std::string>& storageList) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "DBUS error: no matched iface "
++                                 << "\n";
++                messages::internalError(asyncResp->res);
++                return;
++            }
++            for (const std::string& objpath : storageList)
++            {
++                std::size_t lastPos = objpath.rfind('/');
++                if (lastPos == std::string::npos ||
++                    (objpath.size() <= lastPos + 1))
++                {
++                    BMCWEB_LOG_ERROR << "Failed to find '/' in " << objpath;
++                    continue;
++                }
++                storageControllerArray.push_back(
++                    {{"@odata.id", "/redfish/v1/Systems/system/Storage/HBA_" +
++                                       objpath.substr(lastPos + 1)}});
++            } // object path loop
++            count = storageControllerArray.size();
++        },
++        "xyz.openbmc_project.ObjectMapper",
++        "/xyz/openbmc_project/object_mapper",
++        "xyz.openbmc_project.ObjectMapper", "GetSubTreePaths",
++        "/xyz/openbmc_project/HBA", 0,
++        std::array<const char*, 1>{"xyz.openbmc_project.hba.Controller"});
++}
++
++inline void requestRoutesStorages(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/"
++                      "<str>")
++        .privileges(redfish::privileges::getStorage)
++        .methods(
++            boost::beast::http::verb::get)([](const crow::Request&,
++                                              const std::shared_ptr<
++                                                  bmcweb::AsyncResp>& asyncResp,
++                                              const std::string& name) {
++//            if (!redfish::utils::checkLicenseStatus(asyncResp, name))
++//            {
++//                return;
++//            }
++            asyncResp->res.jsonValue["@odata.type"] =
++                "#Storage.v1_10_1.Storage";
++            asyncResp->res.jsonValue["@odata.id"] =
++                "/redfish/v1/Systems/system/Storage/" + name;
++            asyncResp->res.jsonValue["Name"] = "Local Storage Controller";
++
++            asyncResp->res.jsonValue["Id"] = name;
++
++            std::size_t type = name.find("_");
++            if (type != std::string::npos)
++            {
++
++                asyncResp->res.jsonValue["Description"] =
++                    "Integrated " + name.substr(0, type) + " Controller";
++
++                const std::string& path = "/xyz/openbmc_project/" +
++                                          name.substr(0, type) + "/" +
++                                          name.substr(type + 1);
++
++                const std::string& pdPath = "/xyz/openbmc_project/" +
++                                            name.substr(0, type) + "/" +
++                                            name.substr(type + 1) + "/pd";
++
++                const char* service;
++                const char* inf;
++                const char* driveInf;
++                int flag;
++
++                if (name.substr(0, type) == "HBA")
++                {
++                    service = "xyz.openbmc_project.hba.manager";
++                    inf = "xyz.openbmc_project.hba.Controller";
++                    driveInf = "xyz.openbmc_project.hba.PhysicalDrive";
++                    flag = 2;
++                }
++                else if (name.substr(0, type) == "Raid")
++                {
++                    asyncResp->res.jsonValue["Volumes"] = {
++                        {"@odata.id", "/redfish/v1/Systems/system/Storage/" +
++                                          name + "/Volumes"}};
++                    asyncResp->res
++                        .jsonValue["Actions"]["Oem"]
++                                  ["#StorageCollection.CreateDrive"] = {
++                        {"target", "/redfish/v1/Systems/system/Storage/" +
++                                       name + "/Actions/StorageLDrive.Create"}};
++
++                    asyncResp->res
++                        .jsonValue["Actions"]["Oem"]
++                                  ["#StorageCollection.DeleteDrive"] = {
++                        {"target", "/redfish/v1/Systems/system/Storage/" +
++                                       name + "/Actions/StorageLDrive.Delete"}};
++
++                    service = "xyz.openbmc_project.raid.manager";
++                    inf = "xyz.openbmc_project.raid.Controller";
++                    driveInf = "xyz.openbmc_project.raid.PhysicalDrive";
++                    flag = 1;
++                }
++                else
++                {
++                    messages::internalError(asyncResp->res);
++                    return;
++                }
++                nlohmann::json& storageControllerArray =
++                    asyncResp->res.jsonValue["Drives"];
++                storageControllerArray = nlohmann::json::array();
++                nlohmann::json& count =
++                    asyncResp->res.jsonValue["Drives@odata.count"];
++                const std::array<const char*, 1> interfaces = {driveInf};
++                getPhysicalDrives(asyncResp, name.substr(type + 1),
++                                  storageControllerArray, count, flag, pdPath,
++                                  (interfaces));
++
++                crow::connections::systemBus->async_method_call(
++                    [asyncResp](const boost::system::error_code ec2,
++                                const std::vector<std::pair<
++                                    std::string, std::variant<bool, uint32_t>>>&
++                                    propertiesList) {
++                        if (ec2)
++                        {
++                            return;
++                        }
++                        for (const std::pair<std::string,
++                                             std::variant<bool, uint32_t>>&
++                                 property : propertiesList)
++                        {
++                            const std::string& propertyName = property.first;
++                            if ((propertyName == "manageRAIDConfigStatus") ||
++                                (propertyName == "setRAIDDeleteLDStatus") ||
++                                (propertyName == "configComplete"))
++                            {
++                                const uint32_t* value =
++                                    std::get_if<uint32_t>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    asyncResp->res.jsonValue["Oem"]["OpenBmc"]
++                                                            [propertyName] =
++                                        *value;
++                                }
++                            }
++                        }
++                    },
++                    "xyz.openbmc_project.raid.manager",
++                    "/xyz/openbmc_project/Raid",
++                    "org.freedesktop.DBus.Properties", "GetAll",
++                    "xyz.openbmc_project.raid.Base");
++
++                crow::connections::systemBus->async_method_call(
++                    [asyncResp, name,
++                     type](const boost::system::error_code ec2,
++                           const std::vector<std::pair<
++                               std::string,
++                               std::variant<bool, std::string, uint32_t>>>&
++                               propertiesList) {
++                        if (ec2)
++                        {
++                            messages::internalError(asyncResp->res);
++                            return;
++                        }
++
++                        nlohmann::json& controllerArray =
++                            asyncResp->res.jsonValue["StorageControllers"];
++                        controllerArray = nlohmann::json::array();
++
++                        nlohmann::json& storageController =
++                            controllerArray.emplace_back(
++                                nlohmann::json::object());
++
++                        storageController["@odata.id"] =
++                            "/redfish/v1/Systems/system/Storage/" + name +
++                            "#/StorageControllers/0";
++
++                        for (const std::pair<std::string,
++                                             std::variant<bool, std::string,
++                                                          uint32_t>>& property :
++                             propertiesList)
++                        {
++                            const std::string& propertyName = property.first;
++
++                            if (propertyName == "MemberId")
++                            {
++                                const uint32_t* value =
++                                    std::get_if<uint32_t>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    storageController[propertyName] =
++                                        std::to_string(*value);
++                                }
++                            }
++                            if ((propertyName == "Name") ||
++                                (propertyName == "SerialNumber") ||
++                                (propertyName == "FirmwareVersion"))
++                            {
++                                const std::string* value =
++                                    std::get_if<std::string>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    storageController[propertyName] = *value;
++                                }
++                            }
++
++                            if (propertyName == "Health")
++                            {
++                                const std::string* value =
++                                    std::get_if<std::string>(&property.second);
++                                if (*value == "ok")
++                                    asyncResp->res
++                                        .jsonValue["Status"][propertyName] =
++                                        *value;
++                                else
++                                    asyncResp->res
++                                        .jsonValue["Status"][propertyName] =
++                                        *value;
++                            }
++
++                            if (name.substr(0, type) == "Raid")
++                            {
++                                if ((propertyName ==
++                                     "SupportedRAIDTypes_RAID0") ||
++                                    // (propertyName ==
++                                    //  "SupportedRAIDTypes_RAID00") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID1") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID10") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID1E") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID1E0_RLQ0") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID1E_RLQ0") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID5") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID50") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID6") ||
++                                    (propertyName ==
++                                     "SupportedRAIDTypes_RAID60"))
++                                {
++                                    const bool* value =
++                                        std::get_if<bool>(&property.second);
++                                    nlohmann::json& entriesArray =
++                                        storageController["SupportedRAIDTypes"];
++                                    if (!entriesArray.is_array())
++                                        entriesArray = nlohmann::json::array();
++                                    std::size_t found = propertyName.rfind("_");
++                                    if (found != std::string::npos)
++                                    {
++                                        if (*value == true)
++                                            entriesArray.push_back(
++                                                propertyName.substr(found + 1));
++                                    }
++                                }
++                            }
++                        }
++                    },
++                    service, path, "org.freedesktop.DBus.Properties", "GetAll",
++                    inf);
++            }
++            else
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++        });
++}
++
++inline void requestRoutesPhysicalDrive(App& app)
++{
++    BMCWEB_ROUTE(app, "/redfish/v1/Systems/system/Storage/"
++                      "<str>"
++                      "/Drives/"
++                      "<str>")
++        .privileges(redfish::privileges::getStorage)
++        .methods(
++            boost::beast::http::verb::get)([](const crow::Request&,
++                                              const std::shared_ptr<
++                                                  bmcweb::AsyncResp>& asyncResp,
++                                              const std::string& name,
++                                              const std::string& driveName) {
++//            if (!redfish::utils::checkLicenseStatus(asyncResp, name))
++//            {
++//                return;
++//            }
++            asyncResp->res.jsonValue["@odata.type"] = "#Drive.v1_13_0.Drive";
++            asyncResp->res.jsonValue["@odata.id"] =
++                "/redfish/v1/Systems/system/Storage/" + name + "/Drives/" +
++                driveName;
++
++            asyncResp->res.jsonValue["Oem"]["OpenBmc"]["@odata.type"] =
++                "#OemDrive.v1_0_0.Drive";
++            std::size_t type = name.find("_");
++            if (type != std::string::npos)
++            {
++
++                const char* service;
++                const char* interface;
++                const std::string& pdPath =
++                    "/xyz/openbmc_project/" + name.substr(0, type) + "/" +
++                    name.substr(type + 1) + "/pd/" + driveName;
++
++                if (name.substr(0, type) == "Raid")
++                {
++                    service = "xyz.openbmc_project.raid.manager";
++                    interface = "xyz.openbmc_project.raid.PhysicalDrive";
++                    nlohmann::json& storageControllerArray =
++                        asyncResp->res.jsonValue["Links"]["Volumes"];
++                    storageControllerArray = nlohmann::json::array();
++                    nlohmann::json& count =
++                        asyncResp->res
++                            .jsonValue["Links"]["Volumes@odata.count"];
++                    getLogicalDrives(asyncResp, name.substr(type + 1),
++                                     storageControllerArray, count);
++                }
++                else if (name.substr(0, type) == "HBA")
++                {
++                    service = "xyz.openbmc_project.hba.manager";
++                    interface = "xyz.openbmc_project.hba.PhysicalDrive";
++                }
++                else
++                {
++                    messages::internalError(asyncResp->res);
++                    return;
++                }
++                crow::connections::systemBus->async_method_call(
++                    [asyncResp](
++                        const boost::system::error_code ec2,
++                        const std::vector<std::pair<
++                            std::string,
++                            std::variant<std::string, uint32_t, uint16_t,
++                                         double, uint8_t>>>& propertiesList) {
++                        if (ec2)
++                        {
++                            messages::internalError(asyncResp->res);
++                            return;
++                        }
++                        for (const std::pair<
++                                 std::string,
++                                 std::variant<std::string, uint32_t, uint16_t,
++                                              double, uint8_t>>& property :
++                             propertiesList)
++                        {
++                            const std::string& propertyName = property.first;
++
++                            if (propertyName == "NegotiatedSpeedGbs")
++                            {
++                                const double* value =
++                                    std::get_if<double>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    asyncResp->res.jsonValue[propertyName] =
++                                        *value;
++                                }
++                            }
++                            if (propertyName == "SlotNumber")
++                            {
++                                const uint8_t* value =
++                                    std::get_if<uint8_t>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    asyncResp->res.jsonValue["Oem"]["OpenBmc"]
++                                                            [propertyName] =
++                                        *value;
++                                }
++                            }
++                            if (propertyName == "Id")
++                            {
++                                const uint16_t* value =
++                                    std::get_if<uint16_t>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    asyncResp->res.jsonValue[propertyName] =
++                                        std::to_string(*value);
++                                    asyncResp->res.jsonValue["Name"] =
++                                        "PhysicalDisk_" +
++                                        (std::to_string(*value));
++                                }
++                            }
++
++                            if ((propertyName == "BlockSizeBytes") ||
++                                (propertyName == "FailurePredicted"))
++                            {
++                                const uint32_t* value =
++                                    std::get_if<uint32_t>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    asyncResp->res.jsonValue[propertyName] =
++                                        *value;
++                                }
++                            }
++                            if ((propertyName == "Manufacturer") ||
++                                (propertyName == "Protocol") ||
++                                (propertyName == "Revision") ||
++                                (propertyName == "SerialNumber") ||
++                                (propertyName == "ProductID"))
++                            {
++                                const std::string* value =
++                                    std::get_if<std::string>(&property.second);
++                                if (value != nullptr)
++                                {
++                                    if (propertyName == "ProductID")
++                                        asyncResp->res
++                                            .jsonValue["Oem"]["OpenBmc"]
++                                                      [propertyName] = *value;
++                                    else
++                                        asyncResp->res.jsonValue[propertyName] =
++                                            *value;
++                                }
++                            }
++                            if (propertyName == "Health")
++                            {
++                                const std::string* value =
++                                    std::get_if<std::string>(&property.second);
++                                if (*value == "ok")
++                                    asyncResp->res
++                                        .jsonValue["Status"][propertyName] =
++                                        *value;
++                                else
++                                    asyncResp->res
++                                        .jsonValue["Status"][propertyName] =
++                                        *value;
++                            }
++                        }
++                    },
++                    service, pdPath, "org.freedesktop.DBus.Properties",
++                    "GetAll", interface);
++            }
++            else
++            {
++                messages::actionParameterUnknown(asyncResp->res, "Raid/HBA",
++                                                 name);
++
++                return;
++            }
++        });
++}
++
+ } // namespace redfish

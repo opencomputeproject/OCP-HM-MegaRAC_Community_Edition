@@ -1,0 +1,335 @@
+From c269b355fc7858716b868351f5172c02da5a6ae4 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 29 May 2023 17:55:00 +0530
+Subject: [PATCH] WebUI support for At Scale Debug enhancement
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/env/components/AppNavigation/ami.js       |  9 ++-
+ src/env/router/ami.js                         |  9 +++
+ src/locales/en-US.json                        | 16 ++++-
+ src/locales/ru-RU.json                        | 17 ++++-
+ src/store/index.js                            |  2 +
+ .../modules/HostSystemDiagnostics/AsdStore.js | 52 +++++++++++++++
+ src/views/HostSystemDiagnostics/Asd/Asd.vue   | 63 +++++++++++++++++++
+ src/views/HostSystemDiagnostics/Asd/index.js  |  2 +
+ 8 files changed, 165 insertions(+), 5 deletions(-)
+ create mode 100644 src/store/modules/HostSystemDiagnostics/AsdStore.js
+ create mode 100644 src/views/HostSystemDiagnostics/Asd/Asd.vue
+ create mode 100644 src/views/HostSystemDiagnostics/Asd/index.js
+
+diff --git a/src/env/components/AppNavigation/ami.js b/src/env/components/AppNavigation/ami.js
+index 1299c50..8ec96f2 100644
+--- a/src/env/components/AppNavigation/ami.js
++++ b/src/env/components/AppNavigation/ami.js
+@@ -8,6 +8,7 @@ import IconChevronUp from '@carbon/icons-vue/es/chevron--up/16';
+ import IconDataBase from '@carbon/icons-vue/es/data--base--alt/16';
+ import IconNic from '@carbon/icons-vue/es/network--2/16';
+ import IconObjectStorage from '@carbon/icons-vue/es/object-storage/16';
++import IconHostSystemDiagnostics from '@carbon/icons-vue/es/laptop/16';
+ 
+ const AppNavigationMixin = {
+   components: {
+@@ -21,6 +22,7 @@ const AppNavigationMixin = {
+     iconResourceManagement: IconDataBase,
+     iconNic: IconNic,
+     iconObjectStorage: IconObjectStorage,
++    iconHostSystemDiagnostics: IconHostSystemDiagnostics,
+   },
+   data() {
+     return {
+@@ -191,13 +193,18 @@ const AppNavigationMixin = {
+         {
+           id: 'host-system-diagnostics',
+           label: this.$t('appNavigation.hostSystemDiagnostics'),
+-          icon: 'iconLogs',
++          icon: 'iconHostSystemDiagnostics',
+           children: [
+             {
+               id: 'acd',
+               label: this.$t('appNavigation.autonomousCrashDump'),
+               route: '/host-system-diagnostics/acd',
+             },
++            {
++              id: 'asd',
++              label: this.$t('appNavigation.asd'),
++              route: '/host-system-diagnostics/asd',
++            },
+           ],
+         },
+         {
+diff --git a/src/env/router/ami.js b/src/env/router/ami.js
+index 6b765ff..e96b2dc 100644
+--- a/src/env/router/ami.js
++++ b/src/env/router/ami.js
+@@ -36,6 +36,7 @@ import i18n from '@/i18n';
+ import Dumps from '@/views/Logs/Dumps';
+ import NvmeInformation from '@/views/NvmeInformation';
+ import ACD from '@/views/HostSystemDiagnostics/ACD';
++import Asd from '@/views/HostSystemDiagnostics/Asd';
+ 
+ const routes = [
+   {
+@@ -269,6 +270,14 @@ const routes = [
+           title: i18n.t('appPageTitle.autonomousCrashDump'),
+         },
+       },
++      {
++        path: '/host-system-diagnostics/asd',
++        name: 'asd',
++        component: Asd,
++        meta: {
++          title: i18n.t('appPageTitle.asd'),
++        },
++      },
+       {
+         path: '/resource-management/power',
+         name: 'power',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 9a0ccea..2285a2c 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -140,7 +140,8 @@
+     "nicInformation": "NIC Information",
+     "nvmeInformation": "@:appPageTitle.nvmeInformation",
+     "hostSystemDiagnostics": "Host System Diagnostics",
+-    "autonomousCrashDump": "ACD"
++    "autonomousCrashDump": "ACD",
++    "asd": "@:appPageTitle.asd"
+   },
+   "appPageTitle": {
+     "changePassword": "Change password",
+@@ -177,7 +178,8 @@
+     "alertDestination": "Alert Destination",
+     "nicInformation": "NIC Information",
+     "nvmeInformation": "NVMe Information",
+-    "autonomousCrashDump": "ACD"
++    "autonomousCrashDump": "ACD",
++    "asd": "ASD"
+   },
+   "pageChangePassword": {
+     "changePassword": "Change password",
+@@ -374,6 +376,16 @@
+         "successACDEnabled": "Successfully enabled ACD."
+       }
+   },
++  "pageAsd": {
++    "pageDescription": "At-Scale Debug Service",
++    "asdServer": "ASD Server",
++    "toast": {
++      "errorAsdDisabled": "Error disabling ASD server.",
++      "errorAsdEnabled": "Error enabling ASD server.",
++      "successAsdDisabled": "Successfully disabled ASD server.",
++      "successAsdEnabled": "Successfully enabled ASD server."
++    }
++  },
+   "pageFactoryReset": {
+     "description": "These functions do not perform a secure delete of any sensitive data.",
+     "form": {
+diff --git a/src/locales/ru-RU.json b/src/locales/ru-RU.json
+index db5b85b..9df1df8 100644
+--- a/src/locales/ru-RU.json
++++ b/src/locales/ru-RU.json
+@@ -115,6 +115,7 @@
+     "kvm": "@:appPageTitle.kvm",
+     "ldap": "@:appPageTitle.ldap",
+     "logs": "Логи",
++    "hostSystemDiagnostics": "Диагностика хост-системы",
+     "userManagement": "@:appPageTitle.userManagement",
+     "network": "@:appPageTitle.network",
+     "overview": "@:appPageTitle.overview",
+@@ -129,7 +130,8 @@
+     "certificates": "@:appPageTitle.certificates",
+     "virtualMedia": "@:appPageTitle.virtualMedia",
+     "power": "@:appPageTitle.power",
+-    "keyClear": "@:appPageTitle.keyClear"
++    "keyClear": "@:appPageTitle.keyClear",
++    "asd": "@:appPageTitle.asd"
+   },
+   "appPageTitle": {
+     "changePassword": "Изменить пароль",
+@@ -158,7 +160,8 @@
+     "serverPowerOperations": "Управление питанием сервера",
+     "certificates": "Сертификаты",
+     "virtualMedia": "Виртуальные носители",
+-    "keyClear": "Удаление ключей"
++    "keyClear": "Удаление ключей",
++    "asd": "ASD"
+   },
+   "pageChangePassword": {
+     "changePassword": "Изменить пароль",
+@@ -282,6 +285,16 @@
+       "successUnresolveLogs": "Успешная отмена разрешения с %{count} записи. | Успешная отмена разрешения с %{count} записей."
+     }
+   },
++  "pageAsd": {
++    "pageDescription": "Служба отладки в масштабе",
++    "asdServer": "ASD Сервер",
++    "toast": {
++      "errorAsdDisabled": "Ошибка отключения сервера ASD.",
++      "errorAsdEnabled": "Ошибка включения сервера ASD.",
++      "successAsdDisabled": "Успешно отключен сервер ASD.",
++      "successAsdEnabled": "Сервер ASD успешно включен."
++    }
++  },
+   "pageFactoryReset": {
+     "description": "Эти функции не выполняют безопасное удаление любых конфиденциальных данных.",
+     "form": {
+diff --git a/src/store/index.js b/src/store/index.js
+index 8be59f2..50a7153 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -40,6 +40,7 @@ import AlertDestinationStore from './modules/Pef/alertDestinationStore';
+ import NicStore from './modules/Nic/Nic';
+ import NvmeInformationStore from './modules/NvmeInformation/NvmeInformationStore';
+ import AutonomousCrashDumpStore from './modules/HostSystemDiagnostics/AcdStore';
++import AsdStore from './modules/HostSystemDiagnostics/AsdStore';
+ 
+ Vue.use(Vuex);
+ 
+@@ -86,6 +87,7 @@ export default new Vuex.Store({
+     nic: NicStore,
+     nvme: NvmeInformationStore,
+     acd: AutonomousCrashDumpStore,
++    asd: AsdStore,
+   },
+   plugins: [WebSocketPlugin],
+ });
+diff --git a/src/store/modules/HostSystemDiagnostics/AsdStore.js b/src/store/modules/HostSystemDiagnostics/AsdStore.js
+new file mode 100644
+index 0000000..9fa0a5b
+--- /dev/null
++++ b/src/store/modules/HostSystemDiagnostics/AsdStore.js
+@@ -0,0 +1,52 @@
++import i18n from '@/i18n';
++import api from '@/store/api';
++
++const AsdStore = {
++  namespaced: true,
++  state: {
++    asdServerEnabled: null,
++  },
++  getters: {
++    asdServerEnabled: (state) => state.asdServerEnabled,
++  },
++  mutations: {
++    setAsdServerEnabled: (state, asdServerEnabled) =>
++      (state.asdServerEnabled = asdServerEnabled),
++  },
++  actions: {
++    async getAsdServerStatus({ commit }) {
++      return await api
++        .get('/redfish/v1/Oem/Ami/AtScaleDebug')
++        .then((response) => {
++          commit('setAsdServerEnabled', response.data.Enabled);
++        })
++        .catch((error) => console.log(error));
++    },
++    async saveAsdServerStatus({ commit, dispatch }, asdServerEnabled) {
++      commit('setAsdServerEnabled', asdServerEnabled);
++      const asd = {
++        Enabled: asdServerEnabled,
++      };
++      return await api
++        .patch('/redfish/v1/Oem/Ami/AtScaleDebug', asd)
++        .then(dispatch('getAsdServerStatus'))
++        .then(() => {
++          if (asdServerEnabled) {
++            return i18n.t('pageAsd.toast.successAsdEnabled');
++          } else {
++            return i18n.t('pageAsd.toast.successAsdDisabled');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setAsdServerEnabled', !asdServerEnabled);
++          if (asdServerEnabled) {
++            throw new Error(i18n.t('pageAsd.toast.errorAsdEnabled'));
++          } else {
++            throw new Error(i18n.t('pageAsd.toast.errorAsdDisabled'));
++          }
++        });
++    },
++  },
++};
++export default AsdStore;
+diff --git a/src/views/HostSystemDiagnostics/Asd/Asd.vue b/src/views/HostSystemDiagnostics/Asd/Asd.vue
+new file mode 100644
+index 0000000..c2185ba
+--- /dev/null
++++ b/src/views/HostSystemDiagnostics/Asd/Asd.vue
+@@ -0,0 +1,63 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pageAsd.pageDescription')" />
++    <div class="form-background p-5">
++      <b-col class="d-flex">
++        <dl class="mr-3 w-10">
++          <dd>
++            {{ $t('pageAsd.asdServer') }}
++          </dd>
++        </dl>
++        <b-form-checkbox
++          id="asdServer"
++          v-model="asdServer"
++          switch
++          @change="changeAsdServer"
++        >
++          <span v-if="asdServer">
++            {{ $t('global.status.enabled') }}
++          </span>
++          <span v-else>{{ $t('global.status.disabled') }}</span>
++        </b-form-checkbox>
++      </b-col>
++    </div>
++  </b-container>
++</template>
++
++<script>
++import PageTitle from '@/components/Global/PageTitle';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++
++export default {
++  components: {
++    PageTitle,
++  },
++  mixins: [LoadingBarMixin, BVToastMixin],
++  computed: {
++    asdServer: {
++      get() {
++        return this.$store.getters['asd/asdServerEnabled'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++  },
++  created() {
++    this.startLoader();
++    this.$store.dispatch('asd/getAsdServerStatus').finally(() => {
++      this.endLoader();
++    });
++  },
++  methods: {
++    changeAsdServer(state) {
++      this.$store
++        .dispatch('asd/saveAsdServerStatus', state)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
++  },
++};
++</script>
++<style scoped></style>
+diff --git a/src/views/HostSystemDiagnostics/Asd/index.js b/src/views/HostSystemDiagnostics/Asd/index.js
+new file mode 100644
+index 0000000..f2babce
+--- /dev/null
++++ b/src/views/HostSystemDiagnostics/Asd/index.js
+@@ -0,0 +1,2 @@
++import Asd from './Asd.vue';
++export default Asd;
+-- 
+2.25.1
+

@@ -1,0 +1,487 @@
+From 5e31cbe021b7553a567acacb54a34e4b774bf025 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Tue, 16 May 2023 12:36:12 +0530
+Subject: [PATCH] Add SNMP Trap Alert Support over PEF
+
+Current PEF Alert supports SMTP mail alerts only when an event is detected
+for the configured sensors.This patch add the support to generate an SNMP
+v2 Trap to the Client when the Destination type is configured for SNMP.
+D-Bus method for configuring the client and destination type is added.
+
+The user can configure multiple Client destination and the SNMP trap will
+be sent to all the configured Destination.Default DestinationType will be
+SMTP Mail alert, in order to send an SNMP Trap alert the destination type
+should be updated over D-Bus.Every configuration persistent across BMC reboot.
+
+Tested and Verified on AVC-2SPC PPO & Archercity platform
+
+Test Case:
+-Configured the client destination over D-Bus method and the configuration
+is successfully available over D-Bus.
+-Enable the Sensors Filter From WebUI
+-Configure the Destination type as SNMP over D-Bus
+-Trigger an Threshold sensors event and confirm the Trap is received to
+configured Destination.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ CMakeLists.txt         |   4 +
+ include/pef_action.hpp |  18 ++++
+ include/pef_config.hpp |   4 +
+ include/pef_utils.hpp  |   6 ++
+ include/sdrutils.hpp   |   5 +-
+ src/pef_action.cpp     | 239 ++++++++++++++++++++++++++++++++---------
+ src/pef_config.cpp     |  18 ++++
+ 7 files changed, 242 insertions(+), 52 deletions(-)
+ mode change 100755 => 100644 include/sdrutils.hpp
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 88fb004..ae4d52e 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -24,6 +24,8 @@ pkg_check_modules(SYSTEMD libsystemd REQUIRED)
+ find_package(PkgConfig REQUIRED)
+ pkg_check_modules(SDBUSPLUSPLUS sdbusplus REQUIRED)
+ 
++find_library(SNMP_LIBRARY NAMES snmp)
++
+ add_executable(pef-configuration ${SOURCE_FILES})
+ add_executable(pef-event-filtering ${SRC_FILES})
+ 
+@@ -36,6 +38,8 @@ target_link_libraries(pef-event-filtering systemd)
+ target_link_libraries(pef-event-filtering boost_coroutine)
+ target_link_libraries(pef-event-filtering sdbusplus -lstdc++fs)
+ target_link_libraries(pef-event-filtering ${Boost_LIBRARIES})
++target_link_libraries(pef-event-filtering ${SNMP_LIBRARY})
++
+ 
+ link_directories(${EXTERNAL_INSTALL_LOCATION}/lib)
+ 
+diff --git a/include/pef_action.hpp b/include/pef_action.hpp
+index 965d839..319edf4 100644
+--- a/include/pef_action.hpp
++++ b/include/pef_action.hpp
+@@ -27,6 +27,9 @@
+ #define RESET_ACTION 0x04
+ #define POWER_OFF_ACTION 0x02
+ #define ALERT_ACTION 0x01
++#define EVENT_TYPE 0x7f
++#define EVENT_DIRECTION 0x80
++#define EVENT_STATE 0x0f
+ 
+ using namespace std::chrono;
+ 
+@@ -75,6 +78,11 @@ static constexpr const char* pefPostponeTmrIface =
+     "xyz.openbmc_project.pef.PEFPostponeTimer";
+ static constexpr const char* pefPostponeCountDownIface =
+     "xyz.openbmc_project.pef.CountdownTmr";
++static constexpr const char* destStringTableIntf =
++    "xyz.openbmc_project.pef.DestinationSelectorTable";
++std::string destObjBase =
++    "/xyz/openbmc_project/PefAlertManager/DestinationSelector/Entry";
++
+ /*mail alert*/
+ static constexpr const char* mailService = "xyz.openbmc_project.mail";
+ static constexpr const char* mailObjPath = "/xyz/openbmc_project/mail/alert";
+@@ -448,3 +456,13 @@ static bool SetFilterEnable(std::vector<uint8_t> FilterEnable)
+ 
+     return true;
+ }
++
++static uint16_t sendSNMPAlert(struct EventMsgData);
++
++uint64_t getTimeStamp()
++{
++
++    const auto now = std::chrono::system_clock::now();
++    const std::time_t t_c = std::chrono::system_clock::to_time_t(now);
++    return static_cast<uint64_t>(t_c);
++}
+diff --git a/include/pef_config.hpp b/include/pef_config.hpp
+index 0908219..0fb6705 100644
+--- a/include/pef_config.hpp
++++ b/include/pef_config.hpp
+@@ -34,6 +34,10 @@ static constexpr const char* alertStringTableObj =
+     "/xyz/openbmc_project/PefAlertManager/AlertStringTable/Entry";
+ static constexpr const char* alertStringTableIntf =
+     "xyz.openbmc_project.pef.AlertStringTable";
++static constexpr const char* destStringTableObj =
++    "/xyz/openbmc_project/PefAlertManager/DestinationSelector/Entry";
++static constexpr const char* destStringTableIntf =
++    "xyz.openbmc_project.pef.DestinationSelectorTable";
+ 
+ // static constexpr const char* pefConfFilePath =
+ // "/usr/share/pef-alert-manager/pef-alert-manager.json";
+diff --git a/include/pef_utils.hpp b/include/pef_utils.hpp
+index 0629fa4..7a2bde7 100644
+--- a/include/pef_utils.hpp
++++ b/include/pef_utils.hpp
+@@ -66,3 +66,9 @@ struct AlertStringTbl
+     uint16_t AlertString1;
+     uint16_t AlertString2;
+ };
++
++struct pefDestSelector
++{
++    uint8_t LanChannel;
++    uint8_t DestinationType;
++};
+diff --git a/include/sdrutils.hpp b/include/sdrutils.hpp
+old mode 100755
+new mode 100644
+index 62336e5..0a802da
+--- a/include/sdrutils.hpp
++++ b/include/sdrutils.hpp
+@@ -46,7 +46,6 @@ inline static void filterSensors(SensorSubTree& subtree)
+         subtree.end());
+ }
+ 
+-
+ inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+ {
+     static std::shared_ptr<SensorSubTree> sensorTreePtr;
+@@ -89,8 +88,8 @@ inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+     static constexpr const auto depth = 2;
+     static constexpr std::array<const char*, 5> interfaces = {
+         "xyz.openbmc_project.Sensor.Value",
+-	"xyz.openbmc_project.Inventory.Item.Cpu",
+-	"xyz.openbmc_project.Inventory.Item.Watchdog",
++        "xyz.openbmc_project.Inventory.Item.Cpu",
++        "xyz.openbmc_project.Inventory.Item.Watchdog",
+         "xyz.openbmc_project.Sensor.Threshold.Warning",
+         "xyz.openbmc_project.Sensor.Threshold.Critical"};
+     mapperCall.append("/xyz/openbmc_project/sensors", depth, interfaces);
+diff --git a/src/pef_action.cpp b/src/pef_action.cpp
+index 3f82cab..d05e3f7 100644
+--- a/src/pef_action.cpp
++++ b/src/pef_action.cpp
+@@ -9,6 +9,8 @@
+ 
+ #include "pef_config_update.hpp"
+ 
++#include <snmp.hpp>
++#include <snmp_notification.hpp>
+ #include <string>
+ 
+ static bool getPowerStatus()
+@@ -106,6 +108,93 @@ static bool checkSampleEvent(struct EventMsgData* eveMsgData)
+     return false;
+ }
+ 
++static uint16_t sendSNMPAlert(struct EventMsgData* eventMsg)
++{
++    const std::string sensorPath = getPathFromSensorNumber(eventMsg->sensorNum);
++    std::string sensorType = getSensorTypeStringFromPath(sensorPath.c_str());
++    std::string sensorName;
++    std::string severity;
++    std::string direction = "Asserted";
++    uint8_t sensorEventType = (eventMsg->eventType & EVENT_TYPE);
++    std::size_t found = sensorPath.find_last_of("/\\");
++    sensorName = sensorPath.substr(found + 1);
++    if (sensorName.empty())
++    {
++        sensorName = "unknown sensorName";
++    }
++    if (sensorType.empty())
++    {
++        sensorType = "unkown sensorType";
++    }
++
++    uint8_t eventData = (eventMsg->eventData[0] & EVENT_STATE);
++    bool assert = (eventMsg->eventType & EVENT_DIRECTION) ? false : true;
++    if (sensorEventType != static_cast<uint8_t>(EventTypeCode::sensor_specific))
++    {
++        switch (eventData)
++        {
++            case 0x02:
++            case 0x09:
++                severity = "Critical";
++                break;
++            case 0x00:
++            case 0x07:
++                severity = "Warning";
++                break;
++        }
++        if (!assert)
++        {
++            severity = "OK";
++            direction = "Deasserted";
++        }
++    }
++    else
++    {
++        severity = "Information";
++    }
++    std::string eventDataMsg = "unknown event";
++    if (!(eventMsg->msgStr).empty())
++    {
++        eventDataMsg = eventMsg->msgStr;
++    }
++    else
++    {
++        uint8_t eventType = (eventMsg->eventType & EVENT_TYPE);
++        if (eventType == static_cast<uint8_t>(EventTypeCode::threshold))
++        {
++            eventDataMsg = THRESHOLD_EVENT_TABLE.find(eventData)->second;
++        }
++        else if (eventType == static_cast<uint8_t>(EventTypeCode::generic))
++        {
++            auto offset =
++                GENERIC_EVENT_TABLE.find(eventMsg->sensorType)->second;
++            eventDataMsg = offset.find(eventData)->second;
++        }
++        else if (eventType ==
++                 static_cast<uint8_t>(EventTypeCode::sensor_specific))
++        {
++            auto offset =
++                SENSOR_SPECIFIC_EVENT_TABLE.find(eventMsg->sensorType)->second;
++            std::string eventStr = offset.find(eventData)->second;
++            eventDataMsg = sensorName + " " + direction + " " + eventStr;
++        }
++    }
++    auto timeStamp = getTimeStamp();
++    try
++    {
++        phosphor::network::snmp::sendTrap<
++            phosphor::network::snmp::OBMCErrorNotification>(
++            static_cast<uint32_t>(eventMsg->recordId), timeStamp,
++            static_cast<uint8_t>(eventData), eventDataMsg);
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to send SNMP Trap");
++    }
++
++    return 0;
++}
+ static uint16_t sendSmtpAlert(std::string rec, struct EventMsgData* eveMsg,
+                               uint8_t eveLog)
+ {
+@@ -129,19 +218,19 @@ static uint16_t sendSmtpAlert(std::string rec, struct EventMsgData* eveMsg,
+     bool assert = (eveMsg->eventType & 0x80) ? false : true;
+     if (sensorEveType != static_cast<uint8_t>(EventTypeCode::sensor_specific))
+     {
+-	    if (evnDat == 0x02 || evnDat == 0x09)
+-	    {
+-	        severity = "Critical";
+-	    }
+-	    else if (evnDat == 0x00 || evnDat == 0x07)
+-	    {
+-	        severity = "Warning";
+-	    }
++        if (evnDat == 0x02 || evnDat == 0x09)
++        {
++            severity = "Critical";
++        }
++        else if (evnDat == 0x00 || evnDat == 0x07)
++        {
++            severity = "Warning";
++        }
+ 
+-	    if (!assert)
+-	    {
+-	        severity = "Ok";
+-	    }
++        if (!assert)
++        {
++            severity = "Ok";
++        }
+     }
+     else
+     {
+@@ -476,8 +565,8 @@ static void performPefAction(std::vector<std::string>& matEveFltEntries,
+                         reply.read(alertPolicyValues);
+                         AlertPlyTbl.AlertNum =
+                             std::get<uint8_t>(alertPolicyValues.at("AlertNum"));
+-                        // AlertPlyTbl.ChannelDestSel =
+-                        // std::get<uint8_t>(alertPolicyValues.at("ChannelDestSel"));
++                        AlertPlyTbl.ChannelDestSel = std::get<uint8_t>(
++                            alertPolicyValues.at("ChannelDestSel"));
+                         // AlertPlyTbl.AlertStingkey =
+                         // std::get<uint8_t>(alertPolicyValues.at("AlertStingkey"));
+                     }
+@@ -492,64 +581,116 @@ static void performPefAction(std::vector<std::string>& matEveFltEntries,
+                     if (0 != (AlertPlyTbl.AlertNum & 0x08))
+                     {
+                         uint16_t alertStatus;
+-                        std::vector<std::string> recipient;
+-                        Value variant;
++                        pefDestSelector pefDestInfo;
++                        pefDestInfo = {};
+ 
+                         try
+                         {
++                            PropertyMap pefCfgValues;
++                            uint8_t alertTable =
++                                AlertPlyTbl.ChannelDestSel & 0x07;
++                            std::string destObjPath =
++                                destObjBase + std::to_string(alertTable);
+                             auto method = conn->new_method_call(
+-                                pefBus, pefObj, PROP_INTF, METHOD_GET);
+-                            method.append(pefConfInfoIntf, "Recipient");
++                                pefBus, destObjPath.c_str(), PROP_INTF,
++                                METHOD_GET_ALL);
++                            method.append(destStringTableIntf);
+                             auto reply = conn->call(method);
+-                            reply.read(variant);
+-                            recipient =
+-                                std::get<std::vector<std::string>>(variant);
++                            if (reply.is_method_error())
++                            {
++                                phosphor::logging::log<
++                                    phosphor::logging::level::ERR>(
++                                    "Failed to get all Destination Selector "
++                                    "properties");
++                            }
++                            reply.read(pefCfgValues);
++                            pefDestInfo.DestinationType = std::get<uint8_t>(
++                                pefCfgValues.at("DestinationType"));
+                         }
+                         catch (sdbusplus::exception_t& e)
+                         {
+                             phosphor::logging::log<
+                                 phosphor::logging::level::ERR>(
+-                                "Failed to get recipient",
++                                "Failed to fetch Destination conf info for Pef",
+                                 phosphor::logging::entry("EXCEPTION=%s",
+                                                          e.what()));
+-                            return;
+                         }
+-                        for (int i = 0; i < recipient.size(); i++)
++                        if (pefDestInfo.DestinationType == 1)
+                         {
+-                            if (recipient[i].empty())
++                            std::vector<std::string> recipient;
++                            Value variant;
++                            try
+                             {
+-                                continue;
++                                auto method = conn->new_method_call(
++                                    pefBus, pefObj, PROP_INTF, METHOD_GET);
++                                method.append(pefConfInfoIntf, "Recipient");
++                                auto reply = conn->call(method);
++                                reply.read(variant);
++                                recipient =
++                                    std::get<std::vector<std::string>>(variant);
+                             }
+-                            alertStatus = sendSmtpAlert(recipient[i], eveMsg,
+-                                                        pefcfgInfo.PEFControl);
+-
+-                            if (alertStatus == 0)
++                            catch (sdbusplus::exception_t& e)
+                             {
+                                 phosphor::logging::log<
+-                                    phosphor::logging::level::INFO>(
+-                                    "Alert Send Sucessfully!!!");
+-                                try
+-                                {
+-                                    auto method = conn->new_method_call(
+-                                        pefBus, pefObj,
+-                                        "org.freedesktop.DBus.Properties",
+-                                        "Set");
+-                                    method.append(pefConfInfoIntf,
+-                                                  "LastBMCProcessedEventID");
+-                                    method.append(std::variant<uint16_t>(
+-                                        eveMsg->recordId));
+-                                    auto reply = conn->call(method);
+-                                }
+-                                catch (std::exception& e)
++                                    phosphor::logging::level::ERR>(
++                                    "Failed to get recipient",
++                                    phosphor::logging::entry("EXCEPTION=%s",
++                                                             e.what()));
++                                return;
++                            }
++
++                            for (auto& rec : recipient)
++                            {
++
++                                alertStatus = sendSmtpAlert(
++                                    rec, eveMsg, pefcfgInfo.PEFControl);
++
++                                if (alertStatus == 0)
+                                 {
+                                     phosphor::logging::log<
+-                                        phosphor::logging::level::ERR>(
+-                                        "Failed to set LastBMCProcessedEventID",
+-                                        phosphor::logging::entry("EXCEPTION=%s",
+-                                                                 e.what()));
++                                        phosphor::logging::level::INFO>(
++                                        "Alert Send Sucessfully!!!");
++                                    try
++                                    {
++                                        auto method = conn->new_method_call(
++                                            pefBus, pefObj,
++                                            "org.freedesktop.DBus.Properties",
++                                            "Set");
++                                        method.append(
++                                            pefConfInfoIntf,
++                                            "LastBMCProcessedEventID");
++                                        method.append(std::variant<uint16_t>(
++                                            eveMsg->recordId));
++                                        auto reply = conn->call(method);
++                                    }
++                                    catch (std::exception& e)
++                                    {
++                                        phosphor::logging::log<
++                                            phosphor::logging::level::ERR>(
++                                            "Failed to set "
++                                            "LastBMCProcessedEventID",
++                                            phosphor::logging::entry(
++                                                "EXCEPTION=%s", e.what()));
++                                    }
+                                 }
+                             }
+                         }
++                        else if (pefDestInfo.DestinationType == 0)
++                        {
++                            alertStatus = sendSNMPAlert(eveMsg);
++                            if (alertStatus == 0)
++                            {
++                                phosphor::logging::log<
++                                    phosphor::logging::level::INFO>(
++                                    "SNMP Trap Send Sucessfully!!!");
++                            }
++                            else
++                            {
++                                phosphor::logging::log<
++                                    phosphor::logging::level::INFO>(
++                                    "Failed to send SNMP Trap");
++                            }
++                        }
+                     }
+                 }
+             }
+diff --git a/src/pef_config.cpp b/src/pef_config.cpp
+index a0f94da..2441401 100644
+--- a/src/pef_config.cpp
++++ b/src/pef_config.cpp
+@@ -387,6 +387,24 @@ void parsePefConfToDbus(std::shared_ptr<sdbusplus::asio::connection> conn,
+                 sdbusplus::asio::PropertyPermission::readWrite);
+             alertStringTblIface->initialize(true);
+         }
++
++        for (const auto& destSelTable : data["DestinationSelector"])
++        {
++            int lanDestEntry = 0;
++            lanDestEntry = destSelTable["LanDestination"];
++            std::string destStrObjName =
++                destStringTableObj + std::to_string(lanDestEntry);
++            std::shared_ptr<sdbusplus::asio::dbus_interface> destSelIface =
++                objectServer.add_interface(destStrObjName, destStringTableIntf);
++            destSelIface->register_property(
++                "LanChannel", static_cast<uint8_t>(destSelTable["LanChannel"]),
++                sdbusplus::asio::PropertyPermission::readWrite);
++            destSelIface->register_property(
++                "DestinationType",
++                static_cast<uint8_t>(destSelTable["DestinationType"]),
++                sdbusplus::asio::PropertyPermission::readWrite);
++            destSelIface->initialize(true);
++        }
+     }
+     catch (nlohmann::json::exception& e)
+     {
+-- 
+2.25.1
+

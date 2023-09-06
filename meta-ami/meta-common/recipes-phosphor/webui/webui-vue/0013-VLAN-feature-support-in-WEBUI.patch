@@ -1,0 +1,617 @@
+From c324bfebe53170f6325ec7e2d81246664a9b6465 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 21 Sep 2022 15:42:50 +0530
+Subject: [PATCH] VLAN feature support in WEBUI
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ .../AppNavigation/AppNavigationMixin.js       |   5 +
+ src/env/components/AppNavigation/intel.js     |   5 +
+ src/env/router/intel.js                       |   9 +
+ src/locales/en-US.json                        |  25 +-
+ src/router/routes.js                          |   9 +
+ src/store/index.js                            |   2 +
+ src/store/modules/Settings/VlanStore.js       | 104 +++++++++
+ src/views/Settings/Vlan/Vlan.vue              |  77 ++++++
+ src/views/Settings/Vlan/VlanListTable.vue     | 221 ++++++++++++++++++
+ src/views/Settings/Vlan/index.js              |   2 +
+ 10 files changed, 458 insertions(+), 1 deletion(-)
+ create mode 100644 src/store/modules/Settings/VlanStore.js
+ create mode 100644 src/views/Settings/Vlan/Vlan.vue
+ create mode 100644 src/views/Settings/Vlan/VlanListTable.vue
+ create mode 100644 src/views/Settings/Vlan/index.js
+
+diff --git a/src/components/AppNavigation/AppNavigationMixin.js b/src/components/AppNavigation/AppNavigationMixin.js
+index bbbbb1e..cf0ddfd 100644
+--- a/src/components/AppNavigation/AppNavigationMixin.js
++++ b/src/components/AppNavigation/AppNavigationMixin.js
+@@ -123,6 +123,11 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.network'),
+               route: '/settings/network',
+             },
++            {
++              id: 'vlan',
++              label: this.$t('appNavigation.vlan'),
++              route: '/settings/vlan',
++            },
+             {
+               id: 'power-restore-policy',
+               label: this.$t('appNavigation.powerRestorePolicy'),
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index bbb2375..859c24f 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -118,6 +118,11 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.network'),
+               route: '/settings/network',
+             },
++            {
++              id: 'vlan',
++              label: this.$t('appNavigation.vlan'),
++              route: '/settings/vlan',
++            },
+           ],
+         },
+         {
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index 0cf211a..24a9abb 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -13,6 +13,7 @@ import UserManagement from '@/views/SecurityAndAccess/UserManagement';
+ import Login from '@/views/Login';
+ import LoginLayout from '@/layouts/LoginLayout';
+ import Network from '@/views/Settings/Network';
++import Vlan from '@/views/Settings/Vlan';
+ import Overview from '@/views/Overview';
+ import PageNotFound from '@/views/PageNotFound';
+ import PostCodeLogs from '@/views/Logs/PostCodeLogs';
+@@ -204,6 +205,14 @@ const routes = [
+           title: i18n.t('appPageTitle.network'),
+         },
+       },
++      {
++        path: '/settings/vlan',
++        name: 'vlan',
++        component: Vlan,
++        meta: {
++          title: i18n.t('appPageTitle.vlan'),
++        },
++      },
+       {
+         path: '/resource-management/power',
+         name: 'power',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 1c071e4..eb6a547 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -20,7 +20,8 @@
+       "reset": "Reset",
+       "save": "Save",
+       "saveSettings": "Save settings",
+-      "selected": "Selected"
++      "selected": "Selected",
++      "ok": "OK"
+     },
+     "ariaLabel": {
+       "clearSearch": "Clear search input",
+@@ -115,6 +116,7 @@
+     "logs": "Logs",
+     "userManagement": "@:appPageTitle.userManagement",
+     "network": "@:appPageTitle.network",
++    "vlan": "@:appPageTitle.vlan",
+     "overview": "@:appPageTitle.overview",
+     "primaryNavigation": "Primary navigation",
+     "postCodeLogs": "@:appPageTitle.postCodeLogs",
+@@ -145,6 +147,7 @@
+     "userManagement": "User management",
+     "login": "Login",
+     "network": "Network",
++    "vlan": "VLAN",
+     "overview": "Overview",
+     "pageNotFound": "Page not found",
+     "postCodeLogs": "POST code logs",
+@@ -734,6 +737,26 @@
+       "successSaveNetworkSettings": "Successfully updated %{setting} settings."
+     }
+   },
++  "pageVlan": {
++    "vlan": "VLAN Settings",
++    "table": {
++      "virtualInterface": "Virtual Interface",
++      "id": "VLAN ID",
++      "add": "Add",
++      "deleteVlan": "Delete Vlan Id"
++    },
++    "toast": {
++      "successAddedVlan": "Successfully updated network configuration.",
++      "errorAddedVlan": "Error adding VLAN.",
++      "successDeleteVlan": "Virtual interface was deleted successfully.",
++      "errorDeleteVlan": "Error deleting VLAN.",
++      "errorVlanId": "The VLAN ID should be in the range of 1~4094."
++    },
++    "modal": {
++      "confirmTitle": "Confirm?",
++      "confirmMessage": "This feature may change the IP address of the device, making further access impossible. After confirming the device IP, you can log in with the new IP. Do you want to proceed?"
++    }
++  },
+   "pagePageNotFound": {
+     "description": "The requested resource could not be found."
+   },
+diff --git a/src/router/routes.js b/src/router/routes.js
+index 14c8b69..5b8ed38 100644
+--- a/src/router/routes.js
++++ b/src/router/routes.js
+@@ -15,6 +15,7 @@ import UserManagement from '@/views/SecurityAndAccess/UserManagement';
+ import Login from '@/views/Login';
+ import LoginLayout from '@/layouts/LoginLayout';
+ import Network from '@/views/Settings/Network';
++import Vlan from '@/views/Settings/Vlan';
+ import Overview from '@/views/Overview';
+ import PageNotFound from '@/views/PageNotFound';
+ import PostCodeLogs from '@/views/Logs/PostCodeLogs';
+@@ -232,6 +233,14 @@ const routes = [
+           title: i18n.t('appPageTitle.network'),
+         },
+       },
++      {
++        path: '/settings/vlan',
++        name: 'vlan',
++        component: Vlan,
++        meta: {
++          title: i18n.t('appPageTitle.vlan'),
++        },
++      },
+       {
+         path: '/settings/power-restore-policy',
+         name: 'power-restore-policy',
+diff --git a/src/store/index.js b/src/store/index.js
+index 050da7b..2218556 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -13,6 +13,7 @@ import ControlStore from './modules/Operations/ControlStore';
+ import PowerControlStore from './modules/ResourceManagement/PowerControlStore';
+ import PowerPolicyStore from './modules/Settings/PowerPolicyStore';
+ import NetworkStore from './modules/Settings/NetworkStore';
++import VlanStore from './modules/Settings/VlanStore';
+ import EventLogStore from './modules/Logs/EventLogStore';
+ import SensorsStore from './modules/HardwareStatus/SensorsStore';
+ import ServerLedStore from './modules/HardwareStatus/ServerLedStore';
+@@ -53,6 +54,7 @@ export default new Vuex.Store({
+     powerPolicy: PowerPolicyStore,
+     powerSupply: PowerSupplyStore,
+     network: NetworkStore,
++    vlan: VlanStore,
+     eventLog: EventLogStore,
+     sensors: SensorsStore,
+     serverLed: ServerLedStore,
+diff --git a/src/store/modules/Settings/VlanStore.js b/src/store/modules/Settings/VlanStore.js
+new file mode 100644
+index 0000000..3dd18a9
+--- /dev/null
++++ b/src/store/modules/Settings/VlanStore.js
+@@ -0,0 +1,104 @@
++import api from '@/store/api';
++import i18n from '@/i18n';
++const NetworkStore = {
++  namespaced: true,
++  state: {
++    vlanTableData: [],
++    vlanAllData: [],
++  },
++  getters: {
++    vlanTableData: (state) => state.vlanTableData,
++    vlanAllData: (state) => state.vlanAllData,
++  },
++  mutations: {
++    setVlanTableData: (state, vlanData) => (state.vlanTableData = vlanData),
++    setVlanAllData: (state, vlanData) => (state.vlanAllData = vlanData),
++  },
++  actions: {
++    async getEthernetData({ commit }) {
++      return await api
++        .get('/redfish/v1/Managers/bmc/EthernetInterfaces')
++        .then((response) =>
++          response.data.Members.map(
++            (ethernetInterface) => ethernetInterface['@odata.id']
++          )
++        )
++        .then((ethernetInterfaceIds) =>
++          api.all(
++            ethernetInterfaceIds.map((ethernetInterface) =>
++              api.get(ethernetInterface)
++            )
++          )
++        )
++        .then((ethernetInterfaces) => {
++          const vlanAllData = ethernetInterfaces.map(
++            (ethernetInterface) => ethernetInterface.data
++          );
++          commit('setVlanAllData', vlanAllData);
++          console.log(vlanAllData);
++          const vlanTableData = [];
++          ethernetInterfaces.map((ethernetInterface) => {
++            if (ethernetInterface.data.VLANs) {
++              api
++                .get(ethernetInterface.data.VLANs['@odata.id'])
++                .then((response) =>
++                  response.data.Members.map(
++                    (ethernetInterface) => ethernetInterface['@odata.id']
++                  )
++                )
++                .then((ethernetInterfaceIds) =>
++                  api.all(
++                    ethernetInterfaceIds.map((ethernetInterface) =>
++                      api.get(ethernetInterface)
++                    )
++                  )
++                )
++                .then((result) => {
++                  const vlanData = result.map(
++                    (ethernetInterface) => ethernetInterface.data
++                  );
++                  vlanTableData.push(vlanData);
++                });
++            }
++          });
++          commit('setVlanTableData', vlanTableData);
++          console.log('setVlanTableData', vlanTableData);
++        })
++        .catch((error) => {
++          console.log('VLAN Error:', error);
++        });
++    },
++    async addVlan({ dispatch }, { VLANEnable, VLANId, TabId }) {
++      const data = {
++        VLANId: VLANId,
++        VLANEnable: VLANEnable,
++      };
++      return await api
++        .post(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${TabId}/VLANs/`,
++          data
++        )
++        .then(() => dispatch('getEthernetData'))
++        .then(() => i18n.tc('pageVlan.toast.successAddedVlan'))
++        .catch((error) => {
++          console.log(error);
++          throw new Error(i18n.tc('pageVlan.toast.errorAddedVlan'));
++        });
++    },
++    async deleteVlan({ dispatch }, { TabId, VirtualInterface }) {
++      return await api
++        .delete(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${TabId}/VLANs/${VirtualInterface}`
++        )
++        .then(() => dispatch('getEthernetData'))
++        .then(() => i18n.t('pageVlan.toast.successDeleteVlan'))
++        .catch((error) => {
++          console.log(error);
++          const message = i18n.t('pageVlan.toast.errorDeleteVlan');
++          throw new Error(message);
++        });
++    },
++  },
++};
++
++export default NetworkStore;
+diff --git a/src/views/Settings/Vlan/Vlan.vue b/src/views/Settings/Vlan/Vlan.vue
+new file mode 100644
+index 0000000..13678c2
+--- /dev/null
++++ b/src/views/Settings/Vlan/Vlan.vue
+@@ -0,0 +1,77 @@
++<template>
++  <b-container fluid="xl">
++    <page-title />
++    <page-section v-show="tabData">
++      <b-row>
++        <b-col>
++          <b-card no-body>
++            <b-tabs
++              active-nav-item-class="font-weight-bold"
++              card
++              content-class="mt-3"
++            >
++              <b-tab
++                v-for="(data, index) in tabData"
++                :key="data.Id"
++                :title="data.Id"
++                @click="getTabIndex(data.Id, index)"
++              >
++                <vlan-list-table :tab-id="tabId" />
++              </b-tab>
++            </b-tabs>
++          </b-card>
++        </b-col>
++      </b-row>
++    </page-section>
++  </b-container>
++</template>
++
++<script>
++import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
++import PageSection from '@/components/Global/PageSection';
++import PageTitle from '@/components/Global/PageTitle';
++import VlanListTable from './VlanListTable.vue';
++import { mapState } from 'vuex';
++export default {
++  name: 'Vlan',
++  components: {
++    PageSection,
++    PageTitle,
++    VlanListTable,
++  },
++  mixins: [LoadingBarMixin],
++  data() {
++    return {
++      loading,
++      tabIndex: 0,
++      tabId: '',
++      tabData: [],
++    };
++  },
++  computed: {
++    ...mapState('vlan', ['vlanAllData']),
++  },
++  watch: {
++    vlanAllData() {
++      this.tabData = [];
++      this.vlanAllData.map((data) => {
++        if (data.Id.length < 5) {
++          this.tabData.push(data);
++        }
++      });
++    },
++  },
++  created() {
++    this.startLoader();
++    Promise.all([this.$store.dispatch('vlan/getEthernetData')]).finally(() =>
++      this.endLoader()
++    );
++  },
++  methods: {
++    getTabIndex(id, selectedIndex) {
++      this.tabIndex = selectedIndex;
++      this.tabId = id;
++    },
++  },
++};
++</script>
+diff --git a/src/views/Settings/Vlan/VlanListTable.vue b/src/views/Settings/Vlan/VlanListTable.vue
+new file mode 100644
+index 0000000..f849e9b
+--- /dev/null
++++ b/src/views/Settings/Vlan/VlanListTable.vue
+@@ -0,0 +1,221 @@
++<template>
++  <div>
++    <b-table
++      responsive="md"
++      hover
++      :fields="tableFields"
++      :items="form.tableItems"
++      class="mb-0"
++      show-empty
++      @row-clicked="onRowSelected($event)"
++    >
++      <template #cell(actions)="{ item, index }">
++        <table-row-action
++          v-for="(action, actionIndex) in item.actions"
++          :key="actionIndex"
++          :value="action.value"
++          :title="action.title"
++          :enabled="action.enabled"
++          @click-table-action="deleteTableRow(index)"
++        >
++          <template #icon>
++            <icon-trashcan v-if="action.value === 'delete'" />
++          </template>
++        </table-row-action>
++      </template>
++    </b-table>
++    <br />
++    <div>
++      <!-- <b-row class="w-50 mb-2">
++        <b-col class="d-sm-flex"
++          ><span>{{ $t('pageVlan.table.enable') }}</span></b-col
++        >
++        <b-col class="d-sm-flex">
++          <b-form-checkbox
++            v-model="form.enableVlan"
++            value="true"
++            unchecked-value="false"
++          >
++          </b-form-checkbox>
++        </b-col>
++      </b-row> -->
++      <br />
++      <b-row class="w-50 mb-2">
++        <b-col class="d-sm-flex"
++          ><span>{{ $t('pageVlan.table.id') }}</span></b-col
++        >
++        <b-col class="d-sm-flex">
++          <b-form-input id="vlanId" v-model="form.vlanId"> </b-form-input>
++        </b-col>
++      </b-row>
++    </div>
++    <br />
++    <b-button variant="primary" @click="addVlan()">
++      {{ $t('pageVlan.table.add') }}
++    </b-button>
++  </div>
++</template>
++
++<script>
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import IconTrashcan from '@carbon/icons-vue/es/trash-can/20';
++import TableRowAction from '@/components/Global/TableRowAction';
++import { mapState } from 'vuex';
++// import Axios from 'axios';
++export default {
++  name: 'VlanListTable',
++  components: { IconTrashcan, TableRowAction },
++  mixins: [BVToastMixin, LoadingBarMixin],
++  props: {
++    tabId: {
++      type: String,
++      default: '',
++    },
++  },
++  data() {
++    return {
++      rowSelected: false,
++      form: {
++        tableItems: [],
++        vlanId: null,
++      },
++      actions: [
++        {
++          value: 'delete',
++          title: this.$t('global.action.delete'),
++        },
++      ],
++      tableFields: [
++        {
++          key: 'VirtualInterface',
++          label: this.$t('pageVlan.table.virtualInterface'),
++        },
++        {
++          key: 'VLANId',
++          label: this.$t('pageVlan.table.id'),
++        },
++        { key: 'actions', label: '', tdClass: 'text-right' },
++      ],
++    };
++  },
++  computed: {
++    ...mapState('vlan', ['vlanTableData']),
++  },
++  watch: {
++    vlanTableData() {
++      this.setVlanData();
++      console.log('getters working');
++    },
++    // Watch for change in tab index
++    tabId() {
++      console.log('tabId', this.tabId);
++      this.setVlanData();
++    },
++  },
++  created() {
++    this.setVlanData();
++  },
++  methods: {
++    tabIdFn() {
++      var tabId = '';
++      if (this.tabId == '') {
++        tabId = this.$store.getters['vlan/vlanAllData'][0].Id;
++      } else {
++        tabId = this.tabId;
++      }
++      return tabId;
++    },
++    setVlanData() {
++      this.form.tableItems = [];
++      this.vlanTableData.forEach((vlanData) => {
++        vlanData.forEach((rowData) => {
++          if (this.tabIdFn() == rowData.Id.split('_')[0]) {
++            const tableRow = {
++              VLANEnable: rowData.VLANEnable,
++              VirtualInterface: rowData.Id,
++              VLANId: rowData.VLANId,
++              actions: [
++                {
++                  value: 'delete',
++                  title: this.$t('pageVlan.table.deleteVlan'),
++                  enabled: true,
++                },
++              ],
++            };
++            this.form.tableItems.push(tableRow);
++          }
++        });
++      });
++      if (this.form.tableItems.length === 0) {
++        this.form.tableItems.push({
++          VLANEnable: null,
++          VirtualInterface: '~',
++          VLANId: '~',
++          actions: [
++            {
++              value: '~',
++              title: '~',
++              enabled: false,
++            },
++          ],
++        });
++      }
++    },
++    onRowSelected(rowData) {
++      console.log(rowData);
++      this.rowSelected = true;
++      if (rowData.VLANId == '~') {
++        this.form.vlanId = null;
++      } else {
++        this.form.vlanId = rowData.VLANId;
++      }
++    },
++    addVlan() {
++      this.$bvModal
++        .msgBoxConfirm(this.$tc('pageVlan.modal.confirmMessage'), {
++          title: this.$tc('pageVlan.modal.confirmTitle'),
++          okTitle: this.$t('global.action.ok'),
++          cancelTitle: this.$t('global.action.cancel'),
++        })
++        .then((addConfirmed) => {
++          if (addConfirmed) {
++            if (this.form.vlanId != '') {
++              const vlanInputData = {
++                VLANId: parseInt(this.form.vlanId),
++                VLANEnable: true,
++                TabId: this.tabIdFn(),
++              };
++              this.$store
++                .dispatch('vlan/addVlan', vlanInputData)
++                .then((message) => this.successToast(message))
++                .catch(({ message }) => this.errorToast(message));
++            } else {
++              this.errorToast(this.$tc('pageVlan.toast.errorVlanId'));
++            }
++          }
++        });
++    },
++    deleteTableRow(index) {
++      this.$bvModal
++        .msgBoxConfirm(this.$tc('pageVlan.modal.confirmMessage'), {
++          title: this.$tc('pageVlan.modal.confirmTitle'),
++          okTitle: this.$t('global.action.ok'),
++          cancelTitle: this.$t('global.action.cancel'),
++        })
++        .then((deleteConfirmed) => {
++          if (deleteConfirmed) {
++            const vlanInputData = {
++              TabId: this.tabIdFn(),
++              VirtualInterface: this.form.tableItems[index].VirtualInterface,
++            };
++            this.$store
++              .dispatch('vlan/deleteVlan', vlanInputData)
++              .then((message) => this.successToast(message))
++              .catch(({ message }) => this.errorToast(message));
++          }
++        });
++    },
++  },
++};
++</script>
+diff --git a/src/views/Settings/Vlan/index.js b/src/views/Settings/Vlan/index.js
+new file mode 100644
+index 0000000..03597e6
+--- /dev/null
++++ b/src/views/Settings/Vlan/index.js
+@@ -0,0 +1,2 @@
++import Vlan from './Vlan.vue';
++export default Vlan;
+-- 
+2.25.1
+

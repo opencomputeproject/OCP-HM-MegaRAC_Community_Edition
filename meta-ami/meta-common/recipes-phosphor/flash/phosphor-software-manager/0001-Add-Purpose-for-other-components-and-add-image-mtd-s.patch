@@ -1,0 +1,64 @@
+From b979168960094b1d0fffa499971154ef682d7e95 Mon Sep 17 00:00:00 2001
+From: hemanthkumarm <hemanthkumarm@ami.com>
+Date: Thu, 27 Apr 2023 22:44:09 +0530
+Subject: [PATCH] Add Purpose for other components and add image-mtd support
+
+---
+ images.hpp       |  1 +
+ item_updater.cpp | 17 ++++++++++++++---
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/images.hpp b/images.hpp
+index 7801ea3..8e31e39 100644
+--- a/images.hpp
++++ b/images.hpp
+@@ -15,6 +15,7 @@ const std::vector<std::string> bmcImages = {"image-kernel", "image-rofs",
+                                             "image-rwfs", "image-u-boot"};
+ // BMC flash image file name list for full flash image (image-bmc)
+ const std::string bmcFullImages = {"image-bmc"};
++const std::string intelBmcFullImages = {"image-mtd"};
+ 
+ std::vector<std::string> getOptionalImages();
+ 
+diff --git a/item_updater.cpp b/item_updater.cpp
+index ec78332..59d6b98 100644
+--- a/item_updater.cpp
++++ b/item_updater.cpp
+@@ -19,6 +19,7 @@
+ #include <queue>
+ #include <set>
+ #include <string>
++#include <iostream>
+ 
+ namespace phosphor
+ {
+@@ -72,7 +73,8 @@ void ItemUpdater::createActivation(sdbusplus::message_t& msg)
+ #ifdef HOST_BIOS_UPGRADE
+                         value == VersionPurpose::Host ||
+ #endif
+-                        value == VersionPurpose::System)
++                        value == VersionPurpose::System ||
++                        value == VersionPurpose::Other )
+                     {
+                         purpose = value;
+                     }
+@@ -481,8 +483,17 @@ ItemUpdater::ActivationStatus
+         valid = checkImage(filePath, imageUpdateList);
+         if (!valid)
+         {
+-            error("Failed to find the needed BMC images.");
+-            return ItemUpdater::ActivationStatus::invalid;
++            if (!valid)
++            {
++                imageUpdateList.clear();
++                imageUpdateList.push_back(intelBmcFullImages);
++                valid = checkImage(filePath, imageUpdateList);
++                if (!valid)
++                {
++                    error("Failed to find the needed BMC images.");
++                    return ItemUpdater::ActivationStatus::invalid;
++                }
++            }
+         }
+     }
+ 

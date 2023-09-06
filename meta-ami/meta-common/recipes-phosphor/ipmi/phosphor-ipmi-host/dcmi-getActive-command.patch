@@ -1,0 +1,60 @@
+diff -Naur a/dcmihandler.cpp b/dcmihandler.cpp
+--- a/dcmihandler.cpp	2022-09-30 12:01:14.318358575 +0530
++++ b/dcmihandler.cpp	2022-09-30 12:06:37.696648564 +0530
+@@ -256,7 +256,29 @@
+     auto value = ipmi::getDbusProperty(bus, service, ethernetObj.first,
+                                        ethernetIntf, "DHCPEnabled");
+ 
+-    return std::get<bool>(value);
++    try
++        {
++            auto dhcp_config = std::get<std::string>(value);
++
++            if((std::string(dhcp_config).compare(dhcpConfBoth) == 0) 
++                || (std::string(dhcp_config).compare(dhcpConfV4V6stateless) == 0) 
++                || (std::string(dhcp_config).compare(dhcpConfV6) == 0) 
++                || (std::string(dhcp_config).compare(dhcpConfV6stateless) == 0) 
++                || (std::string(dhcp_config).compare(dhcpConfV4) == 0))
++             {
++                    return true;
++             }
++            else if(std::string(dhcp_config).compare(dhcpConfnone) == 0)
++             {
++                return false;
++             }                   
++        }
++        catch (std::bad_variant_access& ex)
++        {
++            log<level::ERR>("Failed to convert returned value", entry("ERR=%s", ex.what()));
++            elog<InternalFailure>();
++        }                                   
++    return true;
+ }
+ 
+ bool getDHCPOption(std::string prop)
+diff -Naur a/dcmihandler.hpp b/dcmihandler.hpp
+--- a/dcmihandler.hpp	2022-09-30 12:02:15.802838848 +0530
++++ b/dcmihandler.hpp	2022-09-30 12:07:35.369007002 +0530
+@@ -46,7 +46,7 @@
+     "/usr/share/ipmi-providers/dcmi_sensors.json";
+ static constexpr auto ethernetIntf =
+     "xyz.openbmc_project.Network.EthernetInterface";
+-static constexpr auto ethernetDefaultChannelNum = 0x1;
++static constexpr auto ethernetDefaultChannelNum = 0x03;
+ static constexpr auto networkRoot = "/xyz/openbmc_project/network";
+ static constexpr auto dhcpObj = "/xyz/openbmc_project/network/config/dhcp";
+ static constexpr auto dhcpIntf =
+@@ -63,6 +63,13 @@
+ 
+ constexpr auto networkdService = "systemd-networkd.service";
+ 
++constexpr auto dhcpConfBoth = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.both";
++constexpr auto dhcpConfV4V6stateless = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v4v6stateless";
++constexpr auto dhcpConfV6 = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v6";
++constexpr auto dhcpConfV6stateless = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v6stateless";
++constexpr auto dhcpConfV4 = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.v4";
++constexpr auto dhcpConfnone = "xyz.openbmc_project.Network.EthernetInterface.DHCPConf.none";
++
+ namespace assettag
+ {
+ 

@@ -1,0 +1,114 @@
+From 5190bb910db7075667ea3e0bfff6aab4125ac380 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Wed, 19 Oct 2022 00:44:05 +0530
+Subject: [PATCH] Get Channel Payload Support- Detailed Information below MR
+ link
+
+https://git.ami.com/core/oe/common/meta-ami/-/merge_requests/34
+
+Get-Set Payload-Acess- Detailed Information below MR link
+
+https://git.ami.com/core/oe/common/meta-ami/-/merge_requests/56
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ user_channel/channel_layer.cpp   | 10 +++++++++-
+ user_channel/channel_mgmt.cpp    |  2 +-
+ user_channel/channelcommands.cpp | 11 +++++++++--
+ user_channel/user_layer.cpp      | 13 +++++++++++++
+ 4 files changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/user_channel/channel_layer.cpp b/user_channel/channel_layer.cpp
+index fb70f1e..5a6a10f 100644
+--- a/user_channel/channel_layer.cpp
++++ b/user_channel/channel_layer.cpp
+@@ -30,7 +30,15 @@ bool doesDeviceExist(const uint8_t chNum)
+     // associated with ethernet interface as the channel number to
+     // eth association is not done. Need to revisit later
+     struct stat fileStat = {};
+-    std::string devName("/sys/class/net/" + getChannelName(chNum));
++    std::string channelName = getChannelName(chNum);
++     if(channelName.empty())
++     {
++        phosphor::logging::log<phosphor::logging::level::DEBUG>(
++             "Ethernet device not found");
++         return false;
++     }
++ 
++     std::string devName("/sys/class/net/" + channelName);
+ 
+     if (stat(devName.data(), &fileStat) != 0)
+     {
+diff --git a/user_channel/channel_mgmt.cpp b/user_channel/channel_mgmt.cpp
+index 7d3cf95..1dacbb3 100644
+--- a/user_channel/channel_mgmt.cpp
++++ b/user_channel/channel_mgmt.cpp
+@@ -155,7 +155,7 @@ std::string ChannelConfig::getChannelName(const uint8_t chNum)
+     {
+         log<level::ERR>("Invalid channel number.",
+                         entry("CHANNEL_ID=%d", chNum));
+-        throw std::invalid_argument("Invalid channel number");
++        return std::string();
+     }
+ 
+     return channelData[chNum].chName;
+diff --git a/user_channel/channelcommands.cpp b/user_channel/channelcommands.cpp
+index 769f9ff..41bdec1 100644
+--- a/user_channel/channelcommands.cpp
++++ b/user_channel/channelcommands.cpp
+@@ -326,12 +326,19 @@ RspType<uint16_t, // stdPayloadType
+     uint8_t chNum =
+         convertCurrentChannelNum(static_cast<uint8_t>(channel), ctx->channel);
+ 
+-    if (!doesDeviceExist(chNum) || !isValidChannel(chNum) || reserved)
++    if (!doesDeviceExist(chNum))
+     {
+-        log<level::DEBUG>("Get channel payload - Invalid field in request");
++        log<level::DEBUG>("Get channel payload - device does not exist");
+         return responseInvalidFieldRequest();
+     }
+ 
++    if (reserved)
++     {
++         log<level::DEBUG>("Get channel payload - Invalid reserved bit");
++         return responseInvalidFieldRequest();
++     }
++
++
+     // Session support is available in active LAN channels.
+     if (getChannelSessionSupport(chNum) == EChannelSessSupported::none)
+     {
+diff --git a/user_channel/user_layer.cpp b/user_channel/user_layer.cpp
+index bb9ac38..4ac84f6 100644
+--- a/user_channel/user_layer.cpp
++++ b/user_channel/user_layer.cpp
+@@ -185,6 +185,12 @@ Cc ipmiUserSetUserPayloadAccess(const uint8_t chNum, const uint8_t operation,
+                                 const uint8_t userId,
+                                 const PayloadAccess& payloadAccess)
+ {
++          std::string userName;
++    ipmiUserGetUserName(userId,userName);
++      if(userName.empty())
++      {
++        return ccInvalidFieldRequest;
++      }
+ 
+     if (!UserAccess::isValidChannel(chNum))
+     {
+@@ -202,6 +208,13 @@ Cc ipmiUserSetUserPayloadAccess(const uint8_t chNum, const uint8_t operation,
+ Cc ipmiUserGetUserPayloadAccess(const uint8_t chNum, const uint8_t userId,
+                                 PayloadAccess& payloadAccess)
+ {
++	     std::string userName;
++    ipmiUserGetUserName(userId,userName);
++      if(userName.empty())
++      {
++        return ccInvalidFieldRequest;
++      }
++
+ 
+     if (!UserAccess::isValidChannel(chNum))
+     {
+-- 
+2.25.1
+

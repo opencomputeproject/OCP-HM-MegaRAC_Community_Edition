@@ -1,0 +1,26 @@
+From 47c4cb89e68280334464b399de05921623256947 Mon Sep 17 00:00:00 2001
+From: vaibhavs <vaibhavs@ami.com>
+Date: Fri, 26 May 2023 00:57:07 +0000
+Subject: [PATCH] Disable DHCP for IPv6 when ip source is set Static
+
+---
+ transporthandler.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index ecc3a14..a166d94 100755
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1278,6 +1278,12 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                 }
+                 try
+                 {
++                    EthernetInterface::DHCPConf dhcp = channelCall<getDHCPProperty>(channel);
++                    if ((dhcp == EthernetInterface::DHCPConf::v6) ||
++                        (dhcp == EthernetInterface::DHCPConf::both))
++                    {
++                        channelCall<setDHCPv6Property>(channel, EthernetInterface::DHCPConf::none, true);
++                    }
+                     channelCall<reconfigureIfAddr6>(channel, set, ip, prefix);
+                 }
+                 catch (const sdbusplus::exception_t& e)

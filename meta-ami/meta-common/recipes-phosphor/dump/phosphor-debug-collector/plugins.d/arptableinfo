@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect ARP table information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="arp table"
+file_name="arptable.log"
+command="cat /proc/net/arp"
+
+add_cmd_output "$command" "$file_name" "$desc"

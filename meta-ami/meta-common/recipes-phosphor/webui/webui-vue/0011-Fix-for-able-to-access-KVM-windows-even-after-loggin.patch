@@ -1,0 +1,102 @@
+From 79f7e2a10a11f4faa99d4fc531f98d6d8243b4f1 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 15 Sep 2022 19:55:11 +0530
+Subject: [PATCH] Fix for able to access KVM windows even after logging out the
+ webUI
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/store/modules/Authentication/AuthenticanStore.js |  8 +++++++-
+ src/views/Operations/Kvm/KvmConsole.vue              | 10 +++++++++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/src/store/modules/Authentication/AuthenticanStore.js b/src/store/modules/Authentication/AuthenticanStore.js
+index 07d5ee8..88fb54b 100644
+--- a/src/store/modules/Authentication/AuthenticanStore.js
++++ b/src/store/modules/Authentication/AuthenticanStore.js
+@@ -5,11 +5,13 @@ import router from '@/router';
+ const AuthenticationStore = {
+   namespaced: true,
+   state: {
++    consoleWindow: null,
+     authError: false,
+     xsrfCookie: Cookies.get('XSRF-TOKEN'),
+     isAuthenticatedCookie: Cookies.get('IsAuthenticated'),
+   },
+   getters: {
++    consoleWindow: (state) => state.consoleWindow,
+     authError: (state) => state.authError,
+     isLoggedIn: (state) => {
+       return (
+@@ -33,6 +35,7 @@ const AuthenticationStore = {
+       state.xsrfCookie = undefined;
+       state.isAuthenticatedCookie = undefined;
+     },
++    setConsoleWindow: (state, window) => (state.consoleWindow = window),
+   },
+   actions: {
+     login({ commit }, { username, password }) {
+@@ -48,7 +51,10 @@ const AuthenticationStore = {
+     logout({ commit }) {
+       api
+         .post('/logout', { data: [] })
+-        .then(() => commit('logout'))
++        .then(() => {
++          commit('setConsoleWindow', false);
++          commit('logout');
++        })
+         .then(() => router.go('/login'))
+         .catch((error) => console.log(error));
+     },
+diff --git a/src/views/Operations/Kvm/KvmConsole.vue b/src/views/Operations/Kvm/KvmConsole.vue
+index c028a9f..dfbbd0d 100644
+--- a/src/views/Operations/Kvm/KvmConsole.vue
++++ b/src/views/Operations/Kvm/KvmConsole.vue
+@@ -46,6 +46,7 @@ import StatusIcon from '@/components/Global/StatusIcon';
+ import IconLaunch from '@carbon/icons-vue/es/launch/20';
+ import IconArrowDown from '@carbon/icons-vue/es/arrow--down/16';
+ import { throttle } from 'lodash';
++import { mapState } from 'vuex';
+ 
+ const Connecting = 0;
+ const Connected = 1;
+@@ -62,6 +63,7 @@ export default {
+   },
+   data() {
+     return {
++      isconsoleWindow: null,
+       rfb: null,
+       isConnected: false,
+       terminalClass: this.isFullWindow ? 'full-window' : '',
+@@ -72,6 +74,7 @@ export default {
+     };
+   },
+   computed: {
++    ...mapState('authentication', ['consoleWindow']),
+     serverStatusIcon() {
+       if (this.status === Connected) {
+         return 'success';
+@@ -89,6 +92,11 @@ export default {
+       return this.$t('pageKvm.connecting');
+     },
+   },
++  watch: {
++    consoleWindow() {
++      if (this.consoleWindow == false) this.isconsoleWindow.close();
++    },
++  },
+   mounted() {
+     this.openTerminal();
+   },
+@@ -143,7 +151,7 @@ export default {
+       }
+     },
+     openConsoleWindow() {
+-      window.open(
++      this.isconsoleWindow = window.open(
+         '#/console/kvm',
+         '_blank',
+         'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=700,height=550'
+-- 
+2.25.1
+

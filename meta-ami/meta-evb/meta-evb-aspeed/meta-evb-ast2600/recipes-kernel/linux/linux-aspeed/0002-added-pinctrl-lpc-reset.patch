@@ -1,0 +1,11 @@
+--- a/arch/arm/boot/dts/aspeed-ast2600-evb.dts	2023-06-22 16:12:21.661750959 +0530
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb.dts	2023-06-22 16:11:42.645603221 +0530
+@@ -211,6 +211,8 @@
+ 
+ &lpc_reset {
+         status = "okay";
++    	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_lpc_default>;
+ };
+ 
+ &lpc_sio {

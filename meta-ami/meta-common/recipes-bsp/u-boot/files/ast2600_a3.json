@@ -1,0 +1,34 @@
+{
+    "name": "onetree",
+    "version": "A3",
+    "data_region": {
+        "ecc_region": true,
+        "key": [
+            {
+                "types": "rsa_pub_oem",
+                "key_pem": "SIG_RSA_KEY2_private.pem",
+                "offset": "0x480",
+                "number_id": 0,
+                "sha_mode": "SHA256"
+            }
+        ]
+    },
+    "config_region": {
+        "Secure Boot Mode": "Mode_2",
+        "Secure crypto RSA length": "RSA2048",
+        "Hash mode": "SHA256",
+        "Enable image encryption": false
+    },
+    "otp_strap": {
+        "Enable secure boot": {
+            "value": false,
+            "otp_protect": false,
+            "ignore": false
+        },
+        "Enable boot from uart5": {
+            "value": true,
+            "otp_protect": true,
+            "ignore": true
+        }
+    }
+}

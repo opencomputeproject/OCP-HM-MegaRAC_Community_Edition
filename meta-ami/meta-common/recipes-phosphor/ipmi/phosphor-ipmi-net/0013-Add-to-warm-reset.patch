@@ -1,0 +1,33 @@
+From cb73bc09427d18e98e5a54ea3b3bf55545d78517 Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Thu, 29 Sep 2022 15:25:29 +0530
+Subject: [PATCH 13/13] Add to warm reset
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ phosphor-ipmi-net@.service | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/phosphor-ipmi-net@.service b/phosphor-ipmi-net@.service
+index 0f944ab..7f28f68 100644
+--- a/phosphor-ipmi-net@.service
++++ b/phosphor-ipmi-net@.service
+@@ -4,6 +4,7 @@ Requires=phosphor-ipmi-host.service
+ After=phosphor-ipmi-host.service
+ Requires=sys-subsystem-net-devices-%i.device
+ After=sys-subsystem-net-devices-%i.device
++PartOf=phosphor-ipmi-warm-reset.target
+ 
+ [Service]
+ ExecStart=/usr/bin/netipmid -c %i
+@@ -12,6 +13,7 @@ Restart=always
+ RuntimeDirectory = ipmi
+ RuntimeDirectoryPreserve = yes
+ StateDirectory = ipmi
++StartLimitIntervalSec=0
+ 
+ [Install]
+ DefaultInstance=eth0
+-- 
+2.25.1
+

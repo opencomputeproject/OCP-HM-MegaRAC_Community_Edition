@@ -1,0 +1,69 @@
+From d74cfd6ac5e2b90ec7adae781ef75d05d75d4001 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 21 Sep 2022 19:13:58 +0530
+Subject: [PATCH] Ldap feature enabled in webui
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/env/components/AppNavigation/intel.js | 5 +++++
+ src/env/router/intel.js                   | 9 +++++++++
+ src/env/store/intel.js                    | 2 --
+ 3 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index bbb2375..c07ffe4 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -130,6 +130,11 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.sessions'),
+               route: '/security-and-access/sessions',
+             },
++            {
++              id: 'ldap',
++              label: this.$t('appNavigation.ldap'),
++              route: '/security-and-access/ldap',
++            },
+             {
+               id: 'user-management',
+               label: this.$t('appNavigation.userManagement'),
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index 0cf211a..e7220fe 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -6,6 +6,7 @@ import DateTime from '@/views/Settings/DateTime';
+ import EventLogs from '@/views/Logs/EventLogs';
+ import Firmware from '@/views/Operations/Firmware';
+ import Inventory from '@/views/HardwareStatus/Inventory';
++import Ldap from '@/views/SecurityAndAccess/Ldap';
+ import Kvm from '@/views/Operations/Kvm';
+ import FactoryDefault from '@/views/Operations/FactoryDefault';
+ import KvmConsole from '@/views/Operations/Kvm/KvmConsole';
+@@ -140,6 +141,14 @@ const routes = [
+           title: i18n.t('appPageTitle.sessions'),
+         },
+       },
++      {
++        path: '/security-and-access/ldap',
++        name: 'ldap',
++        component: Ldap,
++        meta: {
++          title: i18n.t('appPageTitle.ldap'),
++        },
++      },
+       {
+         path: '/security-and-access/user-management',
+         name: 'user-management',
+diff --git a/src/env/store/intel.js b/src/env/store/intel.js
+index a3acedf..70c9b98 100644
+--- a/src/env/store/intel.js
++++ b/src/env/store/intel.js
+@@ -4,6 +4,4 @@ import store from '@/store';
+ // store modules
+ // https://vuex.vuejs.org/api/#registermodule
+ 
+-store.unregisterModule('ldap');
+-
+ export default store;
+-- 
+2.25.1
+

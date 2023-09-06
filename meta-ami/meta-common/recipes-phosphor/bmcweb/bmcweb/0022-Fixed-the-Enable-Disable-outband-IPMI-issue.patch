@@ -1,0 +1,106 @@
+From 7600784cd716fe6fb20e8e507e19bfc8269cdc11 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Tue, 29 Nov 2022 17:28:48 +0530
+Subject: [PATCH] Fixed the Enable/Disable outband IPMI issue
+
+Description:
+
+Not able to Enable/Disable the outband IPMI from redfish/WEBUI.
+
+The ipmi service name is different in redfish. Due to that only not
+able to enable or disable the outband ipmi.
+
+Fix:
+
+Changed the ipmi service name. Added service utils to get and set the
+enable/disable status.
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ redfish-core/lib/network_protocol.hpp | 49 +++++++--------------------
+ 1 file changed, 13 insertions(+), 36 deletions(-)
+
+diff --git a/redfish-core/lib/network_protocol.hpp b/redfish-core/lib/network_protocol.hpp
+index f99cfd36..b10368f3 100644
+--- a/redfish-core/lib/network_protocol.hpp
++++ b/redfish-core/lib/network_protocol.hpp
+@@ -25,6 +25,7 @@
+ #include <registries/privilege_registry.hpp>
+ #include <sdbusplus/asio/property.hpp>
+ #include <utils/json_utils.hpp>
++#include <utils/service_utils.hpp>
+ #include <utils/stl_utils.hpp>
+ 
+ #include <optional>
+@@ -38,7 +39,7 @@ std::string getHostName();
+ 
+ static constexpr const char* sshServiceName = "dropbear";
+ static constexpr const char* httpsServiceName = "bmcweb";
+-static constexpr const char* ipmiServiceName = "phosphor-ipmi-net";
++static constexpr const char* ipmiServiceName = "phosphor_2dipmi_2dnet";
+ static constexpr std::array<std::pair<const char*, const char*>, 3>
+     protocolToService = {{{"SSH", sshServiceName},
+                           {"HTTPS", httpsServiceName},
+@@ -177,38 +178,15 @@ inline void getNetworkData(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+     {
+         const std::string& protocolName = protocol.first;
+         const std::string& serviceName = protocol.second;
+-        getPortStatusAndPath(
+-            serviceName,
+-            [asyncResp, protocolName](const boost::system::error_code ec,
+-                                      const std::string& socketPath,
+-                                      bool isProtocolEnabled) {
+-            // If the service is not installed, that is not an error
+-            if (ec == boost::system::errc::no_such_process)
+-            {
+-                asyncResp->res.jsonValue[protocolName]["Port"] =
+-                    nlohmann::detail::value_t::null;
+-                asyncResp->res.jsonValue[protocolName]["ProtocolEnabled"] =
+-                    false;
+-                return;
+-            }
+-            if (ec)
+-            {
+-                messages::internalError(asyncResp->res);
+-                return;
+-            }
+-            asyncResp->res.jsonValue[protocolName]["ProtocolEnabled"] =
+-                isProtocolEnabled;
+-            getPortNumber(socketPath, [asyncResp, protocolName](
+-                                          const boost::system::error_code ec2,
+-                                          int portNumber) {
+-                if (ec2)
+-                {
+-                    messages::internalError(asyncResp->res);
+-                    return;
+-                }
+-                asyncResp->res.jsonValue[protocolName]["Port"] = portNumber;
+-            });
+-            });
++
++        service_util::getEnabled(
++            asyncResp, serviceName,
++            nlohmann::json::json_pointer(std::string("/") + protocolName +
++                                         "/ProtocolEnabled"));
++        service_util::getPortNumber(
++            asyncResp, serviceName,
++            nlohmann::json::json_pointer(std::string("/") + protocolName +
++                                         "/Port"));
+     }
+ } // namespace redfish
+ 
+@@ -525,9 +503,8 @@ inline void requestRoutesNetworkProtocol(App& app)
+ 
+         if (ipmiEnabled)
+         {
+-            handleProtocolEnabled(
+-                *ipmiEnabled, asyncResp,
+-                encodeServiceObjectPath(std::string(ipmiServiceName) + '@'));
++            service_util::setEnabled(asyncResp, ipmiServiceName,
++                                                 *ipmiEnabled);
+         }
+ 
+         if (sshEnabled)
+-- 
+2.25.1
+

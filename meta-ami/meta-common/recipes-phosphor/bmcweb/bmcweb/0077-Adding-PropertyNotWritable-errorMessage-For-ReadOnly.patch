@@ -1,0 +1,198 @@
+From 94ccacd5b1d2d2ce7d40ee4db62ee6dd73000fb1 Mon Sep 17 00:00:00 2001
+From: Sandeep <sandeepap@ami.com>
+Date: Fri, 30 Jun 2023 21:15:13 +0530
+Subject: [PATCH] Adding PropertyNotWritable errorMessage For ReadOnly Property
+
+Signed-off-by: Sandeep <sandeepap@ami.com>
+---
+ redfish-core/lib/account_service.hpp  | 10 +++++++++-
+ redfish-core/lib/event_service.hpp    | 10 +++++++++-
+ redfish-core/lib/managers.hpp         | 11 ++++++++++-
+ redfish-core/lib/network_protocol.hpp | 11 ++++++++++-
+ redfish-core/lib/pef_service.hpp      | 10 +++++++++-
+ redfish-core/lib/systems.hpp          | 11 ++++++++++-
+ 6 files changed, 57 insertions(+), 6 deletions(-)
+
+diff --git a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+index d9c57706..f3ad880f 100644
+--- a/redfish-core/lib/account_service.hpp
++++ b/redfish-core/lib/account_service.hpp
+@@ -1444,17 +1444,25 @@ inline void handleAccountServicePatch(
+     std::optional<nlohmann::json> oemObject;
+     std::optional<std::string> passwordcomplexity;
+     std::optional<uint8_t> RememberOldPasswordTimes;
++    std::optional<std::string> id;
+ 
+     if (!json_util::readJsonPatch(
+             req, asyncResp->res, "AccountLockoutDuration", unlockTimeout,
+             "AccountLockoutThreshold", lockoutThreshold, "MaxPasswordLength",
+             maxPasswordLength, "MinPasswordLength", minPasswordLength, "LDAP",
+             ldapObject, "ActiveDirectory", activeDirectoryObject, "Oem",
+-            oemObject))
++            oemObject, "Id", id))
+     {
+         return;
+     }
+ 
++    if(id)
++    {
++         messages::propertyNotWritable(asyncResp->res, "Id");
++         asyncResp->res.result(boost::beast::http::status::bad_request);
++	 return;
++    }
++
+     if (minPasswordLength)
+     {
+         crow::connections::systemBus->async_method_call(
+diff --git a/redfish-core/lib/event_service.hpp b/redfish-core/lib/event_service.hpp
+index 6956b8ea..a7f3dfee 100644
+--- a/redfish-core/lib/event_service.hpp
++++ b/redfish-core/lib/event_service.hpp
+@@ -179,15 +179,23 @@ inline void requestRoutesEventService(App& app)
+         std::optional<uint32_t> retryAttemps;
+         std::optional<uint32_t> retryInterval;
+ 	std::optional<nlohmann::json> smtpProps;
++	std::optional<std::string> id;
+ 
+         if (!json_util::readJsonPatch(
+                 req, asyncResp->res, "ServiceEnabled", serviceEnabled,
+                 "DeliveryRetryAttempts", retryAttemps,
+                 "DeliveryRetryIntervalSeconds", retryInterval,
+-		"SMTP", smtpProps))
++		"SMTP", smtpProps, "Id", id))
+         {
+             return;
+         }
++	
++    	if(id)
++    	{
++             messages::propertyNotWritable(asyncResp->res, "Id");
++             asyncResp->res.result(boost::beast::http::status::bad_request);
++	     return;
++        }
+ 
+         persistent_data::EventServiceConfig eventServiceConfig =
+             persistent_data::EventServiceStore::getInstance()
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index 67f1778b..4e9ea051 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -2553,13 +2553,22 @@ inline void requestRoutesManager(App& app)
+         std::optional<std::string> datetime;
+        std::optional<std::string> timeZone;
+ 	std::optional<bool> locationIndicatorActive;
++	std::optional<std::string> id;
+ 
+         if (!json_util::readJsonPatch(req, asyncResp->res, "Oem", oem,
+                                       "DateTime", datetime, "Links", links, "DateTimeLocalOffset", timeZone,
+-				      "LocationIndicatorActive", locationIndicatorActive))
++				      "LocationIndicatorActive", locationIndicatorActive, "Id", id))
+         {
+             return;
+         }
++	
++	if(id)
++	{
++	    messages::propertyNotWritable(asyncResp->res, "Id");
++            asyncResp->res.result(boost::beast::http::status::bad_request);
++	    return;
++	}
++
+         asyncResp->res.result(boost::beast::http::status::no_content);
+         if (oem)
+         {
+diff --git a/redfish-core/lib/network_protocol.hpp b/redfish-core/lib/network_protocol.hpp
+index 8d3b0484..624be449 100644
+--- a/redfish-core/lib/network_protocol.hpp
++++ b/redfish-core/lib/network_protocol.hpp
+@@ -473,6 +473,7 @@ inline void requestRoutesNetworkProtocol(App& app)
+         std::optional<bool> ntpEnabled;
+         std::optional<bool> ipmiEnabled;
+         std::optional<bool> sshEnabled;
++	std::optional<std::string> id;
+ 
+         // clang-format off
+         if (!json_util::readJsonPatch(
+@@ -481,10 +482,18 @@ inline void requestRoutesNetworkProtocol(App& app)
+                 "NTP/NTPServers", ntpServerObjects,
+                 "NTP/ProtocolEnabled", ntpEnabled,
+                 "IPMI/ProtocolEnabled", ipmiEnabled,
+-                "SSH/ProtocolEnabled", sshEnabled))
++                "SSH/ProtocolEnabled", sshEnabled, "Id", id))
+         {
+             return;
+         }
++	
++	if(id)
++	{
++	    messages::propertyNotWritable(asyncResp->res, "Id");
++            asyncResp->res.result(boost::beast::http::status::bad_request);
++	    return;
++	}
++
+         // clang-format on
+ 
+         asyncResp->res.result(boost::beast::http::status::no_content);
+diff --git a/redfish-core/lib/pef_service.hpp b/redfish-core/lib/pef_service.hpp
+index 62744b2c..048628d4 100644
+--- a/redfish-core/lib/pef_service.hpp
++++ b/redfish-core/lib/pef_service.hpp
+@@ -286,14 +286,22 @@ inline void requestRoutesPefService(App& app)
+                 std::optional<std::vector<uint8_t>> filterEnable;
+                 std::optional<uint8_t> pefActionGblControl;
+                 std::optional<std::vector<std::string>> recipient;
++		std::optional<std::string> id;
+ 
+                 if (!json_util::readJsonPatch(req, aResp->res, "FilterEnable",
+                                          filterEnable, "PEFActionGblControl",
+                                          pefActionGblControl, "Recipient",
+-                                         recipient))
++                                         recipient, "Id", id))
+                 {
+                     return;
+                 }
++
++   		 if(id)
++    		{
++         	    messages::propertyNotWritable(aResp->res, "Id");
++         	    aResp->res.result(boost::beast::http::status::bad_request);
++	 	    return;
++    		}
+                 if (filterEnable)
+                 {
+                     setFilterEnable(aResp, *filterEnable);
+diff --git a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+index 010d7ea8..d699ec99 100644
+--- a/redfish-core/lib/systems.hpp
++++ b/redfish-core/lib/systems.hpp
+@@ -3871,6 +3871,7 @@ inline void requestRoutesSystems(App& app)
+ 	std::optional<nlohmann::json> serialConsole;
+ 	std::optional<nlohmann::json> virtualMediaConfig;
+ 	std::optional<nlohmann::json> kvmConfig;
++	std::optional<std::string> id;
+ 
+         // clang-format off
+                 if (!json_util::readJsonPatch(
+@@ -3894,10 +3895,18 @@ inline void requestRoutesSystems(App& app)
+                         "IdlePowerSaver/ExitDwellTimeSeconds", ipsExitTime,
+ 		         "SerialConsole", serialConsole,
+ 		         "VirtualMediaConfig", virtualMediaConfig,
+-		         "GraphicalConsole", kvmConfig))
++		         "GraphicalConsole", kvmConfig,
++			 "Id", id))
+                 {
+                     return;
+                 }
++		if(id)
++		{
++		    messages::propertyNotWritable(asyncResp->res, "Id");
++       		    asyncResp->res.result(boost::beast::http::status::bad_request);
++		    return;
++	        }
++
+         // clang-format on
+ 
+         asyncResp->res.result(boost::beast::http::status::no_content);
+-- 
+2.25.1
+

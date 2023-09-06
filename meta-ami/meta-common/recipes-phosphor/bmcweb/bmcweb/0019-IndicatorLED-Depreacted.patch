@@ -1,0 +1,45 @@
+--- /dev/null
++++ b/redfish-core/lib/systems.hpp	2023-01-03 00:14:38.119857920 +0530
+@@ -3213,7 +3216,7 @@
+ 
+         getLocationIndicatorActive(asyncResp);
+         // TODO (Gunnar): Remove IndicatorLED after enough time has passed
+-        getIndicatorLedState(asyncResp);
++   //   getIndicatorLedState(asyncResp);
+ 	getPhysicalLedState(asyncResp);
+         getComputerSystem(asyncResp, health);
+         getHostState(asyncResp);
+@@ -3260,7 +3263,7 @@
+             "</redfish/v1/JsonSchemas/ComputerSystem/ComputerSystem.json>; rel=describedby");
+ 
+         std::optional<bool> locationIndicatorActive;
+-        std::optional<std::string> indicatorLed;
++ //     std::optional<std::string> indicatorLed;
+         std::optional<std::string> assetTag;
+         std::optional<std::string> powerRestorePolicy;
+         std::optional<std::string> powerMode;
+@@ -3283,7 +3286,7 @@
+         // clang-format off
+                 if (!json_util::readJsonPatch(
+                         req, asyncResp->res,
+-                        "IndicatorLED", indicatorLed,
++      //                "IndicatorLED", indicatorLed,
+                         "LocationIndicatorActive", locationIndicatorActive,
+                         "AssetTag", assetTag,
+                         "PowerRestorePolicy", powerRestorePolicy,
+@@ -3342,13 +3345,13 @@
+ 
+         // TODO (Gunnar): Remove IndicatorLED after enough time has
+         // passed
+-        if (indicatorLed)
++   /*   if (indicatorLed)
+         {
+             setIndicatorLedState(asyncResp, *indicatorLed);
+             asyncResp->res.addHeader(boost::beast::http::field::warning,
+                                      "299 - \"IndicatorLED is deprecated. Use "
+                                      "LocationIndicatorActive instead.\"");
+-        }
++        }     */
+ 
+         if (powerRestorePolicy)
+         {

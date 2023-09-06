@@ -1,0 +1,54 @@
+From 4c3c3d10a65606dca0ea9ded50ae87173d798306 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Tue, 27 Jun 2023 19:11:09 +0530
+Subject: [PATCH] Get SDR with the Invalid Record ID - shows "invalid request
+ data in field " instead of "Requested sensor, data, or record not found
+
+Tested:
+
+  -Verified Get SDR proper error response is working as expected.
+
+```shell
+Before fix - getting wrong error response for invalid record ID.
+
+ubuntu@samba-ad:~$ ipmitool -H 10.0.97.72 -U root -P 0penBmc -I lanplus -C 17 raw 0x0a 0x23 0x00 0x00 0xA1 0x00 0x00 0xff
+Unable to send RAW command (channel=0x0 netfn=0xa lun=0x0 cmd=0x23 rsp=0xcc): Invalid data field in request
+ubuntu@samba-ad:~$
+
+After fix - proper error response for invalid record ID.
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.97.83 -U root -P 0penBmc -I lanplus -C 17 raw 0x0a 0x23 0x00 0x00 0xBB 0x00 0x00 0xff
+Unable to send RAW command (channel=0x0 netfn=0xa lun=0x0 cmd=0x23 rsp=0xcb): Requested sensor, data, or record not found
+msgubuntu@Dell-server-3:~$
+
+```
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ src/sensorcommands.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index a929960..f363f03 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -2093,6 +2093,7 @@ ipmi::RspType<uint16_t,            // next record ID
+     ipmiStorageGetSDR(ipmi::Context::ptr ctx, uint16_t reservationID,
+                       uint16_t recordID, uint8_t offset, uint8_t bytesToRead)
+ {
++    constexpr Cc ccSensorInvalid = 0xCB;
+     size_t fruCount = 0;
+     // reservation required for partial reads with non zero offset into
+     // record
+@@ -2127,7 +2128,7 @@ ipmi::RspType<uint16_t,            // next record ID
+     {
+         phosphor::logging::log<phosphor::logging::level::ERR>(
+             "ipmiStorageGetSDR: fail to get SDR");
+-        return ipmi::responseInvalidFieldRequest();
++        return response(ccSensorInvalid);
+     }
+     get_sdr::SensorDataRecordHeader* hdr =
+         reinterpret_cast<get_sdr::SensorDataRecordHeader*>(record.data());
+-- 
+2.25.1
+

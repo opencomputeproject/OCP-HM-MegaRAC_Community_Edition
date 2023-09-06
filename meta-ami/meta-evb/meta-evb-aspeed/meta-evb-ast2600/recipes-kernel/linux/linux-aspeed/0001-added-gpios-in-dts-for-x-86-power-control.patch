@@ -1,0 +1,51 @@
+From 44a6b5fc280c80007275de019ca0544e70212de7 Mon Sep 17 00:00:00 2001
+From: dillibabu <dillibabug@ami.com>
+Date: Wed, 24 May 2023 19:05:18 +0530
+Subject: [PATCH]  added gpios in dts for x-86-power-control
+
+---
+ arch/arm/boot/dts/aspeed-ast2600-evb.dts | 31 +++++++++++++++++++++++-
+ 1 file changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-ast2600-evb.dts b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+index c60c670df9cc..7995e9ba4715 100644
+--- a/arch/arm/boot/dts/aspeed-ast2600-evb.dts
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+@@ -523,7 +523,36 @@ &sgpiom0 {
+ &sgpiom1 { 
+ 	status = "okay"; 
+ }; 
+-
++&gpio0 {
++        status = "okay";
++        gpio-line-names =
++        /*A0-A7*/       "","","","","","","","",
++        /*B0-B7*/       "","","","","","","","",
++        /*C0-C7*/       "","","","","","","","",
++        /*D0-D7*/       "","","","","","","","",
++        /*E0-E7*/       "","","","","","","","",
++        /*F0-F7*/       "","","","","","","","",
++        /*G0-G7*/       "","","","","","","","",
++        /*H0-H7*/       "","","","","","","","",
++        /*I0-I7*/       "","","","","","","","",
++        /*J0-J7*/       "","","","","","","","",
++        /*K0-K7*/       "","","","","","","","",
++        /*L0-L7*/       "","","","","","","","",
++        /*M0-M7*/       "","","","","","","","",
++        /*N0-N7*/       "","","","","","","","",
++        /*O0-O7*/       "","","","","","","","",
++        /*P0-P7*/       "","","","","","","","",
++        /*Q0-Q7*/       "","","","","","","","",
++        /*R0-R7*/       "","","","","","","","",
++        /*S0-S7*/       "","","","","","","","",
++        /*T0-T7*/       "","","","","","","","",
++        /*U0-U7*/       "","","","","","","","",
++        /*V0-V7*/       "NMI_OUT","RESET_BUTTON","NMI_BUTTON","POWER_BUTTON","PS_PWROK","POST_COMPLETE","POWER_OUT","RESET_OUT",
++        /*W0-W7*/       "ID_BUTTON","SIO_S5","SIO_ONCONTROL","","","","","",
++        /*X0-X7*/       "","","","","","","","",
++        /*Y0-Y7*/       "","","","","","","","",
++        /*Z0-Z7*/       "","","","","","","","";
++};
+ &fsim0 {
+ 	status = "okay";
+ };

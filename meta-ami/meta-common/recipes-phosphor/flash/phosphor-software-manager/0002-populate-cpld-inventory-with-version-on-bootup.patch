@@ -1,0 +1,105 @@
+From c25ca656aeeb40ae3d97f3382d205d910a87b15d Mon Sep 17 00:00:00 2001
+From: Abinaya L <abinayal@ami.com>
+Date: Thu, 8 Jun 2023 23:01:48 +0530
+Subject: [PATCH] populate cpld inventory with version on bootup
+
+---
+ item_updater.cpp | 50 ++++++++++++++++++++++++++++++++++++++++++++++++
+ item_updater.hpp | 16 ++++++++++++++++
+ 2 files changed, 66 insertions(+)
+
+diff --git a/item_updater.cpp b/item_updater.cpp
+index 59d6b98..983d98a 100644
+--- a/item_updater.cpp
++++ b/item_updater.cpp
+@@ -884,6 +884,56 @@ void ItemUpdater::createBIOSObject()
+ }
+ #endif
+ 
++void ItemUpdater::createCPLDObject()
++{
++    std::string path = "/xyz/openbmc_project/software/cpld_active";
++    // Get version id from last item in the path
++    auto pos = path.rfind("/");
++    if (pos == std::string::npos)
++    {
++        error("No version id found in object path {PATH}", "PATH", path);
++        return;
++    }
++
++    createActiveAssociation(path);
++    createFunctionalAssociation(path);
++
++    auto versionId = path.substr(pos + 1);
++    std::pair<int, std::string> ret =
++        utils::execute("/usr/bin/cpld-tool", "-u", "2>&1");
++
++    if (ret.first != 0)
++    {
++        error("failed to get version using cpld-tool");
++    }
++    std::string result = ret.second;
++    std::string key = "USERCODE=";
++    std::size_t found = result.find(key);
++    std::string version;
++    if (found != std::string::npos)
++    {
++        version = result.substr(found + key.length());
++    }
++    else
++    {
++        version = "NA";
++    }
++    AssociationList assocs = {};
++    cpldActivation = std::make_unique<Activation>(
++        bus, path, *this, versionId, server::Activation::Activations::Active,
++        assocs);
++    auto dummyErase = [](std::string /*entryId*/) {
++        // Do nothing;
++    };
++    cpldVersion = std::make_unique<VersionClass>(
++        bus, path, version, VersionPurpose::Other, "", "",
++        std::vector<std::string>(),
++        std::bind(dummyErase, std::placeholders::_1), "");
++    cpldVersion->deleteObject =
++        std::make_unique<phosphor::software::manager::Delete>(bus, path,
++                                                              *cpldVersion);
++}
++
+ void ItemUpdater::getRunningSlot()
+ {
+     // Check /run/media/slot to get the slot number
+diff --git a/item_updater.hpp b/item_updater.hpp
+index 9406bcd..e9fdb3c 100644
+--- a/item_updater.hpp
++++ b/item_updater.hpp
+@@ -70,6 +70,7 @@ class ItemUpdater : public ItemUpdaterInherit
+ #ifdef HOST_BIOS_UPGRADE
+         createBIOSObject();
+ #endif
++        createCPLDObject();
+         emit_object_added();
+     };
+ 
+@@ -282,6 +283,21 @@ class ItemUpdater : public ItemUpdaterInherit
+     std::unique_ptr<VersionClass> biosVersion;
+ #endif
+ 
++    /** @brief Create the CPLD object without knowing the version.
++     *
++     *  The object is created only to provide the DBus access so that an
++     *  external service could set the correct CPLD version.
++     *  On CPLD code update, the version is updated accordingly.
++     */
++    void createCPLDObject();
++
++    /** @brief Persistent Activation D-Bus object for CPLD */
++    std::unique_ptr<Activation> cpldActivation;
++
++  public:
++    /** @brief Persistent Version D-Bus object for CPLD */
++    std::unique_ptr<VersionClass> cpldVersion;
++
+     /** @brief Get the slot number of running image */
+     void getRunningSlot();
+ };

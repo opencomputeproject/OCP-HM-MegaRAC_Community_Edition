@@ -1,0 +1,69 @@
+From da26c7d53d88bd95e3242dae45903c1d74945f0d Mon Sep 17 00:00:00 2001
+From: Dillibabu <dillibabug@ami.com>
+Date: Wed, 24 May 2023 14:26:04 +0530
+Subject: [PATCH] AST2600 EVB Power Control
+
+---
+ src/power_control.cpp | 21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/src/power_control.cpp b/src/power_control.cpp
+index adf98ab..770aaca 100644
+--- a/src/power_control.cpp
++++ b/src/power_control.cpp
+@@ -2850,8 +2850,8 @@ int main(int argc, char* argv[])
+                 // if power button is masked, ignore this
+                 if (!powerButtonMask)
+                 {
+-                    sendPowerControlEvent(Event::powerOnRequest);
+-                    addRestartCause(RestartCause::command);
++                    powerOn();
++		     addRestartCause(RestartCause::command);
+                 }
+                 else
+                 {
+@@ -2866,8 +2866,10 @@ int main(int argc, char* argv[])
+                 // if power button is masked, ignore this
+                 if (!powerButtonMask)
+                 {
+-                    sendPowerControlEvent(Event::powerCycleRequest);
+-                    addRestartCause(RestartCause::command);
++                    setPowerState(PowerState::gracefulTransitionToCycleOff);
++                    gracefulPowerOffTimerStart();
++                    gracefulPowerOff();
++		     addRestartCause(RestartCause::command);
+                 }
+                 else
+                 {
+@@ -2883,8 +2885,7 @@ int main(int argc, char* argv[])
+                 // if reset button is masked, ignore this
+                 if (!resetButtonMask)
+                 {
+-                    sendPowerControlEvent(Event::gracefulPowerCycleRequest);
+-                    addRestartCause(RestartCause::command);
++                    lg2::info("GracefulWarmReboot support not available");
+                 }
+                 else
+                 {
+@@ -2900,7 +2901,9 @@ int main(int argc, char* argv[])
+                 // if reset button is masked, ignore this
+                 if (!resetButtonMask)
+                 {
+-                    sendPowerControlEvent(Event::resetRequest);
++                    gracefulPowerOffTimer.cancel();
++                    setPowerState(PowerState::on);
++                    reset();
+                     addRestartCause(RestartCause::command);
+                 }
+                 else
+@@ -2942,8 +2945,8 @@ int main(int argc, char* argv[])
+                 // if power button is masked, ignore this
+                 if (!powerButtonMask)
+                 {
+-                    sendPowerControlEvent(Event::powerOffRequest);
+-                    addRestartCause(RestartCause::command);
++                    gracefulPowerOff();
++		     addRestartCause(RestartCause::command);
+                 }
+                 else
+                 {

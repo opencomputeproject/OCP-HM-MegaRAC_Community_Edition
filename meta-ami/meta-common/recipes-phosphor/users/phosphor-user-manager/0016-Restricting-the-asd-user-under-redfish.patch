@@ -1,0 +1,29 @@
+From 7ff65dfc7a741070517f421c2d5065bf502864d4 Mon Sep 17 00:00:00 2001
+From: vamsikrishnak <vamsikrishnak@ami.com>
+Date: Thu, 6 Jul 2023 19:38:30 +0530
+Subject: [PATCH] Restricting the asd user under redfish
+
+Signed-off-by: vamsikrishnak <vamsikrishnak@ami.com>
+---
+ user_mgr.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/user_mgr.cpp b/user_mgr.cpp
+index 86ffa6b..b86a082 100644
+--- a/user_mgr.cpp
++++ b/user_mgr.cpp
+@@ -1434,6 +1434,11 @@ void UserMgr::initUserObjects(void)
+                 }
+             }
+             // Add user objects to the Users path.
++	    if(userPriv.empty())
++	    {
++		    //skip asd user
++		    continue;
++	    }
+             sdbusplus::message::object_path tempObjPath(usersObjPath);
+             tempObjPath /= user;
+             std::string objPath(tempObjPath);
+-- 
+2.9.5
+

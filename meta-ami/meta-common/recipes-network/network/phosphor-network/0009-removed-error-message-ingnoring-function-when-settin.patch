@@ -1,0 +1,30 @@
+From 87f0cb66e988a28ce16a94573a84668899c2cea5 Mon Sep 17 00:00:00 2001
+From: nibinc <nibinc@ami.com>
+Date: Fri, 26 May 2023 05:36:29 -0400
+Subject: [PATCH 9/9] removed error message ingnoring function when setting
+ invalid mtu
+
+---
+ src/ethernet_interface.cpp | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/ethernet_interface.cpp b/src/ethernet_interface.cpp
+index ab8b815..6f0a18a 100644
+--- a/src/ethernet_interface.cpp
++++ b/src/ethernet_interface.cpp
+@@ -429,10 +429,8 @@ size_t EthernetInterface::mtu(size_t value)
+         return value;
+     }
+     const auto ifname = interfaceName();
+-    return EthernetInterfaceIntf::mtu(ignoreError("SetMTU", ifname, old, [&] {
+-        system::setMTU(ifname, value);
+-        return value;
+-    }));
++    system::setMTU(ifname, value);
++    return EthernetInterfaceIntf::mtu(value);
+ }
+ 
+ bool EthernetInterface::nicEnabled(bool value)
+-- 
+2.17.1
+

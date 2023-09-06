@@ -1,0 +1,105 @@
+From 31b9a77f96a49bc0df569a87ebb5400f05645c19 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 19 Jun 2023 09:23:41 +0530
+Subject: [PATCH] Expansion Pack features webui bundle handling
+
+Webpack looking for views in build time.Replaced the page
+not found template.If tech pack enabled replaced the
+dummy view.
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/store/modules/Nic/Nic.js                         |  6 ++++++
+ .../modules/NvmeInformation/NvmeInformationStore.js  |  7 +++++++
+ src/views/Nic/NicInformation.vue                     | 12 ++++++++++++
+ src/views/Nic/index.js                               |  2 ++
+ src/views/NvmeInformation/NvmeInformation.vue        | 12 ++++++++++++
+ src/views/NvmeInformation/index.js                   |  2 ++
+ 6 files changed, 41 insertions(+)
+ create mode 100644 src/store/modules/Nic/Nic.js
+ create mode 100644 src/store/modules/NvmeInformation/NvmeInformationStore.js
+ create mode 100644 src/views/Nic/NicInformation.vue
+ create mode 100644 src/views/Nic/index.js
+ create mode 100644 src/views/NvmeInformation/NvmeInformation.vue
+ create mode 100644 src/views/NvmeInformation/index.js
+
+diff --git a/src/store/modules/Nic/Nic.js b/src/store/modules/Nic/Nic.js
+new file mode 100644
+index 0000000..e38fa5e
+--- /dev/null
++++ b/src/store/modules/Nic/Nic.js
+@@ -0,0 +1,6 @@
++import api from '@/store/api';
++const NicStore = {
++  namespaced: true,
++};
++console.log('api:', api);
++export default NicStore;
+diff --git a/src/store/modules/NvmeInformation/NvmeInformationStore.js b/src/store/modules/NvmeInformation/NvmeInformationStore.js
+new file mode 100644
+index 0000000..9a6b248
+--- /dev/null
++++ b/src/store/modules/NvmeInformation/NvmeInformationStore.js
+@@ -0,0 +1,7 @@
++import api from '@/store/api';
++const NetworkStore = {
++  namespaced: true,
++};
++
++console.log('api:', api);
++export default NetworkStore;
+diff --git a/src/views/Nic/NicInformation.vue b/src/views/Nic/NicInformation.vue
+new file mode 100644
+index 0000000..91341db
+--- /dev/null
++++ b/src/views/Nic/NicInformation.vue
+@@ -0,0 +1,12 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pagePageNotFound.description')" />
++  </b-container>
++</template>
++<script>
++import PageTitle from '@/components/Global/PageTitle';
++export default {
++  name: 'PageNotFound',
++  components: { PageTitle },
++};
++</script>
+diff --git a/src/views/Nic/index.js b/src/views/Nic/index.js
+new file mode 100644
+index 0000000..c53954e
+--- /dev/null
++++ b/src/views/Nic/index.js
+@@ -0,0 +1,2 @@
++import nicInformation from './NicInformation.vue';
++export default nicInformation;
+diff --git a/src/views/NvmeInformation/NvmeInformation.vue b/src/views/NvmeInformation/NvmeInformation.vue
+new file mode 100644
+index 0000000..91341db
+--- /dev/null
++++ b/src/views/NvmeInformation/NvmeInformation.vue
+@@ -0,0 +1,12 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pagePageNotFound.description')" />
++  </b-container>
++</template>
++<script>
++import PageTitle from '@/components/Global/PageTitle';
++export default {
++  name: 'PageNotFound',
++  components: { PageTitle },
++};
++</script>
+diff --git a/src/views/NvmeInformation/index.js b/src/views/NvmeInformation/index.js
+new file mode 100644
+index 0000000..49138fe
+--- /dev/null
++++ b/src/views/NvmeInformation/index.js
+@@ -0,0 +1,2 @@
++import NvmeInformation from './NvmeInformation.vue';
++export default NvmeInformation;
+-- 
+2.25.1
+

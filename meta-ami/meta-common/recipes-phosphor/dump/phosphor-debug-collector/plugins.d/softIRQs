@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect software interrupt request information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="SoftIRQs"
+file_name="softIRQs.log"
+command="cat /proc/softirqs"
+
+add_cmd_output "$command" "$file_name" "$desc"

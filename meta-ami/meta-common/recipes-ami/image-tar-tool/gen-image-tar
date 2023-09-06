@@ -1,0 +1,222 @@
+#!/bin/bash
+set -eo pipefail
+
+help=$(
+  cat <<EOF
+Generate Tarball with image and MANIFEST Script
+
+Generates a image tarball from given file as input.
+Creates a MANIFEST for image verification and recreation
+Packages the image and MANIFEST together in a tarball
+
+usage: gen-image-tar [OPTION] <Image FILE>...
+
+Options:
+   -o, --out <file>       Specify destination file. Defaults to
+                          $(pwd)/obmc-image.tar.gz if unspecified.
+   -s, --sign <path>      Sign the image. The optional path argument specifies
+                          the private key file. Defaults to the bash variable
+                          PRIVATE_KEY_PATH if available, or else uses the
+                          open-source private key in this script.
+   -m, --machine <name>   Optionally specify the target machine name of this
+                          image.
+   -v, --version <name>   Specify the version of image file
+   -c, --component <name> Specify the component name bmc,bios,cpld
+   -h, --help             Display this help text and exit.
+EOF
+)
+
+#################################################################
+# It's the OpenBMC "public" private key (currently under
+# meta-phosphor/recipes-phosphor/flash/files/OpenBMC.priv):
+# https://gerrit.openbmc-project.xyz/c/openbmc/openbmc/+/8949/15/
+# meta-phosphor/common/recipes-phosphor/flash/files/OpenBMC.priv
+#
+#################################################################
+private_key=$'-----BEGIN PRIVATE KEY-----
+MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAPvSDLu6slkP1gri
+PaeQXL9ysD69J/HjbBCIQ0RPfeWBb75US1tRTjPP0Ub8CtH8ExVf8iF1ulsZA78B
+zIjBYZVp9pyD6LbpZ/hjV7rIH6dTNhoVpdA+F8LzmQ7cyhHG8l2JMvdunwF2uX5k
+D4WDcZt/ITKZNQNavPtmIyD5HprdAgMBAAECgYEAuQkTSi5ZNpAoWz76xtGRFSwU
+zUT4wQi3Mz6tDtjKTYXasiQGa0dHC1M9F8fDu6BZ9W7W4Dc9hArRcdzEighuxoI/
+nZI/0uL89iUEywnDEIHuS6D5JlZaj86/nx9YvQnO8F/seM+MX0EAWVrd5wC7aAF1
+h6Fu7ykZB4ggUjQAWwECQQD+AUiDOEO+8btLJ135dQfSGc5VFcZiequnKWVm6uXt
+rX771hEYjYMjLqWGFg9G4gE3GuABM5chMINuQQUivy8tAkEA/cxfy19XkjtqcMgE
+x/UDt6Nr+Ky/tk+4Y65WxPRDas0uxFOPk/vEjgVmz1k/TAy9G4giisluTvtmltr5
+DCLocQJBAJnRHx9PiD7uVhRJz6/L/iNuOzPtTsi+Loq5F83+O6T15qsM1CeBMsOw
+cM5FN5UeMcwz+yjfHAsePMkcmMaU7jUCQHlg9+N8upXuIo7Dqj2zOU7nMmkgvSNE
+5yuNImRZabC3ZolwaTdd7nf5r1y1Eyec5Ag5yENV6JKPe1Xkbb1XKJECQDngA0h4
+6ATvfP1Vrx4CbP11eKXbCsZ9OGPHSgyvVjn68oY5ZP3uPsIattoN7dE2BRfuJm7m
+F0nIdUAhR0yTfKM=
+-----END PRIVATE KEY-----
+'
+
+do_sign=false
+PRIVATE_KEY_PATH=${PRIVATE_KEY_PATH:-}
+private_key_path="${PRIVATE_KEY_PATH}"
+outfile=""
+machine=""
+version=""
+component=""
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+  -o | --out)
+    outfile="$2"
+    shift 2
+    ;;
+  -s | --sign)
+    do_sign=true
+    if [[ -n "${2}" && "${2}" != -* ]]; then
+      private_key_path="$2"
+      shift 2
+    else
+      shift 1
+    fi
+    ;;
+  -m | --machine)
+    machine="$2"
+    shift 2
+    ;;
+  -v | --version)
+    version="$2"
+    shift 2
+    ;;
+  -c | --component)
+    component="$2"
+    shift 2
+    ;;
+  -h | --help)
+    echo "$help"
+    exit
+    ;;
+  -*)
+    echo "Unrecognised option $1"
+    echo "$help"
+    exit
+    ;;
+  *)
+    file="$1"
+    shift 1
+    ;;
+  esac
+done
+
+if [ ! -f "${file}" ]; then
+  echo "${file} not found, Please enter a valid image file"
+  echo "$help"
+  exit 1
+fi
+
+if [[ -z $version ]]; then
+  echo "Please provide version of image with -v option"
+  exit 1
+fi
+
+if [[ -z $component ]]; then
+  echo "Please provide component of image with -c option"
+  exit 1
+fi
+
+if [[ -z $outfile ]]; then
+  outfile=$(pwd)/obmc-image.tar.gz
+else
+  if [[ $outfile != /* ]]; then
+    outfile=$(pwd)/$outfile
+  fi
+fi
+
+scratch_dir=$(mktemp -d)
+# Remove the temp directory on exit.
+# The files in the temp directory may contain read-only files, so add
+# --interactive=never to skip the prompt.
+trap '{ rm -r --interactive=never ${scratch_dir}; }' EXIT
+
+if [[ "${do_sign}" == true ]]; then
+  if [[ -z "${private_key_path}" ]]; then
+    private_key_path=${scratch_dir}/OpenBMC.priv
+    echo "${private_key}" >"${private_key_path}"
+    echo "Image is NOT secure!! Signing with the open private key!"
+  else
+    if [[ ! -f "${private_key_path}" ]]; then
+      echo "Couldn't find private key ${private_key_path}."
+      exit 1
+    fi
+
+    echo "Signing with ${private_key_path}."
+    cp "${private_key_path}" "${scratch_dir}"
+  fi
+
+  public_key_file=publickey
+  public_key_path=${scratch_dir}/$public_key_file
+  openssl pkey -in "${private_key_path}" -pubout -out "${public_key_path}"
+fi
+
+manifest_location="MANIFEST"
+files_to_sign="$manifest_location $public_key_file "
+
+echo "Creating MANIFEST for the image"
+if [[ -n "${component}" ]]; then
+  case "${component}" in
+  bmc)
+    # Go to scratch_dir
+    cp "${file}" "${scratch_dir}/image-bmc"
+    cd "${scratch_dir}"
+    files_to_sign+="image-bmc"
+    echo -e "purpose=xyz.openbmc_project.Software.Version.VersionPurpose.BMC\n\
+version=$version" >$manifest_location
+    ;;
+  bios)
+    cp "${file}" "${scratch_dir}/image-bios"
+    cd "${scratch_dir}"
+    files_to_sign+="image-bios"
+    echo -e "purpose=xyz.openbmc_project.Software.Version.VersionPurpose.Host\n\
+version=$version" >$manifest_location
+    ;;
+  cpld)
+    cp "${file}" "${scratch_dir}/image-cpld"
+    cd "${scratch_dir}"
+    files_to_sign+="image-cpld"
+    echo -e "purpose=xyz.openbmc_project.Software.Version.VersionPurpose.Other\n\
+version=$version" >$manifest_location
+    ;;
+  *)
+    echo "Invalid component name"
+    ;;
+  esac
+fi
+
+
+
+
+if [[ -n "${machine}" ]]; then
+  echo -e "MachineName=${machine}" >>$manifest_location
+fi
+
+if [[ "${do_sign}" == true ]]; then
+  private_key_name=$(basename "${private_key_path}")
+  key_type="${private_key_name%.*}"
+  echo KeyType="${key_type}" >>$manifest_location
+  echo HashType="RSA-SHA256" >>$manifest_location
+
+  for file in $files_to_sign; do
+    openssl dgst -sha256 -sign "${private_key_name}" -out "${file}.sig" "$file"
+  done
+  additional_files="*.sig"
+  if [[ "${component}" == "bmc" ]]; then
+    if [ -n "$additional_files" ]; then
+      sort_signature_files=$(echo "$additional_files" | tr ' ' '\n' | sort | tr '\n' ' ')
+      cat $sort_signature_files >image-full
+      openssl dgst -sha256 -sign ${private_key_name} -out image-full.sig image-full
+      additional_files="${additional_files} image-full.sig"
+    fi
+  fi
+
+fi
+
+# shellcheck disable=SC2086
+# Do not quote the files variables since they list multiple files
+# and tar would assume to be a single file name within quotes
+tar -czvf $outfile $files_to_sign $additional_files
+echo "image tarball is at $outfile"

@@ -1,0 +1,49 @@
+From f509ba5913b4fb219ade7de383dd9a9eb53a8e5a Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Thu, 29 Jun 2023 16:33:59 +0530
+Subject: [PATCH] Apply power restore policy only AC power loss
+
+Currently during BMC reboot Power restore policy is getting applied.
+This patch add support to apply power-restor-policy only when AC
+Power loss happens. bmc-boot-check service will monitor AST2600 SCU
+register and update to BMC by generating /tmp/ACLost file.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ src/power_control.cpp | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/power_control.cpp b/src/power_control.cpp
+index adf98ab..cab4a4a 100644
+--- a/src/power_control.cpp
++++ b/src/power_control.cpp
+@@ -2505,6 +2505,17 @@ int getProperty(ConfigData& configData)
+     }
+     return (*respValue);
+ }
++
++bool bmcBootCheck()
++{
++    std::filesystem::path acLossFile("/tmp/ACLost");
++    if (std::filesystem::exists(acLossFile))
++    {
++        return true; // AC Loss Detected
++    }
++    return false;
++}
++
+ } // namespace power_control
+ 
+ int main(int argc, char* argv[])
+@@ -2805,7 +2816,7 @@ int main(int argc, char* argv[])
+         }
+     }
+     // Check if we need to start the Power Restore policy
+-    if (powerState != PowerState::on)
++    if (powerState != PowerState::on && bmcBootCheck())
+     {
+         powerRestore.run();
+     }
+-- 
+2.25.1
+

@@ -1,0 +1,75 @@
+From 3b87782eccf69e5422d53b1e4c3d4bb5a08d1844 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Thu, 1 Sep 2022 16:30:44 +0530
+Subject: [PATCH] SSL Certificate certificate creation changes
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ .../Certificates/ModalGenerateCsr.vue         | 25 +++++++++++++------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/src/views/SecurityAndAccess/Certificates/ModalGenerateCsr.vue b/src/views/SecurityAndAccess/Certificates/ModalGenerateCsr.vue
+index d76f9fe..871010e 100644
+--- a/src/views/SecurityAndAccess/Certificates/ModalGenerateCsr.vue
++++ b/src/views/SecurityAndAccess/Certificates/ModalGenerateCsr.vue
+@@ -360,18 +360,13 @@
+             {{ $t('global.action.copy') }}
+           </template>
+         </b-btn>
+-        <a
+-          :href="`data:text/json;charset=utf-8,${csrString}`"
+-          download="certificate.txt"
+-          class="btn btn-primary"
+-        >
++        <b-btn variant="secondary" @click="exportCsrFile">
+           {{ $t('global.action.download') }}
+-        </a>
++        </b-btn>
+       </template>
+     </b-modal>
+   </div>
+ </template>
+-
+ <script>
+ import IconAdd from '@carbon/icons-vue/es/add--alt/20';
+ import IconCheckmark from '@carbon/icons-vue/es/checkmark/20';
+@@ -389,6 +384,7 @@ export default {
+   mixins: [BVToastMixin, VuelidateMixin],
+   data() {
+     return {
++      certificate: '',
+       form: {
+         certificateType: null,
+         country: null,
+@@ -458,6 +454,7 @@ export default {
+         .dispatch('certificates/generateCsr', this.form)
+         .then(({ data: { CSRString } }) => {
+           this.csrString = CSRString;
++          this.certificate = CSRString;
+           this.$bvModal.show('csr-string');
+           this.$v.$reset();
+         });
+@@ -491,6 +488,20 @@ export default {
+         }, 5000 /*5 seconds*/);
+       });
+     },
++    exportCsrFile() {
++      let text = this.certificate;
++      let filename = 'certificate.csrf';
++      let element = document.createElement('a');
++      element.setAttribute(
++        'href',
++        'data:application/json;charset=utf-8,' + encodeURIComponent(text)
++      );
++      element.setAttribute('download', filename);
++      element.style.display = 'none';
++      document.body.appendChild(element);
++      element.click();
++      document.body.removeChild(element);
++    },
+   },
+ };
+ </script>
+-- 
+2.25.1
+

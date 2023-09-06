@@ -1,0 +1,157 @@
+From e4edd613815616150740bf2312b84daf8bcf62b9 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Fri, 2 Jun 2023 17:24:58 +0530
+Subject: [PATCH] Conditional Rendering on Expansion Pack features
+
+This patch set will check the environment variable to render the
+expansion pack features like nic, nvme, raid etc., If the feature
+support is available in the .env file then the router and navigation
+will be added
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/env/components/AppNavigation/ami.js | 33 ++++++++-----
+ src/env/router/ami.js                   | 61 ++++++++++++++-----------
+ 2 files changed, 56 insertions(+), 38 deletions(-)
+
+diff --git a/src/env/components/AppNavigation/ami.js b/src/env/components/AppNavigation/ami.js
+index 8ec96f2..2bd68cb 100644
+--- a/src/env/components/AppNavigation/ami.js
++++ b/src/env/components/AppNavigation/ami.js
+@@ -25,8 +25,12 @@ const AppNavigationMixin = {
+     iconHostSystemDiagnostics: IconHostSystemDiagnostics,
+   },
+   data() {
+-    return {
+-      navigationItems: [
++    return this.renderNavigationItems();
++  },
++  methods: {
++    renderNavigationItems() {
++      let navigationItemsList = {};
++      navigationItemsList.navigationItems = [
+         {
+           id: 'overview',
+           label: this.$t('appNavigation.overview'),
+@@ -219,20 +223,25 @@ const AppNavigationMixin = {
+             },
+           ],
+         },
+-        {
+-          id: 'nic',
+-          label: this.$t('appNavigation.nicInformation'),
+-          icon: 'iconNic',
+-          route: '/nic',
+-        },
+-        {
++      ];
++      if (process.env.VUE_APP_NVME_ENABLED === 'true') {
++        navigationItemsList.navigationItems.push({
+           id: 'nvmeInformation',
+           label: this.$t('appNavigation.nvmeInformation'),
+           route: '/nvme-information',
+           icon: 'iconObjectStorage',
+-        },
+-      ],
+-    };
++        });
++      }
++      if (process.env.VUE_APP_NIC_ENABLED === 'true') {
++        navigationItemsList.navigationItems.push({
++          id: 'nic',
++          label: this.$t('appNavigation.nicInformation'),
++          icon: 'iconNic',
++          route: '/nic',
++        });
++      }
++      return navigationItemsList;
++    },
+   },
+ };
+ 
+diff --git a/src/env/router/ami.js b/src/env/router/ami.js
+index e96b2dc..1acb01f 100644
+--- a/src/env/router/ami.js
++++ b/src/env/router/ami.js
+@@ -31,10 +31,8 @@ import ServerPowerOperations from '@/views/Operations/ServerPowerOperations';
+ import Certificates from '@/views/SecurityAndAccess/Certificates';
+ import VirtualMedia from '@/views/Operations/VirtualMedia';
+ import Power from '@/views/ResourceManagement/Power';
+-import nicInformation from '@/views/Nic';
+ import i18n from '@/i18n';
+ import Dumps from '@/views/Logs/Dumps';
+-import NvmeInformation from '@/views/NvmeInformation';
+ import ACD from '@/views/HostSystemDiagnostics/ACD';
+ import Asd from '@/views/HostSystemDiagnostics/Asd';
+ 
+@@ -318,32 +316,43 @@ const routes = [
+           title: i18n.t('appPageTitle.virtualMedia'),
+         },
+       },
+-      {
+-        path: '/nic',
+-        name: 'nic-information',
+-        component: nicInformation,
+-        meta: {
+-          title: i18n.t('appPageTitle.nicInformation'),
+-        },
+-      },
+-      {
+-        path: '/nvme-information',
+-        name: 'nvme-information',
+-        component: NvmeInformation,
+-        meta: {
+-          title: i18n.t('appPageTitle.nvmeInformation'),
+-        },
+-      },
+-      {
+-        path: '*',
+-        name: 'page-not-found',
+-        component: PageNotFound,
+-        meta: {
+-          title: i18n.t('appPageTitle.pageNotFound'),
+-        },
+-      },
+     ],
+   },
+ ];
+ 
++if (process.env.VUE_APP_NVME_ENABLED == 'true') {
++  routes[2].children.push({
++    path: '/nvme-information',
++    name: 'nvme-information',
++    component: () =>
++      import(
++        /* webpackChunkName: "NvmeInformation" */ '@/views/NvmeInformation'
++      ),
++    meta: {
++      title: i18n.t('appPageTitle.nvmeInformation'),
++    },
++  });
++}
++
++if (process.env.VUE_APP_NIC_ENABLED == 'true') {
++  routes[2].children.push({
++    path: '/nic',
++    name: 'nic-information',
++    component: () =>
++      import(/* webpackChunkName: "nicInformation" */ '@/views/Nic'),
++    meta: {
++      title: i18n.t('appPageTitle.nicInformation'),
++    },
++  });
++}
++
++routes[2].children.push({
++  path: '*',
++  name: 'page-not-found',
++  component: PageNotFound,
++  meta: {
++    title: i18n.t('appPageTitle.pageNotFound'),
++  },
++});
++
+ export default routes;
+-- 
+2.25.1
+

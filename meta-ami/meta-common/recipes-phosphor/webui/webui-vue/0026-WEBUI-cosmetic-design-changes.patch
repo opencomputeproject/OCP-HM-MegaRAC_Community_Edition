@@ -1,0 +1,52 @@
+From dc84e65792c0b9b731989da43d6f33c2bbdcebed Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 3 Nov 2022 18:15:37 +0530
+Subject: [PATCH] WEBUI cosmetic design changes
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/App.vue                       | 13 -------------
+ src/env/assets/styles/_intel.scss |  3 +++
+ 2 files changed, 3 insertions(+), 13 deletions(-)
+
+diff --git a/src/App.vue b/src/App.vue
+index fc04b70..f6991c4 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -7,22 +7,9 @@
+ <script>
+ export default {
+   name: 'App',
+-  computed: {
+-    assetTag() {
+-      return this.$store.getters['global/assetTag'];
+-    },
+-  },
+   watch: {
+-    assetTag: function (tag) {
+-      if (tag) {
+-        document.title = `${tag} - ${this.$route.meta.title}`;
+-      }
+-    },
+     $route: function (to) {
+       document.title = to.meta.title || 'Page is missing title';
+-      if (this.assetTag) {
+-        document.title = `${this.assetTag} - ${to.meta.title}`;
+-      }
+     },
+   },
+   created() {
+diff --git a/src/env/assets/styles/_intel.scss b/src/env/assets/styles/_intel.scss
+index 5be0935..c3fc135 100644
+--- a/src/env/assets/styles/_intel.scss
++++ b/src/env/assets/styles/_intel.scss
+@@ -60,3 +60,6 @@ $navbar-color: $c-black;
+ .custom-control-input:checked ~ .custom-control-label::before {
+   background-color: $primary !important;
+ }
++body {
++  background-color: lightgray !important;
++}
+-- 
+2.25.1
+

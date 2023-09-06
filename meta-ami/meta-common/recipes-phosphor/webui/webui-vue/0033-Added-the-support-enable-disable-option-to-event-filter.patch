@@ -1,0 +1,248 @@
+From 42d44063e52179b32c0f4e5dec7e82e09ad3d829 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Fri, 18 Nov 2022 16:27:02 +0530
+Subject: [PATCH] Added the support enable disable option to event filters
+
+As per the supports available from the backend, added the enable
+disable option to show/hide the supported event filters only
+in WEBUI.
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                    | 19 +++++++
+ src/store/modules/Pef/EventFilterStore.js | 62 ++++++++++++++++-------
+ src/views/PEF/EventFilter/eventFilter.vue | 21 ++++++++
+ 3 files changed, 83 insertions(+), 19 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index fded5ac..f7248ca 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -848,6 +848,25 @@
+     "pageDescription": "Select the Events that will trigger the alert",
+     "sectionTitle": "Event Filter",
+     "eventFilterLabel": "Configure Alert Destination details",
++    "enableAllEvents": "Enable all Event Filters",
++    "temperatureSensorOutOfRange": "Temperature Sensor Out of Range",
++    "fanFailure": "Fan Failure",
++    "powerSupplyFailure": "Power Supply Failure",
++    "biosPostErrorCode": "BIOS: Post Error Code",
++    "nodeManagerException": "Node Manager Exception",
++    "systemRestart": "System Restart",
++    "powerUnitRedundancyFailure": "Power Unit Redundancy Failure",
++    "fanRedundancyFailure": "Fan Redundancy Failure",
++    "processorPresence": "Processor Presence",
++    "voltageSensorOutOfRange": "Voltage Sensor Out of Range",
++    "chassisIntrusion": "Chassis Intrusion",
++    "memoryError": "Memory Error",
++    "frbFailure": "FRB Failure",
++    "watchdogTimer": "Watchdog Timer",
++    "hardDriveFailure": "Hard Drive Failure",
++    "inletTemperatureOverheatShutdown": "Inlet Temperature Overheat Shutdown",
++    "powerUnitStatus": "Power Unit Status",
++    "processorDimmThermTrip": "Processor DIMM Therm Trip",
+     "toast": {
+       "successEventFilterMsg": "Event Filter configuration updated successfully",
+       "errorEventFilterMsg": "Error in Updating event filter configuration"
+diff --git a/src/store/modules/Pef/EventFilterStore.js b/src/store/modules/Pef/EventFilterStore.js
+index 9539226..9597fa0 100644
+--- a/src/store/modules/Pef/EventFilterStore.js
++++ b/src/store/modules/Pef/EventFilterStore.js
+@@ -7,92 +7,110 @@ const EventFilterStore = {
+     alertData: [
+       {
+         value: 1,
+-        eventName: 'Temperature Sensor Out of Range',
++        eventName: i18n.t('pageEventFilter.temperatureSensorOutOfRange'),
++        isSupported: true,
+         enableStatus: false,
+       },
+       {
+         value: 2,
+-        eventName: 'Fan Failure',
++        eventName: i18n.t('pageEventFilter.fanFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 3,
+-        eventName: 'Power Supply Failure',
++        eventName: i18n.t('pageEventFilter.powerSupplyFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 4,
+-        eventName: 'BIOS: Post Error Code',
++        eventName: i18n.t('pageEventFilter.biosPostErrorCode'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 5,
+-        eventName: 'Node Manager Exception',
++        eventName: i18n.t('pageEventFilter.nodeManagerException'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 6,
+-        eventName: 'System Restart',
++        eventName: i18n.t('pageEventFilter.systemRestart'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 7,
+-        eventName: 'Power Unit Redundancy Failure',
++        eventName: i18n.t('pageEventFilter.powerUnitRedundancyFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 8,
+-        eventName: 'Fan Redundancy Failure',
++        eventName: i18n.t('pageEventFilter.fanRedundancyFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 9,
+-        eventName: 'Processor Therm Trip',
++        eventName: i18n.t('pageEventFilter.processorPresence'),
++        isSupported: true,
+         enableStatus: false,
+       },
+       {
+         value: 10,
+-        eventName: 'Voltage Sensor Out of Range',
++        eventName: i18n.t('pageEventFilter.voltageSensorOutOfRange'),
++        isSupported: true,
+         enableStatus: false,
+       },
+       {
+         value: 11,
+-        eventName: 'Chassis Intrusion',
++        eventName: i18n.t('pageEventFilter.chassisIntrusion'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 12,
+-        eventName: 'Memory Error',
++        eventName: i18n.t('pageEventFilter.memoryError'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 13,
+-        eventName: 'FRB Failure',
++        eventName: i18n.t('pageEventFilter.frbFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 14,
+-        eventName: 'Watchdog Timer',
++        eventName: i18n.t('pageEventFilter.watchdogTimer'),
++        isSupported: true,
+         enableStatus: false,
+       },
+       {
+         value: 15,
+-        eventName: 'Hard Drive Failure',
++        eventName: i18n.t('pageEventFilter.hardDriveFailure'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 16,
+-        eventName: 'Inlet Temperature Overheat Shutdown',
++        eventName: i18n.t('pageEventFilter.inletTemperatureOverheatShutdown'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 17,
+-        eventName: 'Power Unit Status',
++        eventName: i18n.t('pageEventFilter.powerUnitStatus'),
++        isSupported: false,
+         enableStatus: false,
+       },
+       {
+         value: 18,
+-        eventName: 'Processor DIMM Therm Trip',
++        eventName: i18n.t('pageEventFilter.processorDimmThermTrip'),
++        isSupported: false,
+         enableStatus: false,
+       },
+     ],
+@@ -120,7 +138,13 @@ const EventFilterStore = {
+     async setEventFilterData({ dispatch }, properties) {
+       let filterArray = new Array(18);
+       for (var i = 0; i < properties.length; i++) {
+-        filterArray[i] = properties[i].enableStatus ? 1 : 0;
++        if (properties[i].isSupported) {
++          // If the event is supported, Check whether its enabled/disabled from WEBUI
++          filterArray[i] = properties[i].enableStatus ? 1 : 0;
++        } else {
++          // If the event is not supported, directly send disable
++          filterArray[i] = 0;
++        }
+       }
+       const data = {
+         FilterEnable: filterArray,
+diff --git a/src/views/PEF/EventFilter/eventFilter.vue b/src/views/PEF/EventFilter/eventFilter.vue
+index 77509f9..3121798 100644
+--- a/src/views/PEF/EventFilter/eventFilter.vue
++++ b/src/views/PEF/EventFilter/eventFilter.vue
+@@ -10,11 +10,26 @@
+             label-class="sr-only"
+             :disabled="loading"
+           >
++            <b-row>
++              <b-col md="9" lg="8" xl="9">
++                <b-form-group>
++                  <b-form-checkbox
++                    v-model="checkAll"
++                    data-test-id="checkAllEventFilter"
++                    switch
++                    @change="enableAllTheEvents"
++                  >
++                    <span>{{ $t('pageEventFilter.enableAllEvents') }}</span>
++                  </b-form-checkbox>
++                </b-form-group>
++              </b-col>
++            </b-row>
+             <b-row>
+               <b-col md="9" lg="8" xl="9">
+                 <b-row>
+                   <b-col
+                     v-for="(events, $index) in alertData"
++                    v-show="events.isSupported"
+                     :key="$index"
+                     sm="6"
+                     xl="4"
+@@ -70,6 +85,7 @@ export default {
+   data() {
+     return {
+       alertData: this.$store.getters['eventFilter/getAlertData'],
++      checkAll: false,
+       loading,
+     };
+   },
+@@ -94,6 +110,11 @@ export default {
+           this.endLoader();
+         });
+     },
++    enableAllTheEvents() {
++      this.alertData.forEach((each) => {
++        each.enableStatus = this.checkAll;
++      });
++    },
+   },
+ };
+ </script>
+-- 
+2.25.1
+

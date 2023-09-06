@@ -1,0 +1,243 @@
+From 79f750448de86c63abb17b7ff85a063b96753b6b Mon Sep 17 00:00:00 2001
+From: dhineskumare <dinesh1994>
+Date: Thu, 4 Aug 2022 10:27:27 +0530
+Subject: [PATCH 50/50] ARP GARP Support IPMI
+
+---
+ transporthandler.cpp | 631 ++++++++++++++++++++++++++++++++++++++++++-
+ transporthandler.hpp |  13 +
+ 2 files changed, 640 insertions(+), 4 deletions(-)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index b29e4bf5..128de2ce 100644
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -9,6 +9,7 @@ using sdbusplus::xyz::openbmc_project::Common::Error::InternalFailure;
+ using sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface;
+ using sdbusplus::xyz::openbmc_project::Network::server::IP;
+ using sdbusplus::xyz::openbmc_project::Network::server::Neighbor;
++using sdbusplus::xyz::openbmc_project::Network::server::ARPControl;
+ 
+ namespace cipher
+ {
+@@ -837,6 +838,89 @@ bool isValidMACAddress(const ether_addr& mac)
+     return true;
+ }
+ 
++/** @brief Sets the BMC  Generated ARP Response state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] ARPResponse  - True: Enable BMC Generated ARP Response
++ *                             False: Disable BMC Generated ARP Response
++ */
++void setARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                       bool ARPResponse)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "ARPResponse", ARPResponse);
++}
++
++/** @brief Sets the BMC Generated GratuitousARP state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] ARPResponse  - True: Enable BMC Generated GARP Response
++ *                             False: Disable BMC Generated GARP Response
++ */
++void setGARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                       bool GARPResponse)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "GratuitousARP", GARPResponse);
++}
++
++/** @brief Sets the GratuitousARP Interval on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @param[in] GARPInterval  - GratuitousARPInterval
++ */
++void setGARPIntervalProperty(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                      uint64_t GARPInterval)
++{
++    setDbusProperty(bus, params.service, params.logicalPath, INTF_ARPCONTROL,
++                    "GratuitousARPInterval", GARPInterval);
++}
++
++/** @brief Gets the BMC  Generated ARP Response state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return status of ARP Response
++ */
++uint8_t getARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    bool arpstatus = std::get<bool>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "ARPResponse"));
++
++    return ((arpstatus)?2:0);
++}
++
++/** @brief Gets the BMC Generated GratuitousARP state on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return status of GratuitousARP
++ */
++uint8_t getGARPProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    bool garpstatus = std::get<bool>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "GratuitousARP"));
++
++    return ((garpstatus)?1:0);
++}
++
++/** @brief Gets the GratuitousARP Interval on the given interface
++ *
++ *  @param[in] bus           - The bus object used for lookups
++ *  @param[in] params        - The parameters for the channel
++ *  @return GARP Interval
++ */
++uint8_t getGARPIntervalProperty(sdbusplus::bus::bus& bus, const ChannelParams& params)
++{
++    uint64_t garpInterval = std::get<uint64_t>(getDbusProperty(
++        bus, params.service, params.logicalPath, INTF_ARPCONTROL, "GratuitousARPInterval"));
++
++    return (garpInterval/500);
++}
++
+ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                  uint8_t parameter, message::Payload& req)
+ {
+@@ -998,6 +1082,53 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             }
+             channelCall<reconfigureIfAddr4>(channel, std::nullopt, prefix);
+             return responseSuccess();
++        }
++	        case LanParam::BMCARPControl:
++        {
++            uint8_t enables;
++            if (req.unpack(enables) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            switch (static_cast<ARPControlEnables>(enables))
++            {
++                case ARPControlEnables::BMCARPControlDisable:
++                {
++                    channelCall<setARPProperty>(channel, false);
++                    channelCall<setGARPProperty>(channel, false);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCGARPOnly:
++                {
++                    channelCall<setARPProperty>(channel, false);
++                    channelCall<setGARPProperty>(channel, true);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCARPOnly:
++                {
++                    channelCall<setARPProperty>(channel, true);
++                    channelCall<setGARPProperty>(channel, false);
++                    return responseSuccess();
++		}
++                case ARPControlEnables::BMCARPControlBoth:
++                {
++                    channelCall<setARPProperty>(channel, true);
++                    channelCall<setGARPProperty>(channel, true);
++                    return responseSuccess();
++		}
++	    }
++            return response(ccParamNotSupported);
++        }
++        case LanParam::GARPInterval:
++        {
++            uint8_t interval;
++            if (req.unpack(interval) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            uint64_t garpInterval = interval * 500;
++            channelCall<setGARPIntervalProperty>(channel, garpInterval);
++            return responseSuccess();
+         }
+         case LanParam::Gateway1:
+         {
+@@ -1258,6 +1389,7 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+     message::Payload ret;
+     constexpr uint8_t current_revision = 0x11;
+     ret.pack(current_revision);
++    log<level::ERR>("Get Lan - Invalid field in request");
+ 
+     if (revOnly)
+     {
+@@ -1360,6 +1492,20 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+             ret.pack(dataRef(netmask));
+             return responseSuccess(std::move(ret));
+         }
++	case LanParam::BMCARPControl:
++        {
++            uint8_t arp = channelCall<getARPProperty>(channel);
++            uint8_t garp = channelCall<getGARPProperty>(channel);
++            arp = (arp|garp);
++            ret.pack(dataRef(arp));
++            return responseSuccess(std::move(ret));
++        }
++        case LanParam::GARPInterval:
++        {
++            uint8_t interval = channelCall<getGARPIntervalProperty>(channel);
++            ret.pack(dataRef(interval));
++            return responseSuccess(std::move(ret));
++        }
+         case LanParam::Gateway1:
+         {
+             auto gateway =
+diff --git a/transporthandler.hpp b/transporthandler.hpp
+index 961aae94..2bfcc4d7 100644
+--- a/transporthandler.hpp
++++ b/transporthandler.hpp
+@@ -37,6 +37,7 @@
+ #include <xyz/openbmc_project/Network/EthernetInterface/server.hpp>
+ #include <xyz/openbmc_project/Network/IP/server.hpp>
+ #include <xyz/openbmc_project/Network/Neighbor/server.hpp>
++#include <xyz/openbmc_project/Network/ARPControl/server.hpp>
+ 
+ namespace ipmi
+ {
+@@ -54,6 +55,7 @@ constexpr auto INTF_NEIGHBOR_CREATE_STATIC =
+     "xyz.openbmc_project.Network.Neighbor.CreateStatic";
+ constexpr auto INTF_VLAN = "xyz.openbmc_project.Network.VLAN";
+ constexpr auto INTF_VLAN_CREATE = "xyz.openbmc_project.Network.VLAN.Create";
++constexpr auto INTF_ARPCONTROL = "xyz.openbmc_project.Network.ARPControl";
+ 
+ /** @brief IPMI LAN Parameters */
+ enum class LanParam : uint8_t
+@@ -65,6 +67,8 @@ enum class LanParam : uint8_t
+     IPSrc = 4,
+     MAC = 5,
+     SubnetMask = 6,
++    BMCARPControl = 10,
++    GARPInterval = 11,
+     Gateway1 = 12,
+     Gateway1MAC = 13,
+     VLANId = 20,
+@@ -93,6 +97,15 @@ enum class IPSrc : uint8_t
+     BMC = 4,
+ };
+ 
++/** @brief IPMI ARP Control Enables Flag */
++enum class ARPControlEnables : uint8_t
++{
++    BMCARPControlDisable = 0,
++    BMCGARPOnly = 1,
++    BMCARPOnly = 2,
++    BMCARPControlBoth = 3,
++};
++
+ /** @brief IPMI Set Status */
+ enum class SetStatus : uint8_t
+ {
+-- 
+2.25.1
+

@@ -1,0 +1,75 @@
+From 3a70976cb88bbd05a8134b1b1b162836087e0eec Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Mon, 5 Jun 2023 13:42:51 +0530
+Subject: [PATCH] Fix add SEL entry IPMI command response
+
+IPMI add SEL entry command return "0xff 0xff" as response after successfully
+adding a SEL entry. Per IPMI Spec. the command should return Record ID for
+added record. This patch add support to return the record ID as described in
+the IPMI Spec. for add SEL entry command.
+
+Tested:
+-Verified on Archrecity Platform proper response is generated for the command.
+//Before fix:
+1)Generating a SEL log for "BMC Temp" sensor
+root@intel-obmc:~# ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x20 0x00 0x04 0x01 0x30 0x0c 0x0a 0x00  0x00
+ ff ff
+2)SEL list after adding new log
+root@intel-obmc:~# ipmitool sel elist
+   1 | 06/03/23 | 14:43:10 UTC | reserved #0xff |  | Asserted
+   2 | 06/03/23 | 14:43:54 UTC | Processor Status cpu0 | Presence detected | Asserted
+   3 | 06/03/23 | 14:43:54 UTC | Processor Status cpu1 | Presence detected | Asserted
+   4 | 06/03/23 | 14:48:37 UTC | Temperature BMC Temp | Upper Non-recoverable going low  | Asserted | Reading 0
+
+3)here reponse for ipmi command is "0xff 0xff" and the added record ID is "0x04", both are not matching
+//After fix:
+1)Generating a SEL log for "BMC Temp" sensor
+root@intel-obmc:~# ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x20 0x00 0x04 0x01 0x30 0x0c 0x0a 0x00  0x00
+ 04 00
+2)SEL List after adding new log
+root@intel-obmc:~# ipmitool sel elist
+   1 | 06/03/23 | 15:03:14 UTC | reserved #0xff |  | Asserted
+   2 | 06/03/23 | 15:03:57 UTC | Processor Status cpu0 | Presence detected | Asserted
+   3 | 06/03/23 | 15:03:57 UTC | Processor Status cpu1 | Presence detected | Asserted
+   4 | 06/03/23 | 15:04:54 UTC | Temperature BMC Temp | Upper Non-recoverable going low  | Asserted | Reading 0
+
+3)here the IPMI reponse and the added record ID are matching, and Results are as expected.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ src/storagecommands.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/storagecommands.cpp b/src/storagecommands.cpp
+index 5d59cb3..ea65d5b 100644
+--- a/src/storagecommands.cpp
++++ b/src/storagecommands.cpp
+@@ -1217,6 +1217,7 @@ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
+     uint8_t eventData3)
+ {
+     static constexpr uint8_t systemEvent = 2;
++    uint16_t responseID = 0xFFFF;
+ 
+     if (recordType != systemEvent)
+     {
+@@ -1243,7 +1244,8 @@ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
+                     generatorID);
+     try
+     {
+-        bus->call(addSEL);
++        auto replay = bus->call(addSEL);
++        replay.read(responseID);
+     }
+     catch (const sdbusplus::exception_t& e)
+     {
+@@ -1257,7 +1259,6 @@ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
+         recordID, recordType, timestamp, generatorID, evmRev, sensorType,
+         sensorNum, eventType, eventData1, eventData2, eventData3);
+ 
+-    uint16_t responseID = 0xFFFF;
+     return ipmi::responseSuccess(responseID);
+ }
+ 
+-- 
+2.25.1
+

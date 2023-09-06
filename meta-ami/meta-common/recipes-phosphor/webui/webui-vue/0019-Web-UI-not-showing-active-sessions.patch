@@ -1,0 +1,26 @@
+From e5735c40092d3cd3523a7cbaf0965c95688d9dfd Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 5 Oct 2022 18:22:42 +0530
+Subject: [PATCH] Web UI not showing active sessions
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/store/modules/SecurityAndAccess/SessionsStore.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/store/modules/SecurityAndAccess/SessionsStore.js b/src/store/modules/SecurityAndAccess/SessionsStore.js
+index 54607ab..1b31c71 100644
+--- a/src/store/modules/SecurityAndAccess/SessionsStore.js
++++ b/src/store/modules/SecurityAndAccess/SessionsStore.js
+@@ -26,7 +26,7 @@ const SessionsStore = {
+         .then((sessionUris) => {
+           const allConnectionsData = sessionUris.map((sessionUri) => {
+             return {
+-              clientID: sessionUri.data?.Oem?.OpenBMC.ClientID,
++              clientID: sessionUri.data?.Id,
+               username: sessionUri.data?.UserName,
+               ipAddress: sessionUri.data?.ClientOriginIPAddress,
+               uri: sessionUri.data['@odata.id'],
+-- 
+2.25.1
+

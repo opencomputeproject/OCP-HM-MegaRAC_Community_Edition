@@ -1,0 +1,188 @@
+diff -Naur a/include/sel_logger.hpp b/include/sel_logger.hpp
+--- a/include/sel_logger.hpp	2022-11-12 19:34:17.312867063 +0530
++++ b/include/sel_logger.hpp	2022-11-12 19:00:32.135308679 +0530
+@@ -31,6 +31,15 @@
+ constexpr static const char* pefIface = "xyz.openbmc_project.pef.pefTask";
+ constexpr static const char* pefTaskMethod = "doPefTask";
+ 
++#ifndef SEL_LOGGER_SEND_TO_LOGGING_SERVICE
++// SEL policy in dbus
++static constexpr char const *selLogObj = "xyz.openbmc_project.Settings";
++static constexpr char const *selLogPath = "/xyz/openbmc_project/logging/settings";
++static constexpr char const *selLogIntf = "xyz.openbmc_project.Logging.Settings";
++static constexpr int maxSELEntries = 2000;
++static bool maxSELEntriesReached = false;
++#endif
++
+ // ID string generated using journalctl to include in the MESSAGE_ID field for
+ // SEL entries.  Helps with filtering SEL entries in the journal.
+ static constexpr char const* selMessageId = "b370836ccf2f4850ac5bee185b77893a";
+diff -Naur a/src/sel_logger.cpp b/src/sel_logger.cpp
+--- a/src/sel_logger.cpp	2022-11-12 19:34:00.296762702 +0530
++++ b/src/sel_logger.cpp	2022-11-12 19:48:57.461744966 +0530
+@@ -156,6 +156,76 @@
+ }
+ #endif
+ 
++#ifndef SEL_LOGGER_SEND_TO_LOGGING_SERVICE
++static bool isLinearSELPolicy()
++{
++    auto bus = sdbusplus::bus::new_default();
++
++    try
++    {
++        // IPMI SEL Policy Object
++        auto method = bus.new_method_call(
++            selLogObj, selLogPath, "org.freedesktop.DBus.Properties", "Get");
++        method.append(selLogIntf, "SelPolicy");
++        auto reply = bus.call(method);
++        if (reply.is_method_error())
++        {
++            phosphor::logging::log<phosphor::logging::level::ERR>(
++                "isLinearSELPolicy: Failed to read sel policy",
++                phosphor::logging::entry("PATH=%s", selLogPath),
++                phosphor::logging::entry("INTERFACE=%s", selLogIntf));
++            return false;
++        }
++
++        std::variant<std::string> value;
++        reply.read(value);
++
++        if (std::get<std::string>(value) ==
++            "xyz.openbmc_project.Logging.Settings.Policy.Linear")
++        {
++            return true;
++        }
++        else
++        {
++            return false;
++        }
++    }
++    catch (std::exception& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "isLinearSELPolicy: Failed to get sel policy",
++            phosphor::logging::entry("EXCEPTION=%s", e.what()));
++        return false;
++    }
++}
++
++static uint16_t getEntryCount()
++{
++    uint16_t entryCount = 0;
++    // Loop through the directory looking for ipmi_sel log files
++    // and get entry count form each file
++    for (const std::filesystem::directory_entry& dirEnt :
++         std::filesystem::directory_iterator(selLogDir))
++    {
++        std::string filename = dirEnt.path().filename();
++        if (boost::starts_with(filename, selLogFilename))
++        {
++            std::string line;
++            std::ifstream selStream(selLogDir / filename);
++
++            while (getline(selStream, line))
++            {
++                entryCount++;
++            }
++
++            // Close files
++            selStream.close();
++        }
++    }
++    return entryCount;
++}
++#endif
++
+ static unsigned int getNewRecordId(void)
+ {
+ #ifndef SEL_LOGGER_CLEARS_SEL
+@@ -169,6 +239,20 @@
+     }
+ #endif
+ 
++#ifndef SEL_LOGGER_SEND_TO_LOGGING_SERVICE
++    // Validate for Linear Policy and  Max SEL Entries
++    if (recordId != selInvalidRecID && isLinearSELPolicy() &&
++        getEntryCount() >= maxSELEntries)
++    {
++        phosphor::logging::log<phosphor::logging::level::INFO>(
++            "Skip SEL event write on reaching max SEL entries in linear "
++            "config");
++
++        maxSELEntriesReached = true;
++        return 0;
++    }
++#endif
++
+     if (++recordId >= selInvalidRecID)
+     {
+         recordId = 1;
+@@ -212,35 +296,39 @@
+     return static_cast<uint16_t>(entryID);
+ #else
+     unsigned int recordId = getNewRecordId();
+-    sd_journal_send("MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
+-                    "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%d",
+-                    recordId, "IPMI_SEL_RECORD_TYPE=%x", selSystemType,
+-                    "IPMI_SEL_GENERATOR_ID=%x", genId,
+-                    "IPMI_SEL_SENSOR_PATH=%s", path.c_str(),
+-                    "IPMI_SEL_EVENT_DIR=%x", assert, "IPMI_SEL_DATA=%s",
+-                    selDataStr.c_str(), std::forward<T>(metadata)..., NULL);
+-    // Do PEF Action
+-    uint8_t sentype = getSensorTypeFromPath(path);
+-    uint8_t senNum = getSensorNumberFromPath(path);
+-    uint8_t evtype = getSensorEventTypeFromPath(path);
+-
+-    evtype |= assert ? 0x00 : 0x80;
+-
+-    std::chrono::microseconds timeout = DBUS_TIMEOUT;
+-    boost::asio::io_service io;
+-    auto conn = std::make_shared<sdbusplus::asio::connection>(io);
+-    auto startPefTask =
+-        conn->new_method_call(pefService, pefObjPath, pefIface, pefTaskMethod);
+-    startPefTask.append(static_cast<uint16_t>(recordId), sentype, senNum,
+-                        evtype, selData[0], selData[1], selData[2],
+-                        static_cast<uint16_t>(genId), message.c_str());
+-    try
+-    {
+-        conn->call(startPefTask, timeout.count());
+-    }
+-    catch (sdbusplus::exception_t&)
++    if (recordId != 0)
+     {
+-        std::cerr << "Failed to call doPefTask\n";
++        sd_journal_send(
++            "MESSAGE=%s", message.c_str(), "PRIORITY=%i", selPriority,
++            "MESSAGE_ID=%s", selMessageId, "IPMI_SEL_RECORD_ID=%d", recordId,
++            "IPMI_SEL_RECORD_TYPE=%x", selSystemType,
++            "IPMI_SEL_GENERATOR_ID=%x", genId, "IPMI_SEL_SENSOR_PATH=%s",
++            path.c_str(), "IPMI_SEL_EVENT_DIR=%x", assert, "IPMI_SEL_DATA=%s",
++            selDataStr.c_str(), std::forward<T>(metadata)..., NULL);
++        // Do PEF Action
++        uint8_t sentype = getSensorTypeFromPath(path);
++        uint8_t senNum = getSensorNumberFromPath(path);
++        uint8_t evtype = getSensorEventTypeFromPath(path);
++
++        evtype |= assert ? 0x00 : 0x80;
++
++        std::chrono::microseconds timeout = DBUS_TIMEOUT;
++        boost::asio::io_service io;
++        auto conn = std::make_shared<sdbusplus::asio::connection>(io);
++        auto startPefTask = conn->new_method_call(pefService, pefObjPath,
++                                                  pefIface, pefTaskMethod);
++        startPefTask.append(static_cast<uint16_t>(recordId), sentype, senNum,
++                            evtype, selData[0], selData[1], selData[2],
++                            static_cast<uint16_t>(genId), message.c_str());
++        try
++        {
++            conn->call(startPefTask, timeout.count());
++        }
++        catch (sdbusplus::exception_t&)
++        {
++            std::cerr << "Failed to call doPefTask\n";
++        }
++        return recordId;
+     }
+     return recordId;
+ #endif

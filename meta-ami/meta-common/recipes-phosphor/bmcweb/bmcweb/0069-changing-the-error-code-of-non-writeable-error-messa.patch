@@ -1,0 +1,25 @@
+From 6404776fc65ea687ddd1508c40938287b43c6db6 Mon Sep 17 00:00:00 2001
+From: Nibin Chacko <nibinc@ami.com>
+Date: Wed, 28 Jun 2023 05:29:09 -0400
+Subject: [PATCH 69/69] changing the error code of non writeable error message
+
+---
+ redfish-core/src/error_messages.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/redfish-core/src/error_messages.cpp b/redfish-core/src/error_messages.cpp
+index ce2214d5..731e0f4c 100644
+--- a/redfish-core/src/error_messages.cpp
++++ b/redfish-core/src/error_messages.cpp
+@@ -1079,7 +1079,7 @@ nlohmann::json propertyNotWritable(std::string_view arg1)
+ 
+ void propertyNotWritable(crow::Response& res, std::string_view arg1)
+ {
+-    res.result(boost::beast::http::status::forbidden);
++    res.result(boost::beast::http::status::bad_request);
+     addMessageToJson(res.jsonValue, propertyNotWritable(arg1), arg1);
+ }
+ 
+-- 
+2.17.1
+

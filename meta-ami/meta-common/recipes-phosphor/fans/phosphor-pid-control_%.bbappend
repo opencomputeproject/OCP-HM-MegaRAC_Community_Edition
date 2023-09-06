@@ -1,0 +1,3 @@
+FILESEXTRAPATHS:append := ":${THISDIR}/${PN}"
+
+SRCREV = "10e46efabf262d99cd457e97bd8c9ad6f90f834a"

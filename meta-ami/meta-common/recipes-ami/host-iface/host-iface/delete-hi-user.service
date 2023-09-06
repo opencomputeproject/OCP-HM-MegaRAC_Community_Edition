@@ -1,0 +1,15 @@
+[Unit]
+Description=Delete Host Interface User
+
+Requires=bmcweb.service xyz.openbmc_project.User.Manager xyz.openbmc_project.biosconfig_manager.service
+PartOf=bmcweb.service
+After=xyz.openbmc_project.User.Manager xyz.openbmc_project.biosconfig_manager.service
+
+[Service]
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash /usr/bin/delete-hi-user.sh
+Type=oneshot
+Restart=once
+
+[Install]
+WantedBy=bmcweb.service

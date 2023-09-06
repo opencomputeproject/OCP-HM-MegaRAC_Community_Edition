@@ -1,0 +1,53 @@
+diff --git a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+index c51b15044..65e4f300f 100644
+--- a/redfish-core/lib/chassis.hpp
++++ b/redfish-core/lib/chassis.hpp
+@@ -656,8 +656,26 @@ inline void
+ inline void handleChassisResetActionInfoPost(
+     App& app, const crow::Request& req,
+     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+-    const std::string& /*chassisId*/)
+-{
++    const std::string& chassisId)
++{
++       crow::connections::systemBus->async_method_call(
++                [&app,asyncResp, chassisId,req]
++                (const boost::system::error_code ec,
++                         const std::vector<std::string>& objects)
++                {
++                    if (ec)
++                    {
++                        messages::internalError(asyncResp->res);
++                        return;
++                        return;
++                    }
++                for (const std::string& object : objects)
++                {
++                    if (!boost::ends_with(object, chassisId))
++                    {
++                        continue;
++                    }
++
+     if (!redfish::setUpRedfishRoute(app, req, asyncResp))
+     {
+         return;
+@@ -681,6 +698,20 @@ inline void handleChassisResetActionInfoPost(
+         return;
+     }
+     doChassisPowerCycle(asyncResp);
++      return;
++                }
++                       messages::resourceNotFound(
++                        asyncResp->res, "#Chassis", chassisId);
++                   },
++                    "xyz.openbmc_project.ObjectMapper",
++                    "/xyz/openbmc_project/object_mapper",
++                    "xyz.openbmc_project.ObjectMapper", "GetSubTreePaths",
++                    "/xyz/openbmc_project/inventory", 0,
++                    std::array<const char*, 2>{
++                       "xyz.openbmc_project.Inventory.Item.Board",
++                       "xyz.openbmc_project.Inventory.Item.Chassis"});
++                return;
++
+ }
+

@@ -1,0 +1,49 @@
+diff --git a/ipmi-allowlist.conf b/ipmi-allowlist.conf
+index 5a3f154b..bbe2783b 100644
+--- a/ipmi-allowlist.conf
++++ b/ipmi-allowlist.conf
+@@ -39,6 +39,7 @@
+ 0x04:0x30:0x7f7f   //<Sensor/Event>:<Set Sensor Reading and Event Status>
+ 0x06:0x01:0xffff   //<App>:<Get Device ID>
+ 0x06:0x02:0x7f7f   //<App>:<Cold Reset>
++0x06:0x03:0x7f7f   //<App>:<Warm Reset>
+ 0x06:0x04:0xff7f   //<App>:<Get Self Test>
+ 0x06:0x05:0x7f7f   //<App>:<Manufacturing Test Mode>
+ 0x06:0x06:0xffff   //<App>:<Set ACPI Power State>
+@@ -54,6 +55,7 @@
+ 0x06:0x33:0x8080   //<App>:<Get Message>
+ 0x06:0x34:0x7f7f   //<App>:<Send Message>
+ 0x06:0x35:0x8080   //<App>:<Read Event Message Buffer>
++0x06:0x36:0xff7f   //<APP>:<Get BT Interface Capabilities>
+ 0x06:0x37:0xff7f   //<App>:<Get System GUID>
+ 0x06:0x38:0xff7f   //<App>:<Get Channel Authentication Capability>
+ 0x06:0x39:0xff7f   //<App>:<Get Session Challenge>
+@@ -148,6 +150,19 @@
+ 0x0c:0x20:0x7f7f   //<Transport>:<SOL Activating>
+ 0x0c:0x21:0x7f7f   //<Transport>:<Set SOL Configuration Parameters>
+ 0x0c:0x22:0xffff   //<Transport>:<Get SOL Configuration Parameters>
++0x2c:0x01:0xff7f   //<Group Extension>:<Get DCMI Capability Info>
++0x2c:0x02:0xff7f   //<Group Extension>:<Get Power Reading>
++0x2c:0x03:0xff7f   //<Group Extension>:<Get Power Limit>
++0x2c:0x04:0x7f7f   //<Group Extension>:<Set Power Limit>
++0x2c:0x05:0x7f7f   //<Group Extension>:<Activate/Deactivate Power Limit>
++0x2c:0x06:0x7f7f   //<Group Extension>:<Get Asset Tag>
++0x2c:0x07:0x7f7f   //<Group Extension>:<Get DCMI Sensor Info>
++0x2c:0x08:0x7f7f   //<Group Extension>:<Set Asset Tag>
++0x2c:0x09:0x7f7f   //<Group Extension>:<Get Management Controller String Id>
++0x2c:0x0A:0x7f7f   //<Group Extension>:<Set Management Controller String Id>
++0x2c:0x10:0x7f7f   //<Group Extension>:<Get Temperature Reading>
++0x2c:0x12:0x7f7f   //<Group Extension>:<Set Dcmi Configuration Parameters>
++0x2c:0x13:0x7f7f   //<Group Extension>:<Get Dcmi Configuration Parameters>
+ 0x2c:0x1f:0xff7f   //<Group Extension>:<Get CPU PECI Package Config Data>
+ 0x2c:0x20:0xff7f   //<Group Extension>:<Get MDR Data Region Status>
+ 0x2c:0x21:0x7f7f   //<Group Extension>:<Get MDR Region Update Complete>
+@@ -294,6 +309,8 @@
+ 0x30:0xd9:0x7f7f   //<Intel General Application>:<OOB Update Status>
+ 0x30:0xdb:0x7f7f   //<Intel General Application>:<Get/Set BMC Remote Debug Parameters>
+ 0x30:0xe2:0xff7f   //<Intel General Application>:<OEM Get Reading>
++0x30:0xe3:0xff7f   //<Intel General Application>:<OEM Set SMTP>
++0x30:0xe4:0xff7f   //<Intel General Application>:<OEM Get SMTP>
+ 0x30:0xe5:0xff7f   //<Intel General Application>:<Get NMI Source>
+ 0x30:0xe6:0x7f7f   //<Intel General Application>:<Send Raw PECI>
+ 0x30:0xe7:0x7f7f   //<Intel General Application>:<Aggregate Send Raw PECI>

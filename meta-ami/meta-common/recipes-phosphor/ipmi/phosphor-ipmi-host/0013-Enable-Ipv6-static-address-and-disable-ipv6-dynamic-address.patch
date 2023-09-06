@@ -1,0 +1,77 @@
+From 8008c742dd1e43c544888e2cf7902e844dcffb38 Mon Sep 17 00:00:00 2001
+From: Connie Yin <conniey@ami.com>
+Date: Mon, 7 Nov 2022 12:37:31 -0500
+Subject: [PATCH] Enable Ipv6 static address and disable ipv6 dynamic address
+
+
+Test:
+    1. Flash image and BMC boot to console
+    2. find ipv6 dynamic address
+    3. ping6 ipv6 dynamic address
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$ ping6 2022:dd10::e84a:94ff:fea6:9d00
+    PING 2022:dd10::e84a:94ff:fea6:9d00(2022:dd10::e84a:94ff:fea6:9d00) 56 data bytes
+    64 bytes from 2022:dd10::e84a:94ff:fea6:9d00: icmp_seq=1 ttl=64 time=0.560 ms
+    64 bytes from 2022:dd10::e84a:94ff:fea6:9d00: icmp_seq=2 ttl=64 time=0.308 ms
+    64 bytes from 2022:dd10::e84a:94ff:fea6:9d00: icmp_seq=3 ttl=64 time=0.401 ms
+    64 bytes from 2022:dd10::e84a:94ff:fea6:9d00: icmp_seq=4 ttl=64 time=0.363 ms
+    64 bytes from 2022:dd10::e84a:94ff:fea6:9d00: icmp_seq=5 ttl=64 time=0.362 ms
+    ^C
+    --- 2022:dd10::e84a:94ff:fea6:9d00 ping statistics ---
+    5 packets transmitted, 5 received, 0% packet loss, time 3999ms
+    rtt min/avg/max/mdev = 0.308/0.398/0.560/0.089 ms
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$
+
+    4. set ipv6 static address
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$ ipmitool -I lanplus -H 192.168.0.104 -U root -P 0penBmc -C 17 raw 0x0c 1 3 56 0 0x80 0x30 0x01 0x00 0x07 0x00 0x07 0x00 0x07 0xe2 0xd5 0x5e 0xff 0xfe 0x60 0x2e 0x99 0x64 0x00
+
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$
+
+    5. ping6 ipv6 dynamic address
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$ ping6 2022:dd10::e84a:94ff:fea6:9d00
+    PING 2022:dd10::e84a:94ff:fea6:9d00(2022:dd10::e84a:94ff:fea6:9d00) 56 data bytes
+    ^C
+    --- 2022:dd10::e84a:94ff:fea6:9d00 ping statistics ---
+    8 packets transmitted, 0 received, 100% packet loss, time 6999ms
+
+    [adminuser@oracle_linux7 ~]$
+    [adminuser@oracle_linux7 ~]$
+
+Signed-off-by: Connie Yin <conniey@ami.com>
+---
+ transporthandler.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+ mode change 100644 => 100755 transporthandler.cpp
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+old mode 100644
+new mode 100755
+index 1ff50a2..51549ab
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1274,6 +1274,7 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                 }
+                 try
+                 {
++                    channelCall<setIPv6AcceptRA>(channel, false);
+                     channelCall<reconfigureIfAddr6>(channel, set, ip, prefix);
+                 }
+                 catch (const sdbusplus::exception_t& e)
+@@ -1293,6 +1294,9 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             else
+             {
+                 channelCall<deconfigureIfAddr6>(channel, set);
++                channelCall<setDHCPv6Property>(
++                    channel, EthernetInterface::DHCPConf::v6, true);
++                channelCall<setIPv6AcceptRA>(channel, true);
+             }
+             return responseSuccess();
+         }
+-- 
+2.17.1
+

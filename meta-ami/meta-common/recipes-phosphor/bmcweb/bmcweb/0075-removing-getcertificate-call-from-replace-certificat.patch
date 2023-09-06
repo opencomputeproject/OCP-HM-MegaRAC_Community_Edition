@@ -1,0 +1,39 @@
+From cbc147ebc18f2b18635b027fb75d3c495f376928 Mon Sep 17 00:00:00 2001
+From: Nibin Chacko <nibinc@ami.com>
+Date: Fri, 30 Jun 2023 03:29:20 -0400
+Subject: [PATCH 75/75] removing getcertificate call from replace certificate
+
+---
+ redfish-core/lib/certificate_service.hpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/certificate_service.hpp b/redfish-core/lib/certificate_service.hpp
+index 46a4f304..fac450e4 100644
+--- a/redfish-core/lib/certificate_service.hpp
++++ b/redfish-core/lib/certificate_service.hpp
+@@ -553,7 +553,7 @@ inline void handleReplaceCertificateAction(
+         std::make_shared<CertificateFile>(certificate);
+     crow::connections::systemBus->async_method_call(
+         [asyncResp, certFile, objectPath, service, url{*parsedUrl}, id,
+-         name](const boost::system::error_code ec) {
++         name, certURI](const boost::system::error_code ec) {
+         if (ec)
+         {
+             BMCWEB_LOG_ERROR << "DBUS response error: " << ec;
+@@ -566,9 +566,12 @@ inline void handleReplaceCertificateAction(
+             messages::internalError(asyncResp->res);
+             return;
+         }
+-        getCertificateProperties(asyncResp, objectPath, service, id, url, name);
+         BMCWEB_LOG_DEBUG << "HTTPS certificate install file="
+                          << certFile->getCertFilePath();
++	asyncResp->res.addHeader(boost::beast::http::field::location,
++                                     certURI);
++	asyncResp->res.result(boost::beast::http::status::no_content);
++
+         },
+         service, objectPath, certs::certReplaceIntf, "Replace",
+         certFile->getCertFilePath());
+-- 
+2.17.1
+

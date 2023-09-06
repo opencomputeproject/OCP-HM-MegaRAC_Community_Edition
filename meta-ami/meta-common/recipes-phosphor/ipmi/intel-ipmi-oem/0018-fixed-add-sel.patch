@@ -1,0 +1,54 @@
+diff --git a/src/storagecommands.cpp b/src/storagecommands.cpp
+index 4a9038d7..1a110ee0 100644
+--- a/src/storagecommands.cpp
++++ b/src/storagecommands.cpp
+@@ -35,6 +35,7 @@
+ #include <iostream>
+ #include <stdexcept>
+ #include <unordered_set>
++#include <ipmid/utils.hpp>
+ 
+ static constexpr bool DEBUG = false;
+ 
+@@ -1192,10 +1193,41 @@ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
+     uint8_t eventType, uint8_t eventData1, uint8_t eventData2,
+     uint8_t eventData3)
+ {
++    static constexpr uint8_t systemEvent = 2;
++
++    if (recordType != systemEvent)
++    {
++        std::cerr << "it's not a system event\n";
++        return ipmi::responseSuccess( ccCommandNotAvailable );
++    }
++
+     // Per the IPMI spec, need to cancel any reservation when a SEL entry is
+     // added
+     cancelSELReservation();
+ 
++    bool assert = false;
++    assert = eventType & directionMask ? false : true;
++    std::string sensorPath("");
++    sensorPath = getPathFromSensorNumber(sensorNum);
++
++    std::vector<uint8_t> eventData = {eventData1, eventData2, eventData3};
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    std::string service =
++        ipmi::getService(*bus, ipmiSELAddInterface, ipmiSELPath);
++    auto addSEL = bus->new_method_call( service.c_str(),
++                                       ipmiSELPath, ipmiSELAddInterface, "IpmiSelAdd");
++    addSEL.append(ipmiSELAddMessage, sensorPath, eventData, assert,
++                    generatorID);
++    try
++    {
++        bus->call(addSEL);
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++        return ipmi::responseUnspecifiedError();
++    }
++
+     // Send this request to the Redfish hooks to log it as a Redfish message
+     // instead.  There is no need to add it to the SEL, so just return success.
+     intel_oem::ipmi::sel::checkRedfishHooks(

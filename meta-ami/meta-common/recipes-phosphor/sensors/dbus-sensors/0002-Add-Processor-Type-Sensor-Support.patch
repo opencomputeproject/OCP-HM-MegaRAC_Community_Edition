@@ -1,0 +1,576 @@
+From 1896c87e637b5735471cc880df59fda1e6b2acf1 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Fri, 14 Oct 2022 01:20:38 +0530
+Subject: [PATCH] Add Processor Type Sensor Support
+
+Tested:
+Verified Processor  sensor service running
+Verified Processor objects are constructed in AC
+
+root@intel-obmc:~# ipmitool sdr elist | head -n 5
+System Airflow   | 00h | ok  |  0.1 | 24 unspecified
+Status cpu0      | 01h | ok  |  3.1 | Presence detected
+Status cpu1      | 02h | ok  |  3.1 | Presence detected
+Cpu Energy CPU1  | 03h | ok  |  0.1 | 100.80 unspecif
+Cpu Energy CPU2  | 04h | ok  |  0.1 | 672 unspecified
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/ProcessorStatus.hpp                   |  57 +++++
+ include/Utils.hpp                             |  18 ++
+ meson_options.txt                             |   2 +
+ service_files/meson.build                     |   1 +
+ ...yz.openbmc_project.processorstatus.service |  13 ++
+ src/ProcessorStatus.cpp                       | 124 +++++++++++
+ src/ProcessorStatusMain.cpp                   | 197 ++++++++++++++++++
+ src/Utils.cpp                                 |  21 ++
+ src/meson.build                               |  17 ++
+ 9 files changed, 450 insertions(+)
+ create mode 100644 include/ProcessorStatus.hpp
+ create mode 100644 service_files/xyz.openbmc_project.processorstatus.service
+ create mode 100644 src/ProcessorStatus.cpp
+ create mode 100644 src/ProcessorStatusMain.cpp
+
+diff --git a/include/ProcessorStatus.hpp b/include/ProcessorStatus.hpp
+new file mode 100644
+index 0000000..9abbb7c
+--- /dev/null
++++ b/include/ProcessorStatus.hpp
+@@ -0,0 +1,57 @@
++#pragma once
++
++#include <Utils.hpp>
++#include <boost/asio/deadline_timer.hpp>
++#include <boost/asio/io_service.hpp>
++#include <boost/asio/posix/stream_descriptor.hpp>
++#include <boost/asio/streambuf.hpp>
++#include <gpiod.hpp>
++#include <sdbusplus/asio/object_server.hpp>
++#include <xyz/openbmc_project/Association/Definitions/server.hpp>
++#include <xyz/openbmc_project/Inventory/Item/Cpu/server.hpp>
++#include <xyz/openbmc_project/Inventory/Item/server.hpp>
++
++#include <memory>
++#include <optional>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++namespace fs = std::filesystem;
++
++using ItemInterface = sdbusplus::server::object::object<
++    sdbusplus::xyz::openbmc_project::Inventory::server::Item,
++    sdbusplus::xyz::openbmc_project::Association::server::Definitions>;
++
++using CpuInterface =
++    sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cpu;
++
++class ProcessorStatus :
++    public ItemInterface,
++    public std::enable_shared_from_this<ProcessorStatus>
++{
++  public:
++    ProcessorStatus(sdbusplus::asio::object_server& objectServer,
++                    std::shared_ptr<sdbusplus::asio::connection>& conn,
++                    boost::asio::io_service& io, const std::string& sensorName,
++                    const std::string& gpioName,
++                    const std::string& sensorConfiguration);
++    ~ProcessorStatus() override;
++
++    std::string name;
++    std::string gpio;
++
++  private:
++    sdbusplus::asio::object_server& objServer;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> sensorInterface;
++    std::shared_ptr<sdbusplus::asio::dbus_interface> association;
++    // GPIO Lines and Event Descriptors
++    gpiod::line procPresentLine;
++    boost::asio::posix::stream_descriptor procPresentEvent;
++    bool setupEvent(std::shared_ptr<sdbusplus::asio::connection>& conn,
++		    const std::string& gpioName, gpiod::line& gpioLine,
++                    boost::asio::posix::stream_descriptor& gpioEventDescriptor);
++    void monitor(std::shared_ptr<sdbusplus::asio::connection>& conn,
++		    const std::string &sensorPath, const std::vector<uint8_t>procPresence,
++		    boost::asio::posix::stream_descriptor& event, gpiod::line& line);
++};
+diff --git a/include/Utils.hpp b/include/Utils.hpp
+index efd1972..57acadd 100644
+--- a/include/Utils.hpp
++++ b/include/Utils.hpp
+@@ -28,6 +28,19 @@ constexpr const char* cpuInventoryPath =
+     "/xyz/openbmc_project/inventory/system/chassis/motherboard";
+ const std::regex illegalDbusRegex("[^A-Za-z0-9_]");
+ 
++static const std::string ipmiSELAddMessage = "SEL Entry";
++static constexpr uint16_t selBMCGenID = 0x0020;
++//Processor sensor
++static const std::string processorPath = "/xyz/openbmc_project/sensors/cpu/";
++static const std::vector<uint8_t> procPresence{0x07, 0xFF, 0xFF};
++
++
++//IPMI Sel
++static constexpr const char* ipmiService = "xyz.openbmc_project.Logging.IPMI";
++static constexpr const char* ipmiObjPath = "/xyz/openbmc_project/Logging/IPMI";
++static constexpr const char* ipmiIntf = "xyz.openbmc_project.Logging.IPMI";
++static constexpr const char* ipmiSelAddMethod  = "IpmiSelAdd";
++
+ using BasicVariantType =
+     std::variant<std::vector<std::string>, std::string, int64_t, uint64_t,
+                  double, int32_t, uint32_t, int16_t, uint16_t, uint8_t, bool>;
+@@ -42,6 +55,8 @@ using GetSubTreeType = std::vector<
+     std::pair<std::string,
+               std::vector<std::pair<std::string, std::vector<std::string>>>>>;
+ using Association = std::tuple<std::string, std::string, std::string>;
++using AssociationList =
++    std::vector<std::tuple<std::string, std::string, std::string>>;
+ 
+ inline std::string escapeName(const std::string& sensorName)
+ {
+@@ -79,6 +94,9 @@ void createAssociation(
+ void findLimits(std::pair<double, double>& limits,
+                 const SensorBaseConfiguration* data);
+ 
++//Add IPMI Sel
++void addIpmiSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const std::string sensorPath,
++                std::vector<uint8_t> eventData, bool assert );
+ enum class PowerState
+ {
+     on,
+diff --git a/meson_options.txt b/meson_options.txt
+index f9d25e7..37f2377 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -9,6 +9,8 @@ option('mcu', type: 'feature', value: 'enabled', description: 'Enable MCU sensor
+ option('nvme', type: 'feature', value: 'enabled', description: 'Enable NVMe sensor.',)
+ option('psu', type: 'feature', value: 'enabled', description: 'Enable PSU sensor.',)
+ option('external', type: 'feature', value: 'enabled', description: 'Enable External sensor.',)
++option('procstatus', type: 'feature', value: 'enabled', description: 'Enable processor status sensor.',)
++option('tests', type: 'feature', value: 'enabled', description: 'Build tests.',)
+ option('tests', type: 'feature', value: 'enabled', description: 'Build tests.',)
+ option('validate-unsecure-feature', type : 'feature', value : 'disabled', description : 'Enables unsecure features required by validation. Note: mustbe turned off for production images.',)
+ option('insecure-sensor-override', type : 'feature', value : 'disabled', description : 'Enables Sensor override feature without any check.',)
+diff --git a/service_files/meson.build b/service_files/meson.build
+index 37bb261..2ee2b84 100644
+--- a/service_files/meson.build
++++ b/service_files/meson.build
+@@ -10,6 +10,7 @@ unit_files = [
+     ['nvme', 'xyz.openbmc_project.nvmesensor.service'],
+     ['psu', 'xyz.openbmc_project.psusensor.service'],
+     ['external', 'xyz.openbmc_project.externalsensor.service'],
++    ['procstatus', 'xyz.openbmc_project.processorstatus.service'],
+ ]
+ 
+ foreach tuple : unit_files
+diff --git a/service_files/xyz.openbmc_project.processorstatus.service b/service_files/xyz.openbmc_project.processorstatus.service
+new file mode 100644
+index 0000000..faf5123
+--- /dev/null
++++ b/service_files/xyz.openbmc_project.processorstatus.service
+@@ -0,0 +1,13 @@
++[Unit]
++Description=Processor Status
++StopWhenUnneeded=false
++Requires=xyz.openbmc_project.EntityManager.service
++After=xyz.openbmc_project.EntityManager.service
++
++[Service]
++Restart=always
++RestartSec=5
++ExecStart=/usr/bin/processorstatus
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/src/ProcessorStatus.cpp b/src/ProcessorStatus.cpp
+new file mode 100644
+index 0000000..05fb36f
+--- /dev/null
++++ b/src/ProcessorStatus.cpp
+@@ -0,0 +1,124 @@
++#include <unistd.h>
++
++#include <ProcessorStatus.hpp>
++
++#include <exception>
++#include <fstream>
++#include <iostream>
++#include <optional>
++#include <string>
++#include <vector>
++
++ProcessorStatus::ProcessorStatus(
++    sdbusplus::asio::object_server& objectServer,
++    std::shared_ptr<sdbusplus::asio::connection>& conn,
++    boost::asio::io_service& io, const std::string& sensorName,
++    const std::string& gpioName,
++    const std::string& sensorConfiguration) :
++    ItemInterface(static_cast<sdbusplus::bus::bus&>(*conn),
++                  ("/xyz/openbmc_project/sensors/cpu/" +
++                   escapeName(sensorName))
++                      .c_str(),
++                  ItemInterface::action::defer_emit),
++    std::enable_shared_from_this<ProcessorStatus>(),
++    name(escapeName(sensorName)), gpio(gpioName), objServer(objectServer),
++    procPresentEvent(io)
++{
++    sensorInterface = objectServer.add_interface(
++        ("/xyz/openbmc_project/sensors/cpu/" +
++         escapeName(sensorName))
++            .c_str(),
++        CpuInterface::interface);
++
++    fs::path p(sensorConfiguration);
++    AssociationList assocs = {};
++    assocs.emplace_back(
++        std::make_tuple("chassis", "all_sensors", p.parent_path().string()));
++    sdbusplus::xyz::openbmc_project::Association::server::Definitions::
++        associations(assocs);
++
++    if (!sensorInterface->initialize())
++    {
++        std::cerr << "error initializing sensor interface\n";
++    }
++    setupEvent(conn, gpioName, procPresentLine, procPresentEvent);
++}
++
++ProcessorStatus::~ProcessorStatus()
++{
++    objServer.remove_interface(sensorInterface);
++}
++
++bool ProcessorStatus::setupEvent(std::shared_ptr<sdbusplus::asio::connection>& conn,
++		const std::string& procGpioName, gpiod::line& gpioLine,
++   		 boost::asio::posix::stream_descriptor& gpioEventDescriptor)
++{
++    // Find the GPIO line
++    gpioLine = gpiod::find_line(procGpioName);
++    if (!gpioLine)
++    {
++        std::cerr << "Failed to find the line\n";
++
++        return false;
++    }
++
++    try
++    {
++        gpioLine.request({"proc-sensor", gpiod::line_request::EVENT_BOTH_EDGES,
++                          gpiod::line_request::FLAG_ACTIVE_LOW});
++    }
++    catch (std::exception&)
++    {
++        std::cerr << "Failed to request events\n";
++        return false;
++    }
++
++    bool state = (gpioLine.get_value() == 1);
++    sdbusplus::xyz::openbmc_project::Inventory::server::Item::present(state);
++
++    int gpioLineFd = gpioLine.event_get_fd();
++    if (gpioLineFd < 0)
++    {
++        std::cerr << "Failed to get fd\n";
++        return false;
++    }
++
++    gpioEventDescriptor.assign(gpioLineFd);
++    
++    //Log SEL Entry
++    const std::string objPath = processorPath + name;
++
++    if(state)
++    {
++	    addIpmiSelEntry(conn, objPath, procPresence, state);
++    }
++
++    monitor(conn, objPath, procPresence,gpioEventDescriptor, gpioLine);
++
++    return true;
++}
++
++void ProcessorStatus::monitor(std::shared_ptr<sdbusplus::asio::connection>& conn,
++		const std::string &sensorPath, const std::vector<uint8_t>procPresence,
++	       	boost::asio::posix::stream_descriptor& event, gpiod::line& line)
++{
++
++    event.async_wait(
++        boost::asio::posix::stream_descriptor::wait_read,
++        [this, &conn, &event, &line, &sensorPath, &procPresence](const boost::system::error_code ec) {
++	if (ec)
++            {
++                std::cerr << " fd handler error: " << ec.message() << "\n";
++                return;
++            }
++            gpiod::line_event lineEvent = line.event_read();
++            sdbusplus::xyz::openbmc_project::Inventory::server::Item::present(
++                lineEvent.event_type == gpiod::line_event::FALLING_EDGE);
++
++	    //LOG SEL Event
++	    addIpmiSelEntry(conn, sensorPath, procPresence, 
++			   lineEvent.event_type == gpiod::line_event::FALLING_EDGE);
++            // Start monitoring for next event
++            monitor(conn, sensorPath, procPresence, event, line);
++        });
++}
+diff --git a/src/ProcessorStatusMain.cpp b/src/ProcessorStatusMain.cpp
+new file mode 100644
+index 0000000..0ed6b6b
+--- /dev/null
++++ b/src/ProcessorStatusMain.cpp
+@@ -0,0 +1,197 @@
++#include <ProcessorStatus.hpp>
++#include <VariantVisitors.hpp>
++#include <boost/algorithm/string/case_conv.hpp>
++#include <boost/algorithm/string/predicate.hpp>
++#include <boost/algorithm/string/replace.hpp>
++#include <boost/container/flat_set.hpp>
++#include <sdbusplus/bus/match.hpp>
++
++#include <functional>
++#include <memory>
++#include <optional>
++#include <regex>
++#include <string>
++#include <variant>
++#include <vector>
++
++static constexpr auto sensorTypes{std::to_array<const char*>(
++    {"xyz.openbmc_project.Configuration.Cpustatus"})};
++
++void createSensors(
++    boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
++    boost::container::flat_map<std::string, std::shared_ptr<ProcessorStatus>>&
++        sensors,
++    std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
++    const std::shared_ptr<boost::container::flat_set<std::string>>&
++        sensorsChanged)
++{
++    auto getter = std::make_shared<GetSensorConfiguration>(
++        dbusConnection,
++        [&io, &objectServer, &sensors, &dbusConnection,
++         sensorsChanged](const ManagedObjectType& sensorConfigurations) {
++            bool firstScan = sensorsChanged == nullptr;
++            const SensorData* sensorData = nullptr;
++            const std::string* interfacePath = nullptr;
++            const std::pair<std::string, boost::container::flat_map<
++                                             std::string, BasicVariantType>>*
++                baseConfiguration = nullptr;
++            for (const std::pair<sdbusplus::message::object_path, SensorData>&
++                     sensor : sensorConfigurations)
++            {
++                // clear it out each loop
++                baseConfiguration = nullptr;
++
++                // find base configuration
++                for (const char* type : sensorTypes)
++                {
++                    auto sensorBase = sensor.second.find(type);
++                    if (sensorBase != sensor.second.end())
++                    {
++                        baseConfiguration = &(*sensorBase);
++                        break;
++                    }
++                }
++                if (baseConfiguration == nullptr)
++                {
++                    continue;
++                }
++                sensorData = &(sensor.second);
++                interfacePath = &(sensor.first.str);
++
++                if (sensorData == nullptr)
++                {
++                    std::cerr << "failed to find sensor type"
++                              << "\n";
++                    continue;
++                }
++
++                if (baseConfiguration == nullptr)
++                {
++                    std::cerr
++                        << "error finding base configuration for sensor types"
++                        << "\n";
++                    continue;
++                }
++
++                auto findSensorName = baseConfiguration->second.find("Name");
++                if (findSensorName == baseConfiguration->second.end())
++                {
++                    std::cerr << "could not determine configuration name"
++                              << "\n";
++                    continue;
++                }
++                std::string sensorName =
++                    std::get<std::string>(findSensorName->second);
++
++		auto findGpioName = baseConfiguration->second.find("GpioName");
++                if (findGpioName == baseConfiguration->second.end())
++                {
++                    std::cerr << "could not determine gpio name"
++                              << "\n";
++                    continue;
++                }
++                std::string gpioName =
++                    std::get<std::string>(findGpioName->second);
++
++                // on rescans, only update sensors we were signaled by
++                auto findSensor = sensors.find(sensorName);
++                if (!firstScan && findSensor != sensors.end())
++                {
++                    bool found = false;
++                    for (auto it = sensorsChanged->begin();
++                         it != sensorsChanged->end(); it++)
++                    {
++                        if (findSensor->second &&
++                            boost::ends_with(*it, findSensor->second->name))
++                        {
++                            sensorsChanged->erase(it);
++                            findSensor->second = nullptr;
++                            found = true;
++                            break;
++                        }
++                    }
++                    if (!found)
++                    {
++                        continue;
++                    }
++                }
++
++                auto findPolarity = baseConfiguration->second.find("Polarity");
++                if (findPolarity == baseConfiguration->second.end())
++                {
++                    std::cerr << "could not determine configuration polarity"
++                              << "\n";
++                    continue;
++                }
++                std::string polarity =
++                    std::get<std::string>(findPolarity->second);
++
++                auto& sensorConstruct = sensors[sensorName];
++                sensorConstruct = nullptr;
++
++		sensorConstruct = std::make_shared<ProcessorStatus>(
++                    objectServer, dbusConnection, io, sensorName, gpioName,
++                    *interfacePath);
++            }
++        });
++
++    getter->getConfiguration(
++        std::vector<std::string>{sensorTypes.begin(), sensorTypes.end()});
++}
++
++int main()
++{
++    boost::asio::io_service io;
++    auto systemBus = std::make_shared<sdbusplus::asio::connection>(io);
++    systemBus->request_name("xyz.openbmc_project.ProcessorStatus");
++    sdbusplus::asio::object_server objectServer(systemBus);
++    boost::container::flat_map<std::string, std::shared_ptr<ProcessorStatus>>
++        sensors;
++    std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
++    auto sensorsChanged =
++        std::make_shared<boost::container::flat_set<std::string>>();
++
++    io.post([&]() {
++        createSensors(io, objectServer, sensors, systemBus, nullptr);
++    });
++
++    boost::asio::deadline_timer filterTimer(io);
++    std::function<void(sdbusplus::message::message&)> eventHandler =
++        [&](sdbusplus::message::message& message) {
++            if (message.is_method_error())
++            {
++                std::cerr << "callback method error\n";
++                return;
++            }
++            sensorsChanged->insert(message.get_path());
++            // this implicitly cancels the timer
++            filterTimer.expires_from_now(boost::posix_time::seconds(1));
++
++            filterTimer.async_wait([&](const boost::system::error_code& ec) {
++                if (ec == boost::asio::error::operation_aborted)
++                {
++                    /* we were canceled*/
++                    return;
++                }
++                if (ec)
++                {
++                    std::cerr << "timer error\n";
++                    return;
++                }
++                createSensors(io, objectServer, sensors, systemBus,
++                              sensorsChanged);
++            });
++        };
++
++    for (const char* type : sensorTypes)
++    {
++        auto match = std::make_unique<sdbusplus::bus::match::match>(
++            static_cast<sdbusplus::bus::bus&>(*systemBus),
++            "type='signal',member='PropertiesChanged',path_namespace='" +
++                std::string(inventoryPath) + "',arg0namespace='" + type + "'",
++            eventHandler);
++        matches.emplace_back(std::move(match));
++    }
++
++    io.run();
++}
+diff --git a/src/Utils.cpp b/src/Utils.cpp
+index 7dd5155..cb70482 100644
+--- a/src/Utils.cpp
++++ b/src/Utils.cpp
+@@ -42,6 +42,27 @@ static bool manufacturingMode = false;
+ static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
+ static std::unique_ptr<sdbusplus::bus::match::match> postMatch = nullptr;
+ 
++/**
++ * Add IpmiSElEvent
++ */
++void addIpmiSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const std::string sensorPath,
++              const  std::vector<uint8_t> eventData, bool assert )
++{
++        auto method = conn->new_method_call(ipmiService, ipmiObjPath, ipmiIntf, ipmiSelAddMethod);
++        method.append(ipmiSELAddMessage, sensorPath, eventData, assert,
++                        selBMCGenID);
++        try
++        {
++                auto reply = conn->call(method);
++        }
++        catch (sdbusplus::exception_t&)
++        {
++                std::cerr << "error adding SEL Event for "<<sensorPath<<"\n";
++                return;
++        }
++
++
++}
+ /**
+  * return the contents of a file
+  * @param[in] hwmonFile - the path to the file to read
+diff --git a/src/meson.build b/src/meson.build
+index 0fe5f56..cc7e055 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -185,3 +185,20 @@ if get_option('external').enabled()
+         install: true,
+     )
+ endif
++
++if get_option('procstatus').enabled()
++    executable(
++        'processorstatus',
++        'ProcessorStatus.cpp',
++        'ProcessorStatusMain.cpp',
++        dependencies: [
++            default_deps,
++            gpiodcxx,
++            utils_dep,
++        ],
++        implicit_include_directories: false,
++        include_directories: '../include',
++        install: true,
++    )
++endif
++
+-- 
+2.25.1
+

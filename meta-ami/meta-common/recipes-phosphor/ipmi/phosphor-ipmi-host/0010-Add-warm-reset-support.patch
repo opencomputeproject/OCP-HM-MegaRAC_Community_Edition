@@ -1,0 +1,166 @@
+From 0b64f41e546b920e7f7e2ec157f1f2baad3dbb81 Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Tue, 20 Sep 2022 15:28:31 +0530
+Subject: [PATCH 9/9] Add warm reset support
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ globalhandler.cpp               | 82 +++++++++++++++++++++++++++++++--
+ host-ipmid-whitelist.conf       |  4 ++
+ phosphor-ipmi-warm-reset.target |  4 ++
+ 3 files changed, 87 insertions(+), 3 deletions(-)
+ create mode 100644 phosphor-ipmi-warm-reset.target
+
+diff --git a/globalhandler.cpp b/globalhandler.cpp
+index 2561e087..e85c1aa5 100644
+--- a/globalhandler.cpp
++++ b/globalhandler.cpp
+@@ -1,18 +1,27 @@
+ #include "globalhandler.hpp"
+ 
++#include <atomic>
++#include <chrono>
+ #include <ipmid/api.hpp>
+ #include <ipmid/utils.hpp>
+ #include <phosphor-logging/elog-errors.hpp>
+ #include <phosphor-logging/log.hpp>
+ #include <string>
++#include <thread>
+ #include <xyz/openbmc_project/Common/error.hpp>
+ #include <xyz/openbmc_project/State/BMC/server.hpp>
+ 
++static std::atomic_flag reset_queued = ATOMIC_FLAG_INIT;
+ static constexpr auto bmcStateRoot = "/xyz/openbmc_project/state";
+ static constexpr auto bmcStateIntf = "xyz.openbmc_project.State.BMC";
+ static constexpr auto reqTransition = "RequestedBMCTransition";
+ static constexpr auto match = "bmc0";
+ 
++constexpr auto SYSTEMD_SERVICE = "org.freedesktop.systemd1";
++constexpr auto SYSTEMD_OBJ_PATH = "/org/freedesktop/systemd1";
++constexpr auto SYSTEMD_INTERFACE = "org.freedesktop.systemd1.Manager";
++constexpr auto SYSTEMD_WARM_RESET_TARGET = "phosphor-ipmi-warm-reset.target";
++
+ using namespace phosphor::logging;
+ using BMC = sdbusplus::xyz::openbmc_project::State::server::BMC;
+ 
+@@ -32,11 +41,11 @@ void resetBMC()
+                           convertForMessage(BMC::Transition::Reboot));
+ }
+ 
+-/** @brief implements cold and warm reset commands
++/** @brief implements cold reset commands
+  *  @param - None
+  *  @returns IPMI completion code.
+  */
+-ipmi::RspType<> ipmiGlobalReset()
++ipmi::RspType<> ipmiColdReset()
+ {
+     try
+     {
+@@ -52,12 +61,79 @@ ipmi::RspType<> ipmiGlobalReset()
+     return ipmi::responseSuccess();
+ }
+ 
++void warmResetBMC()
++{
++    try
++    {
++        std::shared_ptr<sdbusplus::asio::connection> busp = getSdBus();
++        // Reset the failed units so we don't end up having systemd
++        // not properly restart if the command is spammed.
++        busp->async_method_call(
++            [](boost::system::error_code ec) {
++                if (ec)
++                {
++                    log<level::ERR>("Error in warm reset");
++                }
++                return;
++            },
++            SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE,
++            "ResetFailed");
++        // Restart the target (restart will propagate to units).
++        busp->async_method_call(
++            [](boost::system::error_code ec) {
++                if (ec)
++                {
++                    log<level::ERR>("Error in warm reset");
++                }
++                return;
++            },
++            SYSTEMD_SERVICE, SYSTEMD_OBJ_PATH, SYSTEMD_INTERFACE, "RestartUnit",
++            SYSTEMD_WARM_RESET_TARGET, "replace");
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>(e.what());
++    }
++}
++
++/** @brief implements warm reset command
++ *  @param - None
++ *  @returns IPMI completion code.
++ */
++ipmi::RspType<> ipmiWarmReset()
++{
++    try
++    {
++        if (!reset_queued.test_and_set())
++        {
++            // Do this asynchronously so that we can properly return this
++            // command.
++            std::thread t(warmResetBMC);
++            t.detach();
++        }
++    }
++    catch (std::exception& e)
++    {
++        log<level::ERR>(e.what());
++        reset_queued.clear();
++        return ipmi::responseUnspecifiedError();
++    }
++
++    // Status code.
++    return ipmi::responseSuccess();
++}
++
+ void register_netfn_global_functions()
+ {
+ 
+     // Cold Reset
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
+                           ipmi::app::cmdColdReset, ipmi::Privilege::Admin,
+-                          ipmiGlobalReset);
++                          ipmiColdReset);
++    // Warm Reset
++    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
++                          ipmi::app::cmdWarmReset, ipmi::Privilege::Admin,
++                          ipmiWarmReset);
++
+     return;
+ }
+diff --git a/host-ipmid-whitelist.conf b/host-ipmid-whitelist.conf
+index 5397115c..790b9cc4 100644
+--- a/host-ipmid-whitelist.conf
++++ b/host-ipmid-whitelist.conf
+@@ -16,6 +16,8 @@
+ 0x06:0x06    //<App>:<Set ACPI Power State>
+ 0x06:0x07    //<App>:<Get ACPI Power State>
+ 0x06:0x08    //<App>:<Get Device GUID>
++0x06:0x02    //<App>:<Cold Reset>
++0x06:0x03    //<App>:<Warm Reset>
+ 0x06:0x22    //<App>:<Reset Watchdog Timer>
+ 0x06:0x24    //<App>:<Set Watchdog Timer>
+ 0x06:0x25    //<App>:<Get Watchdog Timer>
+diff --git a/phosphor-ipmi-warm-reset.target b/phosphor-ipmi-warm-reset.target
+new file mode 100644
+index 00000000..3c03327b
+--- /dev/null
++++ b/phosphor-ipmi-warm-reset.target
+@@ -0,0 +1,4 @@
++[Unit]
++Description=IPMI service collection
++AllowIsolate=no
++
+-- 
+2.25.1
+

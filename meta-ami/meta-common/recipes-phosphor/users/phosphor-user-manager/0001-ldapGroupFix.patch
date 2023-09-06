@@ -1,0 +1,144 @@
+--- a/user_mgr.cpp	2022-10-18 12:55:05.339812096 -0400
++++ b/user_mgr.cpp	2022-10-18 12:54:32.887108567 -0400
+@@ -71,6 +71,14 @@
+ static constexpr const char* pamPasswdConfigFile = "/etc/pam.d/common-password";
+ static constexpr const char* pamAuthConfigFile = "/etc/pam.d/common-auth";
+ 
++enum privMgrLevel
++{
++    PRIV_ADMIN,
++    PRIV_OPERATOR,
++    PRIV_USER,
++    PRIV_NOACCESS
++};
++
+ // Object Manager related
+ static constexpr const char* ldapMgrObjBasePath =
+     "/xyz/openbmc_project/user/ldap";
+@@ -977,30 +985,27 @@
+     return objects;
+ }
+ 
+-std::string UserMgr::getLdapGroupName(const std::string& userName)
++std::vector<std::string> UserMgr::getLdapGroupName(const std::string& userName)
+ {
+     struct passwd pwd
+     {};
+     struct passwd* pwdPtr = nullptr;
+     auto buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
++    int members;
+     if (buflen < -1)
+     {
+         // Use a default size if there is no hard limit suggested by sysconf()
+         buflen = 1024;
+     }
+     std::vector<char> buffer(buflen);
+-    gid_t gid = 0;
++    //gid_t gid = 0;
+ 
+     auto status =
+         getpwnam_r(userName.c_str(), &pwd, buffer.data(), buflen, &pwdPtr);
+     // On success, getpwnam_r() returns zero, and set *pwdPtr to pwd.
+     // If no matching password record was found, these functions return 0
+     // and store NULL in *pwdPtr
+-    if (!status && (&pwd == pwdPtr))
+-    {
+-        gid = pwd.pw_gid;
+-    }
+-    else
++    if (status && !(&pwd == pwdPtr))
+     {
+         log<level::ERR>("User does not exist",
+                         entry("USER_NAME=%s", userName.c_str()));
+@@ -1008,14 +1013,20 @@
+     }
+ 
+     struct group* groups = nullptr;
+-    std::string ldapGroupName;
++    std::vector<std::string> ldapGroupName;
+ 
+     while ((groups = getgrent()) != NULL)
+     {
+-        if (groups->gr_gid == gid)
++        members = 0;
++        // Search through group members
++        while (groups->gr_mem[members] != NULL)
+         {
+-            ldapGroupName = groups->gr_name;
+-            break;
++            if (userName.compare(groups->gr_mem[members]) == 0)
++            {
++                ldapGroupName.push_back(groups->gr_name);
++                break;
++            }
++            ++members;
+         }
+     }
+     // Call endgrent() to close the group database.
+@@ -1070,7 +1081,7 @@
+     }
+     else
+     {
+-        std::string ldapGroupName = getLdapGroupName(userName);
++        std::vector<std::string> ldapGroupName = getLdapGroupName(userName);
+         if (ldapGroupName.empty())
+         {
+             log<level::ERR>("Unable to get group name",
+@@ -1126,6 +1137,8 @@
+                     {
+                         std::string privilege;
+                         std::string groupName;
++			int currentPriv, i, level;
++			currentPriv = (int)privMgr.size() - 1;
+ 
+                         for (const auto& property : interface.second)
+                         {
+@@ -1139,10 +1152,33 @@
+                                 privilege = value;
+                             }
+                         }
+-                        if (groupName == ldapGroupName)
++			// if both groupname and pivilege are set then check
++			// if user is part of group
++			if (!groupName.empty() && !privilege.empty())
+                         {
+-                            userPrivilege = privilege;
+-                            break;
++			  // check if user if in Group so we can give
++			  // privilege
++			  for (i = 0; i < (int)ldapGroupName.size(); ++i)
++			    {
++			      if (groupName == ldapGroupName[i])
++				{
++				  // check priv level
++				  for (level = 0;
++				       level < (int)privMgr.size();
++				       ++level)
++				    {
++				      // update priv level if higher than
++				      // current level AND if priv is set
++				      if (privilege == privMgr[level] &&
++					  level <= currentPriv)
++					{
++					  currentPriv = level;
++					  userInfo["UserPrivilege"] =
++					    privilege;
++					}
++				    }
++				}
++			    }
+                         }
+                     }
+                 }
+--- a/user_mgr.hpp	2022-10-18 12:55:05.339812096 -0400
++++ b/user_mgr-001.hpp	2022-10-18 12:54:22.602885624 -0400
+@@ -337,7 +337,8 @@
+      *  @param[in] - userName
+      *  @return - group name
+      */
+-    virtual std::string getLdapGroupName(const std::string& userName);
++    virtual std::vector<std::string>
++        getLdapGroupName(const std::string& userName);
+ 
+     /** @brief get privilege mapper object
+      *  method to get dbus privilege mapper object

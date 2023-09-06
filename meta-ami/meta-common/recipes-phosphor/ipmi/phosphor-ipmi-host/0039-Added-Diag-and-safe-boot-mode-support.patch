@@ -1,0 +1,39 @@
+From 2547652657f913e923cf56121c71b53f82a5e669 Mon Sep 17 00:00:00 2001
+From: prasannas <prasannas@ami.com>
+Date: Wed, 15 Mar 2023 12:10:55 +0530
+Subject: [PATCH 1114/1114] Added Diag and safe boot mode support
+
+Signed-off-by: prasannas <prasannas@ami.com>
+---
+ chassishandler.cpp | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/chassishandler.cpp b/chassishandler.cpp
+index c2ed807..7ed6a74 100644
+--- a/chassishandler.cpp
++++ b/chassishandler.cpp
+@@ -1509,9 +1509,8 @@ std::map<IpmiValue, Source::Sources> sourceIpmiToDbus = {
+     {ipmiDefault, Source::Sources::Default}};
+ 
+ std::map<IpmiValue, Mode::Modes> modeIpmiToDbus = {
+-#ifdef ENABLE_BOOT_FLAG_SAFE_MODE_SUPPORT
+     {0x03, Mode::Modes::Safe},
+-#endif // ENABLE_BOOT_SAFE_MODE_SUPPORT
++    {0x04, Mode::Modes::Diag},
+     {0x06, Mode::Modes::Setup},
+     {ipmiDefault, Mode::Modes::Regular}};
+ 
+@@ -1526,9 +1525,8 @@ std::map<Source::Sources, IpmiValue> sourceDbusToIpmi = {
+     {Source::Sources::Default, ipmiDefault}};
+ 
+ std::map<Mode::Modes, IpmiValue> modeDbusToIpmi = {
+-#ifdef ENABLE_BOOT_FLAG_SAFE_MODE_SUPPORT
+     {Mode::Modes::Safe, 0x03},
+-#endif // ENABLE_BOOT_SAFE_MODE_SUPPORT
++    {Mode::Modes::Diag, 0x04},
+     {Mode::Modes::Setup, 0x06},
+     {Mode::Modes::Regular, ipmiDefault}};
+ 
+-- 
+2.9.5
+

@@ -1,0 +1,90 @@
+From f860d5b43612027e7a6740a8361784ba06241945 Mon Sep 17 00:00:00 2001
+From: thrishalig <thrishalig@ami.com>
+Date: Wed, 24 May 2023 15:48:39 +0530
+Subject: [PATCH] Added proper error responses for set DCMI configuaration
+ parameter 1 activate DHCP and DCMI activate/deactivate power limit
+
+Tested:
+
+Activate/Deactiavte Power limit:
+
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x05 0xdc 0x01 0x00 0x00
+ dc
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x05 0xdc 0x00 0x00 0x00
+ dc
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw  0x2c 0x05 0xdc 0x00 0x01 0x00
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x5 rsp=0xcc): Invalid data field in request
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x05 0xdc 0x00 0x00 0x01
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x5 rsp=0xcc): Invalid data field in request
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x05 0xdc 0x00 0x00
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x5 rsp=0xc7): Request data length invalid
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x05 0xdc 0x00 0x00 0x00 0x00
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x5 rsp=0xc7): Request data length invalid
+
+Set DCMI configuration parameter 1 activate DHCP:
+
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw  0x2c 0x12 0xdc 0x01 0x00
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x12 rsp=0xc7): Request data length invalid
+msgubuntu@Dell-server-3:~$ ipmitool -H  10.0.108.84 -I lanplus -U root -P 0penBmc -C 17 raw 0x2c 0x12 0xdc 0x01 0x00 0x01 0x00
+Unable to send RAW command (channel=0x0 netfn=0x2c lun=0x0 cmd=0x12 rsp=0xc7): Request data length invalid
+
+Signed-off-by: thrishalig <thrishalig@ami.com>
+---
+ dcmihandler.cpp | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/dcmihandler.cpp b/dcmihandler.cpp
+index 270bf5a..430665a 100644
+--- a/dcmihandler.cpp
++++ b/dcmihandler.cpp
+@@ -44,6 +44,7 @@ constexpr auto DHCP_TIMING2_UPPER = 0x00; // 2 min
+ constexpr auto DHCP_TIMING2_LOWER = 0x78;
+ constexpr auto DHCP_TIMING3_UPPER = 0x00; // 64 sec
+ constexpr auto DHCP_TIMING3_LOWER = 0x40;
++constexpr auto DCMI_ACTIVATE_DEACTIVATE_REQ_DATA_LENGTH = 0X03;
+ // When DHCP Option 12 is enabled the string "SendHostName=true" will be
+ // added into n/w configuration file and the parameter
+ // SendHostNameEnabled will set to true.
+@@ -443,6 +444,21 @@ ipmi_ret_t applyPowerLimit(ipmi_netfn_t, ipmi_cmd_t, ipmi_request_t request,
+ 
+     auto requestData =
+         reinterpret_cast<const dcmi::ApplyPowerLimitRequest*>(request);
++    if(*data_len != DCMI_ACTIVATE_DEACTIVATE_REQ_DATA_LENGTH)
++    {
++        log<level::ERR>("Invalid Requested data size",
++                            entry("PACKET SIZE=%d", *data_len));
++        *data_len = 0;
++        return IPMI_CC_REQ_DATA_LEN_INVALID;
++    }
++
++    if(requestData->reserved)
++    {
++        log<level::ERR>("Invalid Requested data size",
++                            entry("PACKET SIZE=%d", *data_len));
++        return IPMI_CC_INVALID_FIELD_REQUEST;
++    }
++
+ 
+     sdbusplus::bus_t sdbus{ipmid_get_sd_bus_connection()};
+ 
+@@ -1054,7 +1070,7 @@ ipmi::RspType<> setDCMIConfParams(uint8_t paramSelect,uint8_t setSelect,ipmi::me
+                 uint8_t data;
+                 if(req.unpack(data) !=0 || !req.fullyUnpacked())
+                 {
+-                    return ipmi::responseInvalidFieldRequest();
++                    return ipmi::responseReqDataLenInvalid();
+                 }    
+                 if(data_len != DCMI_SET_CONF_PARAM_REQ_PACKET_MIN_SIZE)
+                 {
+@@ -1081,7 +1097,7 @@ ipmi::RspType<> setDCMIConfParams(uint8_t paramSelect,uint8_t setSelect,ipmi::me
+             uint1_t randombackoff;
+             if(req.unpack(data,rsvd,randombackoff) != 0 || !req.fullyUnpacked())
+             {
+-                return ipmi::responseInvalidFieldRequest();
++                return ipmi::responseReqDataLenInvalid();
+             }
+             if(data_len != DCMI_SET_CONF_PARAM_REQ_PACKET_MIN_SIZE)
+             {
+-- 
+2.25.1
+

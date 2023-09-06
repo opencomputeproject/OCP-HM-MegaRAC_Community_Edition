@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect network route information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="route info"
+file_name="routeinfo.log"
+command="route -e"
+
+add_cmd_output "$command" "$file_name" "$desc"

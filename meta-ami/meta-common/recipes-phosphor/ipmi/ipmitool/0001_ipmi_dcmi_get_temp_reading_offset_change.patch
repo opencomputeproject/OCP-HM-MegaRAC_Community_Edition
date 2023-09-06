@@ -1,0 +1,30 @@
+diff --git a/include/ipmitool/ipmi_ime.h b/include/ipmitool/ipmi_ime.h
+old mode 100755
+new mode 100644
+diff --git a/lib/ipmi_dcmi.c b/lib/ipmi_dcmi.c
+old mode 100755
+new mode 100644
+index 836bf04..e68be10
+--- a/lib/ipmi_dcmi.c
++++ b/lib/ipmi_dcmi.c
+@@ -1597,13 +1597,15 @@ ipmi_dcmi_prnt_get_temp_readings(struct ipmi_intf * intf)
+ 		/* Total number of available instances for the Entity ID */
+ 		offset = 0;
+ 		tota_inst = rsp->data[1];
+-		while (tota_inst > 0) {
++		while (tota_inst > 0) 
++		{
+ 			get_inst = ((tota_inst / DCMI_MAX_BYTE_TEMP_READ_SIZE) ?
+ 			            DCMI_MAX_BYTE_TEMP_READ_SIZE :
+ 			            (tota_inst % DCMI_MAX_BYTE_TEMP_READ_SIZE));
++
+ 			rsp = ipmi_dcmi_get_temp_readings(intf,
+ 			                                  dcmi_temp_read_vals[i].val,
+-			                                  offset, 0);
++			                                  0, (offset+1));
+ 			if (chk_rsp(rsp)) {
+ 				continue;
+ 			}
+diff --git a/lib/ipmi_ime.c b/lib/ipmi_ime.c
+old mode 100755
+new mode 100644

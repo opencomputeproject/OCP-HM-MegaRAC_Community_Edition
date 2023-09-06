@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Uses Linux command to list all the files in /var directory.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="VAR file list"
+file_name="varfilelist.log"
+command="ls -lRL /var"
+
+add_cmd_output "$command" "$file_name" "$desc"

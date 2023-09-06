@@ -1,0 +1,219 @@
+From 1ac6849fbd37279a9a544946d4e0dc9a53039757 Mon Sep 17 00:00:00 2001
+From: Ethan Wei <ethanwei@ami.com>
+Date: Tue, 27 Jun 2023 10:50:24 +0800
+Subject: [PATCH] Implement body of IPMI Command to enable/disable IPv4/IPv6 
+ modified:   transporthandler.cpp 	modified:   transporthandler.hpp
+
+---
+ transporthandler.cpp | 67 ++++++++++++++++++++++++++++++++++++++++++--
+ transporthandler.hpp | 64 ++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 128 insertions(+), 3 deletions(-)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index df4a0e5..ba56081 100644
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -692,6 +692,30 @@ void deleteVLAN(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlan)
+     }
+ }
+ 
++
++template<int family>
++void enableIPAddressing(sdbusplus::bus::bus& bus, ChannelParams& params, bool enabled) {
++    in_addr ip;
++    if (enabled && family == AF_INET) {
++        setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET, AddrFamily<family>::propertyIPEnabled, enabled);
++    } // if
++    else if (!enabled && family == AF_INET) {
++        memset(&ip, 0, sizeof(in_addr));
++        setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET, AddrFamily<family>::propertyIPEnabled, enabled);
++    } // else if
++    else if (enabled && family == AF_INET6) {
++        setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET, AddrFamily<family>::propertyIPEnabled, enabled);
++    } // else if
++    else if (!enabled && family == AF_INET6) {
++        setDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET, AddrFamily<family>::propertyIPEnabled, enabled);
++    }
++}
++
++template<int family>
++bool getIPAddressingState(sdbusplus::bus::bus& bus, ChannelParams& params) {
++    return std::get<bool>(getDbusProperty(bus, params.service, params.logicalPath, INTF_ETHERNET, AddrFamily<family>::propertyIPEnabled));
++}
++
+ /** @brief Turns a prefix into a netmask
+  *
+  *  @param[in] prefix - The prefix length
+@@ -958,6 +982,23 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+         return responseInvalidFieldRequest();
+     }
+ 
++
++    if (!channelCall<getIPAddressingState<AF_INET>>(channel)) {
++        if ( ( static_cast<LanParam>(parameter) >= LanParam::IP && static_cast<LanParam>(parameter) <= LanParam::SubnetMask )
++            || ( static_cast<LanParam>(parameter) == LanParam::Gateway1 )
++            || ( static_cast<LanParam>(parameter) == LanParam::Gateway1MAC )) {
++            req.trailingOk = true;
++            return responseCommandNotAvailable();
++        }
++    }
++
++    if (!channelCall<getIPAddressingState<AF_INET6>>(channel)) {
++        if ( static_cast<LanParam>(parameter) >= LanParam::IPv6Status && static_cast<LanParam>(parameter) <= LanParam::IPv6StaticRouter1PrefixValue ) {
++            req.trailingOk = true;
++            return responseCommandNotAvailable();
++        }
++    }
++
+     switch (static_cast<LanParam>(parameter))
+     {
+         case LanParam::SetStatus:
+@@ -1264,10 +1305,17 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             switch (static_cast<IPFamilyEnables>(enables))
+             {
+                 case IPFamilyEnables::DualStack:
++                    channelCall<enableIPAddressing<AF_INET>>(channel, true);
++                    channelCall<enableIPAddressing<AF_INET6>>(channel, true);
+                     return responseSuccess();
+                 case IPFamilyEnables::IPv4Only:
++                    channelCall<enableIPAddressing<AF_INET>>(channel, true);
++                    channelCall<enableIPAddressing<AF_INET6>>(channel, false);
++                    return responseSuccess();
+                 case IPFamilyEnables::IPv6Only:
+-                    return response(ccParamNotSupported);
++                    channelCall<enableIPAddressing<AF_INET>>(channel, false);
++                    channelCall<enableIPAddressing<AF_INET6>>(channel, true);
++                    return responseSuccess();
+             }
+             return response(ccParamNotSupported);
+         }
+@@ -1691,7 +1739,7 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+         case LanParam::IPFamilySupport:
+         {
+             std::bitset<8> support;
+-            support[IPFamilySupportFlag::IPv6Only] = 0;
++            support[IPFamilySupportFlag::IPv6Only] = 1;
+             support[IPFamilySupportFlag::DualStack] = 1;
+             support[IPFamilySupportFlag::IPv6Alerts] = 1;
+             ret.pack(support);
+@@ -1699,7 +1747,20 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+         }
+         case LanParam::IPFamilyEnables:
+         {
+-            ret.pack(static_cast<uint8_t>(IPFamilyEnables::DualStack));
++            uint8_t enable = 0;
++            auto ipv4 = channelCall<getIPAddressingState<AF_INET>>(channel);
++            auto ipv6 = channelCall<getIPAddressingState<AF_INET6>>(channel);
++            if (ipv4 && ipv6) {
++                enable = 2;
++            }
++            else if (ipv4 && !ipv6) {
++                enable = 0;
++            }
++            else if (!ipv4 && ipv6) {
++                enable = 1;
++            }
++
++            ret.pack(enable);
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::IPv6Status:
+diff --git a/transporthandler.hpp b/transporthandler.hpp
+index cdce3d5..4439645 100644
+--- a/transporthandler.hpp
++++ b/transporthandler.hpp
+@@ -179,6 +179,7 @@ constexpr uint8_t MIN_IPV4_PREFIX_LENGTH = 1;
+ constexpr uint8_t MAX_IPV4_PREFIX_LENGTH = 32;
+ constexpr uint8_t MIN_IPV6_PREFIX_LENGTH = 1;
+ constexpr uint8_t MAX_IPV6_PREFIX_LENGTH = 128;
++constexpr char propertyLinkLocal[] = "LinkLocalAutoConf";
+ 
+ /** @brief The dbus parameters for the interface corresponding to a channel
+  *         This helps reduce the number of mapper lookups we need for each
+@@ -286,6 +287,7 @@ struct AddrFamily<AF_INET>
+     static constexpr size_t maxStrLen = INET6_ADDRSTRLEN;
+     static constexpr uint8_t defaultPrefix = 32;
+     static constexpr char propertyGateway[] = "DefaultGateway";
++    static constexpr char propertyIPEnabled[] = "IPv4Enable";
+ };
+ 
+ /** @brief Parameter specialization for IPv6 */
+@@ -298,6 +300,7 @@ struct AddrFamily<AF_INET6>
+     static constexpr size_t maxStrLen = INET6_ADDRSTRLEN;
+     static constexpr uint8_t defaultPrefix = 128;
+     static constexpr char propertyGateway[] = "DefaultGateway6";
++    static constexpr char propertyIPEnabled[] = "IPv6Enable";
+ };
+ 
+ /** @brief Interface Neighbor configuration parameters */
+@@ -703,6 +706,67 @@ void setGatewayProperty(sdbusplus::bus_t& bus, const ChannelParams& params,
+     }
+ }
+ 
++std::optional<std::string>
++    getLinkLocalProperty(sdbusplus::bus_t& bus, const ChannelParams& params)
++{
++    auto objPath = "/xyz/openbmc_project/network/" + params.ifname;
++    auto llStr = std::get<std::string>(getDbusProperty(bus, params.service, objPath, INTF_ETHERNET, propertyLinkLocal));
++    if (llStr.empty())
++    {
++        return std::nullopt;
++    }
++    return llStr;
++}
++
++void setLinkLocalLProperty(sdbusplus::bus_t& bus, const ChannelParams& params,
++                        const sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf ll)
++{
++    auto objPath = "/xyz/openbmc_project/network/" + params.ifname;
++    std::string llMode;
++    switch (ll) {
++        case sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf::fallback:
++            llMode = "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.fallback";
++            break;
++        case sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf::both:
++            llMode = "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.both";
++            break;
++        case sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf::v4:
++            llMode = "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.v4";
++            break;
++        case sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf::v6:
++            llMode = "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.v6";
++            break;
++        case sdbusplus::xyz::openbmc_project::Network::server::EthernetInterface::LinkLocalConf::none:
++            llMode = "xyz.openbmc_project.Network.EthernetInterface.LinkLocalConf.none";
++            break;
++    }
++
++    setDbusProperty(bus, params.service, objPath, INTF_ETHERNET,propertyLinkLocal, llMode);
++}
++
++
++template <int family>
++std::optional<std::string> getIPEnableProperty(sdbusplus::bus_t& bus, const ChannelParams& params)
++{
++    auto objPath = "/xyz/openbmc_project/network/" + params.ifname;
++    auto enabledStr = getDbusProperty(bus, params.service, objPath, INTF_ETHERNET,
++                    AddrFamily<family>::propertyIPEnabled);
++    if (enabledStr.empty())
++    {
++        return std::nullopt;
++    }
++    return enabledStr;
++}
++
++template <int family>
++void setIPEnableProperty(sdbusplus::bus_t& bus, const ChannelParams& params, const bool enabled)
++{
++    auto objPath = "/xyz/openbmc_project/network/" + params.ifname;
++    setDbusProperty(bus, params.service, objPath, INTF_ETHERNET,
++                    AddrFamily<family>::propertyIPEnabled, enabled ? "true" : "false");
++}
++
++
+ /** @enum SolConfParam
+  *
+  *  using for Set/Get SOL configuration parameters command.
+-- 
+2.25.1
+

@@ -1,0 +1,75 @@
+MACHINE ??= "evb-ast2600"
+DISTRO ?= "openbmc-phosphor"
+PACKAGE_CLASSES ?= "package_rpm"
+SANITY_TESTED_DISTROS:append ?= " RedHatEnterpriseWorkstation-6.*"
+# Uncomment the following line to enable debug features / default user account.
+EXTRA_IMAGE_FEATURES += "debug-tweaks"
+USER_CLASSES ?= "buildstats"
+PATCHRESOLVE = "noop"
+
+# To Enable Intel Features
+#IMAGE_CLASSES += "obmc-phosphor-image-common obmc-phosphor-image-dev"
+
+FEATURE_PACKAGES_obmc-debug-collector = ""
+
+IMAGE_FSTYPES += "mtd-static mtd-static-tar mtd-static-alltar"
+
+# PFR image Build
+#IMAGE_FSTYPES += "intel-pfr"
+
+IMAGE_FSTYPES += "squashfs-xz"
+INITRAMFS_FSTYPES = "squashfs-xz"
+EXTRA_IMAGECMD:squashfs-xz:append = "-processors ${BB_NUMBER_THREADS} -b 262144 -Xdict-size 100% -Xbcj arm"
+
+KERNEL_CLASSES ?= "kernel-fitimage"
+KERNEL_IMAGETYPES ?= "fitImage"
+KERNEL_EXTRA_ARGS += "LOADADDR=${UBOOT_ENTRYPOINT}"
+
+UBOOT_SUFFIX ?= "bin"
+
+MACHINEOVERRIDES =. "openbmc:"
+
+INITRAMFS_CTYPE ?= "xz"
+INITRAMFS_FSTYPES = "cpio.${INITRAMFS_CTYPE}"
+INITRAMFS_IMAGE = "obmc-phosphor-initramfs"
+
+# optee image Build
+# Before exporting the conf, please uncomment the below lines
+# for building optee and include it in boot chain.
+#EXTRA_IMAGE_FEATURES += "optee-ast2600"
+#IMAGE_INSTALL:append = "optee-test optee-examples"
+
+# VR Margining
+# Internal-only feature
+#EXTRA_IMAGE_FEATURES += "vr-margining"
+
+# Add license files to rootfs (/usr/share/common-licenses):
+COPY_LIC_MANIFEST = "1"
+COPY_LIC_DIRS = "1"
+
+BB_DISKMON_DIRS ??= "\
+    STOPTASKS,${TMPDIR},1G,100K \
+    STOPTASKS,${DL_DIR},1G,100K \
+    STOPTASKS,${SSTATE_DIR},1G,100K \
+    STOPTASKS,/tmp,100M,100K \
+    ABORT,${TMPDIR},100M,1K \
+    ABORT,${DL_DIR},100M,1K \
+    ABORT,${SSTATE_DIR},100M,1K \
+    ABORT,/tmp,10M,1K"
+CONF_VERSION = "4"
+#BB_NUMBER_THREADS = "70"
+
+FULL_OPTIMIZATION = "-Os -pipe ${DEBUG_FLAGS}"
+#SSTATE_DIR="~/.yocto/sstate"
+#DL_DIR="~/.yocto/download"
+
+# The following class prints the SRC_URI of each recipe in the build
+# Once enabled, run 'bitbake intel-platforms --runonly print_src'
+# on a clean workspace to get the output
+#INHERIT += "print-src"
+
+# Uncomment the following to build BHS features
+#OVERRIDES .= ":bhs-features"
+
+#OVERRIDES .= ":intel"
+

@@ -1,0 +1,14 @@
+[Unit]
+Description=Host interface service
+Requires=xyz.openbmc_project.EntityManager.service
+After=xyz.openbmc_project.EntityManager.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+ExecStart=sh /usr/bin/configure_usb_gadget.sh
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,49 @@
+From 3941fdac054fe1d30750b5e7cb920bc6aeb4aad6 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Mon, 26 Jun 2023 13:28:34 +0530
+Subject: [PATCH] IPMI command for Set System Info Param0 should throw error
+ for Extra byte for configuration parameter data
+
+Tested:
+
+ -Verified Set System Info Param0 is working as expected.
+
+Before Fix - For Set System Info Param0 command is supporting Extra bytes instead of throwing error.
+
+```shell
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.97.158 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x58 0x00 0x00 0x00 0x00
+
+msgubuntu@Dell-server-3:~$
+
+After Fix - For Set System Info Param0 is working as expected
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.105.46 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x58 0x00 0x00 0x00 0x00
+Unable to send RAW command (channel=0x0 netfn=0x6 lun=0x0 cmd=0x58 rsp=0xc7): Request data length invalid
+msgubuntu@Dell-server-3:~$
+
+```
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ apphandler.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/apphandler.cpp b/apphandler.cpp
+index 63d26a0..1214f9a 100644
+--- a/apphandler.cpp
++++ b/apphandler.cpp
+@@ -1435,6 +1435,10 @@ ipmi::RspType<> ipmiAppSetSystemInfo(uint8_t paramSelector, uint8_t data1,
+ 
+     if (paramSelector == 0)
+     {
++        if (configData.size() != 0)
++        {
++            return ipmi::responseReqDataLenInvalid();
++        }
+         // attempt to set the 'set in progress' value (in parameter #0)
+         // when not in the set complete state.
+         if ((transferStatus != setComplete) && (data1 == setInProgress))
+-- 
+2.25.1
+

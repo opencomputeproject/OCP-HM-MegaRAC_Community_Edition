@@ -1,0 +1,94 @@
+From bb5ab1bcfc5683b6b1e39787fc0c8a40d3854ec5 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Fri, 7 Oct 2022 21:26:18 +0530
+Subject: [PATCH] For GetSensorType ipmi command issue is getting response as
+ requested sensor data or record not found
+
+Tested:
+
+Before fix-sensor data is not found
+
+```shell
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.123.2 -U root -P 0penBmc -I lanplus -C 17 raw 0x04 0x2f 0x27
+Unable to send RAW command (channel=0x0 netfn=0x4 lun=0x0 cmd=0x2f rsp=0xcb): Requested sensor, data, or record not found
+
+After Fix-GetSensorType ipmi command is giving the response as excepted
+
+root@intel-obmc:~# ipmitool sdr elist
+PVCCD HV CPU2    | 39h | ns  |  0.1 | No Reading
+BMC Temp         | 18h | ok  |  0.1 | 25 degrees C
+Fan 1            | 0Bh | ns  |  0.1 | No Reading
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.126.97 -U root -P 0penBmc -I lanplus -C 17 raw 0x04 0x2f 0x39
+ 02 01
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.126.97 -U root -P 0penBmc -I lanplus -C 17 raw 0x04 0x2f 0x18
+ 01 01
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.126.97 -U root -P 0penBmc -I lanplus -C 17 raw 0x04 0x2f 0x0b
+ 04 01
+
+```
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ src/sensorcommands.cpp | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index 3a87fa3..6fd5e90 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -433,6 +433,36 @@ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+     return ipmi::responseSuccess();
+ }
+ 
++/** @brief implements the Get Sensor Type command
++ *  @returns the sensor type value and Event/Reading type code
++ */
++
++ipmi::RspType< uint8_t,     //sensor type
++              uint8_t >    //event/reading type code
++              ipmiGetSensorTypeCmd(int8_t SensorNum)
++{
++     std::string sensorPath;
++     uint8_t sensorType;
++     uint8_t eventType;
++
++     try
++     {
++         sensorPath = getPathFromSensorNumber(SensorNum);
++         sensorType = getSensorTypeFromPath(sensorPath);
++         eventType = getSensorEventTypeFromPath(sensorPath);
++
++     }
++     catch(std::exception&)
++     {
++        return ipmi::responseResponseError();
++     }
++
++
++
++  return ipmi::responseSuccess(sensorType,eventType);
++
++}
++
+ ipmi::RspType<uint8_t, uint8_t, uint8_t, std::optional<uint8_t>>
+     ipmiSenGetSensorReading(ipmi::Context::ptr ctx, uint8_t sensnum)
+ {
+@@ -1834,6 +1864,11 @@ void registerSensorFunctions()
+                           ipmi::sensor_event::cmdPlatformEvent,
+                           ipmi::Privilege::Operator, ipmiSenPlatformEvent);
+ 
++    // <Get Sensor Type>
++    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
++                         ipmi::sensor_event::cmdGetSensorType,
++                          ipmi::Privilege::User, ipmiGetSensorTypeCmd);
++
+     // <Get Sensor Reading>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetSensorReading,
+-- 
+2.25.1
+

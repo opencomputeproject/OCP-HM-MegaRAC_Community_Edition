@@ -1,0 +1,24 @@
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+old mode 100755
+new mode 100644
+index e3a95b3..ba43728
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1152,15 +1152,8 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+         }
+         case LanParam::Gateway1MAC:
+         {
+-            ether_addr gatewayMAC;
+-            std::array<uint8_t, sizeof(gatewayMAC)> bytes;
+-            if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+-            {
+-                return responseReqDataLenInvalid();
+-            }
+-            copyInto(gatewayMAC, bytes);
+-            channelCall<reconfigureGatewayMAC<AF_INET>>(channel, gatewayMAC);
+-            return responseSuccess();
++            log<level::ERR>("Set Lan - Not allow to set gateway MAC Address");
++            return responseInvalidCommand();
+         }
+         case LanParam::VLANId:
+         {

@@ -1,0 +1,391 @@
+From 131badbd56ce8e64c7e4b788dbb5bab9141c1bac Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Wed, 19 Oct 2022 13:36:15 +0530
+Subject: [PATCH] Add SDR Support for Processor Type Sensor
+
+Tested:
+root@intel-obmc:~# ipmitool sdr elist | head -n 5
+System Airflow   | 00h | ok  |  0.1 | 24 unspecified
+Status cpu0      | 01h | ok  |  3.1 | Presence detected
+Status cpu1      | 02h | ok  |  3.1 | Presence detected
+Cpu Energy CPU1  | 03h | ok  |  0.1 | 100.80 unspecif
+Cpu Energy CPU2  | 04h | ok  |  0.1 | 672 unspecified
+
+Sensor ID             : Status cpu0 (0x1)
+Entity ID             : 3.1 (Processor)
+Sensor Type (Discrete): Processor (0x07)
+Sensor Reading        : 0h
+Event Message Control : Per-threshold
+States Asserted       : Processor
+                        [Presence detected]
+Event Status          : Event Messages Disabled
+Event Enable          : Event Messages Disabled
+OEM                   : 0
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/sdrutils.hpp       |  17 +++-
+ include/sensorcommands.hpp |  21 ++++-
+ src/sensorcommands.cpp     | 178 +++++++++++++++++++++++++++++++++++--
+ 3 files changed, 207 insertions(+), 9 deletions(-)
+
+diff --git a/include/sdrutils.hpp b/include/sdrutils.hpp
+index fcdf45c..f3ec8d3 100644
+--- a/include/sdrutils.hpp
++++ b/include/sdrutils.hpp
+@@ -56,6 +56,12 @@ static constexpr uint16_t lun3Sensor0 = 0x300;
+ static constexpr uint16_t invalidSensorNumber = 0xFFFF;
+ static constexpr uint8_t reservedSensorNumber = 0xFF;
+ 
++static constexpr uint8_t sysEntityInstance = 0x01;
++static constexpr uint8_t eidReserved = 0x00;
++static constexpr uint8_t processorSensorType = 0x07;
++static constexpr uint8_t sensorSpecificEvent = 0x6f;
++
++
+ namespace details
+ {
+ 
+@@ -274,8 +280,9 @@ inline static uint16_t getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+                              "/xyz/openbmc_project/object_mapper",
+                              "xyz.openbmc_project.ObjectMapper", "GetSubTree");
+     static constexpr const auto depth = 2;
+-    static constexpr std::array<const char*, 3> interfaces = {
++    static constexpr std::array<const char*, 4> interfaces = {
+         "xyz.openbmc_project.Sensor.Value",
++	"xyz.openbmc_project.Inventory.Item.Cpu",
+         "xyz.openbmc_project.Sensor.Threshold.Warning",
+         "xyz.openbmc_project.Sensor.Threshold.Critical"};
+     mapperCall.append("/xyz/openbmc_project/sensors", depth, interfaces);
+@@ -376,6 +383,7 @@ enum class SensorTypeCodes : uint8_t
+     voltage = 0x2,
+     current = 0x3,
+     fan = 0x4,
++    processor = 0x07,
+     other = 0xB,
+ };
+ 
+@@ -385,6 +393,7 @@ const static boost::container::flat_map<const char*, SensorTypeCodes, CmpStr>
+                  {"current", SensorTypeCodes::current},
+                  {"fan_tach", SensorTypeCodes::fan},
+                  {"fan_pwm", SensorTypeCodes::fan},
++		 {"cpu", SensorTypeCodes::processor},
+                  {"power", SensorTypeCodes::other}}};
+ 
+ inline static std::string getSensorTypeStringFromPath(const std::string& path)
+@@ -441,8 +450,14 @@ inline static uint16_t getSensorNumberFromPath(const std::string& path)
+ 
+ inline static uint8_t getSensorEventTypeFromPath(const std::string& path)
+ {
++    uint8_t sensorType = (getSensorTypeFromPath(path));
++    if (sensorType == static_cast<uint8_t>(SensorTypeCodes::processor))
++    {
++        return 0x6f; // reading type = Sensor Specific
++    }
+     // TODO: Add support for additional reading types as needed
+     return 0x1; // reading type = threshold
++
+ }
+ 
+ inline static std::string getPathFromSensorNumber(uint16_t sensorNum)
+diff --git a/include/sensorcommands.hpp b/include/sensorcommands.hpp
+index cb8b70d..0b60600 100644
+--- a/include/sensorcommands.hpp
++++ b/include/sensorcommands.hpp
+@@ -61,6 +61,8 @@ enum class IPMISensorReadingByte3 : uint8_t
+     lowerNonRecoverable = (1 << 2),
+     lowerCritical = (1 << 1),
+     lowerNonCritical = (1 << 0),
++    presenceDetected = (1 << 0),
++    procPresenceDetected = (1 << 7),
+ };
+ 
+ enum class IPMISensorEventEnableByte2 : uint8_t
+@@ -104,6 +106,14 @@ enum class IPMIGetSensorEventEnableThresholds : uint8_t
+     upperNonRecoverableGoingHigh = 11,
+ };
+ 
++/**
++ * @enum processor sensor event enable bit mask
++ */
++enum class IPMISensorEventEnableProc : uint8_t
++{
++    procPresenceDetected = (1 << 7),
++};
++
+ enum class IPMINetfnSensorCmds : ipmi_cmd_t
+ {
+     ipmiCmdGetDeviceSDRInfo = 0x20,
+@@ -121,9 +131,10 @@ enum class IPMINetfnSensorCmds : ipmi_cmd_t
+ namespace ipmi
+ {
+ extern SensorSubTree sensorTree;
+-static ipmi_ret_t getSensorConnection(ipmi::Context::ptr ctx, uint8_t sensnum,
+-                                      std::string& connection,
+-                                      std::string& path)
++static ipmi_ret_t
++    getSensorConnection(ipmi::Context::ptr ctx, uint8_t sensnum,
++                        std::string& connection, std::string& path,
++                        std::vector<std::string>* interfaces = nullptr)
+ {
+     if (!getSensorSubtree(sensorTree) && sensorTree.empty())
+     {
+@@ -146,6 +157,10 @@ static ipmi_ret_t getSensorConnection(ipmi::Context::ptr ctx, uint8_t sensnum,
+         if (path == sensor.first)
+         {
+             connection = sensor.second.begin()->first;
++	    if (interfaces)
++            {
++                *interfaces = sensor.second.begin()->second;
++            }
+             break;
+         }
+     }
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index f5bef55..2123d01 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -53,6 +53,9 @@ using ManagedObjectType =
+ static constexpr int sensorMapUpdatePeriod = 10;
+ static constexpr int sensorMapSdrUpdatePeriod = 60;
+ 
++// BMC I2C address is generally at 0x20
++static constexpr uint8_t bmcI2CAddr = 0x20;
++
+ constexpr size_t maxSDRTotalSize =
+     76; // Largest SDR Record Size (type 01) + SDR Overheader Size
+ constexpr static const uint32_t noTimestamp = 0xFFFFFFFF;
+@@ -158,6 +161,40 @@ static sdbusplus::bus::match_t thresholdChanged(
+         }
+     });
+ 
++namespace sensor
++{
++static constexpr const char* cpuInterface =
++    "xyz.openbmc_project.Inventory.Item.Cpu";
++static constexpr const char* sensorInterface =
++    "xyz.openbmc_project.Sensor.Value";
++
++/**
++ * @brief Gets assertion status for Processor type sensor
++ *
++ * @param sensorMap - map of dbus interface
++ * @param assertions - assertion status
++ * @return bool - true if valid, false otherwise
++ */
++bool getCpuStatus(const SensorMap& sensorMap, uint8_t& assertions)
++{
++    auto presenceObject = sensorMap.find("xyz.openbmc_project.Inventory.Item");
++    if (presenceObject != sensorMap.end())
++    {
++        auto present = presenceObject->second.find("Present");
++        if (present != presenceObject->second.end())
++        {
++            if (std::get<bool>(present->second))
++            {
++                assertions |= static_cast<uint8_t>(
++                    IPMISensorReadingByte3::procPresenceDetected);
++            }
++        }
++    }
++
++    return true;
++}
++} // namespace sensor
++
+ static void getSensorMaxMin(const SensorMap& sensorMap, double& max,
+                             double& min)
+ {
+@@ -339,6 +376,97 @@ static void setMeStatus(uint8_t eventData2, uint8_t eventData3, bool disable)
+     }
+ }
+ 
++bool constructCpuSdr(ipmi::Context::ptr ctx, uint16_t sensorNum,
++                     uint16_t recordID, const std::string& service,
++                     const std::string& path,
++                     get_sdr::SensorDataCompactRecord& record)
++{
++    uint8_t sensorNumber = static_cast<uint8_t>(sensorNum);
++    uint8_t lun = static_cast<uint8_t>(sensorNum >> 8);
++    uint8_t entityId = 0x03;
++    uint8_t entityInstance = 0x01;
++
++    get_sdr::header::set_record_id(
++        recordID, reinterpret_cast<get_sdr::SensorDataRecordHeader*>(&record));
++    record.header.sdr_version = ipmiSdrVersion;
++    record.header.record_type = get_sdr::SENSOR_DATA_COMPACT_RECORD;
++    record.header.record_length = sizeof(get_sdr::SensorDataCompactRecord) -
++                                  sizeof(get_sdr::SensorDataRecordHeader);
++    record.key.owner_id = bmcI2CAddr;
++    record.key.owner_lun = lun; // need to update
++    record.key.sensor_number = sensorNumber;
++    record.body.sensor_type = processorSensorType;
++    record.body.entity_id = entityId;
++    record.body.entity_instance = entityInstance;
++
++    std::string type = getSensorTypeStringFromPath(path);
++    auto typeCstr = type.c_str();
++/*
++    auto findUnits = sensorUnits.find(typeCstr);
++    if (findUnits != sensorUnits.end())
++    {
++        record.body.sensor_units_2_base =
++            static_cast<uint8_t>(findUnits->second);
++    } // else default 0x0 unspecified
++*/
++    for (const auto& [unitsType, units] : sensorUnits)
++    {
++        if (type == unitsType)
++        {
++            record.body.sensor_units_2_base = static_cast<uint8_t>(units);
++        }
++    }
++    record.body.event_reading_type = sensorSpecificEvent;
++    SensorMap sensorMap;
++    if (!getSensorMap(ctx->yield, service, path, sensorMap,
++                      sensorMapSdrUpdatePeriod))
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to update sensor map for Processor sensor",
++            phosphor::logging::entry("SERVICE=%s", service.c_str()),
++            phosphor::logging::entry("PATH=%s", path.c_str()));
++        return false;
++    }
++
++    // follow the association chain to get the parent board's entityid and
++    // entityInstance
++    updateIpmiFromAssociation(path, sensorMap, entityId, entityInstance);
++    std::string name;
++    size_t nameStart = path.rfind("/");
++    if (nameStart != std::string::npos)
++    {
++        name = path.substr(nameStart + 1, std::string::npos - nameStart);
++    }
++    std::replace(name.begin(), name.end(), '_', ' ');
++    if (name.size() > FULL_RECORD_ID_STR_MAX_LENGTH)
++    {
++        constexpr std::array<std::pair<const char*, const char*>, 2>
++            replaceWords = {std::make_pair("Output", "Out"),
++                            std::make_pair("Input", "In")};
++        for (const auto& [find, replace] : replaceWords)
++        {
++            boost::replace_all(name, find, replace);
++        }
++        name.resize(FULL_RECORD_ID_STR_MAX_LENGTH);
++    }
++    record.body.id_string_info = name.size();
++    std::strncpy(record.body.id_string, name.c_str(),
++                 sizeof(record.body.id_string));
++    details::sdrStatsTable.updateName(sensorNumber, name);
++
++    if (sensorMap.find("xyz.openbmc_project.Inventory.Item") != sensorMap.end())
++    {
++        record.body.supported_assertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableProc::procPresenceDetected);
++        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableProc::procPresenceDetected);
++        record.body.discrete_reading_setting_mask[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableProc::procPresenceDetected);
++    }
++    return true;
++}
++
++
+ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+                                      ipmi::message::Payload& p)
+ {
+@@ -476,6 +604,25 @@ ipmi::RspType<uint8_t, uint8_t, uint8_t, std::optional<uint8_t>>
+     {
+         return ipmi::responseResponseError();
+     }
++
++    auto cpuInterface = sensorMap.find(sensor::cpuInterface);
++    if (cpuInterface != sensorMap.end())
++    {
++        uint8_t assertions = 0;
++
++        if (!sensor::getCpuStatus(sensorMap, assertions))
++        {
++            return ipmi::responseResponseError();
++        }
++
++        uint8_t value = 0;
++        uint8_t operation = 0;
++        operation |=
++            static_cast<uint8_t>(IPMISensorReadingByte2::sensorScanningEnable);
++
++        return ipmi::responseSuccess(value, operation, assertions,
++                                     std::nullopt);
++    }
+     auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
+ 
+     if (sensorObject == sensorMap.end() ||
+@@ -1228,9 +1375,10 @@ static inline uint16_t getNumberOfSensors(void)
+                                               : sensorTree.size();
+ }
+ 
+-static int getSensorDataRecord(ipmi::Context::ptr ctx,
+-                               std::vector<uint8_t>& recordData,
+-                               uint16_t recordID)
++static int
++    getSensorDataRecord(ipmi::Context::ptr ctx,
++                        std::vector<uint8_t>& recordData, uint16_t recordID,
++                        uint8_t readBytes = std::numeric_limits<uint8_t>::max())
+ {
+     size_t fruCount = 0;
+     ipmi::Cc ret = ipmi::storage::getFruSdrCount(ctx, fruCount);
+@@ -1310,6 +1458,7 @@ static int getSensorDataRecord(ipmi::Context::ptr ctx,
+     // which has special meaning.
+     std::string connection;
+     std::string path;
++    std::vector<std::string> interfaces;
+     uint16_t sensNumFromRecID{recordID};
+     if ((recordID > lun0MaxSensorNum) && (recordID < lun1MaxSensorNum))
+     {
+@@ -1327,8 +1476,9 @@ static int getSensorDataRecord(ipmi::Context::ptr ctx,
+         ctx->lun = 3;
+     }
+ 
+-    auto status = getSensorConnection(
+-        ctx, static_cast<uint8_t>(sensNumFromRecID), connection, path);
++    auto status =
++        getSensorConnection(ctx, static_cast<uint8_t>(sensNumFromRecID),
++                            connection, path, &interfaces);
+     if (status)
+     {
+         phosphor::logging::log<phosphor::logging::level::ERR>(
+@@ -1363,6 +1513,10 @@ static int getSensorDataRecord(ipmi::Context::ptr ctx,
+             "getSensorDataRecord: sensor record mismatch");
+         return GENERAL_ERROR;
+     }
++    // handle threshold sensors
++    if (std::find(interfaces.begin(), interfaces.end(),
++                  sensor::sensorInterface) != interfaces.end())
++    {
+     get_sdr::SensorDataFullRecord record = {0};
+ 
+     get_sdr::header::set_record_id(
+@@ -1583,6 +1737,20 @@ static int getSensorDataRecord(ipmi::Context::ptr ctx,
+         record.body.discrete_reading_setting_mask[0];
+     recordData.insert(recordData.end(), (uint8_t*)&record,
+                       ((uint8_t*)&record) + sizeof(record));
++    }
++    // handle cpu sensors
++    if (std::find(interfaces.begin(), interfaces.end(), sensor::cpuInterface) !=
++        interfaces.end())
++    {
++        get_sdr::SensorDataCompactRecord record = {0};
++        if (!constructCpuSdr(ctx, sensorNum, recordID, connection, path,
++                             record))
++        {
++            return GENERAL_ERROR;
++        }
++        recordData.insert(recordData.end(), (uint8_t*)&record,
++                          ((uint8_t*)&record) + sizeof(record));
++    }
+     return 0;
+ }
+ 
+-- 
+2.25.1
+

@@ -1,0 +1,22 @@
+[Unit]
+Description=Phosphor Inband IPMI
+PartOf=phosphor-ipmi-warm-reset.target
+
+[Service]
+Restart=always
+RestartSec=5
+StartLimitBurst=10
+ExecStart=/usr/bin/env ipmid
+SyslogIdentifier=ipmid
+RuntimeDirectory = ipmi
+RuntimeDirectoryPreserve = yes
+StateDirectory = ipmi
+Type=dbus
+BusName=xyz.openbmc_project.Control.Host
+StartLimitIntervalSec=0
+SuccessExitStatus=6
+
+
+[Install]
+WantedBy=basic.target
+Alias=xyz.openbmc_project.Control.Host.service

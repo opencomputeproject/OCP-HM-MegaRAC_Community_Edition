@@ -1,0 +1,26 @@
+From dcc8f61b5f963301baed36038b56c60327e1ab50 Mon Sep 17 00:00:00 2001
+From: Abinaya L <abinayal@ami.com>
+Date: Thu, 22 Jun 2023 15:20:39 +0530
+Subject: [PATCH] Added Bios Setting URI to Bios.
+
+---
+ redfish-core/lib/bios.hpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/redfish-core/lib/bios.hpp b/redfish-core/lib/bios.hpp
+index 78a02a4..bf8812a 100644
+--- a/redfish-core/lib/bios.hpp
++++ b/redfish-core/lib/bios.hpp
+@@ -1523,6 +1523,9 @@ inline void
+     asyncResp->res.jsonValue["Actions"]["#Bios.ResetBios"] = {
+         {"target", "/redfish/v1/Systems/system/Bios/Actions/Bios.ResetBios"}};
+ 
++    asyncResp->res.jsonValue["Settings"]["@odata.id"] =
++            "/redfish/v1/Systems/system/Bios/Settings";
++
+     // Get the ActiveSoftwareImage and SoftwareImages
+     sw_util::populateSoftwareInformation(asyncResp, sw_util::biosPurpose, "",
+                                          true);
+-- 
+2.25.1
+

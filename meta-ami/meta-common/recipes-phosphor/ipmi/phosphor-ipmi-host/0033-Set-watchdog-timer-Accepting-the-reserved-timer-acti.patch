@@ -1,0 +1,54 @@
+From 51e8a3149119c55da21fc21106a67d13cf899db2 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Thu, 29 Jun 2023 18:56:38 +0530
+Subject: [PATCH] Set watchdog timer - Accepting the reserved timer action bits
+ in byte 2.
+
+Tested:
+
+ -Verified set watchdog timer is working as expected.
+
+```shell
+
+Before fix - set watchdog timer Accepting the reserved timer action bits.
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.99.22 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x24 0x81 0x70 0x00 0x00 0x64 0x00
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.99.22 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x24 0x81 0x70 0x00 0x00 0x64 0x00
+
+msgubuntu@Dell-server-3:~$
+
+After fix - set watchdog timer reserved bits are working as expected.
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 172.31.2.142 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x24 0x81 0x70 0x00 0x00 0x64 0x00
+Unable to send RAW command (channel=0x0 netfn=0x6 lun=0x0 cmd=0x24 rsp=0xcc): Invalid data field in request
+msgubuntu@Dell-server-3:~$ ipmitool -H 172.31.2.142 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x24 0x81 0x40 0x00 0x00 0x64 0x00
+Unable to send RAW command (channel=0x0 netfn=0x6 lun=0x0 cmd=0x24 rsp=0xcc): Invalid data field in request
+msgubuntu@Dell-server-3:~$
+
+```
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ app/watchdog.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/app/watchdog.cpp b/app/watchdog.cpp
+index 1d12220..abaa458 100644
+--- a/app/watchdog.cpp
++++ b/app/watchdog.cpp
+@@ -252,6 +252,11 @@ ipmi::RspType<>
+         return ipmi::responseInvalidFieldRequest();
+     }
+ 
++    if (preTimeoutInterrupt > 3)
++    {
++        return ipmi::responseInvalidFieldRequest();
++    }
++
+     if (preTimeoutInterval > (initialCountdown / 10))
+     {
+         return ipmi::responseInvalidFieldRequest();
+-- 
+2.25.1
+

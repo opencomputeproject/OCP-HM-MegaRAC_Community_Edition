@@ -1,0 +1,59 @@
+From a3dde9666d412933e73df8c344e4a9d63be8f21d Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Tue, 29 Nov 2022 18:26:22 +0530
+Subject: [PATCH] Sensor count not showing in webui properly compared to IPMI & Redfish responses
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ .../modules/HardwareStatus/SensorsStore.js    | 35 ++++++++++---------
+ 1 file changed, 18 insertions(+), 17 deletions(-)
+
+diff --git a/src/store/modules/HardwareStatus/SensorsStore.js b/src/store/modules/HardwareStatus/SensorsStore.js
+index cae7795..5a237bd 100644
+--- a/src/store/modules/HardwareStatus/SensorsStore.js
++++ b/src/store/modules/HardwareStatus/SensorsStore.js
+@@ -46,23 +46,24 @@ const SensorsStore = {
+           return error;
+         });
+       });
+-      return await api.all(promises).then(
+-        api.spread((...responses) => {
+-          const sensorData = responses.map(({ data }) => {
+-            return {
+-              name: data.Name,
+-              status: data.Status.Health,
+-              currentValue: data.Reading,
+-              lowerCaution: data.Thresholds?.LowerCaution?.Reading,
+-              upperCaution: data.Thresholds?.UpperCaution?.Reading,
+-              lowerCritical: data.Thresholds?.LowerCritical?.Reading,
+-              upperCritical: data.Thresholds?.UpperCritical?.Reading,
+-              units: data.ReadingUnits,
+-            };
+-          });
+-          commit('setSensors', sensorData);
+-        })
+-      );
++      return await api.all(promises).then((responses) => {
++        const sensorData = [];
++        responses.forEach((response) => {
++          if (response.data) {
++            sensorData.push({
++              name: response.data.Name,
++              status: response.data.Status?.Health,
++              currentValue: response.data.Reading,
++              lowerCaution: response.data.Thresholds?.LowerCaution?.Reading,
++              upperCaution: response.data.Thresholds?.UpperCaution?.Reading,
++              lowerCritical: response.data.Thresholds?.LowerCritical?.Reading,
++              upperCritical: response.data.Thresholds?.UpperCritical?.Reading,
++              units: response.data.ReadingUnits,
++            });
++          }
++        });
++        commit('setSensors', sensorData);
++      });
+     },
+     async getThermalSensors({ commit }, id) {
+       return await api
+-- 
+2.25.1
+

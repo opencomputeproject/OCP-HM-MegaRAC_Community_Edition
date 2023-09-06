@@ -1,0 +1,54 @@
+From f0fac746db52c993ea6bbba570633d62ed87f5b5 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Mon, 2 Jan 2023 18:00:56 +0530
+Subject: [PATCH] Update ObjectManager for sensors in Right Path
+
+As Per https://gerrit.openbmc.org/c/openbmc/phosphor-dbus-interfaces/+/55308
+all sensor implementation should be implementing an ObjectManager
+at /xyz/openbmc_project/sensors.
+
+This commit updates Processor & Watchdog Sensors ObjectManager path.
+
+Tested:
+Verified sensor list & sdr list working as expected.
+Verified Discrete sensor listing.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ src/ProcessorStatusMain.cpp | 3 ++-
+ src/SystemSensorMain.cpp    | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/ProcessorStatusMain.cpp b/src/ProcessorStatusMain.cpp
+index f177b22..634c207 100644
+--- a/src/ProcessorStatusMain.cpp
++++ b/src/ProcessorStatusMain.cpp
+@@ -124,8 +124,9 @@ int main()
+ {
+     boost::asio::io_service io;
+     auto systemBus = std::make_shared<sdbusplus::asio::connection>(io);
++    sdbusplus::asio::object_server objectServer(systemBus, true);
++    objectServer.add_manager("/xyz/openbmc_project/sensors");
+     systemBus->request_name("xyz.openbmc_project.ProcessorStatus");
+-    sdbusplus::asio::object_server objectServer(systemBus);
+     boost::container::flat_map<std::string, std::shared_ptr<ProcessorStatus>>
+         sensors;
+     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
+diff --git a/src/SystemSensorMain.cpp b/src/SystemSensorMain.cpp
+index abcb886..2713b67 100644
+--- a/src/SystemSensorMain.cpp
++++ b/src/SystemSensorMain.cpp
+@@ -103,8 +103,9 @@ int main()
+ {
+     boost::asio::io_service io;
+     auto systemBus = std::make_shared<sdbusplus::asio::connection>(io);
++    sdbusplus::asio::object_server objectServer(systemBus, true);
++    objectServer.add_manager("/xyz/openbmc_project/sensors");
+     systemBus->request_name("xyz.openbmc_project.SystemSensor");
+-    sdbusplus::asio::object_server objectServer(systemBus);
+     boost::container::flat_map<std::string, std::shared_ptr<WatchdogSensor>>
+         sensors;
+     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
+-- 
+2.25.1
+

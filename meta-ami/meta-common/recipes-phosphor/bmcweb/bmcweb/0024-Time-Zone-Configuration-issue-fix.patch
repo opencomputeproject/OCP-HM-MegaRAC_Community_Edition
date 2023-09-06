@@ -1,0 +1,27 @@
+From 86f8dd95bf6739537dc71d659c2d93bf82c8344f Mon Sep 17 00:00:00 2001
+From: dhananjayb <dhananjayb@ami.com>
+Date: Mon, 20 Mar 2023 10:19:57 +0530
+Subject: [PATCH] Time-Zone-Configuration
+
+Signed-off-by: dhananjayb <dhananjayb@ami.com>
+---
+ redfish-core/lib/managers.hpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index e9bd5e32..df273f8f 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -2061,7 +2061,8 @@ inline void requestRoutesManager(App& app)
+ 		"ResetAll", "ResetToDefaultButKeepReservedSettings"};
+ 
+         std::pair<std::string, std::string> redfishDateTimeOffset =
+-            redfish::time_utils::getDateTimeOffsetNow();
++           crow::utility::getDateTimeOffsetNow();
++		// redfish::time_utils::getDateTimeOffsetNow();
+ 
+         asyncResp->res.jsonValue["DateTime"] = redfishDateTimeOffset.first;
+         asyncResp->res.jsonValue["DateTimeLocalOffset"] =
+-- 
+2.25.1
+

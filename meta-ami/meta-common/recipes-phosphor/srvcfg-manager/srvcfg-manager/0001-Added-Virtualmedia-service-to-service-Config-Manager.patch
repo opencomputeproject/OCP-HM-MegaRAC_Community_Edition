@@ -1,0 +1,23 @@
+From 8337ab177b222b35a2e2c6da05653c1dd18bee5b Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Thu, 5 Jan 2023 15:47:33 +0530
+Subject: [PATCH] Added-Virtualmedia-conf-to-service-Config-Manager
+
+---
+ src/main.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/main.cpp b/src/main.cpp
+index 34a8f07..93a69fe 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -41,7 +41,8 @@ static std::unordered_map<std::string /* unitName */,
+     managedServices = {{"phosphor-ipmi-net", false}, {"bmcweb", false},
+                        {"phosphor-ipmi-kcs", false}, {"start-ipkvm", false},
+                        {"obmc-console", false},      {"dropbear", true},
+-                       {"obmc-console-ssh", true},   {"xyz.openbmc_project.Pmt", false}};
++                       {"obmc-console-ssh", true},   {"xyz.openbmc_project.Pmt", false},
++    			{"xyz.openbmc_project.VirtualMedia", false}};
+ 
+ enum class UnitType
+ {

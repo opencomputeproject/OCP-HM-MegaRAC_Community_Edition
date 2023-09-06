@@ -1,0 +1,472 @@
+From d8b400d78bba42e170f8036a3f97acf234cc75a7 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Tue, 13 Sep 2022 18:23:52 +0530
+Subject: [PATCH] Support for Multiple Service configurations like KVM,Virtual
+ Media,SOL SSH  and SOL SSH Port Configuration
+
+---
+ src/locales/en-US.json                        |  26 ++-
+ .../SecurityAndAccess/PoliciesStore.js        | 150 ++++++++++++++++
+ .../SecurityAndAccess/Policies/Policies.vue   | 162 ++++++++++++++++++
+ 3 files changed, 337 insertions(+), 1 deletion(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 3fa20dc..1c122da 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -751,6 +751,8 @@
+     }
+   },
+   "pagePolicies": {
++    "ipmiProtocolPortLabel": "IPMI Port Value (in numbers)",
++    "solSshPortLabel": "SOL SSH  Port Value (in numbers)",
+     "ipmi": "Network IPMI (out-of-band IPMI)",
+     "ipmiDescription": "Allow remote management of the platform via IPMI. Tools such as ipmitool require this setting to be enabled.",
+     "rtad": "RTAD",
+@@ -768,6 +770,8 @@
+       }
+     },
+     "toast": {
++      "errorIpmiPort": "Error in setting IPMI port value.",
++      "errorSolSshPort": "Error in setting SOL SSH port value.",
+       "errorIpmiDisabled": "Error disabling IPMI security setting.",
+       "errorIpmiEnabled": "Error enabling IPMI security setting.",
+       "errorRtadDisabled": "Error disabling RTAD security setting.",
+@@ -776,6 +780,14 @@
+       "errorSshEnabled": "Error enabling SSH security setting.",
+       "errorVtpmDisabled": "Error disabling VirtualTPM security setting.",
+       "errorVtpmEnabled": "Error enabling VirtualTPM security setting.",
++      "errorKvmDisabled": "Error disabling KVM security setting.",
++      "errorKvmEnabled": "Error enabling KVM security setting.",
++      "errorVmcDisabled": "Error disabling Virtual Media security setting.",
++      "errorVmcEnabled": "Error enabling Virtual Media security setting.",
++      "errorSOLDisabled": "Error disabling SOL SSH security setting.",
++      "errorSOLEnabled": "Error enabling SOL SSH security setting.",
++      "successIpmiPort": "Successfully update IPMI Port value.",
++      "successSolSshPort": "Successfully update SOL SSH Port value.",
+       "errorSessionTimeout": "Error in changing session timeout.",
+       "successIpmiDisabled": "Successfully disabled IPMI security setting.",
+       "successIpmiEnabled": "Successfully enabled IPMI security setting.",
+@@ -785,12 +797,24 @@
+       "successSshEnabled": "Successfully enabled SSH security setting.",
+       "successVtpmDisabled": "Successfully disabled VirtualTPM security setting.",
+       "successVtpmEnabled": "Successfully enabled VirtualTPM security setting.",
++      "successKvmDisabled": "Successfully disabled KVM security setting.",
++      "successKvmEnabled": "Successfully enabled KVM security setting.",
++      "successVmcDisabled": "Successfully disabled Virtual Media security setting.",
++      "successVmcEnabled": "Successfully enabled Virtual Media security setting.",
++      "successSOLDisabled": "Successfully disabled SOL SSH security setting.",
++      "successSOLEnabled": "Successfully enabled SOL SSH security setting.",
+       "successSessionTimeout": "Successfully changed the session timeout value."
+     },
+     "vtpm": "VirtualTPM",
+     "vtpmDescription": "Enabling vTPM makes a TPM available to the guest operating system.",
+     "webSessionTimeOut":"WEB Session Timeout",
+-    "webSessionTimeOutDescription" : "Change the Web session timeout in given options"
++    "webSessionTimeOutDescription" : "Change the Web session timeout in given options",
++    "kvm": "KVM",
++    "kvmDescription": "Enabling KVM makes to the guest operating system",
++    "vmc": "Virtual Media",
++    "vmcDescription": "Enabling Virtual Media for image redirection",
++    "solssh": "SOL SSH",
++    "solDescription": "Enabling SOL SSH"
+   },
+   "pagePower": {
+     "description": "Set a power cap to keep power consumption at or below the specified value in watts",
+diff --git a/src/store/modules/SecurityAndAccess/PoliciesStore.js b/src/store/modules/SecurityAndAccess/PoliciesStore.js
+index e4c224f..bce9047 100644
+--- a/src/store/modules/SecurityAndAccess/PoliciesStore.js
++++ b/src/store/modules/SecurityAndAccess/PoliciesStore.js
+@@ -6,24 +6,49 @@ const PoliciesStore = {
+   state: {
+     sshProtocolEnabled: false,
+     ipmiProtocolEnabled: false,
++    kvmServiceEnabled: false,
++    virtualMediaServiceEnabled: false,
++    solSshServiceEnabled: false,
++    solSshPortValue: null,
+     rtadEnabled: 'Disabled',
+     vtpmEnabled: 'Disabled',
+     sessionTimeoutValue: null,
++    kvmEnabled: true,
++    vmcEnabled: true,
++    solEnabled: true,
+   },
+   getters: {
+     sshProtocolEnabled: (state) => state.sshProtocolEnabled,
+     ipmiProtocolEnabled: (state) => state.ipmiProtocolEnabled,
++    solSshPortValue: (state) => state.solSshPortValue,
+     rtadEnabled: (state) => state.rtadEnabled,
+     vtpmEnabled: (state) => state.vtpmEnabled,
+     getSessionTimeoutValue: (state) => state.sessionTimeoutValue,
++    kvmEnabled: (state) => state.kvmEnabled,
++    vmcEnabled: (state) => state.vmcEnabled,
++    solEnabled: (state) => state.solEnabled,
++    solSshServiceEnabled: (state) => state.solSshServiceEnabled,
++    kvmServiceEnabled: (state) => state.kvmServiceEnabled,
++    virtualMediaServiceEnabled: (state) => state.virtualMediaServiceEnabled,
+   },
+   mutations: {
+     setSshProtocolEnabled: (state, sshProtocolEnabled) =>
+       (state.sshProtocolEnabled = sshProtocolEnabled),
+     setIpmiProtocolEnabled: (state, ipmiProtocolEnabled) =>
+       (state.ipmiProtocolEnabled = ipmiProtocolEnabled),
++    setSolSshPort: (state, solSshPortValue) =>
++      (state.solSshPortValue = solSshPortValue),
+     setRtadEnabled: (state, rtadEnabled) => (state.rtadEnabled = rtadEnabled),
+     setVtpmEnabled: (state, vtpmEnabled) => (state.vtpmEnabled = vtpmEnabled),
++    setKvmEnabled: (state, kvmEnabled) => (state.kvmEnabled = kvmEnabled),
++    setVmcEnabled: (state, vmcEnabled) => (state.vmcEnabled = vmcEnabled),
++    setSOLEnabled: (state, solEnabled) => (state.solEnabled = solEnabled),
++    setSolSshServiceEnabled: (state, solSshServiceEnabled) =>
++      (state.solSshServiceEnabled = solSshServiceEnabled),
++    setKvmServiceEnabled: (state, kvmServiceEnabled) =>
++      (state.kvmServiceEnabled = kvmServiceEnabled),
++    setVirtualMediaServiceEnabled: (state, virtualMediaServiceEnabled) =>
++      (state.virtualMediaServiceEnabled = virtualMediaServiceEnabled),
+     setSessionTimeoutValue(state, sessionTimeoutValue) {
+       state.sessionTimeoutValue = sessionTimeoutValue;
+     },
+@@ -32,6 +57,9 @@ const PoliciesStore = {
+     setSessionTimeoutNewValue({ commit }, sessionTimeoutNewValue) {
+       commit('setSessionTimeoutValue', sessionTimeoutNewValue);
+     },
++    setSolSshPortUpdatedValue({ commit }, solSshProtocolPort) {
++      commit('setSolSshPort', solSshProtocolPort);
++    },
+     async getNetworkProtocolStatus({ commit }) {
+       return await api
+         .get('/redfish/v1/Managers/bmc/NetworkProtocol')
+@@ -52,6 +80,24 @@ const PoliciesStore = {
+         })
+         .catch((error) => console.log(error));
+     },
++    async getKvmServiceStatus({ commit }) {
++      return await api
++        .get('/redfish/v1/Systems/system')
++        .then((response) => {
++          const kvmServiceEnabled =
++            response.data.GraphicalConsole.ServiceEnabled;
++          const virtualMediaServiceEnabled =
++            response.data.VirtualMediaConfig.ServiceEnabled;
++          const solSshServiceEnabled =
++            response.data.SerialConsole.SSH.ServiceEnabled;
++          const solSshPortValue = response.data.SerialConsole.SSH.Port;
++          commit('setKvmServiceEnabled', kvmServiceEnabled);
++          commit('setVirtualMediaServiceEnabled', virtualMediaServiceEnabled);
++          commit('setSolSshServiceEnabled', solSshServiceEnabled);
++          commit('setSolSshPort', solSshPortValue);
++        })
++        .catch((error) => console.log(error));
++    },
+     async getSessionTimeout({ commit }) {
+       return await api
+         .get('/redfish/v1/SessionService')
+@@ -161,6 +207,110 @@ const PoliciesStore = {
+           }
+         });
+     },
++    async saveKvmState({ commit }, kvmServiceEnabled) {
++      commit('setKvmServiceEnabled', kvmServiceEnabled);
++      const kvm = {
++        GraphicalConsole: {
++          ServiceEnabled: kvmServiceEnabled,
++        },
++      };
++      return await api
++        .patch('/redfish/v1/Systems/system', kvm)
++        .then(() => {
++          if (kvmServiceEnabled) {
++            return i18n.t('pagePolicies.toast.successKvmEnabled');
++          } else {
++            return i18n.t('pagePolicies.toast.successKvmDisabled');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setKvmServiceEnabled', !kvmServiceEnabled);
++          if (kvmServiceEnabled) {
++            throw new Error(i18n.t('pagePolicies.toast.errorKvmEnabled'));
++          } else {
++            throw new Error(i18n.t('pagePolicies.toast.errorKvmDisabled'));
++          }
++        });
++    },
++    async saveVmcState({ commit }, virtualMediaServiceEnabled) {
++      commit('setVirtualMediaServiceEnabled', virtualMediaServiceEnabled);
++      const virtualMedia = {
++        VirtualMediaConfig: {
++          ServiceEnabled: virtualMediaServiceEnabled,
++        },
++      };
++      return await api
++        .patch('/redfish/v1/Systems/system', virtualMedia)
++        .then(() => {
++          if (virtualMediaServiceEnabled) {
++            return i18n.t('pagePolicies.toast.successVmcEnabled');
++          } else {
++            return i18n.t('pagePolicies.toast.successVmcDisabled');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setVirtualMediaServiceEnabled', !virtualMediaServiceEnabled);
++          if (virtualMediaServiceEnabled) {
++            throw new Error(i18n.t('pagePolicies.toast.errorVmcEnabled'));
++          } else {
++            throw new Error(i18n.t('pagePolicies.toast.errorVmcDisabled'));
++          }
++        });
++    },
++    async saveSOLSshState({ commit }, solEnabled) {
++      commit('setSolSshServiceEnabled', solEnabled);
++      const solSsh = {
++        SerialConsole: {
++          SSH: {
++            ServiceEnabled: solEnabled,
++          },
++        },
++      };
++      return await api
++        .patch('/redfish/v1/Systems/system', solSsh)
++        .then(() => {
++          if (solEnabled) {
++            return i18n.t('pagePolicies.toast.successSOLEnabled');
++          } else {
++            return i18n.t('pagePolicies.toast.successSOLDisabled');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setSolSshServiceEnabled', !solEnabled);
++          if (solEnabled) {
++            throw new Error(i18n.t('pagePolicies.toast.errorSOLEnabled'));
++          } else {
++            throw new Error(i18n.t('pagePolicies.toast.errorSOLDisabled'));
++          }
++        });
++    },
++    async saveSolSshPortState({ commit }, solSshProtocolPortNewValue) {
++      commit('saveSOLSshState', solSshProtocolPortNewValue);
++      const portValue = {
++        SerialConsole: {
++          SSH: {
++            Port: solSshProtocolPortNewValue,
++          },
++        },
++      };
++      return await api
++        .patch('/redfish/v1/Systems/system', portValue)
++        .then(() => {
++          if (solSshProtocolPortNewValue) {
++            return i18n.t('pagePolicies.toast.successSolSshPort');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('saveSOLSshState', solSshProtocolPortNewValue);
++          if (solSshProtocolPortNewValue) {
++            throw new Error(i18n.t('pagePolicies.toast.errorSolSshPort'));
++          }
++        });
++    },
+     async saveSessionTimeoutValue({ commit }, sessionTimeoutNewValue) {
+       commit('setSessionTimeoutValue', sessionTimeoutNewValue);
+       const sessionValue = {
+diff --git a/src/views/SecurityAndAccess/Policies/Policies.vue b/src/views/SecurityAndAccess/Policies/Policies.vue
+index c907519..7bb9136 100644
+--- a/src/views/SecurityAndAccess/Policies/Policies.vue
++++ b/src/views/SecurityAndAccess/Policies/Policies.vue
+@@ -103,6 +103,108 @@
+             </b-form-checkbox>
+           </b-col>
+         </b-row>
++        <b-row class="setting-section">
++          <b-col class="d-flex align-items-center justify-content-between">
++            <dl class="mt-3 mr-3 w-75">
++              <dt>{{ $t('pagePolicies.kvm') }}</dt>
++              <dd>
++                {{ $t('pagePolicies.kvmDescription') }}
++              </dd>
++            </dl>
++            <b-form-checkbox
++              id="kvmSwitch"
++              v-model="kvmState"
++              data-test-id="policies-toggle-rtad"
++              switch
++              @change="changeKmvState"
++            >
++              <span class="sr-only">
++                {{ $t('pagePolicies.kvm') }}
++              </span>
++              <span v-if="kvmState">
++                {{ $t('global.status.enabled') }}
++              </span>
++              <span v-else>{{ $t('global.status.disabled') }}</span>
++            </b-form-checkbox>
++          </b-col>
++        </b-row>
++        <b-row class="setting-section">
++          <b-col class="d-flex align-items-center justify-content-between">
++            <dl class="mt-3 mr-3 w-75">
++              <dt>{{ $t('pagePolicies.vmc') }}</dt>
++              <dd>
++                {{ $t('pagePolicies.vmcDescription') }}
++              </dd>
++            </dl>
++            <b-form-checkbox
++              id="vmcSwitch"
++              v-model="vmcState"
++              data-test-id="policies-toggle-rtad"
++              switch
++              @change="changeVmcState"
++            >
++              <span class="sr-only">
++                {{ $t('pagePolicies.vmc') }}
++              </span>
++              <span v-if="vmcState">
++                {{ $t('global.status.enabled') }}
++              </span>
++              <span v-else>{{ $t('global.status.disabled') }}</span>
++            </b-form-checkbox>
++          </b-col>
++        </b-row>
++        <b-row class="setting-section">
++          <b-col class="d-flex align-items-center justify-content-between">
++            <dl class="mt-3 mr-3 w-75">
++              <dt>{{ $t('pagePolicies.solssh') }}</dt>
++              <dd>
++                {{ $t('pagePolicies.solDescription') }}
++              </dd>
++            </dl>
++            <b-form-checkbox
++              id="solSwitch"
++              v-model="solState"
++              data-test-id="policies-toggle-vtpm"
++              switch
++              @change="changeSOLState"
++            >
++              <span class="sr-only">
++                {{ $t('pagePolicies.solssh') }}
++              </span>
++              <span v-if="solState">
++                {{ $t('global.status.enabled') }}
++              </span>
++              <span v-else>{{ $t('global.status.disabled') }}</span>
++            </b-form-checkbox>
++          </b-col>
++        </b-row>
++        <b-row v-if="solState" class="setting-section">
++          <b-col class="d-flex align-items-center justify-content-between">
++            <b-form-group
++              id="input-group-1"
++              :label="$t('pagePolicies.solSshPortLabel')"
++              label-for="input-1"
++            >
++              <b-form-input
++                id="input-1"
++                v-model.number="solSshPortValueState"
++                data-test-id="power-input-solSshPort"
++                type="number"
++                aria-describedby="power-help-text"
++              ></b-form-input>
++            </b-form-group>
++          </b-col>
++          <b-col class="d-flex align-items-center justify-content-between">
++            <b-button
++              variant="primary"
++              type="submit"
++              data-test-id="power-button-saveIpmiPortValue"
++              @click="saveSolSshPortValue"
++            >
++              {{ $t('global.action.save') }}
++            </b-button>
++          </b-col>
++        </b-row>
+         <b-row class="setting-section">
+           <b-col class="d-flex align-items-center justify-content-between">
+             <dl class="mt-3 mr-3 w-75">
+@@ -201,6 +303,38 @@ export default {
+         return newValue;
+       },
+     },
++    kvmState: {
++      get() {
++        return this.$store.getters['policies/kvmServiceEnabled'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++    vmcState: {
++      get() {
++        return this.$store.getters['policies/virtualMediaServiceEnabled'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++    solState: {
++      get() {
++        return this.$store.getters['policies/solSshServiceEnabled'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++    solSshPortValueState: {
++      get() {
++        return this.$store.getters['policies/solSshPortValue'];
++      },
++      set(newValue) {
++        this.$store.dispatch('policies/setSolSshPortUpdatedValue', newValue);
++      },
++    },
+     sessionTimeoutState: {
+       get() {
+         return this.$store.getters['policies/getSessionTimeoutValue'];
+@@ -216,6 +350,7 @@ export default {
+       this.$store.dispatch('policies/getBiosStatus'),
+       this.$store.dispatch('policies/getNetworkProtocolStatus'),
+       this.$store.dispatch('policies/getSessionTimeout'),
++      this.$store.dispatch('policies/getKvmServiceStatus'),
+     ]).finally(() => this.endLoader());
+   },
+   methods: {
+@@ -243,6 +378,33 @@ export default {
+         .then((message) => this.successToast(message))
+         .catch(({ message }) => this.errorToast(message));
+     },
++    changeKmvState(state) {
++      this.$store
++        .dispatch('policies/saveKvmState', state ? true : false)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
++    changeVmcState(state) {
++      this.$store
++        .dispatch('policies/saveVmcState', state ? true : false)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
++    changeSOLState(state) {
++      this.$store
++        .dispatch('policies/saveSOLSshState', state ? true : false)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
++    saveSolSshPortValue() {
++      this.$store
++        .dispatch(
++          'policies/saveSolSshPortState',
++          parseInt(this.solSshPortValueState)
++        )
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
+     saveSessionTimeoutValue() {
+       this.$store
+         .dispatch(
+-- 
+2.25.1
+

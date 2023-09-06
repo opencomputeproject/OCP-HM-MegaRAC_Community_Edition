@@ -1,0 +1,87 @@
+From 495fcd8d6beba2141d7932c237d5341d70f80440 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Fri, 2 Sep 2022 15:52:44 +0530
+Subject: [PATCH] Network Configuration Changes
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ .../Settings/Network/NetworkInterfaceSettings.vue | 15 ++++++++-------
+ src/views/Settings/Network/TableIpv4.vue          |  8 +++++++-
+ 2 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/src/views/Settings/Network/NetworkInterfaceSettings.vue b/src/views/Settings/Network/NetworkInterfaceSettings.vue
+index 023d29b..8433c63 100644
+--- a/src/views/Settings/Network/NetworkInterfaceSettings.vue
++++ b/src/views/Settings/Network/NetworkInterfaceSettings.vue
+@@ -47,7 +47,7 @@
+               </b-button>
+             </dt>
+             <dd>
+-              {{ dataFormatter(macAddress) }}
++              {{ dataFormatter(ethernetData.MACAddress) }}
+             </dd>
+           </dl>
+         </b-col>
+@@ -61,7 +61,6 @@ import BVToastMixin from '@/components/Mixins/BVToastMixin';
+ import IconEdit from '@carbon/icons-vue/es/edit/16';
+ import PageSection from '@/components/Global/PageSection';
+ import DataFormatterMixin from '@/components/Mixins/DataFormatterMixin';
+-import { mapState } from 'vuex';
+ 
+ export default {
+   name: 'Ipv4Table',
+@@ -86,7 +85,9 @@ export default {
+     };
+   },
+   computed: {
+-    ...mapState('network', ['ethernetData']),
++    ethernetData() {
++      return this.$store.getters['network/ethernetData'][this.tabIndex];
++    },
+   },
+   watch: {
+     // Watch for change in tab index
+@@ -104,10 +105,10 @@ export default {
+   methods: {
+     getSettings() {
+       this.selectedInterface = this.tabIndex;
+-      this.linkStatus = this.ethernetData[this.selectedInterface].LinkStatus;
+-      this.linkSpeed = this.ethernetData[this.selectedInterface].SpeedMbps;
+-      this.fqdn = this.ethernetData[this.selectedInterface].FQDN;
+-      this.macAddress = this.ethernetData[this.selectedInterface].MACAddress;
++      this.linkStatus = this.ethernetData.LinkStatus;
++      this.linkSpeed = this.ethernetData.SpeedMbps;
++      this.fqdn = this.ethernetData.FQDN;
++      this.macAddress = this.ethernetData.MACAddress;
+     },
+     initMacAddressModal() {
+       this.$bvModal.show('modal-mac-address');
+diff --git a/src/views/Settings/Network/TableIpv4.vue b/src/views/Settings/Network/TableIpv4.vue
+index 7587003..e89d02d 100644
+--- a/src/views/Settings/Network/TableIpv4.vue
++++ b/src/views/Settings/Network/TableIpv4.vue
+@@ -126,7 +126,12 @@ export default {
+     getIpv4TableItems() {
+       const index = this.tabIndex;
+       const addresses = this.ethernetData[index].IPv4Addresses || [];
+-      this.form.ipv4TableItems = addresses.map((ipv4) => {
++      this.form.ipv4TableItems = addresses.filter((ipv4) => {
++        if (ipv4.AddressOrigin !== 'IPv4LinkLocal') {
++          return ipv4;
++        }
++      });
++      this.form.ipv4TableItems = this.form.ipv4TableItems.map((ipv4) => {
+         return {
+           Address: ipv4.Address,
+           SubnetMask: ipv4.SubnetMask,
+@@ -136,6 +141,7 @@ export default {
+             {
+               value: 'delete',
+               title: this.$t('pageNetwork.table.deleteIpv4'),
++              enabled: this.form.ipv4TableItems.length > 1 ? true : false,
+             },
+           ],
+         };
+-- 
+2.25.1
+

@@ -1,0 +1,94 @@
+--- a/dcmihandler.cpp	2022-11-12 16:58:55.498370832 +0530
++++ b/dcmihandler.cpp	2022-11-12 17:08:14.741828442 +0530
+@@ -698,38 +698,36 @@
+        {"OptionalSecondaryLanOOBSupport", 2, 0, 8},
+        {"OptionalSerialOOBMTMODECapability", 3, 0, 8}}}}};
+ 
+-ipmi_ret_t getDCMICapabilities(ipmi_netfn_t, ipmi_cmd_t, ipmi_request_t request,
+-                               ipmi_response_t response,
+-                               ipmi_data_len_t data_len, ipmi_context_t)
++ipmi::RspType<uint8_t,uint8_t,uint8_t,std::vector<uint8_t>>getDCMICapabilities(uint8_t parameterselector)
+ {
+-
+     std::ifstream dcmiCapFile(dcmi::gDCMICapabilitiesConfig);
+     if (!dcmiCapFile.is_open())
+     {
+         log<level::ERR>("DCMI Capabilities file not found");
+-        return IPMI_CC_UNSPECIFIED_ERROR;
++        return ipmi::responseUnspecifiedError();
+     }
+ 
+     auto data = nlohmann::json::parse(dcmiCapFile, nullptr, false);
+     if (data.is_discarded())
+     {
+         log<level::ERR>("DCMI Capabilities JSON parser failure");
+-        return IPMI_CC_UNSPECIFIED_ERROR;
++        return ipmi::responseUnspecifiedError();
+     }
+ 
+-    auto requestData =
+-        reinterpret_cast<const dcmi::GetDCMICapRequest*>(request);
+-
++    std::vector<uint8_t> arr {0};
+     // get list of capabilities in a parameter
+     auto caps =
+-        dcmiCaps.find(static_cast<dcmi::DCMICapParameters>(requestData->param));
++        dcmiCaps.find(static_cast<dcmi::DCMICapParameters>(parameterselector));
+     if (caps == dcmiCaps.end())
+     {
+         log<level::ERR>("Invalid input parameter");
+-        return IPMI_CC_INVALID_FIELD_REQUEST;
++        return ipmi::responseInvalidFieldRequest();
+     }
+ 
+-    auto responseData = reinterpret_cast<dcmi::GetDCMICapResponse*>(response);
++    //get the parameter size 
++    auto length_para = caps->second.size;
++    //resize the array
++    arr.resize(length_para);
+ 
+     // For each capabilities in a parameter fill the data from
+     // the json file based on the capability name.
+@@ -752,23 +750,19 @@
+                 val &= dcmi::gMaxSELEntriesMask;
+             }
+             val <<= cap.position;
+-            responseData->data[cap.bytePosition - 1] |=
+-                static_cast<uint8_t>(val);
+-            responseData->data[cap.bytePosition] |= val >> dcmi::gByteBitSize;
++            arr[cap.bytePosition - 1] |= static_cast<uint8_t>(val);
++            arr[cap.bytePosition]     |= val >> dcmi::gByteBitSize;
+         }
+         else
+         {
+-            responseData->data[cap.bytePosition - 1] |=
+-                data.value(cap.name.c_str(), 0) << cap.position;
++            arr[cap.bytePosition - 1] |= data.value(cap.name.c_str(), 0) << cap.position;
+         }
+     }
+ 
+-    responseData->major = DCMI_SPEC_MAJOR_VERSION;
+-    responseData->minor = DCMI_SPEC_MINOR_VERSION;
+-    responseData->paramRevision = DCMI_PARAMETER_REVISION;
+-    *data_len = sizeof(*responseData) + caps->second.size;
+-
+-    return IPMI_CC_OK;
++    uint8_t major = DCMI_SPEC_MAJOR_VERSION;
++    uint8_t minor = DCMI_SPEC_MINOR_VERSION;
++    uint8_t paramRevision = DCMI_PARAMETER_REVISION;
++    return ipmi::responseSuccess(major,minor,paramRevision,arr);
+ }
+ 
+ namespace dcmi
+@@ -1442,8 +1436,9 @@
+                                ipmi::Privilege::Admin,setMgmntCtrlIdStr);                       
+ 
+     // <Get DCMI capabilities>
+-    ipmi_register_callback(NETFUN_GRPEXT, dcmi::Commands::GET_CAPABILITIES,
+-                           NULL, getDCMICapabilities, PRIVILEGE_USER);
++    ipmi::registerGroupHandler(ipmi::prioOpenBmcBase, ipmi::groupDCMI,
++                          ipmi::dcmi::cmdGetDcmiCapabilitiesInfo,
++                          ipmi::Privilege::User, getDCMICapabilities);
+ 
+     // <Get Temperature Readings>
+     ipmi::registerGroupHandler(ipmi::prioOpenBmcBase, ipmi::groupDCMI,

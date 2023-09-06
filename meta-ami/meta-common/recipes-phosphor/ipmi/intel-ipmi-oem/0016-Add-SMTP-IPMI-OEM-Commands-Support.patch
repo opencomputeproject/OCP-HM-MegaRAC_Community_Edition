@@ -1,0 +1,380 @@
+diff -Naur a/include/oemcommands.hpp b/include/oemcommands.hpp
+--- a/include/oemcommands.hpp	2022-12-29 22:23:51.295969682 +0530
++++ b/include/oemcommands.hpp	2022-12-29 22:14:24.585429250 +0530
+@@ -79,6 +79,8 @@
+ static constexpr Cmd cmdSetSecurityMode = 0xB4;
+ static constexpr Cmd cmdMtmKeepAlive = 0xB5;
+ static constexpr Cmd cmdOEMGetReading = 0xE2;
++static constexpr Cmd cmdOEMSetSmtpConfig = 0xE3;
++static constexpr Cmd cmdOEMGetSmtpConfig = 0xE4;
+ static constexpr Cmd cmdSetBIOSCap = 0xD3;
+ static constexpr Cmd cmdGetBIOSCap = 0xD4;
+ static constexpr Cmd cmdSetPayload = 0xD5;
+@@ -327,6 +329,15 @@
+ static constexpr const uint8_t getHostSerialCfgCmd = 0;
+ static constexpr const uint8_t setHostSerialCfgCmd = 1;
+ 
++static constexpr const char* smtpclient = "xyz.openbmc_project.mail";
++static constexpr const char* smtpObj = "/xyz/openbmc_project/mail/alert";
++static constexpr const char* smtpIntf = "xyz.openbmc_project.mail.alert";
++
++static constexpr const char* pefBus = "xyz.openbmc_project.pef.alert.manager";
++static constexpr const char* pefObj = "/xyz/openbmc_project/PefAlertManager";
++static constexpr const char* pefConfInfoIntf =
++    "xyz.openbmc_project.pef.PEFConfInfo";
++
+ // parameters:
+ // 0: host serial port 1 and 2 normal speed
+ // 1: host serial port 1 high spend, port 2 normal speed
+@@ -491,6 +502,15 @@
+     dimmPower = 0x2
+ };
+ 
++enum class smtpSetting : uint8_t
++{
++    enable = 0x1,
++    ipAdd = 0x2,
++    port = 0x3,
++    senderMailId = 0x4,
++    recMailId = 0x5,
++};
++
+ // FIXME: this stuff needs to be rewritten
+ enum IPMI_INTEL_OEM_RETURN_CODES
+ {
+diff -Naur a/src/oemcommands.cpp b/src/oemcommands.cpp
+--- a/src/oemcommands.cpp	2022-12-29 22:23:30.003922152 +0530
++++ b/src/oemcommands.cpp	2022-12-29 22:14:09.577349464 +0530
+@@ -3946,6 +3946,313 @@
+     return ipmi::responseSuccess(kcsMaxBufferSize, ipmbMaxBufferSize);
+ }
+ 
++bool getsmtpconfig(sdbusplus::bus::bus& bus,
++                   std::tuple<bool, std::string, uint16_t, std::string>& cfg)
++{
++    auto call =
++        bus.new_method_call(smtpclient, smtpObj, smtpIntf, "GetSmtpConfig");
++    try
++    {
++        auto data = bus.call(call);
++        data.read(cfg);
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        std::cerr << "GetSmtpConfig method call failed \n";
++        return false;
++    }
++
++    return true;
++}
++
++bool setrecaddress(sdbusplus::bus::bus& bus, std::vector<std::string> rec)
++{
++    std::variant<std::vector<std::string>> variantVectorValue = rec;
++
++    try
++    {
++        auto method =
++            bus.new_method_call(pefBus, pefObj, dBusPropertyIntf, "Set");
++        method.append(pefConfInfoIntf, "Recipient", variantVectorValue);
++
++        auto reply = bus.call(method);
++    }
++    catch (const std::exception& e)
++    {
++        std::cerr << "DD05: seting reciptint method call failed\n";
++        return false;
++    }
++    return true;
++}
++
++bool getrecaddress(sdbusplus::bus::bus& bus, std::vector<std::string>& rec)
++{
++    boost::container::flat_map<
++        std::string,std::variant<std::string, uint64_t, std::vector<std::string>>>resp;
++    try
++    {
++            auto method =bus.new_method_call(pefBus, pefObj, dBusPropertyIntf, "GetAll");
++            method.append(pefConfInfoIntf);
++            auto reply = bus.call(method);
++            reply.read(resp);
++    }
++    catch (const sdbusplus::exception_t&)
++    {
++        std::cerr << "error getting Recipent  from "<<pefBus
++                  << "\n";
++        return false;
++    }
++
++    auto getRecipient = resp.find("Recipient");
++    if (getRecipient == resp.end())
++    {
++            return false;
++    }
++    rec = std::get<std::vector<std::string>>(getRecipient->second);
++    return true;
++}
++
++bool setsmtpconfig(sdbusplus::bus::bus& bus, bool enable, std::string host,
++                   uint16_t port, std::string send)
++{
++    try
++    {
++    auto call =
++        bus.new_method_call(smtpclient, smtpObj, smtpIntf, "SetSmtpConfig");
++
++    call.append(enable, host, port, send);
++        auto data = bus.call(call);
++    }
++    catch (sdbusplus::exception_t& e)
++    {
++        std::cerr << "SetSmtpConfigmethod call failed\n";
++        return false;
++    }
++    return true;
++}
++
++bool emailIdCheck(std::string email)
++{
++    const std::regex pattern("(\\w+)(\\.|_)?(\\w*)@(\\w+)(\\.(\\w+))+");
++    return std::regex_match(email, pattern);
++}
++
++ipmi::RspType<> ipmiOEMSetSmtpConfig(ipmi::Context::ptr ctx, uint8_t parameter,
++                                     message::Payload& req)
++{
++
++    std::tuple<bool, std::string, uint16_t, std::string> smtpcfg;
++    std::vector<std::string> rec;
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    if (!getsmtpconfig(*bus, smtpcfg) || !getrecaddress(*bus, rec))
++    {
++        return ipmi::responseUnspecifiedError();
++    }
++    bool mailChk = false;
++    bool enabled = std::get<0>(smtpcfg);
++    std::string host = std::get<1>(smtpcfg);
++    uint16_t port = std::get<2>(smtpcfg);
++    std::string sender = std::get<3>(smtpcfg);
++    switch (smtpSetting(parameter))
++    {
++        case smtpSetting::enable:
++        {
++            std::array<uint8_t, 1> bytes;
++            if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            if (bytes[0] == 0x00)
++            {
++                enabled = false;
++            }
++            else if (bytes[0] == 0x01)
++            {
++                enabled = true;
++            }
++            break;
++        }
++        case smtpSetting::ipAdd:
++        {
++            std::array<uint8_t, 4> bytes;
++            if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            host = std::to_string(bytes[0]) + "." + std::to_string(bytes[1]) +
++                   "." + std::to_string(bytes[2]) + "." +
++                   std::to_string(bytes[3]);
++            break;
++        }
++        case smtpSetting::port:
++        {
++            std::vector<uint8_t> bytes;
++            if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++            if ((bytes.size() > 2) || (bytes.size() < 2))
++            {
++                return responseReqDataLenInvalid();
++            }
++            uint16_t smtpPort, smtpPortTmp;
++            smtpPortTmp = bytes.at(0);
++            smtpPort = ((smtpPortTmp << 8) | (bytes.at(1) & 0xff));
++            port = smtpPort;
++            break;
++        }
++        case smtpSetting::senderMailId:
++        {
++            std::vector<char> reqData;
++            if (req.unpack(reqData) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
++
++            if (reqData.size() > 64)
++            {
++                return responseReqDataLenInvalid();
++            }
++            std::string sen(reqData.begin(), reqData.end());
++            sender = sen;
++            mailChk = emailIdCheck(sender);
++            if (mailChk == false)
++            {
++                return ipmi::responseInvalidFieldRequest();
++            }
++            break;
++        }
++        case smtpSetting::recMailId:
++        {
++            uint8_t index = 0;
++            std::vector<char> reqData;
++            if (req.unpack(index, reqData) != 0)
++            {
++                return responseReqDataLenInvalid();
++            }
++            if (reqData.size() > 64)
++            {
++                return responseReqDataLenInvalid();
++            }
++            std::string reci(reqData.begin(), reqData.end());
++            mailChk = emailIdCheck(reci);
++            if (mailChk == false)
++            {
++                return ipmi::responseInvalidFieldRequest();
++            }
++            replace(rec.begin(), rec.end(), rec[index - 1], reci);
++            if (!setrecaddress(*bus, rec))
++            {
++                return ipmi::responseUnspecifiedError();
++            }
++            return responseSuccess();
++        }
++        default:
++            return responseInvalidFieldRequest();
++    }
++    if (!setsmtpconfig(*bus, enabled, host, port, sender))
++    {
++        return ipmi::responseUnspecifiedError();
++    }
++    return responseSuccess();
++}
++
++std::vector<uint8_t> convertToBytes(std::string data)
++{
++    std::vector<uint8_t> val{};
++    uint8_t byteData = 0;
++    for (int i = 0; i < data.length(); i++)
++    {
++        byteData = data[i];
++        val.push_back(byteData);
++    }
++    return val;
++}
++
++ipmi::RspType<std::vector<uint8_t>> ipmiOEMGetSmtpConfig(ipmi::Context::ptr ctx,
++                                                         uint8_t parameter,
++                                                         message::Payload& req)
++{
++    std::tuple<bool, std::string, uint16_t, std::string> smtpcfg;
++    std::vector<std::string> rec;
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    if (!getsmtpconfig(*bus, smtpcfg) || !getrecaddress(*bus, rec))
++    {
++        return ipmi::responseUnspecifiedError();
++    }
++    bool enabled = std::get<0>(smtpcfg);
++    std::string host = std::get<1>(smtpcfg);
++    uint16_t port = std::get<2>(smtpcfg);
++    std::string sender = std::get<3>(smtpcfg);
++
++    std::vector<uint8_t> resData = {};
++    switch (smtpSetting(parameter))
++    {
++        case smtpSetting::enable:
++        {
++            if (enabled == true)
++            {
++                resData.push_back(0x01);
++            }
++            else if (enabled == false)
++            {
++                resData.push_back(0x00);
++            }
++            break;
++        }
++        case smtpSetting::ipAdd:
++        {
++            std::vector<std::string> result;
++            if (!host.empty())
++            {
++                boost::split(result, host, boost::is_any_of("."),
++                             boost::token_compress_on);
++                uint8_t ipByte1 =
++                    static_cast<uint8_t>(std::stoi(result[0].c_str()));
++                uint8_t ipByte2 =
++                    static_cast<uint8_t>(std::stoi(result[1].c_str()));
++                uint8_t ipByte3 =
++                    static_cast<uint8_t>(std::stoi(result[2].c_str()));
++                uint8_t ipByte4 =
++                    static_cast<uint8_t>(std::stoi(result[3].c_str()));
++                resData.push_back(ipByte1);
++                resData.push_back(ipByte2);
++                resData.push_back(ipByte3);
++                resData.push_back(ipByte4);
++            }
++            break;
++        }
++        case smtpSetting::port:
++        {
++            uint8_t portMsb = 0, portLsb = 0;
++            portMsb = ((port >> 8) & 0xff);
++            portLsb = (port & 0xff);
++            resData.push_back(portMsb);
++            resData.push_back(portLsb);
++            break;
++        }
++        case smtpSetting::senderMailId:
++        {
++            resData = convertToBytes(sender);
++            break;
++        }
++        case smtpSetting::recMailId:
++        {
++            uint8_t index = 0;
++            if (req.unpack(index) != 0)
++            {
++                return responseReqDataLenInvalid();
++            }
++            resData = convertToBytes(rec[index - 1]);
++            break;
++        }
++        default:
++            return ipmi::responseInvalidFieldRequest();
++    }
++    return ipmi::responseSuccess(resData);
++}
++
++
+ ipmi::RspType<std::vector<uint8_t>>
+     ipmiOEMReadPFRMailbox(ipmi::Context::ptr& ctx, const uint8_t readRegister,
+                           const uint8_t numOfBytes, uint8_t registerIdentifier)
+@@ -4921,6 +5228,18 @@
+                                ipmi::Privilege::Admin,
+                                ipmi::ipmiGetManagerCertFingerPrint);
+ 
++    // <Set SMTP Config>
++    registerHandler(prioOemBase, intel::netFnGeneral,
++                    intel::general::cmdOEMSetSmtpConfig, Privilege::User,
++                    ipmiOEMSetSmtpConfig);
++
++    // <Get SMTP Config>
++    registerHandler(prioOemBase, intel::netFnGeneral,
++                    intel::general::cmdOEMGetSmtpConfig, Privilege::User,
++                    ipmiOEMGetSmtpConfig);
++
++
++
+ }
+ 
+ } // namespace ipmi

@@ -1,0 +1,40 @@
+From 4509a4622bf0876408c0c9eb80ea0d2bf78417cf Mon Sep 17 00:00:00 2001
+From: Dillibabu <dillibabug@ami.com>
+Date: Mon, 29 May 2023 18:37:30 +0530
+Subject: [PATCH] accessing Chassis Force Identity reserved bits are removed,
+ if set reserved bit in IPMI command will return
+
+Signed-off-by: Dillibabu <dillibabug@ami.com>
+---
+ src/chassiscommands.cpp | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/src/chassiscommands.cpp b/src/chassiscommands.cpp
+index 4f748ff..4996f43 100644
+--- a/src/chassiscommands.cpp
++++ b/src/chassiscommands.cpp
+@@ -185,13 +185,21 @@ ipmi::RspType<> ipmiChassisIdentify(std::optional<uint8_t> interval,
+                                     std::optional<uint8_t> force)
+ {
+     uint8_t identifyInterval = interval.value_or(defaultIdentifyTimeOut);
+-    bool forceIdentify = force.value_or(0) & 0x01;
+-
++    uint8_t forceIdentify = force.value();
++    
+     enclosureIdentifyLed(ledIDOnObj, false);
+     identifyTimer->stop();
+ 
+-    if (identifyInterval || forceIdentify)
++    if (identifyInterval || forceIdentify == 0x01)
+     {
++	if(forceIdentify != 0x00)
++	{
++	   if(forceIdentify != 0x01)
++	   {
++		return ipmi::responseInvalidFieldRequest();
++	   }
++	}
++
+         enclosureIdentifyLed(ledIDBlinkObj, true);
+         if (forceIdentify)
+         {

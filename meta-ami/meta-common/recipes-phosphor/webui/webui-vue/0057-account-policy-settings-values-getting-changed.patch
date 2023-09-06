@@ -1,0 +1,42 @@
+From 9d8dd2f13a7eb4cab6fc2b34fcdd6cd67e303b90 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Wed, 7 Jun 2023 16:35:10 +0530
+Subject: [PATCH] account policy settings values getting changed
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/views/SecurityAndAccess/UserManagement/UserManagement.vue | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+index 3b3bb02..aa0abb3 100644
+--- a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
++++ b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+@@ -102,7 +102,7 @@
+       </b-col>
+     </b-row>
+     <!-- Modals -->
+-    <modal-settings :settings="settings" @ok="saveAccountSettings" />
++    <modal-settings :settings="setting" @ok="saveAccountSettings" />
+     <modal-user
+       :user="activeUser"
+       :password-requirements="passwordRequirements"
+@@ -159,6 +159,7 @@ export default {
+     return {
+       isBusy: true,
+       activeUser: null,
++      setting: {},
+       fields: [
+         {
+           key: 'checkbox',
+@@ -283,6 +284,7 @@ export default {
+         });
+     },
+     initModalSettings() {
++      this.setting = this.settings;
+       this.$bvModal.show('modal-settings');
+     },
+     saveUser({ isNewUser, userData }) {
+-- 
+2.25.1
+

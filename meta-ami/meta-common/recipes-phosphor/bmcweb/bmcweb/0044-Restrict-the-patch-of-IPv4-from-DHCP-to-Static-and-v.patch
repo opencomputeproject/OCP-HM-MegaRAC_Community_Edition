@@ -1,0 +1,117 @@
+From fd0e2dd03a2055d755952207c12096949e0bcc08 Mon Sep 17 00:00:00 2001
+From: ginugeorge <ginugeorge@ami.com>
+Date: Mon, 12 Jun 2023 23:29:38 +0530
+Subject: [PATCH 36/36] Restrict the patch of IPv4 from DHCP to Static and vice
+ versa based on values of DHCPEnabled & IPv4StaticAddresses
+
+---
+ redfish-core/lib/ethernet.hpp | 65 +++++++++++++++++++++++++++++------
+ 1 file changed, 54 insertions(+), 11 deletions(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 0e72ab4d..3601741a 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -660,7 +660,7 @@ inline void deleteIPv4(const std::string& ifaceId, const std::string& ipHash,
+         }
+         },
+         "xyz.openbmc_project.Network",
+-        "/xyz/openbmc_project/network/" + ifaceId + "/ipv4/" + ipHash,
++        "/xyz/openbmc_project/network/" + ifaceId + ipHash,
+         "xyz.openbmc_project.Object.Delete", "Delete");
+ }
+ 
+@@ -760,7 +760,7 @@ inline void
+             prefixLength, gateway);
+         },
+         "xyz.openbmc_project.Network",
+-        +"/xyz/openbmc_project/network/" + ifaceId + id,
++        "/xyz/openbmc_project/network/" + ifaceId + id,
+         "xyz.openbmc_project.Object.Delete", "Delete");
+ }
+ 
+@@ -1330,6 +1330,10 @@ inline void handleIPv4StaticPatch(
+             "IPv4StaticAddresses");
+         return;
+     }
++    else if(input.size() > 1)
++    {
++        return;
++    }
+ 
+     unsigned entryIdx = 1;
+     // Find the first static IP address currently active on the NIC and
+@@ -2074,6 +2078,37 @@ inline void requestEthernetInterfacesRoutes(App& app)
+ 
+             if (dhcpv4 || dhcpv6)
+             {
++		if(dhcpv4)
++                {
++                    if(v4dhcpParms.dhcpv4Enabled)
++                    {
++                        const bool v4Value = *v4dhcpParms.dhcpv4Enabled;
++
++                        if (!v4Value) // DHCPv4.DHCPEnabled attribute is false
++                        {
++                            if (!ipv4StaticAddresses) // and IPv4StaticAddresses attribute is not present
++                            {
++                                messages::propertyMissing(asyncResp->res, "IPv4StaticAddresses");
++                                return;  
++                            }
++                            else if (ipv4StaticAddresses) // and IPv4StaticAddresses attribute is present
++                            {
++                                nlohmann::json IPv4Static = *ipv4StaticAddresses;
++                                if(IPv4Static.size() > 1)
++                                {
++                                    messages::invalidIndex(asyncResp->res, 1);
++                                    return;
++                                }
++                            }
++                        }
++                        else if(v4Value && ipv4StaticAddresses) // DHCPv4.DHCPEnabled attribute is true and IPv4StaticAddresses attribute is present
++                        {
++                            messages::propertyValueConflict(asyncResp->res, "DHCPv4.DHCPEnabled","IPv4StaticAddresses");
++                            return;
++                        }
++                    }
++                }    
++
+                 handleDHCPPatch(ifaceId, ethData, v4dhcpParms, v6dhcpParms,
+                                 asyncResp);
+             }
+@@ -2095,15 +2130,23 @@ inline void requestEthernetInterfacesRoutes(App& app)
+ 
+             if (ipv4StaticAddresses)
+             {
+-                // TODO(ed) for some reason the capture of
+-                // ipv4Addresses above is returning a const value,
+-                // not a non-const value. This doesn't really work
+-                // for us, as we need to be able to efficiently move
+-                // out the intermedia nlohmann::json objects. This
+-                // makes a copy of the structure, and operates on
+-                // that, but could be done more efficiently
+-                nlohmann::json ipv4Static = *ipv4StaticAddresses;
+-                handleIPv4StaticPatch(ifaceId, ipv4Static, ipv4Data, asyncResp);
++                if(!v4dhcpParms.dhcpv4Enabled)
++                {
++                    messages::propertyMissing(asyncResp->res, "DHCPv4.DHCPEnabled");
++                    return;  
++                }
++                else
++                {
++			// TODO(ed) for some reason the capture of
++                	// ipv4Addresses above is returning a const value,
++                	// not a non-const value. This doesn't really work
++                	// for us, as we need to be able to efficiently move
++                	// out the intermedia nlohmann::json objects. This
++                	// makes a copy of the structure, and operates on
++                	// that, but could be done more efficiently
++                	nlohmann::json ipv4Static = *ipv4StaticAddresses;
++                	handleIPv4StaticPatch(ifaceId, ipv4Static, ipv4Data, asyncResp);
++		        }
+             }
+ 
+             if (staticNameServers)
+-- 
+2.39.2
+

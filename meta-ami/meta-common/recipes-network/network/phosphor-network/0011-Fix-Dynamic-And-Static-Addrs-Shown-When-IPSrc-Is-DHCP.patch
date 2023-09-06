@@ -1,0 +1,82 @@
+diff --git a/meson.build b/meson.build
+index bc81d7c..03de95c 100644
+--- a/meson.build
++++ b/meson.build
+@@ -13,7 +13,7 @@ default_busname = 'xyz.openbmc_project.Network'
+ conf_data = configuration_data()
+ conf_data.set_quoted('DEFAULT_BUSNAME', default_busname)
+ conf_data.set('HAVE_UBOOT_ENV', get_option('uboot-env'))
+-conf_data.set(
++conf_data.set_quoted(
+   'LINK_LOCAL_AUTOCONFIGURATION',
+   get_option('default-link-local-autoconf'))
+ conf_data.set(
+@@ -73,7 +73,10 @@ subdir('src')
+ configure_file(
+   input: '60-phosphor-networkd-default.network.in',
+   output: '60-phosphor-networkd-default.network',
+-  configuration: conf_data,
++  configuration: {
++    'LINK_LOCAL_AUTOCONFIGURATION': get_option('default-link-local-autoconf'),
++    'ENABLE_IPV6_ACCEPT_RA': get_option('default-ipv6-accept-ra'),
++  },
+   install: true,
+   install_dir: dependency('systemd').get_variable(
+     pkgconfig: 'systemdutildir') / 'network')
+diff --git a/meson_options.txt b/meson_options.txt
+index 56234e6..735335b 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -2,7 +2,7 @@ option('tests', type: 'feature', description: 'Build tests')
+ 
+ option('uboot-env', type: 'boolean',
+        description: 'Update u-boot env for MAC changes')
+-option('default-link-local-autoconf', type: 'boolean',
++option('default-link-local-autoconf', type: 'string',
+        description: 'Enable link local autoconfiguration by default')
+ option('default-ipv6-accept-ra', type: 'boolean',
+        description: 'Accept router advertisements by default')
+diff --git a/src/ethernet_interface.cpp b/src/ethernet_interface.cpp
+index ab8b815..45867a5 100644
+--- a/src/ethernet_interface.cpp
++++ b/src/ethernet_interface.cpp
+@@ -668,11 +668,15 @@ void EthernetInterface::writeConfigurationFile()
+     {
+         auto& network = config.map["Network"].emplace_back();
+         auto& lla = network["LinkLocalAddressing"];
+-#ifdef LINK_LOCAL_AUTOCONFIGURATION
+-        lla.emplace_back("yes");
+-#else
+-        lla.emplace_back("no");
+-#endif
++        if (std::string{LINK_LOCAL_AUTOCONFIGURATION} == "yes")
++            lla.emplace_back("yes");
++        else if (std::string{LINK_LOCAL_AUTOCONFIGURATION} ==  "ipv6")
++            lla.emplace_back("ipv6");
++        else if (std::string{LINK_LOCAL_AUTOCONFIGURATION} ==  "ipv4")
++            lla.emplace_back("ipv4");
++        else
++            lla.emplace_back("no");
++
+         network["IPv6AcceptRA"].emplace_back(ipv6AcceptRA() ? "true" : "false");
+         network["DHCP"].emplace_back(dhcp4() ? (dhcp6() ? "true" : "ipv4")
+                                              : (dhcp6() ? "ipv6" : "false"));
+@@ -704,11 +708,13 @@ void EthernetInterface::writeConfigurationFile()
+             auto& address = network["Address"];
+             for (const auto& addr : addrs)
+             {
+-                if (originIsManuallyAssigned(addr.second->origin()))
+-                {
+-                    address.emplace_back(
+-                        fmt::format("{}/{}", addr.second->address(),
+-                                    addr.second->prefixLength()));
++                if (( addr.second->type() == IP::Protocol::IPv6 && !dhcp6() ) || ( addr.second->type() == IP::Protocol::IPv4 && !dhcp4() )) {
++                    if (originIsManuallyAssigned(addr.second->origin()))
++                    {
++                        address.emplace_back(
++                            fmt::format("{}/{}", addr.second->address(),
++                                        addr.second->prefixLength()));
++                    }
+                 }
+             }
+         }

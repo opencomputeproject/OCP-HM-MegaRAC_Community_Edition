@@ -1,0 +1,26 @@
+From f0e99d4527d66c362b55b50f0831d6bf75080078 Mon Sep 17 00:00:00 2001
+From: "sandeepap@ami.com" <sandeepap@ami.com>
+Date: Fri, 26 May 2023 15:35:06 +0530
+Subject: [PATCH] Fix for status code return under Chassis URI
+
+Signed-off-by: Sandeep Patil <sandeepap@ami.com>
+---
+ redfish-core/lib/chassis.hpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+index 36a311f8..c3158943 100644
+--- a/redfish-core/lib/chassis.hpp
++++ b/redfish-core/lib/chassis.hpp
+@@ -501,6 +501,8 @@ inline void
+     {
+         return;
+     }
++	
++    asyncResp->res.result(boost::beast::http::status::no_content);
+
+     // TODO (Gunnar): Remove IndicatorLED after enough time has passed
+     if (!locationIndicatorActive && !indicatorLed)
+-- 
+2.17.1
+

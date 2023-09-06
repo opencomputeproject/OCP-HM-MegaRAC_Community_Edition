@@ -1,0 +1,322 @@
+From 794533642a8c959375773516ef806d0b507893f9 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 15 Sep 2022 19:31:23 +0530
+Subject: [PATCH] Implementing Factory Default page in webui
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/env/components/AppNavigation/intel.js     |   5 +
+ src/env/router/intel.js                       |   9 ++
+ src/locales/en-US.json                        |  24 +++-
+ src/router/routes.js                          |   9 ++
+ src/store/index.js                            |   3 +-
+ .../modules/Operations/FactoryDefault.js      |  30 +++++
+ .../FactoryDefault/FactoryDefault.vue         | 104 ++++++++++++++++++
+ src/views/Operations/FactoryDefault/index.js  |   2 +
+ 8 files changed, 182 insertions(+), 4 deletions(-)
+ create mode 100644 src/store/modules/Operations/FactoryDefault.js
+ create mode 100644 src/views/Operations/FactoryDefault/FactoryDefault.vue
+ create mode 100644 src/views/Operations/FactoryDefault/index.js
+
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index 3fe0ad1..bbb2375 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -71,6 +71,11 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.kvm'),
+               route: '/operations/kvm',
+             },
++            {
++              id: 'factory-default',
++              label: this.$t('appNavigation.factoryDefault'),
++              route: '/operations/factory-default',
++            },
+             {
+               id: 'firmware',
+               label: this.$t('appNavigation.firmware'),
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index fd8ed77..0cf211a 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -7,6 +7,7 @@ import EventLogs from '@/views/Logs/EventLogs';
+ import Firmware from '@/views/Operations/Firmware';
+ import Inventory from '@/views/HardwareStatus/Inventory';
+ import Kvm from '@/views/Operations/Kvm';
++import FactoryDefault from '@/views/Operations/FactoryDefault';
+ import KvmConsole from '@/views/Operations/Kvm/KvmConsole';
+ import UserManagement from '@/views/SecurityAndAccess/UserManagement';
+ import Login from '@/views/Login';
+@@ -179,6 +180,14 @@ const routes = [
+           title: i18n.t('appPageTitle.kvm'),
+         },
+       },
++      {
++        path: '/operations/factory-default',
++        name: 'factory-default',
++        component: FactoryDefault,
++        meta: {
++          title: i18n.t('appPageTitle.FactoryDefault'),
++        },
++      },
+       {
+         path: '/operations/firmware',
+         name: 'firmware',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 1c122da..3e41158 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -127,7 +127,8 @@
+     "certificates": "@:appPageTitle.certificates",
+     "virtualMedia": "@:appPageTitle.virtualMedia",
+     "power": "@:appPageTitle.power",
+-    "keyClear": "@:appPageTitle.keyClear"
++    "keyClear": "@:appPageTitle.keyClear",
++    "factoryDefault": "Factory Default"
+   },
+   "appPageTitle": {
+     "changePassword": "Change password",
+@@ -156,7 +157,8 @@
+     "serverPowerOperations": "Server power operations",
+     "certificates": "Certificates",
+     "virtualMedia": "Virtual media",
+-    "keyClear": "Key clear"
++    "keyClear": "Key clear",
++    "FactoryDefault": "Factory Default"
+   },
+   "pageChangePassword": {
+     "changePassword": "Change password",
+@@ -317,6 +319,22 @@
+       "resetToDefaultsError": "Factory reset of BMC and server settings failed."
+     }
+   },
++  "PageFactoryDefault": {
++    "toast": {
++      "restoreToDefaultsSuccess": "Factory Default Restore Default successful.",
++      "restoreToDefaultsError": "Factory Default Restore Default failed.",
++      "FactoryDefaultConfirmationFull": "This operation cannot be undone. All remote sessions will be ended, and all users and network interfaces will be disabled. Click OK to continue,or click Cancel to stop now.",
++      "FactoryDefaultConfirmationPartial": "This operation cannot be undone. All remote sessions will be ended, and will reserve user and LAN configurations based on Default Restore. Click OK to continue, or click Cancel to stop now.",
++      "title": "Factory Default",
++      "okTitle": "ok"
++    }
++  },
++  "PageOperations": {
++    "form": {
++      "RestoreDefaultPartial": "Restore Default - Partial",
++      "RestoreDefaultFull": "Restore Default - Full"
++    }
++  },
+   "pageFirmware": {
+     "cardActionSwitchToRunning": "Switch to running",
+     "cardBodyVersion": "Version",
+@@ -1212,4 +1230,4 @@
+     "ZW": "Zimbabwe",
+     "AX": "Åland Islands"
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/router/routes.js b/src/router/routes.js
+index 3cbdabc..14c8b69 100644
+--- a/src/router/routes.js
++++ b/src/router/routes.js
+@@ -7,6 +7,7 @@ import FactoryReset from '@/views/Operations/FactoryReset';
+ import Firmware from '@/views/Operations/Firmware';
+ import Inventory from '@/views/HardwareStatus/Inventory';
+ import Kvm from '@/views/Operations/Kvm';
++import FactoryDefault from '@/views/Operations/FactoryDefault';
+ import KvmConsole from '@/views/Operations/Kvm/KvmConsole';
+ import Sessions from '../views/SecurityAndAccess/Sessions';
+ import Ldap from '@/views/SecurityAndAccess/Ldap';
+@@ -207,6 +208,14 @@ const routes = [
+           title: i18n.t('appPageTitle.kvm'),
+         },
+       },
++      {
++        path: '/operations/factory-default',
++        name: 'factory-default',
++        component: FactoryDefault,
++        meta: {
++          title: i18n.t('appPageTitle.FactoryDefault'),
++        },
++      },
+       {
+         path: '/operations/firmware',
+         name: 'firmware',
+diff --git a/src/store/index.js b/src/store/index.js
+index ba248c5..050da7b 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -28,7 +28,7 @@ import PostCodeLogsStore from './modules/Logs/PostCodeLogsStore';
+ import PoliciesStore from './modules/SecurityAndAccess/PoliciesStore';
+ import FactoryResetStore from './modules/Operations/FactoryResetStore';
+ import KeyClearStore from './modules/Operations/KeyClearStore';
+-
++import FactoryDefaultStore from './modules/Operations/FactoryDefault';
+ import WebSocketPlugin from './plugins/WebSocketPlugin';
+ import DateTimeStore from './modules/Settings/DateTimeStore';
+ import VirtualMediaStore from './modules/Operations/VirtualMediaStore';
+@@ -69,6 +69,7 @@ export default new Vuex.Store({
+     policies: PoliciesStore,
+     factoryReset: FactoryResetStore,
+     keyClear: KeyClearStore,
++    FactoryDefault: FactoryDefaultStore,
+   },
+   plugins: [WebSocketPlugin],
+ });
+diff --git a/src/store/modules/Operations/FactoryDefault.js b/src/store/modules/Operations/FactoryDefault.js
+new file mode 100644
+index 0000000..33e8033
+--- /dev/null
++++ b/src/store/modules/Operations/FactoryDefault.js
+@@ -0,0 +1,30 @@
++import api from '@/store/api';
++import i18n from '@/i18n';
++
++const FactoryDefaultStore = {
++  namespaced: true,
++  actions: {
++    async restoreToDefaults({ commit }, restoreOption) {
++      return await api
++        .post('/redfish/v1/Managers/bmc/Actions/Manager.ResetToDefaults', {
++          ResetToDefaultsType: restoreOption,
++        })
++        .then(() => {
++          if (restoreOption) {
++            return i18n.t('PageFactoryDefault.toast.restoreToDefaultsSuccess');
++          }
++        })
++        .catch((error) => {
++          console.log('Factory Restore: ', error);
++          commit('val', !restoreOption);
++          if (restoreOption) {
++            throw new Error(
++              i18n.t('PageFactoryDefault.toast.restoreToDefaultsError')
++            );
++          }
++        });
++    },
++  },
++};
++
++export default FactoryDefaultStore;
+diff --git a/src/views/Operations/FactoryDefault/FactoryDefault.vue b/src/views/Operations/FactoryDefault/FactoryDefault.vue
+new file mode 100644
+index 0000000..352953f
+--- /dev/null
++++ b/src/views/Operations/FactoryDefault/FactoryDefault.vue
+@@ -0,0 +1,104 @@
++<template>
++  <b-container fluid="xl">
++    <b-row>
++      <b-col md="8" xl="6">
++        <page-title></page-title>
++      </b-col>
++    </b-row>
++    <b-form>
++      <b-form-radio-group v-model="restoreOption" stacked>
++        <div>
++          <b-form-radio value="ResetToDefaultButKeepReservedSettings">{{
++            $t('PageOperations.form.RestoreDefaultPartial')
++          }}</b-form-radio>
++        </div>
++        <div class="mt-2">
++          <b-form-radio value="ResetAll">{{
++            $t('PageOperations.form.RestoreDefaultFull')
++          }}</b-form-radio>
++        </div>
++      </b-form-radio-group>
++      <div class="mt-3">
++        <b-button variant="primary" @click="onRestoreToDefaults"
++          >Restore</b-button
++        >
++      </div>
++    </b-form>
++  </b-container>
++</template>
++
++<script>
++import PageTitle from '@/components/Global/PageTitle';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++export default {
++  name: 'FactoryDefault',
++  components: { PageTitle },
++  mixins: [LoadingBarMixin, BVToastMixin],
++  data() {
++    return {
++      restoreOption: 'ResetAll',
++    };
++  },
++  methods: {
++    onRestoreToDefaults() {
++      if (this.restoreOption === 'ResetAll') {
++        this.$bvModal
++          .msgBoxConfirm(
++            this.$tc('PageFactoryDefault.toast.FactoryDefaultConfirmationFull'),
++            {
++              title: this.$tc('PageFactoryDefault.toast.title'),
++              okTitle: this.$tc('PageFactoryDefault.toast.okTitle'),
++              cancelTitle: this.$t('global.action.cancel'),
++            }
++          )
++          .then((RestoreConfirmation) => {
++            if (RestoreConfirmation) {
++              this.$store
++                .dispatch(
++                  'FactoryDefault/restoreToDefaults',
++                  this.restoreOption
++                )
++                .then((message) => {
++                  this.successToast(message);
++                  this.logout();
++                })
++                .catch(({ message }) => this.errorToast(message));
++            }
++          });
++      } else {
++        this.$bvModal
++          .msgBoxConfirm(
++            this.$tc(
++              'PageFactoryDefault.toast.FactoryDefaultConfirmationPartial'
++            ),
++            {
++              title: this.$tc('PageFactoryDefault.toast.title'),
++              okTitle: this.$tc('PageFactoryDefault.toast.okTitle'),
++              cancelTitle: this.$t('global.action.cancel'),
++            }
++          )
++          .then((RestoreConfirmation) => {
++            if (RestoreConfirmation) {
++              this.$store
++                .dispatch(
++                  'FactoryDefault/restoreToDefaults',
++                  this.restoreOption
++                )
++                .then((message) => {
++                  this.successToast(message);
++                  this.logout();
++                })
++                .catch(({ message }) => this.errorToast(message));
++            }
++          });
++      }
++    },
++    logout() {
++      this.$store.dispatch('authentication/logout');
++    },
++  },
++};
++</script>
++
++<style></style>
+diff --git a/src/views/Operations/FactoryDefault/index.js b/src/views/Operations/FactoryDefault/index.js
+new file mode 100644
+index 0000000..0289ab5
+--- /dev/null
++++ b/src/views/Operations/FactoryDefault/index.js
+@@ -0,0 +1,2 @@
++import FactoryDefault from './FactoryDefault.vue';
++export default FactoryDefault;
+-- 
+2.25.1
+

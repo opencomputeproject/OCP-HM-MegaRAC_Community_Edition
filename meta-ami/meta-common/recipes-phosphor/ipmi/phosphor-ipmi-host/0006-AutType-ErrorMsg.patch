@@ -1,0 +1,15 @@
+--- a/transporthandler.cpp        2022-09-02 12:55:17.335426229 +0530
++++ b/transporthandler.cpp     2022-09-02 13:00:53.628095978 +0530
+@@ -974,6 +974,11 @@
+         }
+         case LanParam::AuthSupport:
+         {
++            uint8_t AuthType;
++            if (req.unpack(AuthType) != 0 || !req.fullyUnpacked())
++            {
++                return responseReqDataLenInvalid();
++            }
+             req.trailingOk = true;
+             return response(ccParamReadOnly);
+         }
+

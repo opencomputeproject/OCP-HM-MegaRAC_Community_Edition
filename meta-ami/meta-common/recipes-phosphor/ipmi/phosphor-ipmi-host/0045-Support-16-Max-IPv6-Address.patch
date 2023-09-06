@@ -1,0 +1,38 @@
+From 1b6a1d015b19558ba9d8464057365fc67d8fc389 Mon Sep 17 00:00:00 2001
+From: vaibhavs <vaibhavs@ami.com>
+Date: Thu, 15 Jun 2023 10:10:26 +0000
+Subject: [PATCH] Support 16 Max IPv6 Address
+
+---
+ transporthandler.cpp | 2 +-
+ transporthandler.hpp | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index 42f8fcd..9145f94 100644
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1291,7 +1291,7 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             {
+                 return responseInvalidFieldRequest();
+             }
+-            if (set > MAX_IPV6_STATIC_ADDRESSES)
++            if (set >= MAX_IPV6_STATIC_ADDRESSES)
+             {
+                 return responseParmOutOfRange();
+             }
+diff --git a/transporthandler.hpp b/transporthandler.hpp
+index cdce3d5..7de15a6 100644
+--- a/transporthandler.hpp
++++ b/transporthandler.hpp
+@@ -171,8 +171,8 @@ constexpr uint16_t VLAN_VALUE_MASK = 0x0fff;
+ constexpr uint16_t VLAN_ENABLE_FLAG = 0x8000;
+ 
+ // Arbitrary v6 Address Limits to prevent too much output in ipmitool
+-constexpr uint8_t MAX_IPV6_STATIC_ADDRESSES = 15;
+-constexpr uint8_t MAX_IPV6_DYNAMIC_ADDRESSES = 15;
++constexpr uint8_t MAX_IPV6_STATIC_ADDRESSES = 16;
++constexpr uint8_t MAX_IPV6_DYNAMIC_ADDRESSES = 16;
+ 
+ // Prefix length limits of phosphor-networkd
+ constexpr uint8_t MIN_IPV4_PREFIX_LENGTH = 1;

@@ -1,0 +1,27 @@
+From b0f32653f2ed2af2670dc057649374aaed6274db Mon Sep 17 00:00:00 2001
+From: deepakl <deepakl@ami.com>
+Date: Mon, 5 Jun 2023 10:42:59 +0000
+Subject: [PATCH] Set IP address source to unspecified address source
+
+Signed-off-by: deepakl <deepakl@ami.com>
+---
+ transporthandler.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index e3a95b3..0cd012f 100755
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1029,6 +1029,9 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                     return responseSuccess();
+                 }
+                 case IPSrc::Unspecified:
++		{
++			return responseInvalidFieldRequest();
++		}
+                 case IPSrc::Static:
+                 {
+                     channelCall<setDHCPv4Property>(
+-- 
+2.40.1
+

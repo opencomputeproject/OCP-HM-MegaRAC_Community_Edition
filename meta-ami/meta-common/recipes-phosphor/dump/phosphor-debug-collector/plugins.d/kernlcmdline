@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect kernal command line  information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="kernalcmdline"
+file_name="kernalcmdline.log"
+command="cat /proc/cmdline"
+
+add_cmd_output "$command" "$file_name" "$desc"

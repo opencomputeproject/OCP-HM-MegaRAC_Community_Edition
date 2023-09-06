@@ -1,0 +1,64 @@
+From c3600c3ffb23477980222413c8e07d5f3a120961 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 19 Oct 2022 17:53:54 +0530
+Subject: [PATCH] Time zone configuration not working as expected
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/store/modules/GlobalStore.js         |  3 +--
+ src/views/Settings/DateTime/DateTime.vue | 16 +++++++++-------
+ 2 files changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/src/store/modules/GlobalStore.js b/src/store/modules/GlobalStore.js
+index eae2802..7d42415 100644
+--- a/src/store/modules/GlobalStore.js
++++ b/src/store/modules/GlobalStore.js
+@@ -80,9 +80,8 @@ const GlobalStore = {
+         .get('/redfish/v1/Managers/bmc')
+         .then((response) => {
+           const bmcDateTime = response.data.DateTime;
+-          const date = new Date(bmcDateTime);
+           const timeZone = response.data.DateTimeLocalOffset;
+-          commit('setBmcTime', date);
++          commit('setBmcTime', bmcDateTime);
+           commit('setTimeZone', timeZone);
+         })
+         .catch((error) => console.log(error));
+diff --git a/src/views/Settings/DateTime/DateTime.vue b/src/views/Settings/DateTime/DateTime.vue
+index 9949c81..21ae4c3 100644
+--- a/src/views/Settings/DateTime/DateTime.vue
++++ b/src/views/Settings/DateTime/DateTime.vue
+@@ -247,8 +247,8 @@ export default {
+       form: {
+         configurationSelected: 'manual',
+         manual: {
+-          date: '',
+-          time: '',
++          date: this.$store.getters['global/bmcTime']?.slice(0, 10),
++          time: this.$store.getters['global/bmcTime']?.slice(11, 16),
+           dateTimeLocalOffset: this.$store.getters['global/timeZone'],
+         },
+         ntp: { firstAddress: '', secondAddress: '', thirdAddress: '' },
+@@ -467,12 +467,14 @@ export default {
+       this.emitChange();
+     },
+     bmcTime() {
+-      this.form.manual.date = this.$options.filters.formatDate(
+-        this.$store.getters['global/bmcTime']
++      this.form.manual.date = this.$store.getters['global/bmcTime'].slice(
++        0,
++        10
++      );
++      this.form.manual.time = this.$store.getters['global/bmcTime'].slice(
++        11,
++        16
+       );
+-      this.form.manual.time = this.$options.filters
+-        .formatTime(this.$store.getters['global/bmcTime'])
+-        .slice(0, 5);
+     },
+     dateTimeLocalOffset() {
+       this.form.manual.dateTimeLocalOffset = this.$store.getters[
+-- 
+2.25.1
+

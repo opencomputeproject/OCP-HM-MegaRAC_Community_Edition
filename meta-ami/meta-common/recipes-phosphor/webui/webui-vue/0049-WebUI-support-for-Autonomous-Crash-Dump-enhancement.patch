@@ -1,0 +1,653 @@
+From dde78b30aab52458e8b399250c0487245142f0a8 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 29 May 2023 19:28:39 +0530
+Subject: [PATCH] WebUI support for Autonomous Crash Dump enhancement
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ package.json                                  |   3 +
+ src/env/assets/styles/_ami.scss               |  13 +
+ src/env/components/AppNavigation/ami.js       |  12 +
+ src/env/router/ami.js                         |   9 +
+ src/locales/en-US.json                        |  32 ++-
+ src/store/index.js                            |   2 +
+ .../modules/HostSystemDiagnostics/AcdStore.js | 126 ++++++++
+ src/views/HostSystemDiagnostics/ACD/ACD.vue   | 269 ++++++++++++++++++
+ .../ACD/AcdModalview.vue                      |  37 +++
+ src/views/HostSystemDiagnostics/ACD/index.js  |   2 +
+ 10 files changed, 503 insertions(+), 2 deletions(-)
+ create mode 100644 src/store/modules/HostSystemDiagnostics/AcdStore.js
+ create mode 100644 src/views/HostSystemDiagnostics/ACD/ACD.vue
+ create mode 100644 src/views/HostSystemDiagnostics/ACD/AcdModalview.vue
+ create mode 100644 src/views/HostSystemDiagnostics/ACD/index.js
+
+diff --git a/package.json b/package.json
+index 91d4543..e891ec8 100644
+--- a/package.json
++++ b/package.json
+@@ -23,11 +23,14 @@
+     "core-js": "3.9.1",
+     "date-fns": "2.19.0",
+     "date-fns-tz": "1.1.3",
++    "file-saver": "2.0.5",
+     "js-cookie": "2.2.1",
++    "jszip": "3.10.1",
+     "lodash": "4.17.21",
+     "simple-keyboard": "3.5.43",
+     "vue": "2.6.12",
+     "vue-i18n": "8.24.2",
++    "vue-json-pretty": "1.9.4",
+     "vue-router": "3.5.1",
+     "vuelidate": "0.7.6",
+     "vuex": "3.6.2",
+diff --git a/src/env/assets/styles/_ami.scss b/src/env/assets/styles/_ami.scss
+index 4a35a68..f56c8b9 100644
+--- a/src/env/assets/styles/_ami.scss
++++ b/src/env/assets/styles/_ami.scss
+@@ -182,4 +182,17 @@ body {
+ .btn-datepicker .dropdown-toggle,
+ .input-action-btn {
+   padding: 10px;
++}
++#fieldset-horizontal {
++  .d-block {
++    display: inline-block !important;
++  }
++  legend + div {
++    display: inline-block;
++    padding-left: 10px;
++    padding: 0px 10px 0px 10px;
++  }
++  legend {
++    display: contents;
++  }
+ }
+\ No newline at end of file
+diff --git a/src/env/components/AppNavigation/ami.js b/src/env/components/AppNavigation/ami.js
+index 1d67f6b..1299c50 100644
+--- a/src/env/components/AppNavigation/ami.js
++++ b/src/env/components/AppNavigation/ami.js
+@@ -188,6 +188,18 @@ const AppNavigationMixin = {
+             },
+           ],
+         },
++        {
++          id: 'host-system-diagnostics',
++          label: this.$t('appNavigation.hostSystemDiagnostics'),
++          icon: 'iconLogs',
++          children: [
++            {
++              id: 'acd',
++              label: this.$t('appNavigation.autonomousCrashDump'),
++              route: '/host-system-diagnostics/acd',
++            },
++          ],
++        },
+         {
+           id: 'resource-management',
+           label: this.$t('appNavigation.resourceManagement'),
+diff --git a/src/env/router/ami.js b/src/env/router/ami.js
+index f98fd1e..6b765ff 100644
+--- a/src/env/router/ami.js
++++ b/src/env/router/ami.js
+@@ -35,6 +35,7 @@ import nicInformation from '@/views/Nic';
+ import i18n from '@/i18n';
+ import Dumps from '@/views/Logs/Dumps';
+ import NvmeInformation from '@/views/NvmeInformation';
++import ACD from '@/views/HostSystemDiagnostics/ACD';
+ 
+ const routes = [
+   {
+@@ -260,6 +261,14 @@ const routes = [
+           title: i18n.t('appPageTitle.vlan'),
+         },
+       },
++      {
++        path: '/host-system-diagnostics/acd',
++        name: 'acd',
++        component: ACD,
++        meta: {
++          title: i18n.t('appPageTitle.autonomousCrashDump'),
++        },
++      },
+       {
+         path: '/resource-management/power',
+         name: 'power',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 2909b2d..c2f933e 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -138,7 +138,9 @@
+     "eventFilter": "Event Filter",
+     "alertDestination": "Alert Destination",
+     "nicInformation": "NIC Information",
+-    "nvmeInformation": "@:appPageTitle.nvmeInformation"
++    "nvmeInformation": "@:appPageTitle.nvmeInformation",
++    "hostSystemDiagnostics": "Host System Diagnostics",
++    "autonomousCrashDump": "ACD"
+   },
+   "appPageTitle": {
+     "changePassword": "Change password",
+@@ -174,7 +176,8 @@
+     "eventFilter": "Event Filter",
+     "alertDestination": "Alert Destination",
+     "nicInformation": "NIC Information",
+-    "nvmeInformation": "NVMe Information"
++    "nvmeInformation": "NVMe Information",
++    "autonomousCrashDump": "ACD"
+   },
+   "pageChangePassword": {
+     "changePassword": "Change password",
+@@ -384,6 +387,31 @@
+       "resetToDefaultsError": "Factory reset of BMC and server settings failed."
+     }
+   },
++  "pageAutonomousCrashDump": {
++    "acd": "ACD Server",
++    "action": {
++      "download": "Download log",
++      "generate": "Generate",
++      "close": "Close",
++      "view": "After a click wait for a minute, JSON Viewer popup window is loading.."
++    },
++    "modal": {
++      "jsonViewer": "Selected File: %{fileName}"
++    },
++    "table": {
++      "fileName": "File Name",
++      "fileInformation": "File Information ",
++      "sino": "S.NO"
++    },
++      "pageDescription": "Autonomous Crash Dump",
++      "toast": {
++        "successGenerateCrashDumpLog": "Successfully Generated Crash Dump",
++        "errorACDDisabled": "Error for disabling ACD.",
++        "errorACDEnabled": "Error for enabling ACD.",
++        "successACDDisabled": "Successfully disabled ACD.",
++        "successACDEnabled": "Successfully enabled ACD."
++      }
++  },
+   "PageFactoryDefault": {
+     "toast": {
+       "restoreToDefaultsSuccess": "Factory Default Restore Default successful.",
+diff --git a/src/store/index.js b/src/store/index.js
+index 10d9937..8be59f2 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -39,6 +39,7 @@ import KvmStore from './modules/Operations/KvmStore';
+ import AlertDestinationStore from './modules/Pef/alertDestinationStore';
+ import NicStore from './modules/Nic/Nic';
+ import NvmeInformationStore from './modules/NvmeInformation/NvmeInformationStore';
++import AutonomousCrashDumpStore from './modules/HostSystemDiagnostics/AcdStore';
+ 
+ Vue.use(Vuex);
+ 
+@@ -84,6 +85,7 @@ export default new Vuex.Store({
+     FactoryDefault: FactoryDefaultStore,
+     nic: NicStore,
+     nvme: NvmeInformationStore,
++    acd: AutonomousCrashDumpStore,
+   },
+   plugins: [WebSocketPlugin],
+ });
+diff --git a/src/store/modules/HostSystemDiagnostics/AcdStore.js b/src/store/modules/HostSystemDiagnostics/AcdStore.js
+new file mode 100644
+index 0000000..c61e13f
+--- /dev/null
++++ b/src/store/modules/HostSystemDiagnostics/AcdStore.js
+@@ -0,0 +1,126 @@
++import i18n from '@/i18n';
++import api from '@/store/api';
++
++const AutonomousCrashDumpStore = {
++  namespaced: true,
++  state: {
++    allCrashDump: [],
++    getJsonFile: [],
++    TaskState: '',
++    ACDEnabled: null,
++  },
++  getters: {
++    allCrashDump: (state) => state.allCrashDump,
++    getJsonFile: (state) => state.getJsonFile,
++    TaskState: (state) => state.TaskState,
++    ACDEnabled: (state) => state.ACDEnabled,
++  },
++  mutations: {
++    setAllCrashDump: (state, allCrashDump) =>
++      (state.allCrashDump = allCrashDump),
++    setJsonFile: (state, getJsonFile) => (state.getJsonFile = getJsonFile),
++    setTaskState: (state, TaskState) => (state.TaskState = TaskState),
++    setAcdServerEnabled: (state, ACDEnabled) => (state.ACDEnabled = ACDEnabled),
++  },
++  actions: {
++    async getcrashDumpData({ commit }) {
++      return await api
++        .get('/redfish/v1/Systems/system/LogServices/Crashdump/Entries')
++        .then(({ data: { Members = [] } = {} }) => {
++          const allCrashDumpData = Members.map((log, index) => {
++            var createdate = new Date(log.Created);
++            return {
++              date: createdate,
++              filename: log.AdditionalDataURI.split('/').pop(),
++              Sino: index + 1,
++            };
++          });
++
++          commit('setAllCrashDump', allCrashDumpData);
++          return Members[0]?.AdditionalDataURI;
++        })
++        .then((data) => {
++          if (data != null && data != undefined) {
++            api.get(data).then((response) => {
++              const getData = response.data;
++              commit('setJsonFile', getData);
++            });
++          }
++        })
++        .catch((error) => {
++          console.log('Crash Dump:', error);
++        });
++    },
++    async checkStatus({ commit, dispatch }, data) {
++      return await api.get(data).then((response) => {
++        if (response.data.TaskState === 'Running') {
++          commit('setTaskState', response.data.TaskState);
++        } else {
++          if (response.data.TaskState === 'Completed') {
++            commit('setTaskState', response.data.TaskState);
++            dispatch('getcrashDumpData');
++            return i18n.t(
++              'pageAutonomousCrashDump.toast.successGenerateCrashDumpLog'
++            );
++          }
++        }
++      });
++    },
++    async createCrashDump() {
++      return await api
++        .post(
++          '/redfish/v1/Systems/system/LogServices/Crashdump/Actions/LogService.CollectDiagnosticData/',
++          {
++            DiagnosticDataType: 'OEM',
++            OEMDiagnosticDataType: 'OnDemand',
++          }
++        )
++        .then((response) => {
++          const data = response.data['@odata.id'];
++          return data;
++        })
++        .catch((error) => {
++          console.log(error);
++          throw new Error(error.response.data.error.message);
++        });
++    },
++    async getAcdServerStatus({ commit }) {
++      return await api
++        .get('/redfish/v1/Oem/Ami/AutonomousCrashDump')
++        .then((response) => {
++          commit('setAcdServerEnabled', response.data.Enabled);
++        })
++        .catch((error) => console.log(error));
++    },
++    async saveAcdServerStatus({ commit, dispatch }, acdServerEnabled) {
++      commit('setAcdServerEnabled', acdServerEnabled);
++      const ACD = {
++        Enabled: acdServerEnabled,
++      };
++      return await api
++        .patch('/redfish/v1/Oem/Ami/AutonomousCrashDump', ACD)
++        .then(dispatch('getAcdServerStatus'))
++        .then(() => {
++          if (acdServerEnabled) {
++            return i18n.t('pageAutonomousCrashDump.toast.successACDEnabled');
++          } else {
++            return i18n.t('pageAutonomousCrashDump.toast.successACDDisabled');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setAcdServerEnabled', !acdServerEnabled);
++          if (acdServerEnabled) {
++            throw new Error(
++              i18n.t('pageAutonomousCrashDump.toast.errorACDEnabled')
++            );
++          } else {
++            throw new Error(
++              i18n.t('pageAutonomousCrashDump.toast.errorACDDisabled')
++            );
++          }
++        });
++    },
++  },
++};
++export default AutonomousCrashDumpStore;
+diff --git a/src/views/HostSystemDiagnostics/ACD/ACD.vue b/src/views/HostSystemDiagnostics/ACD/ACD.vue
+new file mode 100644
+index 0000000..e2ed607
+--- /dev/null
++++ b/src/views/HostSystemDiagnostics/ACD/ACD.vue
+@@ -0,0 +1,269 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pageAutonomousCrashDump.pageDescription')" />
++    <b-row>
++      <b-col>
++        <b-table
++          id="table-nic-information"
++          ref="table"
++          responsive="md"
++          no-select-on-click
++          hover
++          show-empty
++          :busy="isBusy"
++          :fields="fields"
++          :items="allConnections"
++          :empty-text="$t('global.table.emptyMessage')"
++          @row-selected="onRowSelected($event, allConnections.length)"
++        >
++          <template #cell(date)="{ value }">
++            <span class="mb-0">{{ value | formatDate }}</span>
++            <span class="mb-0 pl-1">{{ value | formatTime }}</span>
++          </template>
++          <template #cell(actions)="row" class="ml-3">
++            <table-row-action
++              v-for="(action, index) in row.item.actions"
++              :key="index"
++              :value="action.value"
++              :title="action.title"
++              :row-data="row.item"
++              @click-table-action="onTableRowAction($event, row.item)"
++              ><template #icon>
++                <icon-view
++                  v-if="action.value === 'view'"
++                  :data-test-id="`AutonomousCrashDump-tableRowAction-view-${index}`"
++                />
++              </template>
++            </table-row-action>
++          </template>
++        </b-table>
++      </b-col>
++    </b-row>
++    <b-row>
++      <b-col class="text-right display">
++        <b-form-group
++          id="fieldset-horizontal"
++          class="display"
++          label-align-sm="left"
++          :label="$t('pageAutonomousCrashDump.acd')"
++        >
++          <b-form-checkbox
++            id="Acdswitch"
++            v-model="Acdstate"
++            class="display"
++            date-test-id="AutonomousCrashDump-toggle-ACDstate"
++            switch
++            @change="changeAcdServer"
++          >
++            <span class="sr-only display">
++              {{ $t('pageAutonomousCrashDump.acd') }}
++            </span>
++            <span v-if="Acdstate">
++              {{ $t('global.status.enabled') }}
++            </span>
++            <span v-else>{{ $t('global.status.disabled') }}</span>
++          </b-form-checkbox>
++          <b-button
++            id="downloadlog"
++            title="Download logs"
++            class="btn"
++            variant="primary"
++            :disabled="allConnections.length === 0"
++            @click="downloadZipFile"
++            >{{ $t('pageAutonomousCrashDump.action.download') }}</b-button
++          >
++          <b-tooltip target="downloadlog" triggers> </b-tooltip>
++        </b-form-group>
++        <b-button
++          v-if="Hidebuttons === false"
++          id="toolbtn"
++          title="Click to Generate the logs"
++          variant="link"
++          :disabled="Hidebuttons === false || polling === 'Running'"
++          @click="createCrashDump"
++          ><icon-add />{{
++            $t('pageAutonomousCrashDump.action.generate')
++          }}</b-button
++        >
++        <b-tooltip :disabled="Hidebuttons === false" target="toolbtn" triggers>
++        </b-tooltip>
++      </b-col>
++    </b-row>
++    <modal-view :title="filename" :data="data"></modal-view>
++  </b-container>
++</template>
++
++<script>
++import PageTitle from '@/components/Global/PageTitle';
++import TableRowAction from '@/components/Global/TableRowAction';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import IconAdd from '@carbon/icons-vue/es/add--alt/20';
++import IconView from '@carbon/icons-vue/es/view/20';
++import ModalView from './AcdModalview.vue';
++import { saveAs } from 'file-saver';
++import JSZip from 'jszip';
++import { mapState } from 'vuex';
++export default {
++  components: {
++    PageTitle,
++    TableRowAction,
++    IconView,
++    IconAdd,
++    ModalView,
++  },
++  mixins: [LoadingBarMixin, BVToastMixin],
++  beforeRouteLeave(to, from, next) {
++    // Hide loader if the user navigates to another page
++    // before request is fulfilled.
++    this.hideLoader();
++    next();
++  },
++  data() {
++    return {
++      isBusy: true,
++      filename: '',
++      Hidebuttons: true,
++      data: {},
++      fields: [
++        {
++          key: 'Sino',
++          label: this.$t('pageAutonomousCrashDump.table.sino'),
++        },
++        {
++          key: 'filename',
++          label: this.$t('pageAutonomousCrashDump.table.fileName'),
++          tdClass: 'text-nowrap',
++        },
++        {
++          key: 'date',
++          label: this.$t('pageAutonomousCrashDump.table.fileInformation'),
++          tdClass: 'text-nowrap',
++        },
++        {
++          key: 'actions',
++          label: '',
++          tdClass: 'text-right text-nowrap',
++        },
++      ],
++    };
++  },
++  computed: {
++    allConnections() {
++      return this.$store.getters['acd/allCrashDump'].map((log) => {
++        return {
++          ...log,
++          actions: [
++            {
++              value: 'view',
++              title: this.$t('pageAutonomousCrashDump.action.view'),
++            },
++          ],
++        };
++      });
++    },
++    ...mapState('acd', ['allCrashDump', 'getJsonFile']),
++    Acdstate: {
++      get() {
++        return this.$store.getters['acd/ACDEnabled'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++  },
++  watch: {
++    allCrashDump: function (value) {
++      if (value.length !== 0) {
++        this.filename = value[0].filename;
++      }
++    },
++    getJsonFile: function (value) {
++      this.data = value;
++    },
++    // TaskState: function (value) {
++    //   this.polling = value;
++    // },
++  },
++  created() {
++    this.startLoader();
++    Promise.all([
++      this.$store.dispatch('acd/getAcdServerStatus'),
++      this.$store.dispatch('acd/getcrashDumpData'),
++    ]).finally(() => this.endLoader());
++    this.isBusy = false;
++  },
++  methods: {
++    // createCrashDump() {
++    //   this.Hidebuttons = false;
++    //   this.$store
++    //     .dispatch('acd/createCrashDump')
++    //     .then((data) => {
++    //       var interval = setInterval(() => {
++    //         this.$store
++    //           .dispatch('acd/checkStatus', data)
++    //           .then((success) => {
++    //             if (success) {
++    //               this.successToast(success);
++    //               this.Hidebuttons = true;
++    //               clearInterval(interval);
++    //             }
++    //           });
++    //       }, 10000);
++    //     })
++    //     .catch(({ message }) => {
++    //       this.errorToast(message);
++    //       if (message) {
++    //         this.Hidebuttons = true;
++    //       }
++    //     });
++    // },
++    onTableRowAction(action, row) {
++      switch (action) {
++        case 'view':
++          this.initModalView(row);
++          break;
++        default:
++          break;
++      }
++    },
++    downloadZipFile() {
++      let zip = new JSZip();
++
++      zip.file(this.filename, JSON.stringify(this.data, null, 2));
++
++      zip.generateAsync({ type: 'blob' }).then((blob) => {
++        const filenameExtention = this.filename.split('.json')[0];
++        const zipFile = `${filenameExtention}.zip`;
++        saveAs(blob, zipFile);
++      });
++    },
++    changeAcdServer(state) {
++      this.startLoader();
++      this.$store
++        .dispatch('acd/saveAcdServerStatus', state ? true : false)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message))
++        .finally(() => this.endLoader());
++    },
++    initModalView() {
++      this.$bvModal.show('modal-view');
++    },
++  },
++};
++</script>
++<style scoped lang="scss">
++#table-ACD {
++  td .btn-link {
++    width: auto !important;
++  }
++}
++
++.display {
++  display: inline-block !important;
++}
++
++.btn {
++  margin-left: 5px;
++}
++</style>
+diff --git a/src/views/HostSystemDiagnostics/ACD/AcdModalview.vue b/src/views/HostSystemDiagnostics/ACD/AcdModalview.vue
+new file mode 100644
+index 0000000..bf7e7d7
+--- /dev/null
++++ b/src/views/HostSystemDiagnostics/ACD/AcdModalview.vue
+@@ -0,0 +1,37 @@
++<template>
++  <b-modal
++    id="modal-view"
++    ref="modal"
++    :title="$t('pageAutonomousCrashDump.modal.jsonViewer', { fileName: title })"
++    size="xl"
++    header-text-variant="dark"
++  >
++    <vue-json-pretty :deep="3" :show-icon="true" :data="data" />
++
++    <template #modal-footer="{ cancel }">
++      <b-button variant="primary" @click="cancel()">
++        {{ $t('pageAutonomousCrashDump.action.close') }}
++      </b-button>
++    </template>
++  </b-modal>
++</template>
++
++<script>
++import VueJsonPretty from 'vue-json-pretty';
++
++export default {
++  components: {
++    VueJsonPretty,
++  },
++  props: {
++    data: {
++      type: Object,
++      required: true,
++    },
++    title: {
++      type: String,
++      required: true,
++    },
++  },
++};
++</script>
+diff --git a/src/views/HostSystemDiagnostics/ACD/index.js b/src/views/HostSystemDiagnostics/ACD/index.js
+new file mode 100644
+index 0000000..926aa42
+--- /dev/null
++++ b/src/views/HostSystemDiagnostics/ACD/index.js
+@@ -0,0 +1,2 @@
++import ACD from './ACD.vue';
++export default ACD;
+-- 
+2.25.1
+

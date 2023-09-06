@@ -1,0 +1,70 @@
+diff --git a/include/manager.hpp b/include/manager.hpp
+index 16b79d5..5c73373 100644
+--- a/include/manager.hpp
++++ b/include/manager.hpp
+@@ -108,6 +108,8 @@ class Manager : public Base
+      */
+     BaseTable baseBIOSTable(BaseTable value) override;
+ 
++    bool enableAfterReset(bool value) override;
++
+     ResetFlag resetBIOSSettings(ResetFlag value);
+ 
+     /** @brief Set the PendingAttributes property, additionally checks if the
+diff --git a/src/manager.cpp b/src/manager.cpp
+index 1a68898..432b308 100644
+--- a/src/manager.cpp
++++ b/src/manager.cpp
+@@ -102,6 +102,13 @@ Manager::BaseTable Manager::baseBIOSTable(BaseTable value)
+     return baseTable;
+ }
+ 
++bool Manager::enableAfterReset(bool value)
++{
++    auto enableAfterResetFlag = Base::enableAfterReset(value, false);
++    serialize(*this, biosFile);
++    return enableAfterResetFlag;
++}
++
+ Manager::PendingAttributes Manager::pendingAttributes(PendingAttributes value)
+ {
+     // Clear the pending attributes
+diff --git a/src/manager_serialize.cpp b/src/manager_serialize.cpp
+index 18163b7..542d8d7 100644
+--- a/src/manager_serialize.cpp
++++ b/src/manager_serialize.cpp
+@@ -29,7 +29,9 @@ void save(Archive& archive, const Manager& entry,
+     archive(entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
+                 baseBIOSTable(),
+             entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
+-                pendingAttributes());
++                pendingAttributes(),
++            entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
++                enableAfterReset());
+ }
+ 
+ /** @brief Function required by Cereal to perform deserialization.
+@@ -46,11 +48,15 @@ void load(Archive& archive, Manager& entry, const std::uint32_t /*version*/)
+     Manager::BaseTable baseTable;
+     Manager::PendingAttributes pendingAttrs;
+ 
+-    archive(baseTable, pendingAttrs);
++    bool enableAfterResetFlag;
++
++    archive(baseTable, pendingAttrs, enableAfterResetFlag);
+     entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
+         baseBIOSTable(baseTable, true);
+     entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
+         pendingAttributes(pendingAttrs, true);
++    entry.sdbusplus::xyz::openbmc_project::BIOSConfig::server::Manager::
++        enableAfterReset(enableAfterResetFlag, true);
+ }
+ 
+ void serialize(const Manager& obj, const fs::path& path)
+@@ -87,4 +93,4 @@ bool deserialize(const fs::path& path, Manager& entry)
+     }
+ }
+ 
+-} // namespace bios_config
+\ No newline at end of file
++} // namespace bios_config

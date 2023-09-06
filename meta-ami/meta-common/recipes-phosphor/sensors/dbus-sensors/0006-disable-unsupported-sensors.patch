@@ -1,0 +1,30 @@
+diff -Naur a/src/IntelCPUSensorMain.cpp b/src/IntelCPUSensorMain.cpp
+--- a/src/IntelCPUSensorMain.cpp	2022-11-30 23:56:57.779702347 +0530
++++ b/src/IntelCPUSensorMain.cpp	2022-12-01 00:04:46.899108928 +0530
+@@ -106,6 +106,13 @@
+          {"/xyz/openbmc_project/sensors/temperature/",
+           sensor_paths::unitDegreesC, 127.0, -128.0, 1000}}};
+ 
++// here is the not supported sensor (nss) list, remove the list if supported
++std::vector <std::string> nss{"Platform Power Average CPU1", "Platform Energy CPU1",
++                               "Platform Power Cap CPU1", "Cpu Power Cap CPU2",
++                               "Cpu Power Cap CPU1", "Dimm Power Cap CPU1",
++                               "Dimm Power Cap CPU2", "Dimm Power Average CPU1"
++                             };
++
+ void detectCpuAsync(
+     boost::asio::steady_timer& pingTimer,
+     boost::asio::steady_timer& creationTimer, boost::asio::io_service& io,
+@@ -340,6 +347,12 @@
+ 
+             std::string sensorName = createSensorName(label, item, cpuId);
+ 
++	    if (std::find(nss.begin(),nss.end(),sensorName.c_str()) != nss.end())
++            {
++                std::cerr << "sensor not supported: " << sensorName.c_str() << std::endl;
++                continue;
++            }
++
+             auto findSensor = gCpuSensors.find(sensorName);
+             if (findSensor != gCpuSensors.end())
+             {

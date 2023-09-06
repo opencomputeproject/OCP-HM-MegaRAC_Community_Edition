@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect slab information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="slab info"
+file_name="slabinfo.log"
+command="cat /proc/slabinfo"
+
+add_cmd_output "$command" "$file_name" "$desc"

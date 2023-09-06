@@ -1,0 +1,41 @@
+From 61816b6e38fca50296cda0b828b7730348d3e144 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Mon, 5 Sep 2022 11:49:44 +0530
+Subject: [PATCH] Enabled SetSelTime ipmi Command
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ storagehandler.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/storagehandler.cpp b/storagehandler.cpp
+index 0b1a4e4..c08b9c6 100644
+--- a/storagehandler.cpp
++++ b/storagehandler.cpp
+@@ -885,11 +885,6 @@ void register_netfn_storage_functions()
+                           ipmi::storage::cmdGetSelTime, ipmi::Privilege::User,
+                           ipmiStorageGetSelTime);
+ 
+-    // <Set SEL Time>
+-    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
+-                          ipmi::storage::cmdSetSelTime,
+-                          ipmi::Privilege::Operator, ipmiStorageSetSelTime);
+-
+     // <Get SEL Entry>
+     ipmi_register_callback(NETFUN_STORAGE, IPMI_CMD_GET_SEL_ENTRY, NULL,
+                            getSELEntry, PRIVILEGE_USER);
+@@ -941,6 +936,11 @@ void register_netfn_storage_functions()
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdReserveSel, ipmi::Privilege::User,
+                           ipmiStorageReserveSel);
++     // <Set SEL Time>
++    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnStorage,
++                          ipmi::storage::cmdSetSelTime,
++                          ipmi::Privilege::Operator, ipmiStorageSetSelTime);
++
+ 
+     ipmi::fru::registerCallbackHandler();
+     return;
+-- 
+2.25.1
+

@@ -1,0 +1,26 @@
+From 40555599b0b8a12d3cd7b782188727ebcf2e596f Mon Sep 17 00:00:00 2001
+From: vaibhavs <vaibhavs@ami.com>
+Date: Sun, 11 Jun 2023 17:47:57 +0000
+Subject: [PATCH] Add Prefix Length at Neighbor
+
+---
+ yaml/xyz/openbmc_project/Network/Neighbor.interface.yaml | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/yaml/xyz/openbmc_project/Network/Neighbor.interface.yaml b/yaml/xyz/openbmc_project/Network/Neighbor.interface.yaml
+index 29b9408..a168739 100644
+--- a/yaml/xyz/openbmc_project/Network/Neighbor.interface.yaml
++++ b/yaml/xyz/openbmc_project/Network/Neighbor.interface.yaml
+@@ -17,6 +17,12 @@ properties:
+           The low level mac address that the IP maps to.
+       errors:
+           - xyz.openbmc_project.Common.Error.NotAllowed
++    - name: PrefixLength
++      type: byte
++      description: >
++          This is the number of network bits in the ipaddress.
++      errors:
++          - xyz.openbmc_project.Common.Error.NotAllowed
+     - name: State
+       type: enum[self.State]
+       description: >

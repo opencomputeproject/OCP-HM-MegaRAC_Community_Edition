@@ -1,0 +1,137 @@
+From 2521033ddf080c41100657a73f8516dd735c22f7 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Wed, 14 Jun 2023 13:37:40 +0530
+Subject: [PATCH] Add Locked status to login API on User locked
+
+This patch will check the UserLockedForFailedAttempt property when the
+user logins. The property will be set to true if the user reaches the
+maximum login attempt, so the API call will fail with the status code
+423 Locked.
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                             |  3 ++-
+ src/locales/ru-RU.json                             |  3 ++-
+ .../modules/Authentication/AuthenticanStore.js     | 14 +++++++++++++-
+ src/views/Login/Login.vue                          | 14 ++++++++++++--
+ 4 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 41b6f53..df1c1a6 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -727,7 +727,8 @@
+     "password": "Password",
+     "username": "Username",
+     "alert": {
+-      "message": "Invalid username or password"
++      "message": "Invalid username or password",
++      "authLockmessage": "Reached maximum login attempts. User account locked"
+     }
+   },
+   "pageOverview": {
+diff --git a/src/locales/ru-RU.json b/src/locales/ru-RU.json
+index d74044e..f95aa05 100644
+--- a/src/locales/ru-RU.json
++++ b/src/locales/ru-RU.json
+@@ -618,7 +618,8 @@
+     "password": "Пароль",
+     "username": "Имя пользователя",
+     "alert": {
+-      "message": "Неверное имя пользователя или пароль"
++      "message": "Неверное имя пользователя или пароль",
++      "authLockmessage": "Достигнуто максимальное количество попыток входа. Учетная запись пользователя заблокирована."
+     }
+   },
+   "pageOverview": {
+diff --git a/src/store/modules/Authentication/AuthenticanStore.js b/src/store/modules/Authentication/AuthenticanStore.js
+index 50dfff3..b6b2ab4 100644
+--- a/src/store/modules/Authentication/AuthenticanStore.js
++++ b/src/store/modules/Authentication/AuthenticanStore.js
+@@ -7,12 +7,14 @@ const AuthenticationStore = {
+   state: {
+     consoleWindow: null,
+     authError: false,
++    authLocked: false,
+     xsrfCookie: Cookies.get('XSRF-TOKEN'),
+     isAuthenticatedCookie: Cookies.get('IsAuthenticated'),
+   },
+   getters: {
+     consoleWindow: (state) => state.consoleWindow,
+     authError: (state) => state.authError,
++    authLocked: (state) => state.authLocked,
+     isLoggedIn: (state) => {
+       return (
+         state.xsrfCookie !== undefined || state.isAuthenticatedCookie == 'true'
+@@ -27,6 +29,11 @@ const AuthenticationStore = {
+     },
+     authError(state, authError = true) {
+       state.authError = authError;
++      state.authLocked = !authError;
++    },
++    authLocked(state, authLocked = true) {
++      state.authLocked = authLocked;
++      state.authError = authLocked;
+     },
+     logout(state) {
+       Cookies.remove('XSRF-TOKEN');
+@@ -44,7 +51,11 @@ const AuthenticationStore = {
+         .post('/login', { data: [username, password] })
+         .then(() => commit('authSuccess'))
+         .catch((error) => {
+-          commit('authError');
++          if (error.response.status == 423) {
++            commit('authLocked');
++          } else {
++            commit('authError');
++          }
+           throw new Error(error);
+         });
+     },
+@@ -68,6 +79,7 @@ const AuthenticationStore = {
+     },
+     resetStoreState({ state }) {
+       state.authError = false;
++      state.authLocked = false;
+       state.xsrfCookie = Cookies.get('XSRF-TOKEN');
+       state.isAuthenticatedCookie = Cookies.get('IsAuthenticated');
+     },
+diff --git a/src/views/Login/Login.vue b/src/views/Login/Login.vue
+index f385259..90251a7 100644
+--- a/src/views/Login/Login.vue
++++ b/src/views/Login/Login.vue
+@@ -27,7 +27,10 @@
+               variant="danger"
+               :dismissible="true"
+             >
+-              <p id="login-error-alert">
++              <p v-if="authLocked" id="login-error-alert">
++                {{ $t('pageLogin.alert.authLockmessage') }}
++              </p>
++              <p v-else id="login-error-alert">
+                 {{ $t('pageLogin.alert.message') }}
+               </p>
+             </alert>
+@@ -140,6 +143,9 @@ export default {
+     authError() {
+       return this.$store.getters['authentication/authError'];
+     },
++    authLocked() {
++      return this.$store.getters['authentication/authLocked'];
++    },
+   },
+   validations: {
+     userInfo: {
+@@ -182,4 +188,8 @@ export default {
+ };
+ </script>
+ 
+-<style lang="scss" scoped></style>
++<style lang="scss" scoped>
++.login-error {
++  max-width: 350px;
++}
++</style>
+-- 
+2.25.1
+

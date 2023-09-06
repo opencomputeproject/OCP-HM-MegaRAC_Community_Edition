@@ -1,0 +1,112 @@
+From c0b477ceb62fe8becb6161034dcf45054d0c48d4 Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Thu, 10 Nov 2022 19:33:11 +0530
+Subject: [PATCH] added OEM led-indicator amber green susack status
+
+---
+ redfish-core/lib/led.hpp     | 81 ++++++++++++++++++++++++++++++++++++
+ redfish-core/lib/systems.hpp |  1 +
+ 2 files changed, 82 insertions(+)
+
+diff --git a/redfish-core/lib/led.hpp b/redfish-core/lib/led.hpp
+index 902e5c86..61f3c883 100644
+--- a/redfish-core/lib/led.hpp
++++ b/redfish-core/lib/led.hpp
+@@ -255,4 +255,85 @@ inline void
+         "xyz.openbmc_project.Led.Group", "Asserted",
+         dbus::utility::DbusVariantType(ledState));
+ }
++
++inline void setPhysicalLedState(const std::shared_ptr<bmcweb::AsyncResp>& aResp,
++                                const std::string& led,
++                                const std::string& state)
++{
++    if (boost::ends_with(state, "On"))
++    {
++        aResp->res.jsonValue["Oem"]["OpenBmc"]["PhysicalLED"][led] = "On";
++    }
++    else if (boost::ends_with(state, "Blink"))
++    {
++        aResp->res.jsonValue["Oem"]["OpenBmc"]["PhysicalLED"][led] = "Blinking";
++    }
++    else if (boost::ends_with(state, "Off"))
++    {
++        aResp->res.jsonValue["Oem"]["OpenBmc"]["PhysicalLED"][led] = "Off";
++    }
++    else
++    {
++        aResp->res.jsonValue["Oem"]["OpenBmc"]["PhysicalLED"][led] = "Unknown";
++    }
++}
++
++inline void getPhysicalLedState(const std::shared_ptr<bmcweb::AsyncResp>& aResp)
++{
++    BMCWEB_LOG_DEBUG << "Get Physical Led";
++    aResp->res.jsonValue["Oem"]["OpenBmc"]["PhysicalLED"]["@odata.type"] =
++        "#OemComputerSystem.PhysicalLED";
++
++    sdbusplus::asio::getProperty<std::string>(
++        *crow::connections::systemBus,
++        "xyz.openbmc_project.LED.Controller.status_amber",
++        "/xyz/openbmc_project/led/physical/status_amber",
++        "xyz.openbmc_project.Led.Physical", "State",
++        [aResp](const boost::system::error_code ec,
++                const std::string& amberLedState) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Get Physical State Amber Led: DBus Error"
++                                 << ec;
++                messages::internalError(aResp->res);
++                return;
++            }
++            setPhysicalLedState(aResp, "AmberLED", amberLedState);
++        });
++
++    sdbusplus::asio::getProperty<std::string>(
++        *crow::connections::systemBus,
++        "xyz.openbmc_project.LED.Controller.status_green",
++        "/xyz/openbmc_project/led/physical/status_green",
++        "xyz.openbmc_project.Led.Physical", "State",
++        [aResp](const boost::system::error_code ec,
++                const std::string& greenLedState) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Get Physical State Green Led: DBus Error"
++                                 << ec;
++                messages::internalError(aResp->res);
++                return;
++            }
++            setPhysicalLedState(aResp, "GreenLED", greenLedState);
++        });
++
++    sdbusplus::asio::getProperty<std::string>(
++        *crow::connections::systemBus,
++        "xyz.openbmc_project.LED.Controller.status_susack",
++        "/xyz/openbmc_project/led/physical/status_susack",
++        "xyz.openbmc_project.Led.Physical", "State",
++        [aResp](const boost::system::error_code ec,
++                const std::string& susackLedState) {
++            if (ec)
++            {
++                BMCWEB_LOG_ERROR << "Get Physical State Susack Led: DBus Error"
++                                 << ec;
++                messages::internalError(aResp->res);
++                return;
++            }
++            setPhysicalLedState(aResp, "SusackLED", susackLedState);
++        });
++}
++
+ } // namespace redfish
+diff --git a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+index ebe57475..b92fc7e7 100644
+--- a/redfish-core/lib/systems.hpp
++++ b/redfish-core/lib/systems.hpp
+@@ -3146,6 +3146,7 @@ inline void requestRoutesSystems(App& app)
+         getLocationIndicatorActive(asyncResp);
+         // TODO (Gunnar): Remove IndicatorLED after enough time has passed
+         getIndicatorLedState(asyncResp);
++	getPhysicalLedState(asyncResp);
+         getComputerSystem(asyncResp, health);
+         getHostState(asyncResp);
+         getBootProperties(asyncResp);

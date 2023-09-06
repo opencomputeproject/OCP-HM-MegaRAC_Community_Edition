@@ -1,0 +1,53 @@
+From f41aa2b68398302827b6da6d295b8de53c1cbefc Mon Sep 17 00:00:00 2001
+From: prasannas <prasannas@ami.com>
+Date: Wed, 15 Mar 2023 11:55:54 +0530
+Subject: [PATCH 2116/2116] Add Diag and Safe Mode Support
+
+Signed-off-by: prasannas <prasannas@ami.com>
+---
+ redfish-core/lib/systems.hpp | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+index 3f95348..9e929f0 100644
+--- a/redfish-core/lib/systems.hpp
++++ b/redfish-core/lib/systems.hpp
+@@ -718,6 +718,10 @@ inline std::string dbusToRfBootMode(const std::string& dbusMode)
+     }
+     if (dbusMode == "xyz.openbmc_project.Control.Boot.Mode.Modes.Safe")
+     {
++        return "Safe";
++    }
++    if (dbusMode == "xyz.openbmc_project.Control.Boot.Mode.Modes.Diag")
++    {
+         return "Diags";
+     }
+     if (dbusMode == "xyz.openbmc_project.Control.Boot.Mode.Modes.Setup")
+@@ -836,10 +840,14 @@ inline int assignBootParameters(const std::shared_ptr<bmcweb::AsyncResp>& aResp,
+     {
+         bootSource = "xyz.openbmc_project.Control.Boot.Source.Sources.Disk";
+     }
+-    else if (rfSource == "Diags")
++    else if (rfSource == "Safe")
+     {
+         bootMode = "xyz.openbmc_project.Control.Boot.Mode.Modes.Safe";
+     }
++    else if (rfSource == "Diags")
++    {
++        bootMode = "xyz.openbmc_project.Control.Boot.Mode.Modes.Diag";
++    }
+     else if (rfSource == "Cd")
+     {
+         bootSource =
+@@ -1052,7 +1060,7 @@ inline void getBootOverrideMode(const std::shared_ptr<bmcweb::AsyncResp>& aResp)
+         aResp->res
+             .jsonValue["Boot"]
+                       ["BootSourceOverrideTarget@Redfish.AllowableValues"] = {
+-            "None", "Pxe", "Hdd", "Cd", "Diags", "BiosSetup", "Usb"};
++            "None", "Pxe", "Hdd", "Cd","Safe", "Diags", "BiosSetup", "Usb"};
+ 
+         if (bootModeStr !=
+             "xyz.openbmc_project.Control.Boot.Mode.Modes.Regular")
+-- 
+2.9.5
+

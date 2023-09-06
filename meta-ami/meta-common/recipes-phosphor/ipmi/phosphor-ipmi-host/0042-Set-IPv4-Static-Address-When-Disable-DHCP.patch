@@ -1,0 +1,14 @@
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+old mode 100755
+new mode 100644
+index e3a95b3..b425537
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1031,6 +1031,7 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                 case IPSrc::Unspecified:
+                 case IPSrc::Static:
+                 {
++                    channelCall<reconfigureIfAddr4>(channel, std::nullopt, std::nullopt);
+                     channelCall<setDHCPv4Property>(
+                         channel, EthernetInterface::DHCPConf::none);
+                     return responseSuccess();

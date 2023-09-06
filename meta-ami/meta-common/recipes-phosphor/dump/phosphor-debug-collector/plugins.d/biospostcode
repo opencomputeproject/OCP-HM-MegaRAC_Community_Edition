@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: collect the Bios post code informations.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Bios Post code"
+file_name="biospostcode.log"
+command="busctl call xyz.openbmc_project.State.Boot.PostCode0 /xyz/openbmc_project/State/Boot/PostCode0 xyz.openbmc_project.State.Boot.PostCode GetPostCodes q 1"
+
+add_cmd_output "$command" "$file_name" "$desc"

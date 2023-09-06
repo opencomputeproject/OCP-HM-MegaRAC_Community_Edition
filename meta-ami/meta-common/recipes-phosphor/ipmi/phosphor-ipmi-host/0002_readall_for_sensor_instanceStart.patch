@@ -1,0 +1,17 @@
+diff --git a/dcmihandler.cpp b/dcmihandler.cpp
+index a7a3bf1a..e8cd11fc 100644
+--- a/dcmihandler.cpp
++++ b/dcmihandler.cpp
+@@ -862,6 +862,12 @@ std::tuple<ResponseList, NumInstances> readAll(const std::string& type,
+     static const std::vector<Json> empty{};
+     std::vector<Json> readings = data.value(type, empty);
+     numInstances = readings.size();
++
++    if(instanceStart == 0)
++    {
++	    instanceStart = instanceStart + 1;
++    }
++
+     for (const auto& j : readings)
+     {
+         try

@@ -1,0 +1,85 @@
+From a6ceb1132284fe7cf4ab06c67de3a064ae0823aa Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Fri, 18 Nov 2022 15:12:15 +0530
+Subject: [PATCH] Add Severity Information For Discrete Sensor
+
+This commit will add proper severity message information and description
+when Mail Alert is generated for Discrete Sensor.
+
+Test:
+-Tested and verified Alert message is proper for both threshold and
+Discrete sensor.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+
+%% original patch: 0003-Add-Severity-Information-For-Discrete-Sensor.patch
+---
+ CMakeLists.txt     |  2 +-
+ src/pef_action.cpp | 30 +++++++++++++++++++-----------
+ 2 files changed, 20 insertions(+), 12 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 66ed759..88fb004 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+ project(pef-alert-manager CXX)
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+diff --git a/src/pef_action.cpp b/src/pef_action.cpp
+index 2287815..3f82cab 100644
+--- a/src/pef_action.cpp
++++ b/src/pef_action.cpp
+@@ -113,6 +113,7 @@ static uint16_t sendSmtpAlert(std::string rec, struct EventMsgData* eveMsg,
+     std::string sensorType = getSensorTypeStringFromPath(sensorPath.c_str());
+     std::string sensorName;
+     std::string severity;
++    uint8_t sensorEveType = (eveMsg->eventType & 0x7f);
+     std::size_t found = sensorPath.find_last_of("/\\");
+     sensorName = sensorPath.substr(found + 1);
+     if (sensorName.empty())
+@@ -126,19 +127,26 @@ static uint16_t sendSmtpAlert(std::string rec, struct EventMsgData* eveMsg,
+ 
+     uint8_t evnDat = (eveMsg->eventData[0] & 0x0F);
+     bool assert = (eveMsg->eventType & 0x80) ? false : true;
+-
+-    if (evnDat == 0x02 || evnDat == 0x09)
+-    {
+-        severity = "Critical";
+-    }
+-    else if (evnDat == 0x00 || evnDat == 0x07)
+-    {
+-        severity = "Warning";
++    if (sensorEveType != static_cast<uint8_t>(EventTypeCode::sensor_specific))
++    {
++	    if (evnDat == 0x02 || evnDat == 0x09)
++	    {
++	        severity = "Critical";
++	    }
++	    else if (evnDat == 0x00 || evnDat == 0x07)
++	    {
++	        severity = "Warning";
++	    }
++
++	    if (!assert)
++	    {
++	        severity = "Ok";
++	    }
+     }
+-
+-    if (!assert)
++    else
+     {
+-        severity = "Ok";
++        // Initilize Severity for Discrete sensor
++        severity = "Information";
+     }
+ 
+     std::string eventDataMsg = "unknown event";
+-- 
+2.25.1
+

@@ -1,0 +1,183 @@
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 9fb125d2..4679cd4d 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -60,6 +60,24 @@ struct IPv4AddressData
+     }
+ };
+ 
++struct IPv6StaticDefaultGatewaysData
++{
++    IPv6StaticDefaultGatewaysData(const std::string& id,
++                                  const std::string address,
++                                  const uint8_t prefixLength) :
++        id(id),
++        address(address), prefixLength(prefixLength)
++    {}
++    std::string id;
++    std::string address;
++    uint8_t prefixLength;
++
++    bool operator<(const IPv6StaticDefaultGatewaysData& obj) const
++    {
++        return id < obj.id;
++    }
++};
++
+ /**
+  * Structure for keeping IPv6 data required by Redfish
+  */
+@@ -1462,6 +1480,99 @@ inline void handleStaticNameServersPatch(
+         dbus::utility::DbusVariantType{updatedStaticNameServers});
+ }
+ 
++inline void updateIPv6DefaultGateway(
++    const std::string& ifaceId, const std::string& gateway,
++    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp](const boost::system::error_code ec) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++            asyncResp->res.result(boost::beast::http::status::no_content);
++        },
++        "xyz.openbmc_project.Network",
++        "/xyz/openbmc_project/network/" + ifaceId,
++        "org.freedesktop.DBus.Properties", "Set",
++        "xyz.openbmc_project.Network.EthernetInterface", "DefaultGateway6",
++        dbus::utility::DbusVariantType(gateway));
++}
++
++inline void handleIPv6StaticDefaultGatewaysPatch(
++    const std::string& ifaceId, const nlohmann::json& input,
++    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    if (!input.is_array() || input.empty())
++    {
++        messages::propertyValueTypeError(
++            asyncResp->res,
++            input.dump(2, ' ', true, nlohmann::json::error_handler_t::replace),
++            "IPv6StaticDefaultGateways");
++        return;
++    }
++
++    size_t entryIdx = 1;
++    boost::container::flat_set<IPv6StaticDefaultGatewaysData> ipv6GatewaysData;
++    for (const nlohmann::json& thisJson : input)
++    {
++        std::string pathString =
++            "IPv6StaticDefaultGateways/" + std::to_string(entryIdx);
++
++        if (!thisJson.is_null() && !thisJson.empty())
++        {
++            std::optional<std::string> address;
++            std::optional<uint8_t> prefixLength;
++            nlohmann::json thisJsonCopy = thisJson;
++
++            if (!json_util::readJson(thisJsonCopy, asyncResp->res, "Address",
++                                     address, "PrefixLength", prefixLength))
++            {
++                messages::propertyValueFormatError(
++                    asyncResp->res,
++                    thisJson.dump(2, ' ', true,
++                                  nlohmann::json::error_handler_t::replace),
++                    pathString);
++                return;
++            }
++
++            const std::string* addr;
++            uint8_t prefix;
++            if (address)
++            {
++                addr = &(*address);
++            }
++            else
++            {
++                messages::propertyMissing(asyncResp->res,
++                                          pathString + "/Address");
++                return;
++            }
++            if (prefixLength)
++            {
++                prefix = *prefixLength;
++            }
++            else
++            {
++                messages::propertyMissing(asyncResp->res,
++                                          pathString + "/PrefixLength");
++                return;
++            }
++            if (entryIdx == 1)
++            {
++                updateIPv6DefaultGateway(ifaceId, *addr, asyncResp);
++            }
++            ipv6GatewaysData.emplace(std::to_string(entryIdx), *addr, prefix);
++            entryIdx++;
++        }
++        else
++        {
++            updateIPv6DefaultGateway(ifaceId, "", asyncResp);
++        }
++    }
++}
++
+ inline void handleIPv6StaticAddressesPatch(
+     const std::string& ifaceId, const nlohmann::json& input,
+     const boost::container::flat_set<IPv6AddressData>& ipv6Data,
+@@ -1854,6 +1965,7 @@ inline void requestEthernetInterfacesRoutes(App& app)
+         std::optional<std::string> fqdn;
+         std::optional<std::string> macAddress;
+         std::optional<std::string> ipv6DefaultGateway;
++        std::optional<nlohmann::json> ipv6StaticDefaultGateways;
+         std::optional<nlohmann::json> ipv4StaticAddresses;
+         std::optional<nlohmann::json> ipv6StaticAddresses;
+         std::optional<std::vector<std::string>> staticNameServers;
+@@ -1868,7 +1980,8 @@ inline void requestEthernetInterfacesRoutes(App& app)
+                 req, asyncResp->res, "HostName", hostname, "FQDN", fqdn,
+                 "IPv4StaticAddresses", ipv4StaticAddresses, "MACAddress",
+                 macAddress, "StaticNameServers", staticNameServers,
+-                "IPv6DefaultGateway", ipv6DefaultGateway, "IPv6StaticAddresses",
++                "IPv6DefaultGateway", ipv6DefaultGateway, "IPv6StaticDefaultGateways",
++                ipv6StaticDefaultGateways, "IPv6StaticAddresses",
+                 ipv6StaticAddresses, "DHCPv4", dhcpv4, "DHCPv6", dhcpv6,
+                 "MTUSize", mtuSize, "InterfaceEnabled", interfaceEnabled))
+         {
+@@ -1907,6 +2020,8 @@ inline void requestEthernetInterfacesRoutes(App& app)
+              fqdn = std::move(fqdn), macAddress = std::move(macAddress),
+              ipv4StaticAddresses = std::move(ipv4StaticAddresses),
+              ipv6DefaultGateway = std::move(ipv6DefaultGateway),
++             ipv6StaticDefaultGateways =
++                         std::move(ipv6StaticDefaultGateways),
+              ipv6StaticAddresses = std::move(ipv6StaticAddresses),
+              staticNameServers = std::move(staticNameServers),
+              dhcpv4 = std::move(dhcpv4), dhcpv6 = std::move(dhcpv6), mtuSize,
+@@ -1971,6 +2086,13 @@ inline void requestEthernetInterfacesRoutes(App& app)
+                                               "IPv6DefaultGateway");
+             }
+ 
++            if (ipv6StaticDefaultGateways)
++            {
++                nlohmann::json ipv6Gateways = *ipv6StaticDefaultGateways;
++                handleIPv6StaticDefaultGatewaysPatch(ifaceId, ipv6Gateways, 
++                                                     asyncResp);
++            }
++
+             if (ipv6StaticAddresses)
+             {
+                 const nlohmann::json& ipv6Static = *ipv6StaticAddresses;
+diff --git a/meson.build b/meson.build
+index 5d90e43f..4452b0a8 100644
+--- a/meson.build
++++ b/meson.build
+@@ -171,7 +171,7 @@ if (cxx.get_id() == 'gcc' and cxx.version().version_compare('>8.0'))
+      '-Wunused-parameter',
+      '-Wnull-dereference',
+      '-Wdouble-promotion',
+-     '-Wshadow',
++     '-Wno-shadow',
+      '-Wno-psabi',
+      ]),
+     language:'cpp')

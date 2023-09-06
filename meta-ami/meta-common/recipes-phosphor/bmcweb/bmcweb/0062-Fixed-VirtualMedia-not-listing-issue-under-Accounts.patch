@@ -1,0 +1,25 @@
+From fc58b1ceb4929195d917e5de61ad0cb8763d87cc Mon Sep 17 00:00:00 2001
+From: vamsikrishnak <vamsikrishnak@ami.com>
+Date: Mon, 26 Jun 2023 18:30:45 +0530
+Subject: [PATCH] Fixed VirtualMedia not listing issue under Accounts
+
+Signed-off-by: vamsikrishnak <vamsikrishnak@ami.com>
+---
+ redfish-core/lib/account_service.hpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+index 77ee26a..c7b6077 100644
+--- a/redfish-core/lib/account_service.hpp
++++ b/redfish-core/lib/account_service.hpp
+@@ -127,6 +127,7 @@ inline bool translateUserGroup(const std::vector<std::string>& userGroups,
+         {
+             accountTypes.emplace_back("Redfish");
+             accountTypes.emplace_back("WebUI");
++            accountTypes.emplace_back("VirtualMedia");
+         }
+         else if (userGroup == "ipmi")
+         {
+-- 
+2.9.5
+

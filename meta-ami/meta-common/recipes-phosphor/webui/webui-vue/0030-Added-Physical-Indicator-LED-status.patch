@@ -1,0 +1,230 @@
+From 0e589ada2aa2f4b04085435186b25aa652e38a59 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Fri, 11 Nov 2022 17:56:31 +0530
+Subject: [PATCH] Added Physical Indicator LED status
+
+Following physical LEDs status will be displayed in Web UI Overview
+Page.
+
+	1. Green LED status
+	2. Amber LED status
+	3. Susack LED status
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ src/locales/en-US.json                        |  3 +-
+ src/locales/ru-RU.json                        |  3 +-
+ .../modules/HardwareStatus/SystemStore.js     | 23 ++++-
+ src/views/Overview/OverviewInventory.vue      | 92 +++++++++++++++++++
+ 4 files changed, 118 insertions(+), 3 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 875ca45..fded5ac 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -78,7 +78,8 @@
+       "selectItem": "Select item",
+       "selectedItems": "%{filterCount} of %{count} items",
+       "toDate": "To date",
+-      "viewAll": "View all"
++      "viewAll": "View all",
++      "overAllSystemHealth": "Overall System Health"
+     },
+     "toast": {
+       "unAuthTitle": "Unauthorized",
+diff --git a/src/locales/ru-RU.json b/src/locales/ru-RU.json
+index 70db3c1..0bfdd77 100644
+--- a/src/locales/ru-RU.json
++++ b/src/locales/ru-RU.json
+@@ -77,7 +77,8 @@
+       "selectItem": "Выбрать объект",
+       "selectedItems": "%{filterCount} из %{count} объектов",
+       "toDate": "Заканчивая датой",
+-      "viewAll": "Смотреть всё"
++      "viewAll": "Смотреть всё",
++      "overAllSystemHealth": "Общее состояние системы"
+     },
+     "toast": {
+       "unAuthTitle": "Недоступно",
+diff --git a/src/store/modules/HardwareStatus/SystemStore.js b/src/store/modules/HardwareStatus/SystemStore.js
+index a1394f1..f831494 100644
+--- a/src/store/modules/HardwareStatus/SystemStore.js
++++ b/src/store/modules/HardwareStatus/SystemStore.js
+@@ -5,9 +5,15 @@ const SystemStore = {
+   namespaced: true,
+   state: {
+     systems: [],
++    greenLedStatus: null,
++    amberLedStatus: null,
++    susackLedStatus: null,
+   },
+   getters: {
+     systems: (state) => state.systems,
++    getGreenLedStatus: (state) => state.greenLedStatus,
++    getAmberLedStatus: (state) => state.amberLedStatus,
++    getSusackLedStatus: (state) => state.susackLedStatus,
+   },
+   mutations: {
+     setSystemInfo: (state, data) => {
+@@ -41,6 +47,11 @@ const SystemStore = {
+       system.systemType = data.SystemType;
+       state.systems = [system];
+     },
++    setPhysicalLedStatus: (state, data) => {
++      state.greenLedStatus = data.GreenLED;
++      state.amberLedStatus = data.AmberLED;
++      state.susackLedStatus = data.SusackLED;
++    },
+   },
+   actions: {
+     async getSystem({ commit }) {
+@@ -49,7 +60,17 @@ const SystemStore = {
+         .then((response) =>
+           api.get(`${response.data.Systems['@odata.id']}/system`)
+         )
+-        .then(({ data }) => commit('setSystemInfo', data))
++        .then(({ data }) => {
++          commit('setSystemInfo', data);
++          if (
++            Object.keys(data).includes('Oem') &&
++            Object.keys(data.Oem).includes('OpenBmc')
++          ) {
++            if (data.Oem.OpenBmc.PhysicalLED) {
++              commit('setPhysicalLedStatus', data.Oem.OpenBmc.PhysicalLED);
++            }
++          }
++        })
+         .catch((error) => console.log(error));
+     },
+     async changeIdentifyLedState({ commit }, ledState) {
+diff --git a/src/views/Overview/OverviewInventory.vue b/src/views/Overview/OverviewInventory.vue
+index 575cb7b..9d8a171 100644
+--- a/src/views/Overview/OverviewInventory.vue
++++ b/src/views/Overview/OverviewInventory.vue
+@@ -23,17 +23,61 @@
+           </dd>
+         </dl>
+       </b-col>
++      <b-col sm="6">
++        <dl sm="6">
++          <dt>{{ $t('global.table.overAllSystemHealth') }}</dt>
++          <dd>
++            <b-icon
++              icon="circle-fill"
++              :animation="greenBlinkStatus"
++              :style="greenLedStatus"
++              :title="greenLed"
++              font-scale="2"
++            />
++            <span> </span>
++            <b-icon
++              icon="circle-fill"
++              :animation="amberBlinkStatus"
++              :style="amberLedStatus"
++              :title="amberLed"
++              font-scale="2"
++            />
++            <b-icon
++              icon="circle-fill"
++              :animation="susackBlinkStatus"
++              :style="susackLedStatus"
++              :title="susackLed"
++              font-scale="2"
++            />
++          </dd>
++        </dl>
++      </b-col>
+     </b-row>
+   </overview-card>
+ </template>
+ 
+ <script>
+ import OverviewCard from './OverviewCard';
++import { BIcon } from 'bootstrap-vue';
+ 
+ export default {
+   name: 'Inventory',
+   components: {
+     OverviewCard,
++    BIcon,
++  },
++  data() {
++    return {
++      greenBlinkStatus: null,
++      amberBlinkStatus: null,
++      susackBlinkStatus: null,
++      greenLedStatus: null,
++      amberLedStatus: null,
++      susackLedStatus: null,
++      greenLed: '',
++      amberLed: '',
++      susackLed: '',
++    };
+   },
+   computed: {
+     systems() {
+@@ -43,6 +87,7 @@ export default {
+   },
+   created() {
+     this.$store.dispatch('system/getSystem').finally(() => {
++      this.updateStatusLed();
+       this.$root.$emit('overview-inventory-complete');
+     });
+   },
+@@ -52,6 +97,53 @@ export default {
+         .dispatch('system/changeIdentifyLedState', state)
+         .catch(({ message }) => this.errorToast(message));
+     },
++    updateStatusLed() {
++      // Handle Green LED status
++      this.greenLed = this.$store.getters['system/getGreenLedStatus'];
++      if (this.greenLed == 'Blinking') {
++        this.greenBlinkStatus = 'throb';
++        this.greenLedStatus = 'color: #008000; margin: 5px';
++      }
++      if (this.greenLed == 'On') {
++        this.greenBlinkStatus = null;
++        this.greenLedStatus = 'color: #008000; margin: 5px';
++      }
++      if (this.greenLed == 'Off' || this.greenLed == 'Unknown') {
++        this.greenBlinkStatus = null;
++        this.greenLedStatus =
++          'color: #8fbc8f; margin: 5px; filter: brightness(0.9)';
++      }
++      // Handle Amber LED status
++      this.amberLed = this.$store.getters['system/getAmberLedStatus'];
++      if (this.amberLed == 'Blinking') {
++        this.amberBlinkStatus = 'throb';
++        this.amberLedStatus = 'color: #ffbf00; margin: 5px';
++      }
++      if (this.amberLed == 'On') {
++        this.amberBlinkStatus = null;
++        this.amberLedStatus = 'color: #ffbf00; margin: 5px';
++      }
++      if (this.amberLed == 'Off' || this.amberLed == 'Unknown') {
++        this.amberBlinkStatus = null;
++        this.amberLedStatus =
++          'color: #cc9900; margin: 5px; filter: brightness(0.9)';
++      }
++      // Handle Susack LED status
++      this.susackLed = this.$store.getters['system/getSusackLedStatus'];
++      if (this.susackLed == 'Blinking') {
++        this.susackBlinkStatus = 'throb';
++        this.susackLedStatus = 'color: #00bfff; margin: 5px';
++      }
++      if (this.susackLed == 'On') {
++        this.susackBlinkStatus = null;
++        this.susackLedStatus = 'color: #00bfff; margin: 5px';
++      }
++      if (this.susackLed == 'Off' || this.susackLed == 'Unknown') {
++        this.susackBlinkStatus = null;
++        this.susackLedStatus =
++          'color: #617f89; margin: 5px; filter: brightness(0.9)';
++      }
++    },
+   },
+ };
+ </script>
+-- 
+2.25.1
+

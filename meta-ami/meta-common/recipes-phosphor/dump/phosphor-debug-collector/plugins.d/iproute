@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect ip route information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="ip route"
+file_name="iproute.log"
+command="ip route show"
+
+add_cmd_output "$command" "$file_name" "$desc"

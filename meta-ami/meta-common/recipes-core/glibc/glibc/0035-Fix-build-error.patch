@@ -1,0 +1,41 @@
+From 60486aea2498318df0725d029bea858f4b61e0d3 Mon Sep 17 00:00:00 2001
+From: Jae Hyun Yoo <jae.hyun.yoo@intel.com>
+Date: Thu, 11 Mar 2021 11:23:00 -0800
+Subject: [PATCH] Fix build error
+
+Signed-off-by: Jae Hyun Yoo <jae.hyun.yoo@intel.com>
+Signed-off-by: Jason M. Bills <jason.m.bills@intel.com>
+---
+ posix/regexec.c       | 2 +-
+ stdlib/canonicalize.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/posix/regexec.c b/posix/regexec.c
+index cffeaf2845..64807addd7 100644
+--- a/posix/regexec.c
++++ b/posix/regexec.c
+@@ -3759,7 +3759,7 @@ check_node_accept_bytes (const re_dfa_t *dfa, Idx node_idx,
+ 	{
+ 	  unsigned int in_collseq = 0;
+ 	  const int32_t *table, *indirect;
+-	  const unsigned char *weights, *extra;
++	  const unsigned char *weights, *extra = NULL;
+ 	  const char *collseqwc;
+ 
+ 	  /* match with collating_symbol?  */
+diff --git a/stdlib/canonicalize.c b/stdlib/canonicalize.c
+index 6caed9e70e..061d3b3062 100644
+--- a/stdlib/canonicalize.c
++++ b/stdlib/canonicalize.c
+@@ -198,7 +198,7 @@ static char *
+ realpath_stk (const char *name, char *resolved,
+               struct scratch_buffer *rname_buf)
+ {
+-  char *dest;
++  char *dest = NULL;
+   char const *start;
+   char const *end;
+   int num_links = 0;
+-- 
+2.25.1
+

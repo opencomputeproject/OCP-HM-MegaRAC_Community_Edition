@@ -1,0 +1,108 @@
+From fdff941607cde446d5ca3a952a432a3a2db7dda8 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 15 Sep 2022 20:32:36 +0530
+Subject: [PATCH] Operations section and Server status is not getting updated
+ for power off operation
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/store/modules/Operations/ControlStore.js  | 37 +++++++++++++++++++
+ .../ServerPowerOperations.vue                 |  2 +-
+ 2 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/src/store/modules/Operations/ControlStore.js b/src/store/modules/Operations/ControlStore.js
+index 9b8bf73..03c4525 100644
+--- a/src/store/modules/Operations/ControlStore.js
++++ b/src/store/modules/Operations/ControlStore.js
+@@ -9,6 +9,30 @@ import i18n from '@/i18n';
+  * @param {string} serverStatus
+  * @returns {Promise}
+  */
++const HOST_STATE = {
++  on: 'xyz.openbmc_project.State.Host.HostState.Running',
++  off: 'xyz.openbmc_project.State.Host.HostState.Off',
++  error: 'xyz.openbmc_project.State.Host.HostState.Quiesced',
++  diagnosticMode: 'xyz.openbmc_project.State.Host.HostState.DiagnosticMode',
++};
++const serverStateMapper = (hostState) => {
++  switch (hostState) {
++    case HOST_STATE.on:
++    case 'On': // Redfish PowerState
++      return 'on';
++    case HOST_STATE.off:
++    case 'Off': // Redfish PowerState
++      return 'off';
++    case HOST_STATE.error:
++    case 'Quiesced': // Redfish Status
++      return 'error';
++    case HOST_STATE.diagnosticMode:
++    case 'InTest': // Redfish Status
++      return 'diagnosticMode';
++    default:
++      return 'unreachable';
++  }
++};
+ const checkForServerStatus = function (serverStatus) {
+   return new Promise((resolve) => {
+     const timer = setTimeout(() => {
+@@ -31,6 +55,7 @@ const checkForServerStatus = function (serverStatus) {
+ const ControlStore = {
+   namespaced: true,
+   state: {
++    serverStatus: 'unreachable',
+     isOperationInProgress: false,
+     lastPowerOperationTime: null,
+     lastBmcRebootTime: null,
+@@ -39,6 +64,7 @@ const ControlStore = {
+     isOperationInProgress: (state) => state.isOperationInProgress,
+     lastPowerOperationTime: (state) => state.lastPowerOperationTime,
+     lastBmcRebootTime: (state) => state.lastBmcRebootTime,
++    serverStatus: (state) => state.serverStatus,
+   },
+   mutations: {
+     setOperationInProgress: (state, inProgress) =>
+@@ -47,17 +73,28 @@ const ControlStore = {
+       (state.lastPowerOperationTime = lastPowerOperationTime),
+     setLastBmcRebootTime: (state, lastBmcRebootTime) =>
+       (state.lastBmcRebootTime = lastBmcRebootTime),
++    setServerStatus: (state, serverState) =>
++      (state.serverStatus = serverStateMapper(serverState)),
+   },
+   actions: {
+     async getLastPowerOperationTime({ commit }) {
+       return await api
+         .get('/redfish/v1/Systems/system')
+         .then((response) => {
++          commit('setOperationInProgress', false);
+           const lastReset = response.data.LastResetTime;
+           if (lastReset) {
+             const lastPowerOperationTime = new Date(lastReset);
+             commit('setLastPowerOperationTime', lastPowerOperationTime);
+           }
++          if (
++            response.data.Status.State === 'Quiesced' ||
++            response.data.Status.State === 'InTest'
++          ) {
++            commit('setServerStatus', response.data.Status.State);
++          } else {
++            commit('setServerStatus', response.data.PowerState);
++          }
+         })
+         .catch((error) => console.log(error));
+     },
+diff --git a/src/views/Operations/ServerPowerOperations/ServerPowerOperations.vue b/src/views/Operations/ServerPowerOperations/ServerPowerOperations.vue
+index 9e03083..e788493 100644
+--- a/src/views/Operations/ServerPowerOperations/ServerPowerOperations.vue
++++ b/src/views/Operations/ServerPowerOperations/ServerPowerOperations.vue
+@@ -171,7 +171,7 @@ export default {
+   },
+   computed: {
+     serverStatus() {
+-      return this.$store.getters['global/serverStatus'];
++      return this.$store.getters['controls/serverStatus'];
+     },
+     isOperationInProgress() {
+       return this.$store.getters['controls/isOperationInProgress'];
+-- 
+2.25.1
+

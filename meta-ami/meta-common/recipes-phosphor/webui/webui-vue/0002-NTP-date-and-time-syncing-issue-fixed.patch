@@ -1,0 +1,36 @@
+From dec289a734545f64529b45ebf32616c6976b3257 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Mon, 29 Aug 2022 20:07:33 +0530
+Subject: [PATCH] NTP date and time syncing issue fixed
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/views/Settings/DateTime/DateTime.vue | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/views/Settings/DateTime/DateTime.vue b/src/views/Settings/DateTime/DateTime.vue
+index f5e063d..186a850 100644
+--- a/src/views/Settings/DateTime/DateTime.vue
++++ b/src/views/Settings/DateTime/DateTime.vue
+@@ -382,13 +382,15 @@ export default {
+           if (!isNTPEnabled) return;
+           // Shift address up if second address is empty
+           // to avoid refreshing after delay when updating NTP
+-          if (!this.form.ntp.secondAddress && this.form.ntp.thirdAddres) {
+-            this.form.ntp.secondAddress = this.form.ntp.thirdAddres;
++          if (!this.form.ntp.secondAddress && this.form.ntp.thirdAddress) {
++            this.form.ntp.secondAddress = this.form.ntp.thirdAddress;
+             this.form.ntp.thirdAddress = '';
+           }
+         })
+         .then(() => {
+-          this.$store.dispatch('global/getBmcTime');
++          setTimeout(() => {
++            this.$store.dispatch('global/getBmcTime');
++          }, 5000);
+         })
+         .catch(({ message }) => this.errorToast(message))
+         .finally(() => {
+-- 
+2.25.1
+

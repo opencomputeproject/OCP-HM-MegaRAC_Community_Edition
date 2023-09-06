@@ -1,0 +1,214 @@
+From ab5321e496f3d7823cecaff53fde65580110798f Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 12 Jun 2023 13:07:47 +0530
+Subject: [PATCH] Added NIC Information support in WEBUI
+
+Created the WEBUI page NIC Information to list the available NIC
+details.
+
+Following NIC data will be displayed in WEBUI in table form.
+	1. PCI Class Code
+	2. Slot Number
+	3. Vendor ID
+	4. Device ID
+	5. Current Speed
+	6. Port Idx
+	7. Media State
+	8. MAC Address
+	9. Firmware Address
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ .../AppNavigation/AppNavigationMixin.js         |  8 ++++++++
+ src/env/components/AppNavigation/intel.js       |  8 ++++++++
+ src/env/router/intel.js                         |  9 +++++++++
+ src/locales/en-US.json                          | 17 +++++++++++++++--
+ src/router/routes.js                            |  9 +++++++++
+ src/store/index.js                              |  2 ++
+ 6 files changed, 51 insertions(+), 2 deletions(-)
+
+diff --git a/src/components/AppNavigation/AppNavigationMixin.js b/src/components/AppNavigation/AppNavigationMixin.js
+index eb6b694..42c684a 100644
+--- a/src/components/AppNavigation/AppNavigationMixin.js
++++ b/src/components/AppNavigation/AppNavigationMixin.js
+@@ -6,6 +6,7 @@ import IconSettings from '@carbon/icons-vue/es/settings/16';
+ import IconSecurity from '@carbon/icons-vue/es/security/16';
+ import IconChevronUp from '@carbon/icons-vue/es/chevron--up/16';
+ import IconDataBase from '@carbon/icons-vue/es/data--base--alt/16';
++import IconNic from '@carbon/icons-vue/es/network--2/16';
+ 
+ const AppNavigationMixin = {
+   components: {
+@@ -17,6 +18,7 @@ const AppNavigationMixin = {
+     iconSecurityAndAccess: IconSecurity,
+     iconExpand: IconChevronUp,
+     iconResourceManagement: IconDataBase,
++    iconNic: IconNic,
+   },
+   data() {
+     return {
+@@ -201,6 +203,12 @@ const AppNavigationMixin = {
+             },
+           ],
+         },
++        {
++          id: 'nic',
++          label: this.$t('appNavigation.nicInformation'),
++          icon: 'iconNic',
++          route: '/nic',
++        },
+       ],
+     };
+   },
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index 7b2dc7d..3532382 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -6,6 +6,7 @@ import IconSettings from '@carbon/icons-vue/es/settings/16';
+ import IconSecurity from '@carbon/icons-vue/es/security/16';
+ import IconChevronUp from '@carbon/icons-vue/es/chevron--up/16';
+ import IconDataBase from '@carbon/icons-vue/es/data--base--alt/16';
++import IconNic from '@carbon/icons-vue/es/network--2/16';
+ 
+ const AppNavigationMixin = {
+   components: {
+@@ -17,6 +18,7 @@ const AppNavigationMixin = {
+     iconSecurityAndAccess: IconSecurity,
+     iconExpand: IconChevronUp,
+     iconResourceManagement: IconDataBase,
++    iconNic: IconNic,
+   },
+   data() {
+     return {
+@@ -196,6 +198,12 @@ const AppNavigationMixin = {
+             },
+           ],
+         },
++        {
++          id: 'nic',
++          label: this.$t('appNavigation.nicInformation'),
++          icon: 'iconNic',
++          route: '/nic',
++        },
+       ],
+     };
+   },
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index 5434103..e871f6b 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -31,6 +31,7 @@ import ServerPowerOperations from '@/views/Operations/ServerPowerOperations';
+ import Certificates from '@/views/SecurityAndAccess/Certificates';
+ import VirtualMedia from '@/views/Operations/VirtualMedia';
+ import Power from '@/views/ResourceManagement/Power';
++import nicInformation from '@/views/Nic';
+ import i18n from '@/i18n';
+ import Dumps from '@/views/Logs/Dumps';
+ 
+@@ -298,6 +299,14 @@ const routes = [
+           title: i18n.t('appPageTitle.virtualMedia'),
+         },
+       },
++      {
++        path: '/nic',
++        name: 'nic-information',
++        component: nicInformation,
++        meta: {
++          title: i18n.t('appPageTitle.nicInformation'),
++        },
++      },
+       {
+         path: '*',
+         name: 'page-not-found',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 8fde3f2..4c06506 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -136,7 +136,8 @@
+     "smtpSettings": "SMTP Settings",
+     "pef": "Platform Event Filter",
+     "eventFilter": "Event Filter",
+-    "alertDestination": "Alert Destination"
++    "alertDestination": "Alert Destination",
++    "nicInformation": "NIC Information"
+   },
+   "appPageTitle": {
+     "changePassword": "Change password",
+@@ -170,7 +171,8 @@
+     "FactoryDefault": "Factory Default",
+     "smtpSettings": "SMTP Settings",
+     "eventFilter": "Event Filter",
+-    "alertDestination": "Alert Destination"
++    "alertDestination": "Alert Destination",
++    "nicInformation": "NIC Information"
+   },
+   "pageChangePassword": {
+     "changePassword": "Change password",
+@@ -200,6 +202,17 @@
+       "successDelete": "Successfully disconnected %{count} session. | Successfully disconnected %{count} sessions."
+     }
+   },
++  "pageNic": {
++    "pciClassCode": "PCI Class Code",
++    "slotNumber": "Slot Number",
++    "vendorId": "Vendor ID",
++    "deviceId": "Device ID",
++    "currentSpeed": "Current Speed",
++    "portIdx": "Port Idx",
++    "mediaState": "Media State",
++    "macAddress": "MAC Address",
++    "firmwareAddress": "Firmware Address"
++  },
+   "pageDateTime": {
+     "alert": {
+       "message": "To change how date and time are displayed (either UTC or browser offset) throughout the application, visit ",
+diff --git a/src/router/routes.js b/src/router/routes.js
+index e2e00d7..f779e93 100644
+--- a/src/router/routes.js
++++ b/src/router/routes.js
+@@ -35,6 +35,7 @@ import Certificates from '@/views/SecurityAndAccess/Certificates';
+ import VirtualMedia from '@/views/Operations/VirtualMedia';
+ import Power from '@/views/ResourceManagement/Power';
+ import i18n from '@/i18n';
++import nicInformation from '@/views/Nic';
+ 
+ const routes = [
+   {
+@@ -316,6 +317,14 @@ const routes = [
+           title: i18n.t('appPageTitle.virtualMedia'),
+         },
+       },
++      {
++        path: '/nic',
++        name: 'nic-information',
++        component: nicInformation,
++        meta: {
++          title: i18n.t('appPageTitle.nicInformation'),
++        },
++      },
+       {
+         path: '*',
+         name: 'page-not-found',
+diff --git a/src/store/index.js b/src/store/index.js
+index 194893a..d2a6318 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -37,6 +37,7 @@ import DateTimeStore from './modules/Settings/DateTimeStore';
+ import VirtualMediaStore from './modules/Operations/VirtualMediaStore';
+ import KvmStore from './modules/Operations/KvmStore';
+ import AlertDestinationStore from './modules/Pef/alertDestinationStore';
++import NicStore from './modules/Nic/Nic';
+ 
+ Vue.use(Vuex);
+ 
+@@ -80,6 +81,7 @@ export default new Vuex.Store({
+     factoryReset: FactoryResetStore,
+     keyClear: KeyClearStore,
+     FactoryDefault: FactoryDefaultStore,
++    nic: NicStore,
+   },
+   plugins: [WebSocketPlugin],
+ });
+-- 
+2.25.1
+

@@ -1,0 +1,248 @@
+From 3c521dc9c3edbda4ba00b2e957138b6d363fd0a2 Mon Sep 17 00:00:00 2001
+From: ethan <ethanwei@ami.com>
+Date: Sun, 18 Jun 2023 22:21:36 -0700
+Subject: [PATCH] Implement EIP 741000. Implement DDNS-Nsupdate Feature 	new
+ file:   gen/xyz/openbmc_project/Network/DDNS/meson.build 	modified:  
+ gen/xyz/openbmc_project/Network/meson.build 	new file:  
+ yaml/xyz/openbmc_project/Network/DDNS.interface.yaml 	modified:  
+ yaml/xyz/openbmc_project/Network/DHCPConfiguration.interface.yaml
+
+---
+ .../openbmc_project/Network/DDNS/meson.build  |  14 ++
+ gen/xyz/openbmc_project/Network/meson.build   |  16 ++
+ .../Network/DDNS.interface.yaml               | 158 ++++++++++++++++++
+ .../Network/DHCPConfiguration.interface.yaml  |   5 +
+ 4 files changed, 193 insertions(+)
+ create mode 100644 gen/xyz/openbmc_project/Network/DDNS/meson.build
+ create mode 100644 yaml/xyz/openbmc_project/Network/DDNS.interface.yaml
+
+diff --git a/gen/xyz/openbmc_project/Network/DDNS/meson.build b/gen/xyz/openbmc_project/Network/DDNS/meson.build
+new file mode 100644
+index 0000000..f694e7f
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Network/DDNS/meson.build
+@@ -0,0 +1,14 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Network/DDNS__cpp'.underscorify(),
++    input: [ '../../../../../yaml/xyz/openbmc_project/Network/DDNS.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    depend_files: sdbusplusplus_depfiles,
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.current_source_dir() / '../../../../../yaml',
++        'xyz/openbmc_project/Network/DDNS',
++    ],
++)
+\ No newline at end of file
+diff --git a/gen/xyz/openbmc_project/Network/meson.build b/gen/xyz/openbmc_project/Network/meson.build
+index 4d68b73..6d8535c 100644
+--- a/gen/xyz/openbmc_project/Network/meson.build
++++ b/gen/xyz/openbmc_project/Network/meson.build
+@@ -14,6 +14,22 @@ generated_others += custom_target(
+     ],
+ )
+ 
++subdir('DDNS')
++generated_others += custom_target(
++    'xyz/openbmc_project/Network/DDNS__markdown'.underscorify(),
++    input: [ '../../../../yaml/xyz/openbmc_project/Network/DDNS.interface.yaml',  ],
++    output: [ 'DDNS.md' ],
++    depend_files: sdbusplusplus_depfiles,
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.current_source_dir() / '../../../../yaml',
++        'xyz/openbmc_project/Network/DDNS',
++    ],
++)
++
++
+ subdir('DHCPConfiguration')
+ generated_others += custom_target(
+     'xyz/openbmc_project/Network/DHCPConfiguration__markdown'.underscorify(),
+diff --git a/yaml/xyz/openbmc_project/Network/DDNS.interface.yaml b/yaml/xyz/openbmc_project/Network/DDNS.interface.yaml
+new file mode 100644
+index 0000000..7ea44b7
+--- /dev/null
++++ b/yaml/xyz/openbmc_project/Network/DDNS.interface.yaml
+@@ -0,0 +1,158 @@
++description: >
++    This is to manipulate DDNS
++
++enumerations:
++      - name: Method
++        description: >
++              Register or De-Register
++        values:
++            - name: Register
++              description: >
++                    Register DNS record via Nsupdate.
++            - name: Deregister
++              description: >
++                    De-Register DNS record via Nsupdate.
++
++methods:
++      - name: DoNsupdate
++        description: >
++            Restart DNS Service
++        returns:
++            - name: Result
++              type: int16
++      - name: toDeregister
++        description: >
++            Run nsupdate to deregister.
++        returns:
++            - name: Result
++              type: int16
++      - name: toRegister
++        description: >
++            Run nsupdate to register
++        returns:
++            - name: Result
++              type: int16
++      - name: SetHostConf
++        description: >
++              HostName Configuration
++        parameters:
++            - name: HostSetting
++              type: boolean
++              description: >
++                    True for automatic and False for manual
++            - name: HostName
++              type: string
++              description: >
++                    Manually set hostname
++        returns:
++            - name: Result
++              type: int16
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++      - name: SetInterfacesConf
++        description: >
++              Interfaces Configuration for DNS
++        parameters:
++            - name: InterfaceConf
++              type: array[struct[string,boolean,boolean,enum[self.Method]]]
++              description: >
++                    Data 1 - Interface Name
++                    Data 2 - Do nsupdate or not
++                    Data 4 - Use TSIG Authentication or not
++                    Data 5 - To register or deregister
++        returns:
++            - name: Result
++              type: int16
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++      - name: SetDomainConf
++        description: >
++              Domain Configuration
++        parameters:
++            - name: DHCP
++              type: boolean
++              description: >
++                    True for DHCP method and False for static method
++            - name: Priority
++              type: byte
++              description: >
++                    1 for IPv4, 2 for IPv6 and 0 for static method
++            - name: DomainName
++              type: string
++              description: >
++                    Domain Nameto register DNS server if Domain DHCP is disable
++        returns:
++            - name: Result
++              type: int16
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++      - name: SetDNSServer
++        description: >
++              DNS Configuration
++        parameters:
++            - name: Interface
++              type: string
++              description: >
++                    Interface for DNS server
++            - name: Servers
++              type: array[string]
++              description: >
++                    DNS Server IPs
++        returns:
++            - name: Result
++              type: int16
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++      - name: GetDNSServer
++        description: >
++              DNS Configuration
++        parameters:
++            - name: Interface
++              type: string
++              description: >
++                    Interface for DNS server
++        returns:
++            - name: Result
++              type: array[string]
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++properties:
++      - name: HostConf
++        type: struct[boolean,string]
++        flags:
++            - readonly
++        description: >
++            HostName Configuration
++            Data 1 - 1 for Automatic and 0 for Manual
++            Data 2 - Hostname
++      - name: InterfacesConf
++        type: array[struct[string,boolean,boolean,enum[self.Method]]]
++        flags:
++            - readonly
++        description: >
++              Interfaces Configuration for DNS
++              Data 1 - Interface Name
++              Data 2 - Do nsupdate or not
++              Data 4 - Use TSIG Authentication or not
++              Data 5 - To register or deregister
++      - name: DomainConf
++        type: struct[boolean,byte,string]
++        flags:
++            - readonly
++        description: >
++            Data 1 - Domain DHCP: 1 for DHCP method and 0 for static method
++            Data 2 - Domain Priority: 1 for IPv4, 2 for IPv6 and 0 for static met
++            Data 3 - Domain Name: to register DNS server if Domain DHCP is disabl
++        errors:
++            - xyz.openbmc_project.Common.Error.InvalidArgument
++      - name: DNSEnabled
++        type: boolean
++        flags:
++            - readonly
++        description: >
++            if true then the DNS servers received from the DHCP server
++            will be used and take precedence over any statically configured ones.
++      - name: SetInProgress
++        type: boolean
++        description: >
++            Shows if DNS is now updating
+\ No newline at end of file
+diff --git a/yaml/xyz/openbmc_project/Network/DHCPConfiguration.interface.yaml b/yaml/xyz/openbmc_project/Network/DHCPConfiguration.interface.yaml
+index 74b7939..8be6bd7 100644
+--- a/yaml/xyz/openbmc_project/Network/DHCPConfiguration.interface.yaml
++++ b/yaml/xyz/openbmc_project/Network/DHCPConfiguration.interface.yaml
+@@ -28,3 +28,8 @@ properties:
+       description: >
+           if true then DHCP option 12 is enabled i.e machine`s hostname will be
+           sent to the DHCP server.
++    - name: SendNsupdateEnabled
++      type: boolean
++      description: >
++          if true then nsupdate is
++          sent to the DHCP server.
+\ No newline at end of file
+-- 
+2.25.1
+

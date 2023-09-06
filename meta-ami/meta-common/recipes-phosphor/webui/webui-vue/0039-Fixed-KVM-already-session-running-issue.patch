@@ -1,0 +1,58 @@
+From 7aca06f1174c968115e0f5c887a16fd06e7d2d55 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 23 Jan 2023 19:17:49 +0530
+Subject: [PATCH] Fixed KVM already session running issue
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/views/Operations/Kvm/KvmConsole.vue | 34 +++++++++++++------------
+ 1 file changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/src/views/Operations/Kvm/KvmConsole.vue b/src/views/Operations/Kvm/KvmConsole.vue
+index c152afb..ea8cda7 100644
+--- a/src/views/Operations/Kvm/KvmConsole.vue
++++ b/src/views/Operations/Kvm/KvmConsole.vue
+@@ -106,22 +106,24 @@ export default {
+     },
+   },
+   mounted() {
+-    this.$store
+-      .dispatch('kvm/getData')
+-      .then(() => {
+-        if (this.getKvmActiveData()) {
+-          this.errorToast(this.$t('pageKvm.alreadyActiveSession'));
+-        } else {
+-          this.openTerminal();
+-        }
+-      })
+-      .catch((error) => {
+-        console.log(error);
+-        this.errorToast(this.$t('pageKvm.errorInGettingActiveStatus'));
+-      })
+-      .finally(() => {
+-        this.endLoader();
+-      });
++    setTimeout(() => {
++      this.$store
++        .dispatch('kvm/getData')
++        .then(() => {
++          if (this.getKvmActiveData()) {
++            this.errorToast(this.$t('pageKvm.alreadyActiveSession'));
++          } else {
++            this.openTerminal();
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          this.errorToast(this.$t('pageKvm.errorInGettingActiveStatus'));
++        })
++        .finally(() => {
++          this.endLoader();
++        });
++    }, 500);
+   },
+   beforeDestroy() {
+     window.removeEventListener('resize', this.resizeKvmWindow);
+-- 
+2.25.1
+

@@ -1,0 +1,155 @@
+From c54249fa72bb7c7095c38085bd9ed09a7d61493a Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Sat, 22 Oct 2022 09:24:22 +0530
+Subject: [PATCH] SSL Certificate time conflict
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/store/modules/GlobalStore.js          |  7 +++++-
+ src/views/Overview/OverviewQuickLinks.vue | 12 +++++++++--
+ src/views/Settings/DateTime/DateTime.vue  | 26 +++++++++++++++++------
+ 3 files changed, 35 insertions(+), 10 deletions(-)
+
+diff --git a/src/store/modules/GlobalStore.js b/src/store/modules/GlobalStore.js
+index 7d42415..d699290 100644
+--- a/src/store/modules/GlobalStore.js
++++ b/src/store/modules/GlobalStore.js
+@@ -31,6 +31,7 @@ const GlobalStore = {
+   state: {
+     assetTag: null,
+     bmcTime: null,
++    bmcDateTime: null,
+     timeZone: null,
+     modelType: null,
+     serialNumber: null,
+@@ -48,6 +49,7 @@ const GlobalStore = {
+     serialNumber: (state) => state.serialNumber,
+     serverStatus: (state) => state.serverStatus,
+     bmcTime: (state) => state.bmcTime,
++    bmcDateTime: (state) => state.bmcDateTime,
+     timeZone: (state) => state.timeZone,
+     languagePreference: (state) => state.languagePreference,
+     isUtcDisplay: (state) => state.isUtcDisplay,
+@@ -60,6 +62,7 @@ const GlobalStore = {
+     setSerialNumber: (state, serialNumber) =>
+       (state.serialNumber = serialNumber),
+     setBmcTime: (state, bmcTime) => (state.bmcTime = bmcTime),
++    setBmcDateTime: (state, bmcDateTime) => (state.bmcDateTime = bmcDateTime),
+     setTimeZone: (state, timeZone) => (state.timeZone = timeZone),
+     setServerStatus: (state, serverState) =>
+       (state.serverStatus = serverStateMapper(serverState)),
+@@ -80,8 +83,10 @@ const GlobalStore = {
+         .get('/redfish/v1/Managers/bmc')
+         .then((response) => {
+           const bmcDateTime = response.data.DateTime;
++          const date = new Date(bmcDateTime);
+           const timeZone = response.data.DateTimeLocalOffset;
+-          commit('setBmcTime', bmcDateTime);
++          commit('setBmcTime', date);
++          commit('setBmcDateTime', bmcDateTime);
+           commit('setTimeZone', timeZone);
+         })
+         .catch((error) => console.log(error));
+diff --git a/src/views/Overview/OverviewQuickLinks.vue b/src/views/Overview/OverviewQuickLinks.vue
+index 21749f6..c5236c6 100644
+--- a/src/views/Overview/OverviewQuickLinks.vue
++++ b/src/views/Overview/OverviewQuickLinks.vue
+@@ -5,7 +5,7 @@
+         <dl>
+           <dt>{{ $t('pageOverview.bmcTime') }}</dt>
+           <dd v-if="bmcTime" data-test-id="overviewQuickLinks-text-bmcTime">
+-            {{ bmcTime | formatDate }} {{ bmcTime | formatTime }}
++            {{ bmcTime }}
+           </dd>
+           <dd v-else>--</dd>
+         </dl>
+@@ -37,7 +37,15 @@ export default {
+   mixins: [BVToastMixin],
+   computed: {
+     bmcTime() {
+-      return this.$store.getters['global/bmcTime'];
++      let dateTime = this.$store.getters['global/bmcDateTime'];
++      return (
++        dateTime?.slice(0, 10) +
++        ' ' +
++        dateTime?.slice(11, 19) +
++        ' (UTC' +
++        dateTime?.slice(19) +
++        ')'
++      );
+     },
+   },
+   created() {
+diff --git a/src/views/Settings/DateTime/DateTime.vue b/src/views/Settings/DateTime/DateTime.vue
+index 21ae4c3..cfe4f68 100644
+--- a/src/views/Settings/DateTime/DateTime.vue
++++ b/src/views/Settings/DateTime/DateTime.vue
+@@ -18,14 +18,16 @@
+         <b-col lg="3">
+           <dl>
+             <dt>{{ $t('pageDateTime.form.date') }}</dt>
+-            <dd v-if="bmcTime">{{ bmcTime | formatDate }}</dd>
++            <dd v-if="bmcTime">{{ form.manual.date }}</dd>
+             <dd v-else>--</dd>
+           </dl>
+         </b-col>
+         <b-col lg="3">
+           <dl>
+             <dt>{{ $t('pageDateTime.form.time.label') }}</dt>
+-            <dd v-if="bmcTime">{{ bmcTime | formatTime }}</dd>
++            <dd v-if="bmcTime">
++              {{ form.manual.timeUtc }}
++            </dd>
+             <dd v-else>--</dd>
+           </dl>
+         </b-col>
+@@ -247,8 +249,13 @@ export default {
+       form: {
+         configurationSelected: 'manual',
+         manual: {
+-          date: this.$store.getters['global/bmcTime']?.slice(0, 10),
+-          time: this.$store.getters['global/bmcTime']?.slice(11, 16),
++          date: this.$store.getters['global/bmcDateTime']?.slice(0, 10),
++          time: this.$store.getters['global/bmcDateTime']?.slice(11, 16),
++          timeUtc:
++            this.$store.getters['global/bmcDateTime']?.slice(11, 19) +
++            ' (UTC' +
++            this.$store.getters['global/bmcDateTime']?.slice(19) +
++            ')',
+           dateTimeLocalOffset: this.$store.getters['global/timeZone'],
+         },
+         ntp: { firstAddress: '', secondAddress: '', thirdAddress: '' },
+@@ -438,7 +445,7 @@ export default {
+   computed: {
+     ...mapState('dateTime', ['ntpServers', 'isNtpProtocolEnabled']),
+     bmcTime() {
+-      return this.$store.getters['global/bmcTime'];
++      return this.$store.getters['global/bmcDateTime'];
+     },
+     dateTimeLocalOffset() {
+       return this.$store.getters['global/timeZone'];
+@@ -467,14 +474,19 @@ export default {
+       this.emitChange();
+     },
+     bmcTime() {
+-      this.form.manual.date = this.$store.getters['global/bmcTime'].slice(
++      this.form.manual.date = this.$store.getters['global/bmcDateTime'].slice(
+         0,
+         10
+       );
+-      this.form.manual.time = this.$store.getters['global/bmcTime'].slice(
++      this.form.manual.time = this.$store.getters['global/bmcDateTime'].slice(
+         11,
+         16
+       );
++      this.form.manual.timeUtc =
++        this.$store.getters['global/bmcDateTime']?.slice(11, 19) +
++        ' (UTC' +
++        this.$store.getters['global/bmcDateTime']?.slice(19) +
++        ')';
+     },
+     dateTimeLocalOffset() {
+       this.form.manual.dateTimeLocalOffset = this.$store.getters[
+-- 
+2.25.1
+

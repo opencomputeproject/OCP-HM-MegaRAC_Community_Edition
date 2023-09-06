@@ -1,0 +1,98 @@
+From c891246bc534324308949e88ae3b115bc7253876 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Fri, 16 Jun 2023 12:24:40 +0530
+Subject: [PATCH] virtual media image load options are not enabled
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ .../modules/Operations/VirtualMediaStore.js   |  4 +++
+ .../Operations/VirtualMedia/VirtualMedia.vue  | 27 +++++++++++++++++--
+ 2 files changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/src/store/modules/Operations/VirtualMediaStore.js b/src/store/modules/Operations/VirtualMediaStore.js
+index 3ae08a1..974a662 100644
+--- a/src/store/modules/Operations/VirtualMediaStore.js
++++ b/src/store/modules/Operations/VirtualMediaStore.js
+@@ -19,10 +19,14 @@ const VirtualMediaStore = {
+     proxyDevices: [],
+     legacyDevices: [],
+     connections: [],
++    vmStarted: 0,
++    legacyStarted: 0,
+   },
+   getters: {
+     proxyDevices: (state) => state.proxyDevices,
+     legacyDevices: (state) => state.legacyDevices,
++    vmStarted: (state) => state.vmStarted,
++    legacyStarted: (state) => state.legacyStarted,
+   },
+   mutations: {
+     setProxyDevicesData: (state, deviceData) =>
+diff --git a/src/views/Operations/VirtualMedia/VirtualMedia.vue b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+index d405ad1..eeb9a43 100644
+--- a/src/views/Operations/VirtualMedia/VirtualMedia.vue
++++ b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+@@ -126,9 +126,29 @@ export default {
+     legacyDevices() {
+       return this.$store.getters['virtualMedia/legacyDevices'];
+     },
++    vmStarted: {
++      get() {
++        return this.$store.getters['virtualMedia/vmStarted'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++    legacyStarted: {
++      get() {
++        return this.$store.getters['virtualMedia/legacyStarted'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
+   },
+   created() {
+-    if (this.proxyDevices.length > 0 || this.legacyDevices.length > 0) return;
++    if (
++      (this.proxyDevices.length > 0 || this.legacyDevices.length > 0) &&
++      (this.vmStarted > 0 || this.legacyStarted > 0)
++    )
++      return;
+     this.startLoader();
+     this.$store
+       .dispatch('virtualMedia/getData')
+@@ -159,11 +179,12 @@ export default {
+         device.file = null;
+         device.isActive = false;
+       };
+-
++      this.$store.state.virtualMedia.vmStarted = ++this.vmStarted;
+       device.nbd.start();
+       device.isActive = true;
+     },
+     stopVM(device) {
++      this.$store.state.virtualMedia.vmStarted = --this.vmStarted;
+       device.nbd.stop();
+     },
+     startLegacy(connectionData) {
+@@ -197,6 +218,7 @@ export default {
+           data: data,
+         })
+         .then(() => {
++          this.$store.state.virtualMedia.legacyStarted = ++this.legacyStarted;
+           this.successToast(
+             this.$t('pageVirtualMedia.toast.serverConnectionEstablished')
+           );
+@@ -212,6 +234,7 @@ export default {
+       this.$store
+         .dispatch('virtualMedia/unmountImage', connectionData.id)
+         .then(() => {
++          this.$store.state.virtualMedia.legacyStarted = --this.legacyStarted;
+           this.successToast(
+             this.$t('pageVirtualMedia.toast.serverClosedSuccessfully')
+           );
+-- 
+2.25.1
+

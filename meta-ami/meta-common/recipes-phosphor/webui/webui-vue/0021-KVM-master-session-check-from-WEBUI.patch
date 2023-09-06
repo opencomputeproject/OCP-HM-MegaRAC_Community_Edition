@@ -1,0 +1,227 @@
+From 1f24c87591595fcf0dddd385c79523f201366d8c Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 12 Oct 2022 18:30:46 +0530
+Subject: [PATCH] KVM master session check from WEBUI
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                   |  7 ++--
+ src/locales/ru-RU.json                   |  5 ++-
+ src/store/index.js                       |  2 ++
+ src/store/modules/Operations/KvmStore.js | 30 ++++++++++++++++
+ src/views/Operations/Kvm/KvmConsole.vue  | 45 ++++++++++++++++++++----
+ src/views/Overview/Overview.vue          |  9 +++--
+ 6 files changed, 85 insertions(+), 13 deletions(-)
+ create mode 100644 src/store/modules/Operations/KvmStore.js
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index f3adfc5..667e8bc 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -505,7 +505,10 @@
+     "status": "Status",
+     "connected": "Connected",
+     "connecting": "Connecting",
+-    "disconnected": "Disconnected"
++    "disconnected": "Disconnected",
++    "alreadyActiveSession": "Already master KVM session is Running! Please try after some time.",
++    "alreadyInMasterSession": "Master session is Running",
++    "errorInGettingActiveStatus": "Error in Getting KVM active status!!"
+   },
+   "pageLdap": {
+     "pageDescription": "Configure LDAP settings and manage role groups",
+@@ -1262,4 +1265,4 @@
+     "ZW": "Zimbabwe",
+     "AX": "Åland Islands"
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/locales/ru-RU.json b/src/locales/ru-RU.json
+index 62eb535..70db3c1 100644
+--- a/src/locales/ru-RU.json
++++ b/src/locales/ru-RU.json
+@@ -484,7 +484,10 @@
+     "status": "Статус",
+     "connected": "Подключено",
+     "connecting": "Подключение",
+-    "disconnected": "Отключено"
++    "disconnected": "Отключено",
++    "alreadyActiveSession": "Мастер-сессия KVM уже запущена! Пожалуйста, попробуйте через некоторое время.",
++    "alreadyInMasterSession": "основная сессия запущена",
++    "errorInGettingActiveStatus": "Ошибка при получении активного статуса KVM!!"
+   },
+   "pageLdap": {
+     "pageDescription": "Настройка параметров LDAP и управление группами",
+diff --git a/src/store/index.js b/src/store/index.js
+index 2218556..147829f 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -33,6 +33,7 @@ import FactoryDefaultStore from './modules/Operations/FactoryDefault';
+ import WebSocketPlugin from './plugins/WebSocketPlugin';
+ import DateTimeStore from './modules/Settings/DateTimeStore';
+ import VirtualMediaStore from './modules/Operations/VirtualMediaStore';
++import KvmStore from './modules/Operations/KvmStore';
+ 
+ Vue.use(Vuex);
+ 
+@@ -68,6 +69,7 @@ export default new Vuex.Store({
+     assemblies: AssemblyStore,
+     postCodeLogs: PostCodeLogsStore,
+     virtualMedia: VirtualMediaStore,
++    kvm: KvmStore,
+     policies: PoliciesStore,
+     factoryReset: FactoryResetStore,
+     keyClear: KeyClearStore,
+diff --git a/src/store/modules/Operations/KvmStore.js b/src/store/modules/Operations/KvmStore.js
+new file mode 100644
+index 0000000..ef7df04
+--- /dev/null
++++ b/src/store/modules/Operations/KvmStore.js
+@@ -0,0 +1,30 @@
++import api from '@/store/api';
++
++const KvmStore = {
++  namespaced: true,
++  state: {
++    activeStatus: 0,
++  },
++  getters: {
++    getKvmActiveStatus: (state) => state.activeStatus,
++  },
++  mutations: {
++    setKvmActiveStatusData: (state, statusData) =>
++      (state.activeStatus = statusData.kvmActiveStatus),
++  },
++  actions: {
++    async getData({ commit }) {
++      return await api
++        .get('/kvm/kvmActiveStatus')
++        .then((response) => {
++          console.log('kvm active status', response);
++          commit('setKvmActiveStatusData', response.data);
++        })
++        .catch((error) => {
++          console.log('Error in getting KVM active status', error);
++        });
++    },
++  },
++};
++
++export default KvmStore;
+diff --git a/src/views/Operations/Kvm/KvmConsole.vue b/src/views/Operations/Kvm/KvmConsole.vue
+index dfbbd0d..c152afb 100644
+--- a/src/views/Operations/Kvm/KvmConsole.vue
++++ b/src/views/Operations/Kvm/KvmConsole.vue
+@@ -45,6 +45,8 @@ import RFB from '@novnc/novnc/core/rfb';
+ import StatusIcon from '@/components/Global/StatusIcon';
+ import IconLaunch from '@carbon/icons-vue/es/launch/20';
+ import IconArrowDown from '@carbon/icons-vue/es/arrow--down/16';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
+ import { throttle } from 'lodash';
+ import { mapState } from 'vuex';
+ 
+@@ -55,6 +57,7 @@ const Disconnected = 2;
+ export default {
+   name: 'KvmConsole',
+   components: { StatusIcon, IconLaunch, IconArrowDown },
++  mixins: [BVToastMixin, LoadingBarMixin],
+   props: {
+     isFullWindow: {
+       type: Boolean,
+@@ -88,17 +91,37 @@ export default {
+         return this.$t('pageKvm.connected');
+       } else if (this.status === Disconnected) {
+         return this.$t('pageKvm.disconnected');
++      } else if (this.getKvmActiveData()) {
++        return this.$t('pageKvm.alreadyInMasterSession');
+       }
+       return this.$t('pageKvm.connecting');
+     },
+   },
+   watch: {
+     consoleWindow() {
+-      if (this.consoleWindow == false) this.isconsoleWindow.close();
++      if (this.consoleWindow == false) {
++        this.isconsoleWindow.close();
++        this.$root.$emit('refresh-application');
++      }
+     },
+   },
+   mounted() {
+-    this.openTerminal();
++    this.$store
++      .dispatch('kvm/getData')
++      .then(() => {
++        if (this.getKvmActiveData()) {
++          this.errorToast(this.$t('pageKvm.alreadyActiveSession'));
++        } else {
++          this.openTerminal();
++        }
++      })
++      .catch((error) => {
++        console.log(error);
++        this.errorToast(this.$t('pageKvm.errorInGettingActiveStatus'));
++      })
++      .finally(() => {
++        this.endLoader();
++      });
+   },
+   beforeDestroy() {
+     window.removeEventListener('resize', this.resizeKvmWindow);
+@@ -112,6 +135,10 @@ export default {
+       this.rfb.disconnect();
+       this.rfb = null;
+     },
++    getKvmActiveData() {
++      let kvmData = this.$store.getters['kvm/getKvmActiveStatus'];
++      return kvmData;
++    },
+     openTerminal() {
+       const token = this.$store.getters['authentication/token'];
+       this.rfb = new RFB(
+@@ -151,11 +178,15 @@ export default {
+       }
+     },
+     openConsoleWindow() {
+-      this.isconsoleWindow = window.open(
+-        '#/console/kvm',
+-        '_blank',
+-        'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=700,height=550'
+-      );
++      if (this.rfb != null && this.isconsoleWindow == null) {
++        this.rfb.disconnect();
++        this.rfb = null;
++        this.isconsoleWindow = window.open(
++          '#/console/kvm',
++          '_blank',
++          'directories=no,titlebar=no,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes,width=700,height=550'
++        );
++      }
+     },
+   },
+ };
+diff --git a/src/views/Overview/Overview.vue b/src/views/Overview/Overview.vue
+index 9960f37..c729f60 100644
+--- a/src/views/Overview/Overview.vue
++++ b/src/views/Overview/Overview.vue
+@@ -60,9 +60,12 @@ export default {
+   },
+   created() {
+     this.startLoader();
+-    const dumpsPromise = new Promise((resolve) => {
+-      this.$root.$on('overview-dumps-complete', () => resolve());
+-    });
++    let dumpsPromise = null;
++    if (this.showDumps === 'ibm') {
++      dumpsPromise = new Promise((resolve) => {
++        this.$root.$on('overview-dumps-complete', () => resolve());
++      });
++    }
+     const eventsPromise = new Promise((resolve) => {
+       this.$root.$on('overview-events-complete', () => resolve());
+     });
+-- 
+2.25.1
+

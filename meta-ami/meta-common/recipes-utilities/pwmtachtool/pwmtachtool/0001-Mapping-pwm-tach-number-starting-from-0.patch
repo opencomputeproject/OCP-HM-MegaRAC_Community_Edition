@@ -1,0 +1,42 @@
+From 4d892276450cce90b560f82b8f3a510e78307e08 Mon Sep 17 00:00:00 2001
+From: thrishalig <thrishalig@ami.com>
+Date: Thu, 15 Sep 2022 15:45:40 +0530
+Subject: [PATCH] Mapping pwm/tach number starting from 0.
+
+Tested:
+verified the mapping
+
+root@intel-obmc:/sys/class/hwmon/hwmon0# pwmtachtool 0 --get-pwm-dutycycle 0
+GET_PWM_DUTYCYCLE:dutycycle value 97 to pwm 0
+PWM 0 Dutycycle is 97
+
+root@intel-obmc:/sys/class/hwmon/hwmon0# pwmtachtool 0 --set-fan-speed 0 8000
+GET_PWM_NUMBER:fan 0, pwm 0, val 0x0
+/sys/class/hwmon/hwmon0/of_node/fan@0/reg
+GET_PWM_DUTYCYCLE:dutycycle value 29 to pwm 0
+
+Signed-off-by: thrishalig <thrishalig@ami.com>
+---
+ pwmtach.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/pwmtach.c b/pwmtach.c
+index 3f53e6d..d5eab93 100644
+--- a/pwmtach.c
++++ b/pwmtach.c
+@@ -33,9 +33,9 @@ void select_sleep(time_t sec,suseconds_t usec)
+ static char DevNodeFileName[50];
+ #define HWMON_DIR "/sys/class/hwmon"
+ 
+-//build the pwm and tach access device node file name, and mapping pwm/tach number starting from 1.
+-#define BUILD_PWM_NODE_NAME(buffer,DEV_ID,PWM_NUM)	    snprintf(buffer, sizeof(buffer), "%s%d%s%d", HWMON_DIR "/hwmon",DEV_ID, "/pwm", PWM_NUM+1)
+-#define BUILD_TACH_NODE_NAME(buffer,DEV_ID,TACH_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/fan", TACH_NUM+1,"_input")
++//build the pwm and tach access device node file name, and mapping pwm/tach number starting from 0.
++#define BUILD_PWM_NODE_NAME(buffer,DEV_ID,PWM_NUM)	    snprintf(buffer, sizeof(buffer), "%s%d%s%d", HWMON_DIR "/hwmon",DEV_ID, "/pwm", PWM_NUM)
++#define BUILD_TACH_NODE_NAME(buffer,DEV_ID,TACH_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/fan", TACH_NUM,"_input")
+ #define BUILD_FAN_REG_NAME(buffer,DEV_ID,FAN_NUM)	snprintf(buffer, sizeof(buffer), "%s%d%s%d%s", HWMON_DIR "/hwmon",DEV_ID, "/of_node/fan@", FAN_NUM,"/reg")
+ 
+ //predefine FAN RPM range, must defined at some where for configuration.
+-- 
+2.25.1
+

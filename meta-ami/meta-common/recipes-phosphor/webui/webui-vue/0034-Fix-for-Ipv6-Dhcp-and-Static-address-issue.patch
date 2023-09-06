@@ -1,0 +1,108 @@
+From 97fb3c7d7c6f1f2b663a4841e02e28684760fac1 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Fri, 18 Nov 2022 13:33:21 +0530
+Subject: [PATCH] Fix for Ipv6 Dhcp and Static address issue
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ src/store/modules/Settings/NetworkStore.js |  6 ++----
+ src/views/Settings/Network/Network.vue     | 14 +++++++++++---
+ src/views/Settings/Network/TableIpv6.vue   | 15 +++++++++++++--
+ 3 files changed, 26 insertions(+), 9 deletions(-)
+
+diff --git a/src/store/modules/Settings/NetworkStore.js b/src/store/modules/Settings/NetworkStore.js
+index deb6447..f203da3 100644
+--- a/src/store/modules/Settings/NetworkStore.js
++++ b/src/store/modules/Settings/NetworkStore.js
+@@ -249,7 +249,7 @@ const NetworkStore = {
+           );
+         });
+     },
+-    async saveIpv6Dhcp({ dispatch, state }, dhcpState) {
++    async saveIpv6Dhcp({ state }, dhcpState) {
+       let DHCPv6 = {
+         DHCPv6: {
+           OperatingMode: dhcpState,
+@@ -261,7 +261,6 @@ const NetworkStore = {
+           `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
+           DHCPv6
+         )
+-        .then(dispatch('getEthernetData'))
+         .then(() => {
+           return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
+             setting: i18n.t('pageNetwork.ipv6'),
+@@ -276,7 +275,7 @@ const NetworkStore = {
+           );
+         });
+     },
+-    async saveIpv6Address({ dispatch, state }, ipv6Data) {
++    async saveIpv6Address({ state }, ipv6Data) {
+       let IPv6StaticAddresses = [];
+       let IPv6StaticDefaultGateways = [];
+       ipv6Data.forEach((rowData) => {
+@@ -298,7 +297,6 @@ const NetworkStore = {
+             IPv6StaticDefaultGateways: IPv6StaticDefaultGateways,
+           }
+         )
+-        .then(dispatch('getEthernetData'))
+         .then(() => {
+           return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
+             setting: i18n.t('pageNetwork.ipv6'),
+diff --git a/src/views/Settings/Network/Network.vue b/src/views/Settings/Network/Network.vue
+index be31cd8..90d029c 100644
+--- a/src/views/Settings/Network/Network.vue
++++ b/src/views/Settings/Network/Network.vue
+@@ -169,9 +169,17 @@ export default {
+       }
+       this.$store
+         .dispatch('network/saveIpv6Address', this.ipv6TableData)
+-        .then((message) => this.successToast(message))
+-        .catch(({ message }) => this.errorToast(message))
+-        .finally(() => this.endLoader());
++        .then((message) => {
++          setTimeout(() => {
++            this.$store.dispatch('network/getEthernetData');
++            this.endLoader();
++            this.successToast(message);
++          }, 5000);
++        })
++        .catch(({ message }) => {
++          this.endLoader();
++          this.errorToast(message);
++        });
+     },
+     saveDnsAddress(modalFormData) {
+       this.startLoader();
+diff --git a/src/views/Settings/Network/TableIpv6.vue b/src/views/Settings/Network/TableIpv6.vue
+index fcb0c39..aeb8da3 100644
+--- a/src/views/Settings/Network/TableIpv6.vue
++++ b/src/views/Settings/Network/TableIpv6.vue
+@@ -204,12 +204,23 @@ export default {
+     },
+     changeDhcpIpv6State(dhcpEnable) {
+       if (dhcpEnable) {
++        this.startLoader();
++        this.$emit('addIpv6');
+         const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
+         this.$store.commit('network/setIpv6Dhcp', data);
+         this.$store
+           .dispatch('network/saveIpv6Dhcp', 'Stateful')
+-          .then((message) => this.successToast(message))
+-          .catch(({ message }) => this.errorToast(message));
++          .then((message) => {
++            setTimeout(() => {
++              this.$store.dispatch('network/getEthernetData');
++              this.endLoader();
++              this.successToast(message);
++            }, 5000);
++          })
++          .catch(({ message }) => {
++            this.endLoader();
++            this.errorToast(message);
++          });
+       } else {
+         const data = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
+         this.$store.commit('network/setIpv6Dhcp', data);
+-- 
+2.25.1
+

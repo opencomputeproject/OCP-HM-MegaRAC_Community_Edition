@@ -1,0 +1,48 @@
+From 07c3dc167c4278b40aad32d2780f429fce28a244 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Wed, 17 Aug 2022 15:29:27 +0530
+Subject: [PATCH] Add PreviousCycleCount and CurrentCycleCount PostCode
+ Property
+
+Added PreviousCycleCount and CurrentCycleCount to keep track of Number of Boot Cycle.
+
+Tested:
+-Verifed PreviousCycleCount and CurrentCycleCount dbusObjects is created.
+
+root@intel-obmc:~#  busctl introspect xyz.openbmc_project.State.Boot.PostCode0 /xyz/openbmc_project/
+State/Boot/PostCode0 xyz.openbmc_project.State.Boot.PostCode
+NAME                                    TYPE      SIGNATURE RESULT/VALUE FLAGS
+.GetPostCodes                           method    q         a(tay)       -
+.GetPostCodesWithTimeStamp              method    q         a{t(tay)}    -
+.CurrentBootCycleCount                  property  q         4            emits-change writable
+.CurrentCycleCount                      property  q         2            emits-change writable
+.MaxBootCycleNum                        property  q         100          emits-change writable
+.PreviousCycleCount                     property  q         2            emits-change writable
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ .../openbmc_project/State/Boot/PostCode.interface.yaml    | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/yaml/xyz/openbmc_project/State/Boot/PostCode.interface.yaml b/yaml/xyz/openbmc_project/State/Boot/PostCode.interface.yaml
+index d72ef2bb..6a50d55c 100644
+--- a/yaml/xyz/openbmc_project/State/Boot/PostCode.interface.yaml
++++ b/yaml/xyz/openbmc_project/State/Boot/PostCode.interface.yaml
+@@ -15,6 +15,14 @@ properties:
+           The max cached boot cycles for post code.
+           It is used to indicate end user what's the max boot number,
+           and make sure get command parameter less than it.
++    - name: CurrentCycleCount
++      type: uint16
++      description: >
++          The number of boot cycles for current post code.
++    - name: PreviousCycleCount
++      type: uint16
++      description: >
++          The number of boot cycles for previous post code.
+ methods:
+     - name: GetPostCodesWithTimeStamp
+       description: >
+-- 
+2.25.1
+

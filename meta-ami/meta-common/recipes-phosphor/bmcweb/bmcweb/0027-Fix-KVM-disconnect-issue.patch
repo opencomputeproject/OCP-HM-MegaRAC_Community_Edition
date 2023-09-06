@@ -1,0 +1,59 @@
+From 97e4e296f803d8a5f921d8eb55d3d3b756d95ac1 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Fri, 12 May 2023 07:17:47 +0000
+Subject: [PATCH] Fix KVM disconnect issue
+
+Despite the introduction of a new enum class containing method verbs,
+some functions were still using the one from Boost. This had caused
+erratic behaviour when trying to create a websocket (e.g. /nbd/<str>),
+because the enum value of the old type was compared to the one of the
+new type. This change fixes that.
+
+Tested:
+Verified that websockets are now created without errors. Able to see
+the host in KVM page.
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ http/routing.hpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/http/routing.hpp b/http/routing.hpp
+index 4299d6fb..21ff1b86 100644
+--- a/http/routing.hpp
++++ b/http/routing.hpp
+@@ -1476,11 +1476,11 @@ class Router
+         }
+ 
+         if ((rules[ruleIndex]->getMethods() &
+-             (1U << static_cast<size_t>(req.method()))) == 0)
++             (1U << static_cast<size_t>(*verb))) == 0)
+         {
+             BMCWEB_LOG_DEBUG << "Rule found but method mismatch: " << req.url
+                              << " with " << req.methodString() << "("
+-                             << static_cast<uint32_t>(req.method()) << ") / "
++                             << static_cast<uint32_t>(*verb) << ") / "
+                              << rules[ruleIndex]->getMethods();
+             asyncResp->res.result(
+                 boost::beast::http::status::method_not_allowed);
+@@ -1488,7 +1488,7 @@ class Router
+         }
+ 
+         BMCWEB_LOG_DEBUG << "Matched rule (upgrade) '" << rules[ruleIndex]->rule
+-                         << "' " << static_cast<uint32_t>(req.method()) << " / "
++                         << "' " << static_cast<uint32_t>(*verb) << " / "
+                          << rules[ruleIndex]->getMethods();
+ 
+         authorizeUser(req, asyncResp, rules[ruleIndex],
+@@ -1575,7 +1575,7 @@ class Router
+         RoutingParams params = std::move(foundRoute.route.params);
+ 
+         BMCWEB_LOG_DEBUG << "Matched rule '" << rule.rule << "' "
+-                         << static_cast<uint32_t>(req.method()) << " / "
++                         << static_cast<uint32_t>(*verb) << " / "
+                          << rule.getMethods();
+ 
+         if (req.session == nullptr)
+-- 
+2.34.1
+

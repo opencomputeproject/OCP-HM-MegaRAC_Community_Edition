@@ -1,0 +1,242 @@
+From 3223e2d6bdd1fdfae7b77a0c1cb7a0ad1dd08e84 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Tue, 13 Sep 2022 15:21:01 +0530
+Subject: [PATCH] virtual media support multiple media types
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                        |  7 +-
+ .../VirtualMedia/ModalConfigureConnection.vue | 94 ++++++++++++++-----
+ .../Operations/VirtualMedia/VirtualMedia.vue  | 23 ++++-
+ 3 files changed, 100 insertions(+), 24 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index ef517f1..3fa20dc 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -922,9 +922,12 @@
+       "password": "Password",
+       "serverUri": "External server URI",
+       "title": "Legacy mode configuration",
+-      "username": "Username"
++      "username": "Username",
++      "mount": "Mount Type",
++      "imagePath": "Path to Image"
+     },
+     "toast": {
++      "errorImageFormat": "Please provide valid image .nrg / .ima / .iso or .img format!",
+       "errorMounting": "Error mounting",
+       "errorReadingFile": "Error reading file. Closing server.",
+       "errorUnmounting": "Error unmounting",
+@@ -1185,4 +1188,4 @@
+     "ZW": "Zimbabwe",
+     "AX": "Åland Islands"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue b/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
+index b0bcfb2..04000a7 100644
+--- a/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
++++ b/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
+@@ -29,27 +29,56 @@
+         </b-form-invalid-feedback>
+       </b-form-group>
+       <b-form-group
+-        :label="$t('pageVirtualMedia.modal.username')"
+-        label-for="username"
++        :label="$t('pageVirtualMedia.modal.imagePath')"
++        label-for="imagePath"
+       >
+         <b-form-input
+-          id="username"
+-          v-model="form.username"
++          id="imagePath"
++          v-model="form.imagePath"
+           type="text"
+-          data-test-id="configureConnection-input-username"
++          data-test-id="configureConnection-input-imagePath"
++          @input="$v.form.imagePath.$touch()"
+         />
++        <b-form-invalid-feedback role="alert">
++          <template v-if="!$v.form.imagePath.required">
++            {{ $t('global.form.fieldRequired') }}
++          </template>
++        </b-form-invalid-feedback>
+       </b-form-group>
+-      <b-form-group
+-        :label="$t('pageVirtualMedia.modal.password')"
+-        label-for="password"
+-      >
+-        <b-form-input
+-          id="password"
+-          v-model="form.password"
+-          type="password"
+-          data-test-id="configureConnection-input-password"
+-        />
++
++      <b-form-group :label="$t('pageVirtualMedia.modal.mount')">
++        <b-form-radio-group
++          id="mount-type-options"
++          v-model="form.transferProtocolType"
++          :options="options"
++          @change="mountChange($event)"
++        >
++        </b-form-radio-group>
+       </b-form-group>
++      <div v-if="form.transferProtocolType !== 'NFS'">
++        <b-form-group
++          :label="$t('pageVirtualMedia.modal.username')"
++          label-for="username"
++        >
++          <b-form-input
++            id="username"
++            v-model="form.username"
++            type="text"
++            data-test-id="configureConnection-input-username"
++          />
++        </b-form-group>
++        <b-form-group
++          :label="$t('pageVirtualMedia.modal.password')"
++          label-for="password"
++        >
++          <b-form-input
++            id="password"
++            v-model="form.password"
++            type="password"
++            data-test-id="configureConnection-input-password"
++          />
++        </b-form-group>
++      </div>
+       <b-form-group>
+         <b-form-checkbox
+           v-model="form.isRW"
+@@ -72,9 +101,9 @@
+ <script>
+ import { required } from 'vuelidate/lib/validators';
+ import VuelidateMixin from '@/components/Mixins/VuelidateMixin.js';
+-
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
+ export default {
+-  mixins: [VuelidateMixin],
++  mixins: [VuelidateMixin, BVToastMixin],
+   props: {
+     connection: {
+       type: Object,
+@@ -87,11 +116,18 @@ export default {
+   },
+   data() {
+     return {
++      options: [
++        { text: 'CIFS', value: 'CIFS' },
++        { text: 'HTTPS', value: 'HTTPS' },
++        { text: 'NFS', value: 'NFS' },
++      ],
+       form: {
+         serverUri: null,
++        imagePath: null,
+         username: null,
+         password: null,
+         isRW: false,
++        transferProtocolType: '',
+       },
+     };
+   },
+@@ -107,17 +143,31 @@ export default {
+         serverUri: {
+           required,
+         },
++        imagePath: {
++          required,
++        },
+       },
+     };
+   },
+   methods: {
++    mountChange(input) {
++      if (input == 'NFS') {
++        this.form.username = '';
++        this.form.password = '';
++      }
++    },
+     handleSubmit() {
+       this.$v.$touch();
+       if (this.$v.$invalid) return;
+-      let connectionData = {};
+-      Object.assign(connectionData, this.form);
+-      this.$emit('ok', connectionData);
+-      this.closeModal();
++      const ext = this.form.imagePath.split('.')[1];
++      if (ext == 'iso' || ext == 'img' || ext == 'ima' || ext == 'nrg') {
++        let connectionData = {};
++        Object.assign(connectionData, this.form);
++        this.$emit('ok', connectionData);
++        this.closeModal();
++      } else {
++        this.errorToast(this.$t('pageVirtualMedia.toast.errorImageFormat'));
++      }
+     },
+     initModal() {
+       if (this.connection) {
+@@ -131,9 +181,11 @@ export default {
+     },
+     resetForm() {
+       this.form.serverUri = null;
++      this.form.imagePath = null;
+       this.form.username = null;
+       this.form.password = null;
+       this.form.isRW = false;
++      this.form.transferProtocolType = '';
+       this.$v.$reset();
+     },
+     onOk(bvModalEvt) {
+diff --git a/src/views/Operations/VirtualMedia/VirtualMedia.vue b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+index 8a3d5ad..19e9300 100644
+--- a/src/views/Operations/VirtualMedia/VirtualMedia.vue
++++ b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+@@ -167,10 +167,28 @@ export default {
+     },
+     startLegacy(connectionData) {
+       var data = {};
+-      data.Image = connectionData.serverUri;
++      switch (connectionData.transferProtocolType) {
++        case 'NFS':
++          data.Image =
++            'nfs://' +
++            connectionData.serverUri +
++            ':' +
++            connectionData.imagePath;
++          break;
++        case 'CIFS':
++          data.Image =
++            'smb://' + connectionData.serverUri + connectionData.imagePath;
++          break;
++        case 'HTTPS':
++          data.Image =
++            'https://' + connectionData.serverUri + connectionData.imagePath;
++          break;
++      }
+       data.UserName = connectionData.username;
+       data.Password = connectionData.password;
+       data.WriteProtected = !connectionData.isRW;
++      data.TransferProtocolType = connectionData.transferProtocolType;
++      data.Inserted = true;
+       this.startLoader();
+       this.$store
+         .dispatch('virtualMedia/mountImage', {
+@@ -205,9 +223,12 @@ export default {
+     },
+     saveConnection(connectionData) {
+       this.modalConfigureConnection.serverUri = connectionData.serverUri;
++      this.modalConfigureConnection.imagePath = connectionData.imagePath;
+       this.modalConfigureConnection.username = connectionData.username;
+       this.modalConfigureConnection.password = connectionData.password;
+       this.modalConfigureConnection.isRW = connectionData.isRW;
++      this.modalConfigureConnection.transferProtocolType =
++        connectionData.transferProtocolType;
+     },
+     configureConnection(connectionData) {
+       this.modalConfigureConnection = connectionData;
+-- 
+2.25.1
+

@@ -1,0 +1,196 @@
+From 0de040240cb4fdacc1ac00adb8af0dc8c32341c2 Mon Sep 17 00:00:00 2001
+From: vaibhavs <vaibhavs@ami.com>
+Date: Sun, 11 Jun 2023 22:42:06 +0000
+Subject: [PATCH] Add Prefix Length at Neighbor
+
+---
+ transporthandler.cpp | 82 +++++++++++++++++++++++++++++++++++---------
+ transporthandler.hpp |  8 +++--
+ 2 files changed, 71 insertions(+), 19 deletions(-)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index ba43728..b53e080 100644
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -433,12 +433,41 @@ void reconfigureGatewayMAC(sdbusplus::bus_t& bus, const ChannelParams& params,
+     ObjectLookupCache neighbors(bus, params, INTF_NEIGHBOR);
+     auto neighbor =
+         findStaticNeighbor<family>(bus, params, *gateway, neighbors);
++
++    auto prefixLength=neighbor->prefixLength;
++
++    if (neighbor)
++    {
++        deleteObjectIfExists(bus, params.service, neighbor->path);
++    }
++
++    createNeighbor<family>(bus, params, *gateway, mac, prefixLength);
++}
++
++
++template <int family>
++void reconfigureGatewayPrefixLength(sdbusplus::bus_t& bus, const ChannelParams& params,
++                           const uint8_t prefixLength)
++{
++    auto gateway = getGatewayProperty<family>(bus, params);
++    if (!gateway)
++    {
++        log<level::ERR>("Tried to set Gateway MAC without Gateway");
++        elog<InternalFailure>();
++    }
++
++    ObjectLookupCache neighbors(bus, params, INTF_NEIGHBOR);
++    auto neighbor =
++        findStaticNeighbor<family>(bus, params, *gateway, neighbors);
++
++    auto mac=neighbor->mac;
++
+     if (neighbor)
+     {
+         deleteObjectIfExists(bus, params.service, neighbor->path);
+     }
+ 
+-    createNeighbor<family>(bus, params, *gateway, mac);
++    createNeighbor<family>(bus, params, *gateway, mac, prefixLength);
+ }
+ 
+ /** @brief Deconfigures the IPv6 address info configured for the interface
+@@ -1391,10 +1420,12 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             {
+                 return responseReqDataLenInvalid();
+             }
+-            if (prefix != 0)
++            if (prefix > MAX_IPV6_PREFIX_LENGTH)
+             {
+                 return responseInvalidFieldRequest();
+             }
++
++            channelCall<reconfigureGatewayPrefixLength<AF_INET6>>(channel, prefix);
+             return responseSuccess();
+         }
+         case LanParam::IPv6StaticRouter1PrefixValue:
+@@ -1405,13 +1436,24 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+ 		return responseCommandNotAvailable();
+ 	    }
+ 
+-            std::array<uint8_t, sizeof(in6_addr)> bytes;
++            std::array<uint8_t, sizeof(in6_addr)> bytes{};
+             if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+             {
+                 return responseReqDataLenInvalid();
+             }
+-            // Accept any prefix value since our prefix length has to be 0
+-            return responseSuccess();
++
++            // Accept only null prefix value since currently not in use
++	    in6_addr ip;
++	    copyInto(ip,bytes);
++
++	    if(IN6_IS_ADDR_UNSPECIFIED(&ip))
++	    {
++                return responseSuccess();
++	    }
++	    else
++	    {
++                return responseInvalidFieldRequest();
++	    }
+         }
+         case LanParam::cipherSuitePrivilegeLevels:
+         {
+@@ -1691,14 +1733,9 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+         case LanParam::IPv6StaticRouter1IP:
+         {
+             in6_addr gateway{};
+-            EthernetInterface::DHCPConf dhcp =
+-                channelCall<getDHCPProperty>(channel);
+-            if ((dhcp == EthernetInterface::DHCPConf::v4) ||
+-                (dhcp == EthernetInterface::DHCPConf::none))
++            if(IPv6RouterControlFlag::StaticControl)
+             {
+-                gateway =
+-                    channelCall<getGatewayProperty<AF_INET6>>(channel).value_or(
+-                        in6_addr{});
++                gateway = channelCall<getGatewayProperty<AF_INET6>>(channel).value_or(in6_addr{});
+             }
+             ret.pack(dataRef(gateway));
+             return responseSuccess(std::move(ret));
+@@ -1706,17 +1743,30 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+         case LanParam::IPv6StaticRouter1MAC:
+         {
+             ether_addr mac{};
+-            auto neighbor = channelCall<getGatewayNeighbor<AF_INET6>>(channel);
+-            if (neighbor)
++            if(IPv6RouterControlFlag::StaticControl)
+             {
+-                mac = neighbor->mac;
++                auto neighbor = channelCall<getGatewayNeighbor<AF_INET6>>(channel);
++                if (neighbor)
++                {
++                    mac = neighbor->mac;
++                }
+             }
+             ret.pack(dataRef(mac));
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::IPv6StaticRouter1PrefixLength:
+         {
+-            ret.pack(UINT8_C(0));
++            uint8_t prefixLength;
++
++            if(IPv6RouterControlFlag::StaticControl)
++            {
++	    	auto neighbor = channelCall<getGatewayNeighbor<AF_INET6>>(channel);
++	    	if (neighbor)
++	    	{
++		    prefixLength = neighbor->prefixLength;
++	    	}
++            }
++            ret.pack(UINT8_C(prefixLength));
+             return responseSuccess(std::move(ret));
+         }
+         case LanParam::IPv6StaticRouter1PrefixValue:
+diff --git a/transporthandler.hpp b/transporthandler.hpp
+index cd61c79..cdce3d5 100644
+--- a/transporthandler.hpp
++++ b/transporthandler.hpp
+@@ -307,6 +307,7 @@ struct IfNeigh
+     std::string path;
+     typename AddrFamily<family>::addr ip;
+     ether_addr mac;
++    uint8_t prefixLength;
+ };
+ 
+ /** @brief Interface IP Address configuration parameters */
+@@ -640,6 +641,7 @@ std::optional<IfNeigh<family>>
+         ret.ip = ip;
+         const auto& macStr = std::get<std::string>(neighbor.at("MACAddress"));
+         ret.mac = stringToMAC(macStr.c_str());
++        ret.prefixLength = std::get<uint8_t>(neighbor.at("PrefixLength"));
+         return ret;
+     }
+ 
+@@ -649,13 +651,13 @@ std::optional<IfNeigh<family>>
+ template <int family>
+ void createNeighbor(sdbusplus::bus_t& bus, const ChannelParams& params,
+                     const typename AddrFamily<family>::addr& address,
+-                    const ether_addr& mac)
++                    const ether_addr& mac, const uint8_t prefixLength)
+ {
+     auto newreq =
+         bus.new_method_call(params.service.c_str(), params.logicalPath.c_str(),
+                             INTF_NEIGHBOR_CREATE_STATIC, "Neighbor");
+     std::string macStr = ether_ntoa(&mac);
+-    newreq.append(addrToString<family>(address), macStr);
++    newreq.append(addrToString<family>(address), macStr, prefixLength);
+     bus.call_noreply(newreq);
+ }
+ 
+@@ -697,7 +699,7 @@ void setGatewayProperty(sdbusplus::bus_t& bus, const ChannelParams& params,
+     if (neighbor)
+     {
+         deleteObjectIfExists(bus, params.service, neighbor->path);
+-        createNeighbor<family>(bus, params, address, neighbor->mac);
++        createNeighbor<family>(bus, params, address, neighbor->mac, neighbor->prefixLength);
+     }
+ }
+ 

@@ -1,0 +1,29 @@
+From 008fe2d22df2f627efbcfcb0d144dba782bad96b Mon Sep 17 00:00:00 2001
+From: prasannas <prasannas@ami.com>
+Date: Wed, 15 Mar 2023 12:04:08 +0530
+Subject: [PATCH 608/608] Add Diag Arugment in Boot Mode Interface
+
+Signed-off-by: prasannas <prasannas@ami.com>
+---
+ yaml/xyz/openbmc_project/Control/Boot/Mode.interface.yaml | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/yaml/xyz/openbmc_project/Control/Boot/Mode.interface.yaml b/yaml/xyz/openbmc_project/Control/Boot/Mode.interface.yaml
+index 6d9608a..a79adcf 100644
+--- a/yaml/xyz/openbmc_project/Control/Boot/Mode.interface.yaml
++++ b/yaml/xyz/openbmc_project/Control/Boot/Mode.interface.yaml
+@@ -18,7 +18,10 @@ enumerations:
+                 The regular/default mode, such as boot to an OS.
+           - name: Safe
+             description: >
+-                Boot to a diagnostic/trouble-shooting mode.
++                Boot from default Hard-Drive,request Safe-Mode.
++          - name: Diag
++            description: >
++                Boot from Diagnostic Partition    
+           - name: Setup
+             description: >
+                 Boot to BIOS setup.
+-- 
+2.9.5
+

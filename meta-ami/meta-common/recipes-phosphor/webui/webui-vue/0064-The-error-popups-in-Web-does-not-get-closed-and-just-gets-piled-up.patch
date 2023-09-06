@@ -1,0 +1,29 @@
+From b5fb660284e4a1b080c55764862a137c25155be9 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Mon, 19 Jun 2023 18:33:02 +0530
+Subject: [PATCH] The error pop ups in Web does not get closed and just gets
+ piled up
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/components/Mixins/BVToastMixin.js | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/components/Mixins/BVToastMixin.js b/src/components/Mixins/BVToastMixin.js
+index a04ef43..3a49569 100644
+--- a/src/components/Mixins/BVToastMixin.js
++++ b/src/components/Mixins/BVToastMixin.js
+@@ -47,8 +47,8 @@ const BVToastMixin = {
+       this.$root.$bvToast.toast(body, {
+         title,
+         variant,
+-        autoHideDelay: 10000, //auto hide in milliseconds
+-        noAutoHide: variant !== 'success',
++        autoHideDelay: variant === 'danger' ? 20000 : 10000,
++        noAutoHide: variant !== 'success' && variant !== 'danger',
+         isStatus: true,
+         solid: true,
+       });
+-- 
+2.25.1
+

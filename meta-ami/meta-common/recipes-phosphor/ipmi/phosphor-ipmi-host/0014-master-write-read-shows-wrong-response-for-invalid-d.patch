@@ -1,0 +1,52 @@
+From 5eb0b6dead4f4ae30c649a6c32bb532ea0ba74b1 Mon Sep 17 00:00:00 2001
+From: dineshsv <dineshsv@ami.com>
+Date: Wed, 23 Nov 2022 12:19:28 +0530
+Subject: [PATCH] master write read shows wrong response for invalid data
+
+Tested:
+
+  Verified- MasterWriteRead ipmi command is working as expected.
+
+```shell
+
+Before fix- MasterWriteRead ipmi command is giving wrong response for invalid data.
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.124.149 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x52 0x0E 0xc0 0xff 0x03
+nable to send RAW command (channel=0x0 netfn=0x6 lun=0x0 cmd=0x52 rsp=0xff): Unspecified error
+
+After fix- MasterWriteRead ipmi command is giving the expected response.
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.123.24 -U root -P 0penBmc -I lanplus -C 17 raw 0x06 0x52 0x0E 0xc0 0xff 0x03
+Unable to send RAW command (channel=0x0 netfn=0x6 lun=0x0 cmd=0x52 rsp=0x83): Unknown (0x83)
+
+```
+
+Signed-off-by: dineshsv <dineshsv@ami.com>
+---
+ libipmid/utils.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libipmid/utils.cpp b/libipmid/utils.cpp
+index a2e4dd2..3bf5a5b 100644
+--- a/libipmid/utils.cpp
++++ b/libipmid/utils.cpp
+@@ -634,6 +634,7 @@ ipmi::Cc i2cWriteRead(std::string i2cBus, const uint8_t slaveAddr,
+                       std::vector<uint8_t> writeData,
+                       std::vector<uint8_t>& readBuf)
+ {
++	static constexpr uint8_t NotAcknowledgementOnWrite = 0x83;
+     // Open the i2c device, for low-level combined data write/read
+     int i2cDev = ::open(i2cBus.c_str(), O_RDWR | O_CLOEXEC);
+     if (i2cDev < 0)
+@@ -678,7 +679,7 @@ ipmi::Cc i2cWriteRead(std::string i2cBus, const uint8_t slaveAddr,
+     {
+         log<level::ERR>("I2C WR Failed!",
+                         phosphor::logging::entry("RET=%d", ret));
+-        return ipmi::ccUnspecifiedError;
++        return NotAcknowledgementOnWrite;
+     }
+     if (readCount)
+     {
+-- 
+2.25.1
+

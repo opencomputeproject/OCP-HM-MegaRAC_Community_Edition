@@ -1,0 +1,51 @@
+From 87c987d916a895f350415a9ac7688d014a6c6ba6 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Thu, 17 Nov 2022 13:10:23 +0530
+Subject: [PATCH] Defect: 1214 - [OE 2.3] [Archer-City] Not able to initiate
+ system dump via webUI
+
+Description:
+
+Root Cause: Dump creation Drop down list added the System Dump option
+
+Fix: Removed the System Dump option in dropdown list.
+
+Issue URL : https://git.ami.com/megarac/osp-team/oe2.3/-/issues/1214
+
+Tested:
+
+Step 1 - Login to WEBUI.
+Step 2 - Navigate to Logs menu.
+Step 3 - Click Dumps menu button.
+Step 4 - USer able to choose now only BMC Dump
+Step 5 - USer can able to generate the Dump logs from Dumps available on BMC section.
+Step 6 - USer can able to delete the Dump logs from Dumps available on BMC section.
+
+Result:
+
+As per the above steps verified the BMC Dump functionality.
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/views/Logs/Dumps/DumpsForm.vue | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/views/Logs/Dumps/DumpsForm.vue b/src/views/Logs/Dumps/DumpsForm.vue
+index 07f4a06..ab6e0f4 100644
+--- a/src/views/Logs/Dumps/DumpsForm.vue
++++ b/src/views/Logs/Dumps/DumpsForm.vue
+@@ -44,10 +44,9 @@ export default {
+   mixins: [BVToastMixin, VuelidateMixin],
+   data() {
+     return {
+-      selectedDumpType: null,
++      selectedDumpType: 'bmc',
+       dumpTypeOptions: [
+         { value: 'bmc', text: this.$t('pageDumps.form.bmcDump') },
+-        { value: 'system', text: this.$t('pageDumps.form.systemDump') },
+       ],
+     };
+   },
+-- 
+2.25.1
+

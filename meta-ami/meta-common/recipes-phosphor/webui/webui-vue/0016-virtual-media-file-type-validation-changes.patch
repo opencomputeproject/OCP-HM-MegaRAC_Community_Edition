@@ -1,0 +1,25 @@
+From 873413aa2f09cd11b1949b28fe9a46bfe1c38e17 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Fri, 30 Sep 2022 20:39:27 +0530
+Subject: [PATCH] virtual media file type validation changes
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/views/Operations/VirtualMedia/VirtualMedia.vue | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/views/Operations/VirtualMedia/VirtualMedia.vue b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+index 19e9300..d405ad1 100644
+--- a/src/views/Operations/VirtualMedia/VirtualMedia.vue
++++ b/src/views/Operations/VirtualMedia/VirtualMedia.vue
+@@ -13,6 +13,7 @@
+                   v-if="!dev.isActive"
+                   :id="concatId(dev.id)"
+                   v-model="dev.file"
++                  accept=".iso, .img, .ima, .nrg"
+                 >
+                   <template #invalid>
+                     <b-form-invalid-feedback role="alert">
+-- 
+2.25.1
+

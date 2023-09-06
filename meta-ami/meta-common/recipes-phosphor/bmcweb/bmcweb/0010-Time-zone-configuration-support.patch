@@ -1,0 +1,223 @@
+diff --git a/http/utility.hpp b/http/utility.hpp
+index 78570169e..217f7848e 100644
+--- a/http/utility.hpp
++++ b/http/utility.hpp
+@@ -22,6 +22,12 @@
+ #include <type_traits>
+ #include <utility>
+ #include <variant>
++#include <fstream>
++#include "nlohmann/json.hpp"
++#include <cstring>
++#include <regex>
++#include <boost/date_time/posix_time/posix_time.hpp>
++
+
+ namespace crow
+ {
+@@ -539,6 +545,136 @@ inline bool base64Decode(const std::string_view input, std::string& output)
+     return true;
+ }
+
++inline float tzFormatConvert(std::string timeZone)
++{
++try {
++    auto i = timeZone.find(':');
++    timeZone = timeZone.replace(i, 1, ".");
++    std::string minute = timeZone.substr(i + 1);
++    float fValue = std::stof(minute.c_str());
++    fValue /= 60;
++    minute = std::to_string(fValue);
++    auto j = minute.find('.');
++    minute = minute.substr(j + 1);
++    timeZone = timeZone.replace(i + 1, 2, minute);
++
++    float res = std::stof(timeZone.c_str());
++   return res ;
++}
++catch (std::exception &ex) {
++        BMCWEB_LOG_ERROR << "Invalid parameter type" << ex.what();
++return 0;
++}
++}
++
++
++static std::string localTimeZone = "/etc/timezone";
++
++namespace details
++{
++//constexpr uint64_t maxMilliSeconds = 253402300799999;
++//constexpr uint64_t maxSeconds = 253402300799;
++inline std::string getDateTime(boost::posix_time::milliseconds timeSinceEpoch)
++{
++    boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
++    boost::posix_time::ptime time = epoch + timeSinceEpoch;
++    // append zero offset to the end according to the Redfish spec for Date-Time
++    return boost::posix_time::to_iso_extended_string(time) + "+00:00";
++}
++} // namespace details
++
++inline std::string getTimeZone(std::string filePath)
++{
++    std::fstream in(filePath, std::ios::in);
++    if (!in.is_open())
++    {
++        return "+00:00";
++    }
++    std::string temp = "";
++    in >> temp;
++    in.close();
++    return temp;
++}
++
++inline void saveTimeZone(std::string filePath, std::string timeZone)
++{
++    std::fstream out(filePath, std::ios::out);
++    if (!out.is_open())
++        return;
++    out << timeZone;
++    out.close();
++    return;
++}
++
++inline std::string getDateTime(const std::time_t& time)
++{
++    std::array<char, 128> dateTime;
++    std::string redfishDateTime("0000-00-00T00:00:00Z00:00");
++
++    std::string timeZone = getTimeZone(crow::utility::localTimeZone);
++    auto value = tzFormatConvert(timeZone);
++    int seconds = static_cast<int>(value * 3600);
++    std::chrono::time_point<std::chrono::system_clock> now =
++        std::chrono::system_clock::from_time_t(time);
++    std::time_t now_offset = std::chrono::system_clock::to_time_t(
++        now + std::chrono::seconds(seconds));
++
++    if (std::strftime(dateTime.begin(), dateTime.size(), "%FT%T%z",
++                      std::localtime(&now_offset)))
++    {
++        // insert the colon required by the ISO 8601 standard
++        redfishDateTime = std::string(dateTime.data());
++        redfishDateTime.replace(redfishDateTime.begin() + 19,
++                                redfishDateTime.end(), timeZone);
++    }
++
++    return redfishDateTime;
++}
++
++inline std::string getDateTimeUint(uint64_t secondsSinceEpoch)
++{
++   // secondsSinceEpoch = std::min(secondsSinceEpoch, details::maxSeconds);
++    boost::posix_time::seconds boostSeconds(secondsSinceEpoch);
++    return details::getDateTime(
++        boost::posix_time::milliseconds(boostSeconds.total_milliseconds()));
++}
++
++inline std::string getDateTimeUintMs(uint64_t milliSecondsSinceEpoch)
++{
++    //milliSecondsSinceEpoch =
++     //   std::min(details::maxMilliSeconds, milliSecondsSinceEpoch);
++    return details::getDateTime(
++        boost::posix_time::milliseconds(milliSecondsSinceEpoch));
++}
++
++inline std::string getDateTimeStdtime(std::time_t secondsSinceEpoch)
++{
++    boost::posix_time::ptime time =
++        boost::posix_time::from_time_t(secondsSinceEpoch);
++    return boost::posix_time::to_iso_extended_string(time) + "+00:00";
++}
++
++inline std::pair<std::string, std::string> getDateTimeOffsetNow()
++{
++    std::time_t time = std::time(nullptr);
++    //std::string dateTime = getDateTimeStdtime(time);
++    std::string dateTime = getDateTime(time);
++
++    /* extract the local Time Offset value from the
++     * recevied dateTime string.
++     */
++    std::string timeOffset("Z00:00");
++    std::size_t lastPos = dateTime.size();
++    std::size_t len = timeOffset.size();
++    if (lastPos > len)
++    {
++        timeOffset = dateTime.substr(lastPos - len);
++    }
++
++    return std::make_pair(dateTime, timeOffset);
++}
++
++
+ inline bool constantTimeStringCompare(const std::string_view a,
+                                       const std::string_view b)
+ {
+@@ -559,6 +695,17 @@ struct ConstantTimeCompare
+     }
+ };
+
++inline std::time_t getTimestamp(uint64_t millisTimeStamp)
++{
++    // Retrieve Created property with format:
++    // yyyy-mm-ddThh:mm:ss
++    std::chrono::milliseconds chronoTimeStamp(millisTimeStamp);
++    return std::chrono::duration_cast<std::chrono::duration<int>>(
++               chronoTimeStamp)
++        .count();
++}
++
++
+ namespace details
+ {
+ inline boost::urls::url
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index a52b7b528..a48ee4379 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -1883,6 +1915,22 @@ inline void
+         "/xyz/openbmc_project/software", "org.freedesktop.DBus.ObjectManager",
+         "GetManagedObjects");
+ }
++inline void setTimeZone(std::shared_ptr<bmcweb::AsyncResp> aResp,
++                        std::string timeZone)
++{
++    std::regex tz_regex("[-+][0-1][0-9]:[0-5][0-9]");
++    auto reg = std::regex_match(timeZone, tz_regex);
++    if (reg)
++    {
++        crow::utility::saveTimeZone(crow::utility::localTimeZone, timeZone);
++    }
++    else
++    {
++        messages::propertyValueFormatError(aResp->res, timeZone,
++                                           "DateTimeLocalOffset");
++    }
++}
++
+
+ inline void setDateTime(std::shared_ptr<bmcweb::AsyncResp> aResp,
+                         std::string datetime)
+@@ -2220,9 +2331,10 @@ inline void requestRoutesManager(App& app)
+         std::optional<nlohmann::json> oem;
+         std::optional<nlohmann::json> links;
+         std::optional<std::string> datetime;
++       std::optional<std::string> timeZone;
+
+         if (!json_util::readJsonPatch(req, asyncResp->res, "Oem", oem,
+-                                      "DateTime", datetime, "Links", links))
++                                      "DateTime", datetime, "Links", links, "DateTimeLocalOffset", timeZone))
+         {
+             return;
+         }
+@@ -2292,6 +2404,11 @@ inline void requestRoutesManager(App& app)
+         {
+             setDateTime(asyncResp, std::move(*datetime));
+         }
++       if (timeZone)
++                {
++                    setTimeZone(asyncResp, std::move(*timeZone));
++                }
++
+         });
+ }
+

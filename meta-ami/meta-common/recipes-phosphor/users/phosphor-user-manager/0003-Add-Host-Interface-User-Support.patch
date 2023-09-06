@@ -1,0 +1,72 @@
+From 59eadf440114533b6a6f955a2b15147a0edb0650 Mon Sep 17 00:00:00 2001
+From: Abinaya L <abinayal@ami.com>
+Date: Wed, 19 Jul 2023 21:32:54 +0530
+Subject: [PATCH 3/3] 0003-Add-Host-Interface-User-Support
+
+---
+ user_mgr.cpp | 20 ++++++++++++++++++++
+ user_mgr.hpp | 10 +++++++++-
+ 2 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/user_mgr.cpp b/user_mgr.cpp
+index ecdd7c4..5c9b96d 100644
+--- a/user_mgr.cpp
++++ b/user_mgr.cpp
+@@ -1122,6 +1122,26 @@ size_t UserMgr::getNonIpmiUsersCount()
+     return usersList.size() - ipmiUsers.size();
+ }
+ 
++std::vector<std::string> UserMgr::allGroups() const
++{
++    std::vector<std::string> userGroups;
++    /*The "redfish-hostiface" group can only be used by BIOS/HOST
++     * with Get BootStrap Credentials IPMI command to create a HI user.
++     * And it must not be used for creating local user either with
++     * IPMITOOL set user command or Redfish AccountService schema.
++     * Therefore, block the "redfish-hostiface" group from
++     * "AllGroups" DBus property.
++     */
++    for (const auto& group : groupsMgr)
++    {
++        if (group.compare("redfish-hostiface"))
++        {
++            userGroups.push_back(group);
++        }
++    }
++    return userGroups;
++}
++
+ bool UserMgr::isUserEnabled(const std::string& userName)
+ {
+     // All user management lock has to be based on /etc/shadow
+diff --git a/user_mgr.hpp b/user_mgr.hpp
+index 6705572..e6e4dd5 100644
+--- a/user_mgr.hpp
++++ b/user_mgr.hpp
+@@ -249,6 +249,14 @@ class UserMgr : public Ifaces
+      **/
+     UserInfoMap getUserInfo(std::string userName) override;
+ 
++    /** @brief returns groups info
++     * Checks for the available user groups, by which new user can be created.
++     *
++     * @param[in] - none
++     * @return -  vector of strings of user groups
++     **/
++    std::vector<std::string> allGroups() const override;
++
+     /** @brief get IPMI user count
+      *  method to get IPMI user count
+      *
+@@ -422,7 +430,7 @@ class UserMgr : public Ifaces
+                                               "priv-user"};
+ 
+     /** @brief groups manager container */
+-    std::vector<std::string> groupsMgr;
++    std::vector<std::string> groupsMgr = {"web", "redfish", "ipmi", "ssh", "redfish-hostiface"};
+ 
+     /** @brief map container to hold users object */
+     using UserName = std::string;
+-- 
+2.25.1
+

@@ -1,0 +1,95 @@
+From adf600fdb22e7c654b17b1870e943fdd5b81fbb6 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 1 Sep 2022 14:26:40 +0530
+Subject: [PATCH] User Management Enabled / Disabled & Custom error changes
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                           |  2 +-
+ .../UserManagement/ModalUser.vue                 |  4 +++-
+ .../UserManagement/UserManagement.vue            | 16 ++++++++++++++--
+ 3 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 9ca66a2..ef517f1 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -580,7 +580,7 @@
+       "errorBatchDelete": "Error deleting %{count} user. | Error deleting %{count} users.",
+       "errorBatchDisable": "Error disabling %{count} user. | Error disabling %{count} users.",
+       "errorBatchEnable": "Error enabling %{count} user. | Error enabling %{count} users.",
+-      "errorCreateUser": "Error creating user '%{username}'.",
++      "errorCreateUser": "Username '%{username}' already exists.",
+       "errorDeleteUser": "Error deleting user '%{username}'.",
+       "errorLoadAccountSettings": "Error loading account settings",
+       "errorLoadUsers": "Error loading users.",
+diff --git a/src/views/SecurityAndAccess/UserManagement/ModalUser.vue b/src/views/SecurityAndAccess/UserManagement/ModalUser.vue
+index 0f8757c..5a1dc61 100644
+--- a/src/views/SecurityAndAccess/UserManagement/ModalUser.vue
++++ b/src/views/SecurityAndAccess/UserManagement/ModalUser.vue
+@@ -56,6 +56,7 @@
+                 name="user-status"
+                 data-test-id="userManagement-radioButton-statusDisabled"
+                 :value="false"
++                :disabled="!newUser && originalUsername === disabled"
+                 @input="$v.form.status.$touch()"
+               >
+                 {{ $t('global.status.disabled') }}
+@@ -81,7 +82,7 @@
+                 aria-describedby="username-help-block"
+                 data-test-id="userManagement-input-username"
+                 :state="getValidationState($v.form.username)"
+-                :disabled="!newUser && originalUsername === 'root'"
++                :disabled="!newUser && originalUsername === disabled"
+                 @input="$v.form.username.$touch()"
+               />
+               <b-form-invalid-feedback role="alert">
+@@ -259,6 +260,7 @@ export default {
+         passwordConfirmation: '',
+         manualUnlock: false,
+       },
++      disabled: this.$store.getters['global/username'],
+     };
+   },
+   computed: {
+diff --git a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+index c6c556c..b17be86 100644
+--- a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
++++ b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+@@ -217,12 +217,17 @@ export default {
+           actions: [
+             {
+               value: 'edit',
+-              enabled: true,
++              enabled: this.editEnable(user),
+               title: this.$t('pageUserManagement.editUser'),
+             },
+             {
+               value: 'delete',
+-              enabled: user.UserName === 'root' ? false : true,
++              enabled:
++                user.UserName === this.$store.getters['global/username']
++                  ? false
++                  : true && user.UserName === 'root'
++                  ? false
++                  : true,
+               title: this.$tc('pageUserManagement.deleteUser'),
+             },
+           ],
+@@ -247,6 +252,13 @@ export default {
+     this.$store.dispatch('userManagement/getAccountRoles');
+   },
+   methods: {
++    editEnable(user) {
++      if ('root' === this.$store.getters['global/username']) {
++        return true;
++      } else {
++        return user.UserName === 'root' ? false : true;
++      }
++    },
+     initModalUser(user) {
+       this.activeUser = user;
+       this.$bvModal.show('modal-user');
+-- 
+2.25.1
+

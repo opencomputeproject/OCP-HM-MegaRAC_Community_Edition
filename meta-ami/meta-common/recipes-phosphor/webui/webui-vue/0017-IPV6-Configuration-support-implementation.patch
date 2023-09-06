@@ -1,0 +1,924 @@
+From 36bd93e8d23704d37934b6beb0e07daf4f85a6a6 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Fri, 7 Oct 2022 19:27:23 +0530
+Subject: [PATCH] IPV6 Configuration support in WEBUI
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                        |  17 +-
+ src/store/modules/Settings/NetworkStore.js    | 128 +++++++++-
+ src/views/Settings/Network/ModalIpv6.vue      | 168 +++++++++++++
+ src/views/Settings/Network/Network.vue        |  38 ++-
+ .../Network/NetworkGlobalSettings.vue         |   6 -
+ .../Network/NetworkInterfaceSettings.vue      |   4 -
+ src/views/Settings/Network/TableDns.vue       |   4 -
+ src/views/Settings/Network/TableIpv4.vue      |  74 +++++-
+ src/views/Settings/Network/TableIpv6.vue      | 236 ++++++++++++++++++
+ 9 files changed, 631 insertions(+), 44 deletions(-)
+ create mode 100644 src/views/Settings/Network/ModalIpv6.vue
+ create mode 100644 src/views/Settings/Network/TableIpv6.vue
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index f3adfc5..623f1da 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -701,6 +701,7 @@
+     "ipv4": "IPv4",
+     "ipv4Addresses": "IPv4 addresses",
+     "ipv6": "IPv6",
++    "ipv6Addresses": "IPv6 addresses",
+     "linkStatus": "Link status",
+     "macAddress": "MAC address",
+     "network": "network",
+@@ -718,19 +719,31 @@
+       "gateway": "Gateway",
+       "ipAddress": "IP address",
+       "staticDns": "Static DNS",
+-      "subnetMask": "Subnet mask"
++      "subnetMask": "Subnet mask",
++      "prefixLength": "Prefix Length",
++      "primaryDns": "Primary DNS Server",
++      "secondaryDns": "Secondary DNS Server",
++      "confirm": "Confirmation",
++      "ipv4Confirmation": "Please delete any one of IPV4 address to add Static IPV4 address.",
++      "ipv6Confirmation": "Please delete any one of IPV6 address to add Static IPV6 address."
+     },
+     "table": {
+       "addDnsAddress": "Add IP address",
+       "addIpv4Address": "Add static IPv4 address",
++      "addIpv6Address": "Add static IPv6 address",
+       "addressOrigin": "Address origin",
+       "deleteDns": "Delete DNS address",
+       "deleteIpv4": "Delete IPv4 address",
++      "deleteIpv6": "Delete IPv6 address",
+       "editDns": "Edit DNS address",
+       "editIpv4": "Edit IPv4 address",
++      "editIpv6": "Edit IPv6 address",
+       "gateway": "Gateway",
+       "ipAddress": "IP address",
+-      "subnet": "Subnet mask"
++      "subnet": "Subnet mask",
++      "prefixLength": "Prefix Length",
++      "primaryDns": "Primary DNS Server",
++      "secondaryDns": "Secondary DNS Server"
+     },
+     "toast": {
+       "errorSaveNetworkSettings": "Error updating %{setting} settings.",
+diff --git a/src/store/modules/Settings/NetworkStore.js b/src/store/modules/Settings/NetworkStore.js
+index 125eca7..6ffc8ac 100644
+--- a/src/store/modules/Settings/NetworkStore.js
++++ b/src/store/modules/Settings/NetworkStore.js
+@@ -25,10 +25,19 @@ const NetworkStore = {
+       (state.ethernetData = ethernetData),
+     setFirstInterfaceId: (state, firstInterfaceId) =>
+       (state.firstInterfaceId = firstInterfaceId),
++    setIpv4Dhcp: (state, { dhcpEnable, index }) => {
++      console.log(state.globalNetworkSettings, dhcpEnable, index);
++      state.globalNetworkSettings[index].ipv4DhcpEnabled = dhcpEnable;
++    },
++    setIpv6Dhcp: (state, { dhcpEnable, index }) => {
++      console.log(state.globalNetworkSettings, dhcpEnable, index);
++      state.globalNetworkSettings[index].ipv6DhcpEnabled = dhcpEnable;
++    },
+     setGlobalNetworkSettings: (state, data) => {
+       state.globalNetworkSettings = data.map(({ data }) => {
+         const {
+           DHCPv4,
++          DHCPv6,
+           HostName,
+           IPv4Addresses,
+           IPv4StaticAddresses,
+@@ -47,6 +56,8 @@ const NetworkStore = {
+           useDnsEnabled: DHCPv4.UseDNSServers,
+           useDomainNameEnabled: DHCPv4.UseDomainName,
+           useNtpEnabled: DHCPv4.UseNTPServers,
++          ipv4DhcpEnabled: DHCPv4.DHCPEnabled,
++          ipv6DhcpEnabled: DHCPv6.OperatingMode == 'Stateful' ? true : false,
+         };
+       });
+     },
+@@ -77,7 +88,6 @@ const NetworkStore = {
+             (ethernetInterface) => ethernetInterface.data
+           );
+           const firstInterfaceId = ethernetData[0].Id;
+-
+           commit('setEthernetData', ethernetData);
+           commit('setFirstInterfaceId', firstInterfaceId);
+           commit('setSelectedInterfaceId', firstInterfaceId);
+@@ -212,6 +222,95 @@ const NetworkStore = {
+           );
+         });
+     },
++    async saveIpv4Dhcp({ dispatch, state }, dhcpState) {
++      let DHCPv4 = {
++        DHCPv4: {
++          DHCPEnabled: dhcpState,
++        },
++      };
++
++      return api
++        .patch(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
++          DHCPv4
++        )
++        .then(dispatch('getEthernetData'))
++        .then(() => {
++          return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
++            setting: i18n.t('pageNetwork.ipv4'),
++          });
++        })
++        .catch((error) => {
++          console.log(error);
++          throw new Error(
++            i18n.t('pageNetwork.toast.errorSaveNetworkSettings', {
++              setting: i18n.t('pageNetwork.ipv4'),
++            })
++          );
++        });
++    },
++    async saveIpv6Dhcp({ dispatch, state }, dhcpState) {
++      let DHCPv6 = {
++        DHCPv6: {
++          OperatingMode: dhcpState,
++        },
++      };
++
++      return api
++        .patch(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
++          DHCPv6
++        )
++        .then(dispatch('getEthernetData'))
++        .then(() => {
++          return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
++            setting: i18n.t('pageNetwork.ipv6'),
++          });
++        })
++        .catch((error) => {
++          console.log(error);
++          throw new Error(
++            i18n.t('pageNetwork.toast.errorSaveNetworkSettings', {
++              setting: i18n.t('pageNetwork.ipv6'),
++            })
++          );
++        });
++    },
++    async saveIpv6Address({ dispatch, state }, ipv6Form) {
++      let IPv6StaticAddresses = [];
++      let IPv6StaticDefaultGateways = [];
++      IPv6StaticAddresses.push({
++        Address: ipv6Form.Address,
++        PrefixLength: parseInt(ipv6Form.PrefixLength),
++      });
++      IPv6StaticDefaultGateways.push({
++        Address: ipv6Form.Gateway,
++        PrefixLength: parseInt(ipv6Form.PrefixLength),
++      });
++
++      return api
++        .patch(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
++          {
++            IPv6StaticAddresses: IPv6StaticAddresses,
++            IPv6StaticDefaultGateways: IPv6StaticDefaultGateways,
++          }
++        )
++        .then(dispatch('getEthernetData'))
++        .then(() => {
++          return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
++            setting: i18n.t('pageNetwork.ipv4'),
++          });
++        })
++        .catch((error) => {
++          console.log(error);
++          throw new Error(
++            i18n.t('pageNetwork.toast.errorSaveNetworkSettings', {
++              setting: i18n.t('pageNetwork.ipv4'),
++            })
++          );
++        });
++    },
+     async editIpv4Address({ dispatch, state }, ipv4TableData) {
+       return api
+         .patch(
+@@ -233,6 +332,33 @@ const NetworkStore = {
+           );
+         });
+     },
++    async editIpv6Address(
++      { dispatch, state },
++      { IPv6StaticAddresses, IPv6StaticDefaultGateways }
++    ) {
++      return api
++        .patch(
++          `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
++          {
++            IPv6StaticAddresses: IPv6StaticAddresses,
++            IPv6StaticDefaultGateways: IPv6StaticDefaultGateways,
++          }
++        )
++        .then(dispatch('getEthernetData'))
++        .then(() => {
++          return i18n.t('pageNetwork.toast.successSaveNetworkSettings', {
++            setting: i18n.t('pageNetwork.ipv6'),
++          });
++        })
++        .catch((error) => {
++          console.log(error);
++          throw new Error(
++            i18n.t('pageNetwork.toast.errorSaveNetworkSettings', {
++              setting: i18n.t('pageNetwork.ipv6'),
++            })
++          );
++        });
++    },
+     async saveSettings({ state, dispatch }, interfaceSettingsForm) {
+       return api
+         .patch(
+diff --git a/src/views/Settings/Network/ModalIpv6.vue b/src/views/Settings/Network/ModalIpv6.vue
+new file mode 100644
+index 0000000..f490155
+--- /dev/null
++++ b/src/views/Settings/Network/ModalIpv6.vue
+@@ -0,0 +1,168 @@
++<template>
++  <b-modal
++    id="modal-add-ipv6"
++    ref="modal"
++    :title="$t('pageNetwork.table.addIpv6Address')"
++    @hidden="resetForm"
++  >
++    <b-form id="form-ipv6" @submit.prevent="handleSubmit">
++      <b-row>
++        <b-col sm="6">
++          <b-form-group
++            :label="$t('pageNetwork.modal.ipAddress')"
++            label-for="ipAddress"
++          >
++            <b-form-input
++              id="ipAddress"
++              v-model="form.ipAddress"
++              type="text"
++              :state="getValidationState($v.form.ipAddress)"
++              @input="$v.form.ipAddress.$touch()"
++            />
++            <b-form-invalid-feedback role="alert">
++              <template v-if="!$v.form.ipAddress.required">
++                {{ $t('global.form.fieldRequired') }}
++              </template>
++              <template v-if="!$v.form.ipAddress.ipAddress">
++                {{ $t('global.form.invalidFormat') }}
++              </template>
++            </b-form-invalid-feedback>
++          </b-form-group>
++        </b-col>
++        <b-col sm="6">
++          <b-form-group
++            :label="$t('pageNetwork.modal.prefixLength')"
++            label-for="prefixLength"
++          >
++            <b-form-input
++              id="prefixLength"
++              v-model="form.prefixLength"
++              type="text"
++              :state="getValidationState($v.form.prefixLength)"
++              @input="$v.form.prefixLength.$touch()"
++            />
++            <b-form-invalid-feedback role="alert">
++              <template v-if="!$v.form.prefixLength.required">
++                {{ $t('global.form.fieldRequired') }}
++              </template>
++              <template v-if="!$v.form.prefixLength.ipAddress">
++                {{ $t('global.form.invalidFormat') }}
++              </template>
++            </b-form-invalid-feedback>
++          </b-form-group>
++        </b-col>
++      </b-row>
++      <b-row>
++        <b-col sm="6">
++          <b-form-group
++            :label="$t('pageNetwork.modal.gateway')"
++            label-for="gateway"
++          >
++            <b-form-input
++              id="gateway"
++              v-model="form.gateway"
++              type="text"
++              :state="getValidationState($v.form.gateway)"
++              @input="$v.form.gateway.$touch()"
++            />
++            <b-form-invalid-feedback role="alert">
++              <template v-if="!$v.form.gateway.required">
++                {{ $t('global.form.fieldRequired') }}
++              </template>
++              <template v-if="!$v.form.gateway.ipAddress">
++                {{ $t('global.form.invalidFormat') }}
++              </template>
++            </b-form-invalid-feedback>
++          </b-form-group>
++        </b-col>
++      </b-row>
++    </b-form>
++    <template #modal-footer="{ cancel }">
++      <b-button variant="secondary" @click="cancel()">
++        {{ $t('global.action.cancel') }}
++      </b-button>
++      <b-button form="form-ipv6" type="submit" variant="primary" @click="onOk">
++        {{ $t('global.action.add') }}
++      </b-button>
++    </template>
++  </b-modal>
++</template>
++
++<script>
++import VuelidateMixin from '@/components/Mixins/VuelidateMixin.js';
++import { helpers, required } from 'vuelidate/lib/validators';
++
++export default {
++  mixins: [VuelidateMixin],
++  props: {
++    defaultGateway: {
++      type: String,
++      default: '',
++    },
++  },
++  data() {
++    return {
++      form: {
++        ipAddress: '',
++        prefixLength: '',
++        gateway: '',
++      },
++    };
++  },
++  validations() {
++    return {
++      form: {
++        ipAddress: {
++          required,
++          pattern: helpers.regex(
++            'pattern',
++            /^(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}(?::[0-9a-fA-F]{1,4}){1,1}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|(?:[0-9a-fA-F]{1,4}:){1,1}(?::[0-9a-fA-F]{1,4}){1,6}|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})\.){3,3}(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})\.){3,3}(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2}))$/i
++          ),
++        },
++        prefixLength: {
++          required,
++        },
++        gateway: {
++          required,
++          pattern: helpers.regex(
++            'pattern',
++            /^(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}(?::[0-9a-fA-F]{1,4}){1,1}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|(?:[0-9a-fA-F]{1,4}:){1,1}(?::[0-9a-fA-F]{1,4}){1,6}|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})\.){3,3}(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2})\.){3,3}(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2,2}|0?[0-9]{0,2}))$/i
++          ),
++        },
++      },
++    };
++  },
++  methods: {
++    handleSubmit() {
++      this.$v.$touch();
++      if (this.$v.$invalid) return;
++      this.$emit('ok', {
++        Address: this.form.ipAddress,
++        PrefixLength: this.form.prefixLength,
++        Gateway: this.form.gateway,
++      });
++      this.closeModal();
++    },
++    cancel() {
++      this.closeModal();
++    },
++    closeModal() {
++      this.$nextTick(() => {
++        this.$refs.modal.hide();
++      });
++    },
++    resetForm() {
++      this.form.ipAddress = null;
++      this.form.gateway = null;
++      this.form.prefixLength = null;
++      this.$v.$reset();
++      this.$emit('hidden');
++    },
++    onOk(bvModalEvt) {
++      // prevent modal close
++      bvModalEvt.preventDefault();
++      this.handleSubmit();
++    },
++  },
++};
++</script>
+diff --git a/src/views/Settings/Network/Network.vue b/src/views/Settings/Network/Network.vue
+index 2abbcd7..bfb69cf 100644
+--- a/src/views/Settings/Network/Network.vue
++++ b/src/views/Settings/Network/Network.vue
+@@ -23,6 +23,7 @@
+                 <network-interface-settings :tab-index="tabIndex" />
+                 <!-- IPV4 table -->
+                 <table-ipv-4 :tab-index="tabIndex" />
++                <table-ipv-6 :tab-index="tabIndex" />
+                 <!-- Static DNS table -->
+                 <table-dns :tab-index="tabIndex" />
+               </b-tab>
+@@ -33,6 +34,7 @@
+     </page-section>
+     <!-- Modals -->
+     <modal-ipv4 :default-gateway="defaultGateway" @ok="saveIpv4Address" />
++    <modal-ipv6 @ok="saveIpv6Address" />
+     <modal-dns @ok="saveDnsAddress" />
+     <modal-hostname :hostname="currentHostname" @ok="saveSettings" />
+     <modal-mac-address :mac-address="currentMacAddress" @ok="saveSettings" />
+@@ -46,12 +48,14 @@ import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
+ import ModalMacAddress from './ModalMacAddress.vue';
+ import ModalHostname from './ModalHostname.vue';
+ import ModalIpv4 from './ModalIpv4.vue';
++import ModalIpv6 from './ModalIpv6.vue';
+ import ModalDns from './ModalDns.vue';
+ import NetworkGlobalSettings from './NetworkGlobalSettings.vue';
+ import NetworkInterfaceSettings from './NetworkInterfaceSettings.vue';
+ import PageSection from '@/components/Global/PageSection';
+ import PageTitle from '@/components/Global/PageTitle';
+ import TableIpv4 from './TableIpv4.vue';
++import TableIpv6 from './TableIpv6.vue';
+ import TableDns from './TableDns.vue';
+ import { mapState } from 'vuex';
+ 
+@@ -61,6 +65,7 @@ export default {
+     ModalHostname,
+     ModalMacAddress,
+     ModalIpv4,
++    ModalIpv6,
+     ModalDns,
+     NetworkGlobalSettings,
+     NetworkInterfaceSettings,
+@@ -68,6 +73,7 @@ export default {
+     PageTitle,
+     TableDns,
+     TableIpv4,
++    TableIpv6,
+   },
+   mixins: [BVToastMixin, DataFormatterMixin, LoadingBarMixin],
+   beforeRouteLeave(to, from, next) {
+@@ -93,27 +99,9 @@ export default {
+   },
+   created() {
+     this.startLoader();
+-    const globalSettings = new Promise((resolve) => {
+-      this.$root.$on('network-global-settings-complete', () => resolve());
+-    });
+-    const interfaceSettings = new Promise((resolve) => {
+-      this.$root.$on('network-interface-settings-complete', () => resolve());
+-    });
+-    const networkTableDns = new Promise((resolve) => {
+-      this.$root.$on('network-table-dns-complete', () => resolve());
+-    });
+-    const networkTableIpv4 = new Promise((resolve) => {
+-      this.$root.$on('network-table-ipv4-complete', () => resolve());
+-    });
+-    // Combine all child component Promises to indicate
+-    // when page data load complete
+-    Promise.all([
+-      this.$store.dispatch('network/getEthernetData'),
+-      globalSettings,
+-      interfaceSettings,
+-      networkTableDns,
+-      networkTableIpv4,
+-    ]).finally(() => this.endLoader());
++    Promise.all([this.$store.dispatch('network/getEthernetData')]).finally(() =>
++      this.endLoader()
++    );
+   },
+   methods: {
+     getModalInfo() {
+@@ -146,6 +134,14 @@ export default {
+         .catch(({ message }) => this.errorToast(message))
+         .finally(() => this.endLoader());
+     },
++    saveIpv6Address(modalFormData) {
++      this.startLoader();
++      this.$store
++        .dispatch('network/saveIpv6Address', modalFormData)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message))
++        .finally(() => this.endLoader());
++    },
+     saveDnsAddress(modalFormData) {
+       this.startLoader();
+       this.$store
+diff --git a/src/views/Settings/Network/NetworkGlobalSettings.vue b/src/views/Settings/Network/NetworkGlobalSettings.vue
+index 3028767..376f228 100644
+--- a/src/views/Settings/Network/NetworkGlobalSettings.vue
++++ b/src/views/Settings/Network/NetworkGlobalSettings.vue
+@@ -126,12 +126,6 @@ export default {
+       },
+     },
+   },
+-  created() {
+-    this.$store.dispatch('network/getEthernetData').finally(() => {
+-      // Emit initial data fetch complete to parent component
+-      this.$root.$emit('network-global-settings-complete');
+-    });
+-  },
+   methods: {
+     changeDomainNameState(state) {
+       this.$store
+diff --git a/src/views/Settings/Network/NetworkInterfaceSettings.vue b/src/views/Settings/Network/NetworkInterfaceSettings.vue
+index 8433c63..8dd524a 100644
+--- a/src/views/Settings/Network/NetworkInterfaceSettings.vue
++++ b/src/views/Settings/Network/NetworkInterfaceSettings.vue
+@@ -97,10 +97,6 @@ export default {
+   },
+   created() {
+     this.getSettings();
+-    this.$store.dispatch('network/getEthernetData').finally(() => {
+-      // Emit initial data fetch complete to parent component
+-      this.$root.$emit('network-interface-settings-complete');
+-    });
+   },
+   methods: {
+     getSettings() {
+diff --git a/src/views/Settings/Network/TableDns.vue b/src/views/Settings/Network/TableDns.vue
+index 569109f..bf218dd 100644
+--- a/src/views/Settings/Network/TableDns.vue
++++ b/src/views/Settings/Network/TableDns.vue
+@@ -101,10 +101,6 @@ export default {
+   },
+   created() {
+     this.getStaticDnsItems();
+-    this.$store.dispatch('network/getEthernetData').finally(() => {
+-      // Emit initial data fetch complete to parent component
+-      this.$root.$emit('network-table-dns-complete');
+-    });
+   },
+   methods: {
+     getStaticDnsItems() {
+diff --git a/src/views/Settings/Network/TableIpv4.vue b/src/views/Settings/Network/TableIpv4.vue
+index e89d02d..f34c1dc 100644
+--- a/src/views/Settings/Network/TableIpv4.vue
++++ b/src/views/Settings/Network/TableIpv4.vue
+@@ -6,8 +6,27 @@
+           {{ $t('pageNetwork.ipv4Addresses') }}
+         </h3>
+       </b-col>
++      <b-col class="text-right" md="3">
++        <dl>
++          <dd>
++            <b-form-checkbox
++              v-model="globalNetworkSettings[tabIndex].ipv4DhcpEnabled"
++              switch
++              @change="changeDhcpIpv4State"
++            >
++              <span>
++                {{ $t('pageNetwork.dhcp') }}
++              </span>
++            </b-form-checkbox>
++          </dd>
++        </dl>
++      </b-col>
+       <b-col class="text-right">
+-        <b-button variant="primary" @click="initAddIpv4Address()">
++        <b-button
++          :disabled="ipv4BtnDisable"
++          variant="primary"
++          @click="initAddIpv4Address()"
++        >
+           <icon-add />
+           {{ $t('pageNetwork.table.addIpv4Address') }}
+         </b-button>
+@@ -69,6 +88,7 @@ export default {
+   },
+   data() {
+     return {
++      ipv4BtnDisable: false,
+       form: {
+         ipv4TableItems: [],
+       },
+@@ -105,6 +125,7 @@ export default {
+   },
+   computed: {
+     ...mapState('network', ['ethernetData']),
++    ...mapState('network', ['globalNetworkSettings']),
+   },
+   watch: {
+     // Watch for change in tab index
+@@ -117,13 +138,14 @@ export default {
+   },
+   created() {
+     this.getIpv4TableItems();
+-    this.$store.dispatch('network/getEthernetData').finally(() => {
+-      // Emit initial data fetch complete to parent component
+-      this.$root.$emit('network-table-ipv4-complete');
+-    });
+   },
+   methods: {
+     getIpv4TableItems() {
++      this.ipv4BtnDisable =
++        this.ethernetData[this.tabIndex].IPv4StaticAddresses.length < 2 &&
++        this.ethernetData[this.tabIndex].DHCPv4.DHCPEnabled == false
++          ? false
++          : true;
+       const index = this.tabIndex;
+       const addresses = this.ethernetData[index].IPv4Addresses || [];
+       this.form.ipv4TableItems = addresses.filter((ipv4) => {
+@@ -141,7 +163,11 @@ export default {
+             {
+               value: 'delete',
+               title: this.$t('pageNetwork.table.deleteIpv4'),
+-              enabled: this.form.ipv4TableItems.length > 1 ? true : false,
++              enabled:
++                this.form.ipv4TableItems.length > 1 &&
++                this.ethernetData[this.tabIndex].DHCPv4.DHCPEnabled == false
++                  ? true
++                  : false,
+             },
+           ],
+         };
+@@ -170,6 +196,42 @@ export default {
+     initAddIpv4Address() {
+       this.$bvModal.show('modal-add-ipv4');
+     },
++    changeDhcpIpv4State(dhcpEnable) {
++      if (dhcpEnable) {
++        const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
++        this.$store.commit('network/setIpv4Dhcp', data);
++        this.$store
++          .dispatch('network/saveIpv4Dhcp', true)
++          .then((message) => this.successToast(message))
++          .catch(({ message }) => this.errorToast(message));
++      } else {
++        const data = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
++        this.$store.commit('network/setIpv4Dhcp', data);
++        if (this.ethernetData[this.tabIndex].IPv4StaticAddresses.length < 2) {
++          this.$bvModal.show('modal-add-ipv4');
++        } else {
++          this.$bvModal.msgBoxOk(
++            this.$tc('pageNetwork.modal.ipv4Confirmation'),
++            {
++              title: this.$tc('pageNetwork.modal.confirm'),
++            }
++          );
++          const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
++          this.$store.commit('network/setIpv4Dhcp', data);
++          this.form.ipv4TableItems.forEach((element) => {
++            element.actions = [
++              {
++                value: 'delete',
++                title: this.$t('pageNetwork.table.deleteIpv4'),
++                enabled: this.form.ipv4TableItems.length > 1 ? true : false,
++              },
++            ];
++          });
++        }
++        // const dhcpIpv4 = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
++        // this.$store.commit('network/setIpv4Dhcp', dhcpIpv4);
++      }
++    },
+   },
+ };
+ </script>
+diff --git a/src/views/Settings/Network/TableIpv6.vue b/src/views/Settings/Network/TableIpv6.vue
+new file mode 100644
+index 0000000..3d0b0ab
+--- /dev/null
++++ b/src/views/Settings/Network/TableIpv6.vue
+@@ -0,0 +1,236 @@
++<template>
++  <page-section :section-title="$t('pageNetwork.ipv6')">
++    <b-row>
++      <b-col>
++        <h3 class="h5">
++          {{ $t('pageNetwork.ipv6Addresses') }}
++        </h3>
++      </b-col>
++      <b-col class="text-right" md="3">
++        <dl>
++          <dd>
++            <b-form-checkbox
++              v-model="globalNetworkSettings[tabIndex].ipv6DhcpEnabled"
++              switch
++              @change="changeDhcpIpv6State"
++            >
++              <span>
++                {{ $t('pageNetwork.dhcp') }}
++              </span>
++            </b-form-checkbox>
++          </dd>
++        </dl>
++      </b-col>
++      <b-col class="text-right">
++        <b-button
++          :disabled="ipv6BtnDisable"
++          variant="primary"
++          @click="initAddIpv6Address()"
++        >
++          <icon-add />
++          {{ $t('pageNetwork.table.addIpv6Address') }}
++        </b-button>
++      </b-col>
++    </b-row>
++    <b-table
++      responsive="md"
++      hover
++      :fields="ipv6TableFields"
++      :items="form.ipv6TableItems"
++      :empty-text="$t('global.table.emptyMessage')"
++      class="mb-0"
++      show-empty
++    >
++      <template #cell(actions)="{ item, index }">
++        <table-row-action
++          v-for="(action, actionIndex) in item.actions"
++          :key="actionIndex"
++          :value="action.value"
++          :title="action.title"
++          :enabled="action.enabled"
++          @click-table-action="onIpv6TableAction(action, $event, index)"
++        >
++          <template #icon>
++            <icon-edit v-if="action.value === 'edit'" />
++            <icon-trashcan v-if="action.value === 'delete'" />
++          </template>
++        </table-row-action>
++      </template>
++    </b-table>
++  </page-section>
++</template>
++
++<script>
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import IconAdd from '@carbon/icons-vue/es/add--alt/20';
++import IconEdit from '@carbon/icons-vue/es/edit/20';
++import IconTrashcan from '@carbon/icons-vue/es/trash-can/20';
++import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import PageSection from '@/components/Global/PageSection';
++import TableRowAction from '@/components/Global/TableRowAction';
++import { mapState } from 'vuex';
++
++export default {
++  name: 'Ipv6Table',
++  components: {
++    IconAdd,
++    IconEdit,
++    IconTrashcan,
++    PageSection,
++    TableRowAction,
++  },
++  mixins: [BVToastMixin, LoadingBarMixin],
++  props: {
++    tabIndex: {
++      type: Number,
++      default: 0,
++    },
++  },
++  data() {
++    return {
++      ipv6BtnDisable: false,
++      form: {
++        ipv6TableItems: [],
++      },
++      actions: [
++        {
++          value: 'edit',
++          title: this.$t('global.action.edit'),
++        },
++        {
++          value: 'delete',
++          title: this.$t('global.action.delete'),
++        },
++      ],
++      ipv6TableFields: [
++        {
++          key: 'Address',
++          label: this.$t('pageNetwork.table.ipAddress'),
++        },
++        {
++          key: 'PrefixLength',
++          label: this.$t('pageNetwork.table.prefixLength'),
++        },
++        {
++          key: 'Gateway',
++          label: this.$t('pageNetwork.table.gateway'),
++        },
++        { key: 'actions', label: '', tdClass: 'text-right' },
++      ],
++    };
++  },
++  computed: {
++    ...mapState('network', ['ethernetData']),
++    ...mapState('network', ['globalNetworkSettings']),
++  },
++  watch: {
++    // Watch for change in tab index
++    tabIndex() {
++      this.getIpv6TableItems();
++    },
++    ethernetData() {
++      this.getIpv6TableItems();
++    },
++  },
++  created() {
++    this.getIpv6TableItems();
++  },
++  methods: {
++    getIpv6TableItems() {
++      this.ipv6BtnDisable =
++        this.ethernetData[this.tabIndex].IPv6StaticAddresses.length < 2 &&
++        this.ethernetData[this.tabIndex].DHCPv6.OperatingMode == 'Disabled'
++          ? false
++          : true;
++      const index = this.tabIndex;
++      const addresses = this.ethernetData[index].IPv6Addresses || [];
++      this.form.ipv6TableItems = addresses.filter((ipv6) => {
++        if (ipv6.AddressOrigin !== 'LinkLocal') {
++          return ipv6;
++        }
++      });
++      this.form.ipv6TableItems = this.form.ipv6TableItems.map((ipv6) => {
++        return {
++          Address: ipv6.Address,
++          PrefixLength: ipv6.PrefixLength,
++          Gateway: this.ethernetData[index].IPv6DefaultGateway,
++          actions: [
++            {
++              value: 'delete',
++              title: this.$t('pageNetwork.table.deleteIpv6'),
++              enabled:
++                this.form.ipv6TableItems.length > 1 &&
++                this.ethernetData[this.tabIndex].DHCPv6.OperatingMode ==
++                  'Disabled'
++                  ? true
++                  : false,
++            },
++          ],
++        };
++      });
++    },
++    onIpv6TableAction(action, $event, index) {
++      if ($event === 'delete') {
++        this.deleteIpv6TableRow(index);
++      }
++    },
++    deleteIpv6TableRow(index) {
++      this.form.ipv6TableItems.splice(index, 1);
++      let IPv6StaticAddresses = [];
++      let IPv6StaticDefaultGateways = [];
++      this.form.ipv6TableItems.forEach((ipv6) => {
++        IPv6StaticAddresses.push({
++          Address: ipv6.Address,
++          PrefixLength: parseInt(ipv6.PrefixLength),
++        });
++        IPv6StaticDefaultGateways.push({
++          Address: ipv6.Gateway,
++          PrefixLength: parseInt(ipv6.PrefixLength),
++        });
++      });
++      const newIpv6Address = { IPv6StaticAddresses, IPv6StaticDefaultGateways };
++      this.$store
++        .dispatch('network/editIpv6Address', newIpv6Address)
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
++    initAddIpv6Address() {
++      this.$bvModal.show('modal-add-ipv6');
++    },
++    changeDhcpIpv6State(dhcpEnable) {
++      if (dhcpEnable) {
++        const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
++        this.$store.commit('network/setIpv6Dhcp', data);
++        this.$store
++          .dispatch('network/saveIpv6Dhcp', 'Stateful')
++          .then((message) => this.successToast(message))
++          .catch(({ message }) => this.errorToast(message));
++      } else {
++        const data = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
++        this.$store.commit('network/setIpv6Dhcp', data);
++        if (this.ethernetData[this.tabIndex].IPv6StaticAddresses.length < 2) {
++          this.$bvModal.show('modal-add-ipv6');
++        } else {
++          this.$bvModal.msgBoxOk(
++            this.$tc('pageNetwork.modal.ipv6Confirmation'),
++            {
++              title: this.$tc('pageNetwork.modal.confirm'),
++            }
++          );
++          const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
++          this.$store.commit('network/setIpv6Dhcp', data);
++          this.form.ipv6TableItems.forEach((element) => {
++            element.actions = [
++              {
++                value: 'delete',
++                title: this.$t('pageNetwork.table.deleteIpv6'),
++                enabled: this.form.ipv6TableItems.length > 1 ? true : false,
++              },
++            ];
++          });
++        }
++      }
++    },
++  },
++};
++</script>
+-- 
+2.25.1
+

@@ -1,0 +1,126 @@
+From ab3480a577b6a3d2019d1ad456bcb413c4551795 Mon Sep 17 00:00:00 2001
+From: vaibhavs <vaibhavs@ami.com>
+Date: Wed, 31 May 2023 08:43:46 +0000
+Subject: [PATCH] Fix to block IPv6 Router Static Address Configuration when
+ IPv6 source is not static
+
+---
+ transporthandler.cpp | 45 ++++++++++++++++++++++++++++++++++++++++++--
+ transporthandler.hpp |  5 +++--
+ 2 files changed, 46 insertions(+), 4 deletions(-)
+
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+index a166d94..e3a95b3 100755
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1305,6 +1305,10 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                 channelCall<deconfigureIfAddr6>(channel, set);
+                 channelCall<setDHCPv6Property>(
+                     channel, EthernetInterface::DHCPConf::v6, true);
++
++		//We disable IPv6 Router Address Configuration static control field as only applicable when IPv6 is static
++		IPv6RouterControlFlag::StaticControl=0;
++
+             }
+             return responseSuccess();
+         }
+@@ -1325,15 +1329,34 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+                                         std::bitset<8>(reservedRACCBits));
+                 expected.any())
+             {
+-                return response(ccParamNotSupported);
++                return responseInvalidFieldRequest();
+             }
+ 
++
++	    if(control[IPv6RouterControlFlag::Static])
++	    {
++        	EthernetInterface::DHCPConf dhcp = channelCall<getDHCPProperty>(channel);
++        	if ((dhcp == EthernetInterface::DHCPConf::v6) ||
++     		    (dhcp == EthernetInterface::DHCPConf::both))
++        	{
++        	    return responseCommandNotAvailable();
++        	}
++	    }
++
++	    IPv6RouterControlFlag::StaticControl = control[IPv6RouterControlFlag::Static];
++
+             bool enableRA = control[IPv6RouterControlFlag::Dynamic];
+             channelCall<setIPv6AcceptRA>(channel, enableRA);
+             return responseSuccess();
+         }
+         case LanParam::IPv6StaticRouter1IP:
+         {
++
++	    if(!IPv6RouterControlFlag::StaticControl)
++	    {
++		return responseCommandNotAvailable();
++	    }
++
+             in6_addr gateway;
+             std::array<uint8_t, sizeof(gateway)> bytes;
+             if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+@@ -1346,6 +1369,12 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+         }
+         case LanParam::IPv6StaticRouter1MAC:
+         {
++
++	    if(!IPv6RouterControlFlag::StaticControl)
++	    {
++		return responseCommandNotAvailable();
++	    }
++
+             ether_addr mac;
+             std::array<uint8_t, sizeof(mac)> bytes;
+             if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+@@ -1358,6 +1387,12 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+         }
+         case LanParam::IPv6StaticRouter1PrefixLength:
+         {
++
++	    if(!IPv6RouterControlFlag::StaticControl)
++	    {
++		return responseCommandNotAvailable();
++	    }
++
+             uint8_t prefix;
+             if (req.unpack(prefix) != 0 || !req.fullyUnpacked())
+             {
+@@ -1371,6 +1406,12 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+         }
+         case LanParam::IPv6StaticRouter1PrefixValue:
+         {
++
++	    if(!IPv6RouterControlFlag::StaticControl)
++	    {
++		return responseCommandNotAvailable();
++	    }
++
+             std::array<uint8_t, sizeof(in6_addr)> bytes;
+             if (req.unpack(bytes) != 0 || !req.fullyUnpacked())
+             {
+@@ -1650,7 +1691,7 @@ RspType<message::Payload> getLan(Context::ptr ctx, uint4_t channelBits,
+             std::bitset<8> control;
+             control[IPv6RouterControlFlag::Dynamic] =
+                 channelCall<getIPv6AcceptRA>(channel);
+-            control[IPv6RouterControlFlag::Static] = 1;
++            control[IPv6RouterControlFlag::Static] = IPv6RouterControlFlag::StaticControl;
+             ret.pack(control);
+             return responseSuccess(std::move(ret));
+         }
+diff --git a/transporthandler.hpp b/transporthandler.hpp
+index cff0a20..cd61c79 100644
+--- a/transporthandler.hpp
++++ b/transporthandler.hpp
+@@ -156,8 +156,9 @@ enum class IPv6AddressStatus : uint8_t
+ 
+ namespace IPv6RouterControlFlag
+ {
+-constexpr uint8_t Static = 0;
+-constexpr uint8_t Dynamic = 1;
++constexpr uint8_t Static = 0;     //IPv6 Router Address Configuration Control Bits
++constexpr uint8_t Dynamic = 1;	  //IPv6 Router Address Configuration Control Bits
++uint8_t StaticControl = 0;
+ }; // namespace IPv6RouterControlFlag
+ 
+ // LAN Handler specific response codes

@@ -1,0 +1,13 @@
+diff --git a/phosphor-ipmi-net@.service b/phosphor-ipmi-net@.service
+index 7f28f68..10d569b 100644
+--- a/phosphor-ipmi-net@.service
++++ b/phosphor-ipmi-net@.service
+@@ -4,6 +4,8 @@ Requires=phosphor-ipmi-host.service
+ After=phosphor-ipmi-host.service
+ Requires=sys-subsystem-net-devices-%i.device
+ After=sys-subsystem-net-devices-%i.device
++Requires=xyz.openbmc_project.Network.service
++After=xyz.openbmc_project.Network.service
+ PartOf=phosphor-ipmi-warm-reset.target
+ 
+ [Service]

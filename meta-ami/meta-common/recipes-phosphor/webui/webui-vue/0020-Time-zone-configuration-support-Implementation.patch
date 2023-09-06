@@ -1,0 +1,388 @@
+From fe94ae2f2e2bbb3d5297134edd643322f9b35331 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Wed, 12 Oct 2022 16:41:52 +0530
+Subject: [PATCH] Time zone configuration support Implementation
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                      |  37 ++++
+ src/store/modules/GlobalStore.js            |   5 +
+ src/store/modules/Settings/DateTimeStore.js |  45 ++---
+ src/views/Settings/DateTime/DateTime.vue    | 178 +++++++++++++++++++-
+ 4 files changed, 242 insertions(+), 23 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 623f1da..f95905e 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -200,6 +200,7 @@
+     "form": {
+       "date": "Date",
+       "manual": "Manual",
++      "timezone": "Timezone",
+       "time": {
+         "label": "24-hour time",
+         "timezone": "@:pageDateTime.form.time.label (%{timezone})"
+@@ -213,6 +214,42 @@
+     "toast": {
+       "errorSaveDateTime": "Error saving date and time settings.",
+       "successSaveDateTime": "Successfully saved date and time settings."
++    },
++    "timeZone":{
++      "MIDWAY": "GMT-11:00 | Midway",
++      "HONOLULU": "GMT-10:00 | Honolulu",
++      "ANCHORAGE": "GMT-09:00 | Anchorage",
++      "LOSANGELES_TIJUANA": "GMT-08:00 | Los Angeles/Tijuana",
++      "PHOENIX_CHIHUAHUA_DENVER": "GMT-07:00 | Phoenix/Chihuahua/Denver",
++      "COSTARICA_CHICAGO_MEXICOCITY_REGINA": "GMT-06:00 | Costa Rica/Chicago/Mexico City/Regina",
++      "BOGOTA": "GMT-05:00 | Bogota/New York",
++      "CARACAS": "GMT-04:30 | Caracas",
++      "BARBADOS_HALIFAX_MANAUS": "GMT-04:00 | Barbados/Halifax/Manaus",
++      "STJOHNS": "GMT-03:30 | St Johns",
++      "SANTIAGO_RECIFE_BUENOSAIRES_NUUK_MONTEVIDEO": "GMT-03:00 | Santiago/Recife/Buenos Aires/Nuuk/Montevideo",
++      "SAOPAULO": "GMT-02:00 | Sao Paulo/South Georgia",
++      "AZORES_CAPEVERDE": "GMT-01:00 | Azores/Cape Verde",
++      "CASABLANCA_LONDON": "GMT+00:00 | Casablanca/London",
++      "AMSTERDAM_BELGRADE_BRUSSELS_MADRID_SARAJEVO_BRAZZAVILLE": "GMT+01:00 | Amsterdam/Belgrade/Brussels/Madrid/Sarajevo/Brazzaville",
++      "WINDHOEK_AMMAN_ATHENS_ISTANBUL_BEIRUT_CAIRO_HELSINKI_JERUSALEM_HARARE": "GMT+02:00 | Windhoek/Amman/Athens/Istanbul/Beirut/Cairo/Helsinki/Jerusalem/Harare",
++      "MINSK_BAGHDAD_MOSCOW_KUWAIT_NAIROBI": "GMT+03:00 | Minsk/Baghdad/Moscow/Kuwait/Nairobi",
++      "TEHRAN": "GMT+03:30 | Tehran",
++      "BAKU_TBILISI_YEREVAN_DUBAI": "GMT+04:00 | Baku/Tbilisi/Yerevan/Dubai",
++      "KABUL": "GMT+04:30 | Kabul",
++      "KARACHI_ORAL_YEKATERINBURG": "GMT+05:00 | Karachi/Oral/Yekaterinburg",
++      "KOLKATA_COLOMBO": "GMT+05:30 | Kolkata/Colombo",
++      "KATHMANDU": "GMT+05:45 | Kathmandu",
++      "ALMATY": "GMT+06:00 | Almaty",
++      "RANGOON": "GMT+06:30 | Rangoon",
++      "KRASNOYARSK_BANGKOK_JAKARTA": "GMT+07:00 | Krasnoyarsk/Bangkok/Jakarta",
++      "SHANGHAI_HONGKONG_IRKUTSK_KUALALUMPUR_PERTH_TAIPEI": "GMT+08:00 | Shanghai/Hong Kong/Irkutsk/Kuala Lumpur/Perth/Taipei",
++      "SEOUL_TOKYO_YAKUTSK": "GMT+09:00 | Seoul/Tokyo/Yakutsk",
++      "DARWIN": "GMT+09:30 | Darwin",
++      "BRISBANE_VLADIVOSTOK_GUAM_MAGADAN": "GMT+10:00 | Brisbane/Vladivostok/Guam/Magadan",
++      "ADELAIDE": "GMT+10:30 | Adelaide",
++      "HOBART_SYDNEY_NOUMEA": "GMT+11:00 | Hobart/Sydney/Noumea",
++      "MAJURO": "GMT+12:00 | Majuro",
++      "AUCKLAND": "GMT+13:00 | Auckland/Fiji/Tongatapu"
+     }
+   },
+   "pageDumps": {
+diff --git a/src/store/modules/GlobalStore.js b/src/store/modules/GlobalStore.js
+index 95d7a08..eae2802 100644
+--- a/src/store/modules/GlobalStore.js
++++ b/src/store/modules/GlobalStore.js
+@@ -31,6 +31,7 @@ const GlobalStore = {
+   state: {
+     assetTag: null,
+     bmcTime: null,
++    timeZone: null,
+     modelType: null,
+     serialNumber: null,
+     serverStatus: 'unreachable',
+@@ -47,6 +48,7 @@ const GlobalStore = {
+     serialNumber: (state) => state.serialNumber,
+     serverStatus: (state) => state.serverStatus,
+     bmcTime: (state) => state.bmcTime,
++    timeZone: (state) => state.timeZone,
+     languagePreference: (state) => state.languagePreference,
+     isUtcDisplay: (state) => state.isUtcDisplay,
+     username: (state) => state.username,
+@@ -58,6 +60,7 @@ const GlobalStore = {
+     setSerialNumber: (state, serialNumber) =>
+       (state.serialNumber = serialNumber),
+     setBmcTime: (state, bmcTime) => (state.bmcTime = bmcTime),
++    setTimeZone: (state, timeZone) => (state.timeZone = timeZone),
+     setServerStatus: (state, serverState) =>
+       (state.serverStatus = serverStateMapper(serverState)),
+     setLanguagePreference: (state, language) =>
+@@ -78,7 +81,9 @@ const GlobalStore = {
+         .then((response) => {
+           const bmcDateTime = response.data.DateTime;
+           const date = new Date(bmcDateTime);
++          const timeZone = response.data.DateTimeLocalOffset;
+           commit('setBmcTime', date);
++          commit('setTimeZone', timeZone);
+         })
+         .catch((error) => console.log(error));
+     },
+diff --git a/src/store/modules/Settings/DateTimeStore.js b/src/store/modules/Settings/DateTimeStore.js
+index 51b722a..225dac3 100644
+--- a/src/store/modules/Settings/DateTimeStore.js
++++ b/src/store/modules/Settings/DateTimeStore.js
+@@ -42,30 +42,31 @@ const DateTimeStore = {
+       return await api
+         .patch(`/redfish/v1/Managers/bmc/NetworkProtocol`, ntpData)
+         .then(async () => {
++          let dateTimePayload = {};
++          dateTimePayload.DateTimeLocalOffset =
++            dateTimeForm.dateTimeLocalOffset;
+           if (!dateTimeForm.ntpProtocolEnabled) {
+-            const dateTimeData = {
+-              DateTime: dateTimeForm.updatedDateTime,
+-            };
+-            /**
+-             * https://github.com/openbmc/phosphor-time-manager/blob/master/README.md#special-note-on-changing-ntp-setting
+-             * When time mode is initially set to Manual from NTP,
+-             * NTP service is disabled and the NTP service is
+-             * stopping but not stopped, setting time will return an error.
+-             * There are no responses from backend to notify when NTP is stopped.
+-             * To work around, a timeout is set to allow NTP to fully stop
+-             * TODO: remove timeout if backend solves
+-             * https://github.com/openbmc/openbmc/issues/3459
+-             */
+-            const timeoutVal = state.isNtpProtocolEnabled ? 20000 : 0;
+-            return await new Promise((resolve, reject) => {
+-              setTimeout(() => {
+-                return api
+-                  .patch(`/redfish/v1/Managers/bmc`, dateTimeData)
+-                  .then(() => resolve())
+-                  .catch(() => reject());
+-              }, timeoutVal);
+-            });
++            dateTimePayload.DateTime = dateTimeForm.updatedDateTime;
+           }
++          /**
++           * https://github.com/openbmc/phosphor-time-manager/blob/master/README.md#special-note-on-changing-ntp-setting
++           * When time mode is initially set to Manual from NTP,
++           * NTP service is disabled and the NTP service is
++           * stopping but not stopped, setting time will return an error.
++           * There are no responses from backend to notify when NTP is stopped.
++           * To work around, a timeout is set to allow NTP to fully stop
++           * TODO: remove timeout if backend solves
++           * https://github.com/openbmc/openbmc/issues/3459
++           */
++          const timeoutVal = state.isNtpProtocolEnabled ? 20000 : 0;
++          return await new Promise((resolve, reject) => {
++            setTimeout(() => {
++              return api
++                .patch(`/redfish/v1/Managers/bmc`, dateTimePayload)
++                .then(() => resolve())
++                .catch(() => reject());
++            }, timeoutVal);
++          });
+         })
+         .then(() => {
+           return i18n.t('pageDateTime.toast.successSaveDateTime');
+diff --git a/src/views/Settings/DateTime/DateTime.vue b/src/views/Settings/DateTime/DateTime.vue
+index 186a850..9949c81 100644
+--- a/src/views/Settings/DateTime/DateTime.vue
++++ b/src/views/Settings/DateTime/DateTime.vue
+@@ -122,6 +122,21 @@
+               </b-form-group>
+             </b-col>
+           </b-row>
++          <b-row class="mt-3 ml-3">
++            <b-col xl="6">
++              <b-form-group
++                :label="$t('pageDateTime.form.timezone')"
++                label-for="timeZone"
++              >
++                <b-form-select
++                  id="timeZone"
++                  v-model="form.manual.dateTimeLocalOffset"
++                  :options="timeZoneOptions"
++                >
++                </b-form-select>
++              </b-form-group>
++            </b-col>
++          </b-row>
+           <b-form-radio
+             v-model="form.configurationSelected"
+             value="ntp"
+@@ -234,10 +249,163 @@ export default {
+         manual: {
+           date: '',
+           time: '',
++          dateTimeLocalOffset: this.$store.getters['global/timeZone'],
+         },
+         ntp: { firstAddress: '', secondAddress: '', thirdAddress: '' },
+       },
+       loading,
++      timeZoneOptions: [
++        {
++          value: '-11:00',
++          text: this.$t('pageDateTime.timeZone.MIDWAY'),
++        },
++        {
++          value: '-10:00',
++          text: this.$t('pageDateTime.timeZone.HONOLULU'),
++        },
++        {
++          value: '-09:00',
++          text: this.$t('pageDateTime.timeZone.ANCHORAGE'),
++        },
++        {
++          value: '-08:00',
++          text: this.$t('pageDateTime.timeZone.LOSANGELES_TIJUANA'),
++        },
++        {
++          value: '-07:00',
++          text: this.$t('pageDateTime.timeZone.PHOENIX_CHIHUAHUA_DENVER'),
++        },
++        {
++          value: '-06:00',
++          text: this.$t(
++            'pageDateTime.timeZone.COSTARICA_CHICAGO_MEXICOCITY_REGINA'
++          ),
++        },
++        {
++          value: '-05:00',
++          text: this.$t('pageDateTime.timeZone.BOGOTA'),
++        },
++        {
++          value: '-04:30',
++          text: this.$t('pageDateTime.timeZone.CARACAS'),
++        },
++        {
++          value: '-04:00',
++          text: this.$t('pageDateTime.timeZone.BARBADOS_HALIFAX_MANAUS'),
++        },
++        {
++          value: '-03:30',
++          text: this.$t('pageDateTime.timeZone.STJOHNS'),
++        },
++        {
++          value: '-03:00',
++          text: this.$t(
++            'pageDateTime.timeZone.SANTIAGO_RECIFE_BUENOSAIRES_NUUK_MONTEVIDEO'
++          ),
++        },
++        {
++          value: '-02:00',
++          text: this.$t('pageDateTime.timeZone.SAOPAULO'),
++        },
++        {
++          value: '-01:00',
++          text: this.$t('pageDateTime.timeZone.AZORES_CAPEVERDE'),
++        },
++        {
++          value: '+00:00',
++          text: this.$t('pageDateTime.timeZone.CASABLANCA_LONDON'),
++        },
++        {
++          value: '+01:00',
++          text: this.$t(
++            'pageDateTime.timeZone.AMSTERDAM_BELGRADE_BRUSSELS_MADRID_SARAJEVO_BRAZZAVILLE'
++          ),
++        },
++        {
++          value: '+02:00',
++          text: this.$t(
++            'pageDateTime.timeZone.WINDHOEK_AMMAN_ATHENS_ISTANBUL_BEIRUT_CAIRO_HELSINKI_JERUSALEM_HARARE'
++          ),
++        },
++        {
++          value: '+03:00',
++          text: this.$t(
++            'pageDateTime.timeZone.MINSK_BAGHDAD_MOSCOW_KUWAIT_NAIROBI'
++          ),
++        },
++        {
++          value: '+03:30',
++          text: this.$t('pageDateTime.timeZone.TEHRAN'),
++        },
++        {
++          value: '+04:00',
++          text: this.$t('pageDateTime.timeZone.BAKU_TBILISI_YEREVAN_DUBAI'),
++        },
++        {
++          value: '+04:30',
++          text: this.$t('pageDateTime.timeZone.KABUL'),
++        },
++        {
++          value: '+05:00',
++          text: this.$t('pageDateTime.timeZone.KARACHI_ORAL_YEKATERINBURG'),
++        },
++        {
++          value: '+05:30',
++          text: this.$t('pageDateTime.timeZone.KOLKATA_COLOMBO'),
++        },
++        {
++          value: '+05:45',
++          text: this.$t('pageDateTime.timeZone.KATHMANDU'),
++        },
++        {
++          value: '+06:00',
++          text: this.$t('pageDateTime.timeZone.ALMATY'),
++        },
++        {
++          value: '+06:30',
++          text: this.$t('pageDateTime.timeZone.RANGOON'),
++        },
++        {
++          value: '+07:00',
++          text: this.$t('pageDateTime.timeZone.KRASNOYARSK_BANGKOK_JAKARTA'),
++        },
++        {
++          value: '+08:00',
++          text: this.$t(
++            'pageDateTime.timeZone.SHANGHAI_HONGKONG_IRKUTSK_KUALALUMPUR_PERTH_TAIPEI'
++          ),
++        },
++        {
++          value: '+09:00',
++          text: this.$t('pageDateTime.timeZone.SEOUL_TOKYO_YAKUTSK'),
++        },
++        {
++          value: '+09:30',
++          text: this.$t('pageDateTime.timeZone.DARWIN'),
++        },
++        {
++          value: '+10:00',
++          text: this.$t(
++            'pageDateTime.timeZone.BRISBANE_VLADIVOSTOK_GUAM_MAGADAN'
++          ),
++        },
++        {
++          value: '+10:30',
++          text: this.$t('pageDateTime.timeZone.ADELAIDE'),
++        },
++        {
++          value: '+11:00',
++          text: this.$t('pageDateTime.timeZone.HOBART_SYDNEY_NOUMEA'),
++        },
++        {
++          value: '+12:00',
++          text: this.$t('pageDateTime.timeZone.MAJURO'),
++        },
++        {
++          value: '+13:00',
++          text: this.$t('pageDateTime.timeZone.AUCKLAND'),
++        },
++      ],
+     };
+   },
+   validations() {
+@@ -272,6 +440,9 @@ export default {
+     bmcTime() {
+       return this.$store.getters['global/bmcTime'];
+     },
++    dateTimeLocalOffset() {
++      return this.$store.getters['global/timeZone'];
++    },
+     ntpOptionSelected() {
+       return this.form.configurationSelected === 'ntp';
+     },
+@@ -303,6 +474,11 @@ export default {
+         .formatTime(this.$store.getters['global/bmcTime'])
+         .slice(0, 5);
+     },
++    dateTimeLocalOffset() {
++      this.form.manual.dateTimeLocalOffset = this.$store.getters[
++        'global/timeZone'
++      ];
++    },
+   },
+   created() {
+     this.startLoader();
+@@ -337,7 +513,7 @@ export default {
+ 
+       let dateTimeForm = {};
+       let isNTPEnabled = this.form.configurationSelected === 'ntp';
+-
++      dateTimeForm.dateTimeLocalOffset = this.form.manual.dateTimeLocalOffset;
+       if (!isNTPEnabled) {
+         const isUtcDisplay = this.$store.getters['global/isUtcDisplay'];
+         let date;
+-- 
+2.25.1
+

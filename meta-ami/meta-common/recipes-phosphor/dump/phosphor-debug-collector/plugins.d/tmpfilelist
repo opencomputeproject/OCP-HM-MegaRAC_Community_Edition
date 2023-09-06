@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Uses Linux command to list all the files in /tmp directory.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="TMP file list"
+file_name="tmpfilelist.log"
+command="ls -lRL /tmp"
+
+add_cmd_output "$command" "$file_name" "$desc"

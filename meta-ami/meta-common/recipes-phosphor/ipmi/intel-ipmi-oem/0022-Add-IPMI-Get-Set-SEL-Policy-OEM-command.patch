@@ -1,0 +1,230 @@
+From 81e54cf8ae3cec48a1e035884096b0cf5a291bdc Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Sun, 25 Jun 2023 20:59:26 +0530
+Subject: [PATCH] Add IPMI Get/Set SEL Policy OEM command
+
+The SEL policy can be either Linear Policy or Circular Policy.Currently
+for updating or getting the SEL Policy busctl commands are being used.
+This patch adds support to set and get the current SEL policy using
+IPMI OEM command.
+
+  +---------------------+-------------+---------------+
+  |       Command       |  NetFun     |  Command No.  |
+  +---------------------+-------------+---------------+
+  |    Get SEL Policy   |   0x32      |    0x7E       |
+  +---------------------+-------------+---------------+
+  |                     |             |               |
+  |    Set SEL Policy   |   0x32      |    0x7F       |
+  +---------------------+-------------+---------------+
+
+  +----+----------+--------+
+  |   SEL Policy  |   Data |
+  +---------------+--------+
+  |               |        |
+  |   Linear SEL  |   00h  |
+  +---------------+--------+
+  |               |        |
+  |  Circular SEL |   01h  |
+  |               |        |
+  +---------------+--------+
+
+Tested & Verified in Archercity:
+
+//Before Fix:
+
+root@intel-obmc:~# ipmitool raw 0x32 0x7e
+Unable to send RAW command (channel=0x0 netfn=0x32 lun=0x0 cmd=0x7e rsp=0xc1): Invalid command
+root@intel-obmc:~# ipmitool raw 0x32 0x7f
+Unable to send RAW command (channel=0x0 netfn=0x32 lun=0x0 cmd=0x7f rsp=0xc1): Invalid command
+root@intel-obmc:~#
+
+//After Fix:
+
+1.Get SEL Policy
+root@intel-obmc:~# ipmitool raw 0x32 0x7e
+ 01
+root@intel-obmc:~#
+root@intel-obmc:~# busctl get-property xyz.openbmc_project.Settings /xyz/openbmc_project/logging/settings
+xyz.openbmc_project.Logging.Settings SelPolicy
+s "xyz.openbmc_project.Logging.Settings.Policy.Circular"
+root@intel-obmc:~#
+
+2.Set SEL Policy
+root@intel-obmc:~# ipmitool raw 0x32 0x7e
+ 01
+root@intel-obmc:~#
+root@intel-obmc:~# ipmitool raw 0x32 0x7F 0x00
+
+root@intel-obmc:~#
+root@intel-obmc:~# ipmitool raw 0x32 0x7e
+ 00
+root@intel-obmc:~# busctl get-property xyz.openbmc_project.Settings /xyz/openbmc_project/logging/settings
+xyz.openbmc_project.Logging.Settings SelPolicy
+s "xyz.openbmc_project.Logging.Settings.Policy.Linear"
+root@intel-obmc:~#
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/oemcommands.hpp | 17 ++++++++
+ ipmi-allowlist.conf     |  2 +
+ src/oemcommands.cpp     | 89 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 108 insertions(+)
+
+diff --git a/include/oemcommands.hpp b/include/oemcommands.hpp
+index 8d3ebc3..982de7d 100644
+--- a/include/oemcommands.hpp
++++ b/include/oemcommands.hpp
+@@ -238,6 +238,18 @@ constexpr uint8_t getMaskdata(int data, int position)
+ 
+ } // namespace intel
+ 
++namespace ami
++{
++static constexpr NetFn netFnGeneral = netFnOemTwo;
++
++namespace general
++{
++static constexpr Cmd cmdOEMGetSELPolicy = 0x7E;
++static constexpr Cmd cmdOEMSetSELPolicy = 0x7F;
++} // namespace general
++} // namespace ami
++
++
+ } // namespace ipmi
+ 
+ // FIXME: put these in the cpp files that use them
+@@ -338,6 +350,11 @@ static constexpr const char* pefObj = "/xyz/openbmc_project/PefAlertManager";
+ static constexpr const char* pefConfInfoIntf =
+     "xyz.openbmc_project.pef.PEFConfInfo";
+ 
++static constexpr const char* loggingSettingIntf =
++    "xyz.openbmc_project.Logging.Settings";
++static constexpr const char* loggingSettingObjPath =
++    "/xyz/openbmc_project/logging/settings";
++
+ // parameters:
+ // 0: host serial port 1 and 2 normal speed
+ // 1: host serial port 1 high spend, port 2 normal speed
+diff --git a/ipmi-allowlist.conf b/ipmi-allowlist.conf
+index bbe2783..077edef 100644
+--- a/ipmi-allowlist.conf
++++ b/ipmi-allowlist.conf
+@@ -324,6 +324,8 @@
+ 0x30:0xfd:0xff7f   //<Intel General Application>:<Get Riser Presence>
+ 0x32:0x60:0xff7f   //<Intel OEM Platform>:<Get PM Bus Information>
+ 0x32:0x63:0xff7f   //<Intel OEM Platform>:<Get Tach Information>
++0x32:0x7E:0xff7f   //<AMI OEM General>::<Get SEL Policy>
++0x32:0x7F:0xff7f   //<AMI OEM General>::<Set SEL Policy>
+ 0x32:0x80:0xff7f   //<Intel OEM Platform>:<Get SOL Log Number>
+ 0x32:0x81:0xff7f   //<Intel OEM Platform>:<Get SOL Log Entry>
+ 0x32:0x83:0xff7f   //<Intel OEM Platform>:<Get SOL Control>
+diff --git a/src/oemcommands.cpp b/src/oemcommands.cpp
+index 1ab9b8e..bd9e238 100644
+--- a/src/oemcommands.cpp
++++ b/src/oemcommands.cpp
+@@ -4976,6 +4976,86 @@ ipmi::RspType<std::vector<uint8_t>>
+     }
+ }
+ 
++ipmi::RspType<> ipmiOEMSetSELPolicy(ipmi::Context::ptr ctx, uint8_t req)
++{
++    std::shared_ptr<sdbusplus::asio::connection> busp = getSdBus();
++    std::string policy = [](uint8_t policy) {
++        switch (policy)
++        {
++            case 0:
++                return "xyz.openbmc_project.Logging.Settings.Policy.Linear";
++            case 1:
++                return "xyz.openbmc_project.Logging.Settings.Policy.Circular";
++        }
++        return "";  //For invalid request return emtpy string
++    }(req);
++    if (policy.empty())
++    {
++        return ipmi::responseInvalidFieldRequest(); 
++    }
++
++    try
++    {
++        auto service =
++            ipmi::getService(*busp, loggingSettingIntf, loggingSettingObjPath);
++        ipmi::setDbusProperty(*busp, service, loggingSettingObjPath,
++                              loggingSettingIntf, "SelPolicy", policy.c_str());
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to set SEL Policy",
++            phosphor::logging::entry("MSG: %s", e.description()));
++        return ipmi::response(ipmi::ccUnspecifiedError);
++    }
++    return ipmi::responseSuccess();
++}
++
++ipmi::RspType<uint8_t> ipmiOEMGetSELPolicy(ipmi::Context::ptr ctx)
++{
++    uint8_t policy;
++    std::string policyStr;
++    std::shared_ptr<sdbusplus::asio::connection> busp = getSdBus();
++
++    try
++    {
++        auto service =
++            ipmi::getService(*busp, loggingSettingIntf, loggingSettingObjPath);
++        Value variant =
++            ipmi::getDbusProperty(*busp, service, loggingSettingObjPath,
++                                  loggingSettingIntf, "SelPolicy");
++        policyStr = std::get<std::string>(variant);
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to get SEL Policy information",
++            phosphor::logging::entry("MSG: %s", e.description()));
++        return ipmi::response(ipmi::ccUnspecifiedError);
++    }
++
++    if (![&policy](std::string selPolicy) {
++            if (selPolicy ==
++                "xyz.openbmc_project.Logging.Settings.Policy.Linear")
++            {
++                policy = 0;
++                return true;
++            }
++            else if (selPolicy ==
++                     "xyz.openbmc_project.Logging.Settings.Policy.Circular")
++            {
++                policy = 1;
++                return true;
++            }
++            else
++                return false;
++        }(policyStr))
++    {
++        return ipmi::responseResponseError(); 
++    }
++    return ipmi::responseSuccess(policy);
++}
++
+ 
+ static void registerOEMFunctions(void)
+ {
+@@ -5238,6 +5318,15 @@ static void registerOEMFunctions(void)
+                     intel::general::cmdOEMGetSmtpConfig, Privilege::User,
+                     ipmiOEMGetSmtpConfig);
+ 
++    // <Set SEL Policy>
++    registerHandler(prioOemBase, ami::netFnGeneral,
++                    ami::general::cmdOEMSetSELPolicy, Privilege::User,
++                    ipmiOEMSetSELPolicy);
++
++    // <Get SEL Policy>
++    registerHandler(prioOemBase, ami::netFnGeneral,
++                    ami::general::cmdOEMGetSELPolicy, Privilege::User,
++                    ipmiOEMGetSELPolicy);
+ 
+ 
+ }
+-- 
+2.25.1
+

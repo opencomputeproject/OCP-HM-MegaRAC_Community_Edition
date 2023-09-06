@@ -1,0 +1,1170 @@
+From 0be8da1c98ea82f19c7a3734b236a6af03855854 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Thu, 18 May 2023 18:35:15 +0530
+Subject: [PATCH] customized styles for ami environment
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ .env.ami                                      |  13 +
+ src/assets/styles/bmc/custom/_buttons.scss    |   1 -
+ src/assets/styles/bmc/custom/_card.scss       |   1 -
+ src/assets/styles/bmc/custom/_forms.scss      |   3 -
+ src/assets/styles/bmc/custom/_pagination.scss |   1 -
+ src/assets/styles/bmc/custom/_tables.scss     |   2 -
+ src/assets/styles/bmc/helpers/_colors.scss    |   3 +-
+ src/components/AppHeader/AppHeader.vue        |  14 +-
+ .../AppNavigation/AppNavigation.vue           |   6 -
+ src/components/Global/InputPasswordToggle.vue |   3 -
+ src/components/Global/LoadingBar.vue          |  15 -
+ src/env/assets/styles/_ami.scss               | 181 ++++++++++
+ src/env/assets/styles/_intel.scss             |   9 +-
+ src/env/components/AppNavigation/ami.js       | 220 ++++++++++++
+ src/env/router/ami.js                         | 331 ++++++++++++++++++
+ src/env/store/ami.js                          |   6 +
+ src/layouts/AppLayout.vue                     |   5 -
+ src/layouts/LoginLayout.vue                   |  12 +-
+ src/views/Login/Login.vue                     |  67 +---
+ 19 files changed, 759 insertions(+), 134 deletions(-)
+ create mode 100644 .env.ami
+ create mode 100644 src/env/assets/styles/_ami.scss
+ create mode 100644 src/env/components/AppNavigation/ami.js
+ create mode 100644 src/env/router/ami.js
+ create mode 100644 src/env/store/ami.js
+
+diff --git a/.env.ami b/.env.ami
+new file mode 100644
+index 0000000..e6d430a
+--- /dev/null
++++ b/.env.ami
+@@ -0,0 +1,13 @@
++NODE_ENV=production
++VUE_APP_ENV_NAME="ami"
++VUE_APP_COMPANY_NAME="ami"
++VUE_APP_GUI_NAME="BMC System Management"
++VUE_APP_SUBSCRIBE_SOCKET_DISABLED="true"
++VUE_APP_SWITCH_TO_BACKUP_IMAGE_DISABLED="true"
++VUE_APP_MODIFY_SSH_POLICY_DISABLED="true"
++VUE_APP_VIRTUAL_MEDIA_LIST_ENABLED="true"
++VUE_APP_EVENT_LOGS_DELETE_BUTTON_DISABLED="true"
++CUSTOM_STYLES="true"
++CUSTOM_APP_NAV="true"
++CUSTOM_STORE="true"
++CUSTOM_ROUTER="true"
+\ No newline at end of file
+diff --git a/src/assets/styles/bmc/custom/_buttons.scss b/src/assets/styles/bmc/custom/_buttons.scss
+index 48bee54..c828875 100644
+--- a/src/assets/styles/bmc/custom/_buttons.scss
++++ b/src/assets/styles/bmc/custom/_buttons.scss
+@@ -21,7 +21,6 @@
+ }
+ 
+ .btn-primary {
+-  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+   fill: currentColor;
+   &:focus,
+   &:not(:disabled):not(.disabled):active:focus {
+diff --git a/src/assets/styles/bmc/custom/_card.scss b/src/assets/styles/bmc/custom/_card.scss
+index 783752e..3ae1023 100644
+--- a/src/assets/styles/bmc/custom/_card.scss
++++ b/src/assets/styles/bmc/custom/_card.scss
+@@ -1,5 +1,4 @@
+ .card {
+-  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+   .bg-success {
+     background-color: theme-color-light('success')!important;
+   }
+diff --git a/src/assets/styles/bmc/custom/_forms.scss b/src/assets/styles/bmc/custom/_forms.scss
+index 0fdee08..71dd91b 100644
+--- a/src/assets/styles/bmc/custom/_forms.scss
++++ b/src/assets/styles/bmc/custom/_forms.scss
+@@ -23,9 +23,6 @@
+ .input-group-text {
+   border-color: gray("500") !important;
+   background-color: gray("100");
+-}
+-
+-.input-group {
+   box-shadow: 0 4px 8px 0 rgb(0, 0, 0, 0.2);
+ }
+ 
+diff --git a/src/assets/styles/bmc/custom/_pagination.scss b/src/assets/styles/bmc/custom/_pagination.scss
+index 1dc6e93..97fe013 100644
+--- a/src/assets/styles/bmc/custom/_pagination.scss
++++ b/src/assets/styles/bmc/custom/_pagination.scss
+@@ -4,7 +4,6 @@
+   justify-content: flex-end;
+   select {
+     width: fit-content;
+-    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+   }
+   label {
+     margin-left: $spacer;
+diff --git a/src/assets/styles/bmc/custom/_tables.scss b/src/assets/styles/bmc/custom/_tables.scss
+index ad3096b..e8b5a83 100644
+--- a/src/assets/styles/bmc/custom/_tables.scss
++++ b/src/assets/styles/bmc/custom/_tables.scss
+@@ -1,8 +1,6 @@
+ .table {
+   position: relative;
+   z-index: $zindex-dropdown;
+-  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+-  background-color: white;
+ 
+   td {
+     border-top: 1px solid gray("300");
+diff --git a/src/assets/styles/bmc/helpers/_colors.scss b/src/assets/styles/bmc/helpers/_colors.scss
+index 8e0a6cf..cffe39d 100644
+--- a/src/assets/styles/bmc/helpers/_colors.scss
++++ b/src/assets/styles/bmc/helpers/_colors.scss
+@@ -1,7 +1,6 @@
+ // Sass Color Variables
+ $black: #000;
+ $white: #fff;
+-$green-c: #4bb1b9;
+ 
+ $blue-500: #2d60e5;
+ $green-500: #0a7d06;
+@@ -28,7 +27,7 @@ $yellow: $yellow-500;
+ // Can be used as variants
+ $danger: $red;
+ $dark: $gray-900;
+-$info: $green-c;
++$info: $blue;
+ $light: $gray-100;
+ $primary: $blue;
+ $secondary: $gray-800;
+diff --git a/src/components/AppHeader/AppHeader.vue b/src/components/AppHeader/AppHeader.vue
+index b06d895..880e5a6 100644
+--- a/src/components/AppHeader/AppHeader.vue
++++ b/src/components/AppHeader/AppHeader.vue
+@@ -74,7 +74,7 @@
+               @click="refresh"
+             >
+               <icon-renew
+-                id="iconRenew"
++                class="iconRenew"
+                 :title="$t('appHeader.titleRefresh')"
+               />
+               <span class="responsive-text">{{ $t('appHeader.refresh') }}</span>
+@@ -89,7 +89,7 @@
+             >
+               <template #button-content>
+                 <icon-avatar
+-                  id="iconAvatar"
++                  class="iconAvatar"
+                   :title="$t('appHeader.titleProfile')"
+                 />
+                 <span class="responsive-text">{{ username }}</span>
+@@ -149,7 +149,6 @@ export default {
+   computed: {
+     isNavTagPresent() {
+       return false;
+-      // return this.assetTag || this.modelType || this.serialNumber;
+     },
+     assetTag() {
+       return this.$store.getters['global/assetTag'];
+@@ -248,13 +247,7 @@ export default {
+ @mixin focus-box-shadow($padding-color: $navbar-color, $outline-color: $white) {
+   box-shadow: inset 0 0 0 3px $padding-color, inset 0 0 0 5px $outline-color;
+ }
+-#iconRenew,
+-#iconAvatar {
+-  color: theme-color('primary');
+-}
+ .app-header {
+-  margin: 5px;
+-  box-shadow: 0 8px 8px 0 rgba(0, 0, 0, 0.2);
+   .link-skip-nav {
+     position: absolute;
+     top: -60px;
+@@ -292,9 +285,6 @@ export default {
+   .navbar {
+     padding: 0;
+     background-color: $navbar-color;
+-    @include media-breakpoint-up($responsive-layout-bp) {
+-      height: $header-height + 10;
+-    }
+ 
+     .helper-menu {
+       @include media-breakpoint-down(sm) {
+diff --git a/src/components/AppNavigation/AppNavigation.vue b/src/components/AppNavigation/AppNavigation.vue
+index 004ea39..97899cd 100644
+--- a/src/components/AppNavigation/AppNavigation.vue
++++ b/src/components/AppNavigation/AppNavigation.vue
+@@ -198,18 +198,12 @@ svg {
+ .nav-container {
+   position: fixed;
+   width: $navigation-width;
+-  top: $header-height + 25;
+   bottom: 0;
+   left: 0;
+   z-index: $zindex-fixed;
+   overflow-y: auto;
+-  background-color: #4bb1b9;
+   transform: translateX(-$navigation-width);
+   transition: transform $exit-easing--productive $duration--moderate-02;
+-  border-right: 0px solid theme-color-level('light', 2.85);
+-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+-  margin-bottom: 10px;
+-  margin-left: 5px;
+ 
+   @include media-breakpoint-down(md) {
+     z-index: $zindex-fixed + 2;
+diff --git a/src/components/Global/InputPasswordToggle.vue b/src/components/Global/InputPasswordToggle.vue
+index 8bb4f54..30ea0e6 100644
+--- a/src/components/Global/InputPasswordToggle.vue
++++ b/src/components/Global/InputPasswordToggle.vue
+@@ -57,7 +57,4 @@ export default {
+ .input-password-toggle-container {
+   position: relative;
+ }
+-.h50 {
+-  height: 50px;
+-}
+ </style>
+diff --git a/src/components/Global/LoadingBar.vue b/src/components/Global/LoadingBar.vue
+index 252d04d..43628cc 100644
+--- a/src/components/Global/LoadingBar.vue
++++ b/src/components/Global/LoadingBar.vue
+@@ -1,18 +1,6 @@
+ <template>
+   <transition name="fade">
+     <div v-if="!isLoadingComplete">
+-      <!-- <b-overlay
+-        :blur="blur"
+-        :show="true"
+-        :aria-label="$t('global.ariaLabel.progressBar')"
+-        opacity="0.6"
+-        no-wrap
+-        fixed
+-        spinner-variant="primary"
+-        spinner-type="border"
+-        class="full-overlay"
+-      >
+-      </b-overlay> -->
+       <b-overlay
+         :blur="blur"
+         :show="true"
+@@ -116,7 +104,4 @@ export default {
+ .progress-bar {
+   background-color: $loading-color;
+ }
+-.full-overlay {
+-  z-index: 1100 !important;
+-}
+ </style>
+diff --git a/src/env/assets/styles/_ami.scss b/src/env/assets/styles/_ami.scss
+new file mode 100644
+index 0000000..af65eb6
+--- /dev/null
++++ b/src/env/assets/styles/_ami.scss
+@@ -0,0 +1,181 @@
++@font-face {
++  font-family: "Intel Clear";
++  src: url("~@/env/assets/fonts/Intel_Clear/IntelClear-Light-webfont.woff")
++    format("woff");
++  font-weight: 200;
++  font-style: normal;
++}
++@font-face {
++  font-family: "Intel Clear";
++  src: url("~@/env/assets/fonts/Intel_Clear/IntelClear-Regular-webfont.woff")
++    format("woff");
++  font-weight: 400;
++  font-style: normal;
++}
++@font-face {
++  font-family: "Intel Clear";
++  src: url("~@/env/assets/fonts/Intel_Clear/IntelClear-Bold-webfont.woff")
++    format("woff");
++  font-weight: 700;
++  font-style: normal;
++}
++
++$font-family-base: "Intel Clear", "Helvetica Neue", Helvetica, Arial, sans-serif;
++
++$classic-blue: #0068b5;
++$energy-blue: #00c7fd;
++$c-green: #4bb1b9;
++$c-black: #191c24;
++
++$primary: $c-green;
++
++$red: #ed1c24;
++$orange: #ffa300;
++$yellow: #f3d54e;
++$green: #c4d600;
++$cyan: $energy-blue;
++$gray: #aeaeae;
++$dark-gray: #808080;
++$light-gray: #e9e9e9;
++$black: #000000;
++$white: #ffffff;
++
++$info: $c-green;
++$danger: #c81326;
++$success: #8bae46;
++$warning: #fec91b;
++$loadingBar: #4d00dd;
++
++$gray-100: $white;
++
++$loading-color: $loadingBar;
++$navbar-color: $c-black;
++
++.status-icon.secondary {
++  fill: $light-gray !important;
++}
++
++.custom-checkbox .custom-control-input:checked ~ .custom-control-label::after,
++.custom-checkbox
++  .custom-control-input:indeterminate
++  ~ .custom-control-label::before,
++.custom-control-input:checked ~ .custom-control-label::before {
++  background-color: $primary !important;
++}
++body {
++  background-color: lightgray !important;
++}
++.btn-primary {
++  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++}
++.card {
++  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++}
++.input-group {
++  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++}
++.table-pagination-select {
++  select {
++    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++  }
++}
++.table {
++  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++  background-color: white;
++}
++.app-header {
++  margin: 5px;
++  box-shadow: 0 8px 8px 0 rgba(0, 0, 0, 0.2);
++  .navbar {
++    height: $header-height + 10;
++  }
++}
++.nav-container {
++  top: $header-height + 25 !important;
++  background-color: #4bb1b9 !important;
++  border-right: 0px solid theme-color-level("light", 2.85);
++  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
++  margin-bottom: 10px;
++  margin-left: 5px;
++}
++.h50 {
++  height: 50px;
++}
++.full-overlay {
++  z-index: 1100 !important;
++}
++.app-container {
++  background-color: lightgray;
++}
++.app-content {
++  background-color: lightgray !important;
++}
++.loading {
++  height: fit-content;
++}
++.login-container {
++  background: gray("100");
++  display: flex;
++  flex-direction: column;
++  min-height: 100vh;
++  max-width: none !important;
++  justify-content: space-around;
++  background: radial-gradient(circle, #4bb1b9 0%, #191c24 100%) !important;
++  flex-direction: row;
++}
++.card-cont {
++  width: 100%;
++  transform: translate(-50%, -50%);
++  top: 40%;
++  left: 50%;
++  border: #3f3f3f;
++  background: #ffffff;
++  box-shadow: 0 15px 25px rgb(0 0 0 / 60%);
++}
++.h4 {
++  padding-top: 7%;
++}
++.input {
++  width: 100%;
++  height: 50px;
++}
++.btns {
++  width: 100%;
++  height: 50px;
++}
++.valid {
++  margin-top: 10px;
++  margin-bottom: 10px;
++}
++.containers {
++  box-shadow: 0px 10px 40px -10px rgba(0, 0, 0, 0.7);
++  width: 130px;
++  height: 130px;
++  position: absolute;
++  top: -14%;
++  left: 110px;
++  background: #252323;
++}
++
++.logo-pos {
++  position: absolute;
++  top: -20%;
++  left: 34%;
++}
++.imges {
++  position: absolute;
++  top: 35%;
++  left: 13%;
++}
++.img-bmc {
++  position: absolute;
++  bottom: 2%;
++  right: 2%;
++}
++.iconRenew,
++.iconAvatar {
++  color: $primary;
++}
++*::-ms-reveal {
++  display: none;
++}
+\ No newline at end of file
+diff --git a/src/env/assets/styles/_intel.scss b/src/env/assets/styles/_intel.scss
+index c3fc135..3b3dab7 100644
+--- a/src/env/assets/styles/_intel.scss
++++ b/src/env/assets/styles/_intel.scss
+@@ -24,10 +24,8 @@ $font-family-base: "Intel Clear", "Helvetica Neue", Helvetica, Arial, sans-serif
+ 
+ $classic-blue: #0068B5;
+ $energy-blue: #00C7FD;
+-$c-green: #4bb1b9;
+-$c-black: #191C24;
+ 
+-$primary: $c-green;
++$primary: $classic-blue;
+ 
+ $red: #ed1c24;
+ $orange: #ffa300;
+@@ -43,13 +41,12 @@ $white: #ffffff;
+ $danger: #C81326;
+ $success: #8BAE46;
+ $warning: #FEC91B;
+-$loadingBar: #4d00dd;
+ 
+ 
+ $gray-100: $white;
+ 
+-$loading-color: $loadingBar;
+-$navbar-color: $c-black;
++$loading-color: $warning;
++$navbar-color: $classic-blue;
+ 
+ .status-icon.secondary {
+   fill: $light-gray !important;
+diff --git a/src/env/components/AppNavigation/ami.js b/src/env/components/AppNavigation/ami.js
+new file mode 100644
+index 0000000..1d67f6b
+--- /dev/null
++++ b/src/env/components/AppNavigation/ami.js
+@@ -0,0 +1,220 @@
++import IconDashboard from '@carbon/icons-vue/es/dashboard/16';
++import IconTextLinkAnalysis from '@carbon/icons-vue/es/text-link--analysis/16';
++import IconDataCheck from '@carbon/icons-vue/es/data--check/16';
++import IconSettingsAdjust from '@carbon/icons-vue/es/settings--adjust/16';
++import IconSettings from '@carbon/icons-vue/es/settings/16';
++import IconSecurity from '@carbon/icons-vue/es/security/16';
++import IconChevronUp from '@carbon/icons-vue/es/chevron--up/16';
++import IconDataBase from '@carbon/icons-vue/es/data--base--alt/16';
++import IconNic from '@carbon/icons-vue/es/network--2/16';
++import IconObjectStorage from '@carbon/icons-vue/es/object-storage/16';
++
++const AppNavigationMixin = {
++  components: {
++    iconOverview: IconDashboard,
++    iconLogs: IconTextLinkAnalysis,
++    iconHealth: IconDataCheck,
++    iconControl: IconSettingsAdjust,
++    iconSettings: IconSettings,
++    iconSecurityAndAccess: IconSecurity,
++    iconExpand: IconChevronUp,
++    iconResourceManagement: IconDataBase,
++    iconNic: IconNic,
++    iconObjectStorage: IconObjectStorage,
++  },
++  data() {
++    return {
++      navigationItems: [
++        {
++          id: 'overview',
++          label: this.$t('appNavigation.overview'),
++          route: '/',
++          icon: 'iconOverview',
++        },
++        {
++          id: 'logs',
++          label: this.$t('appNavigation.logs'),
++          icon: 'iconLogs',
++          children: [
++            {
++              id: 'dumps',
++              label: this.$t('appNavigation.dumps'),
++              route: '/logs/dumps',
++            },
++            {
++              id: 'event-logs',
++              label: this.$t('appNavigation.eventLogs'),
++              route: '/logs/event-logs',
++            },
++            {
++              id: 'post-code-logs',
++              label: this.$t('appNavigation.postCodeLogs'),
++              route: '/logs/post-code-logs',
++            },
++          ],
++        },
++        {
++          id: 'hardware-status',
++          label: this.$t('appNavigation.hardwareStatus'),
++          icon: 'iconHealth',
++          children: [
++            {
++              id: 'inventory',
++              label: this.$t('appNavigation.inventory'),
++              route: '/hardware-status/inventory',
++            },
++            {
++              id: 'sensors',
++              label: this.$t('appNavigation.sensors'),
++              route: '/hardware-status/sensors',
++            },
++          ],
++        },
++        {
++          id: 'operations',
++          label: this.$t('appNavigation.operations'),
++          icon: 'iconControl',
++          children: [
++            {
++              id: 'kvm',
++              label: this.$t('appNavigation.kvm'),
++              route: '/operations/kvm',
++            },
++            {
++              id: 'factory-default',
++              label: this.$t('appNavigation.factoryDefault'),
++              route: '/operations/factory-default',
++            },
++            {
++              id: 'firmware',
++              label: this.$t('appNavigation.firmware'),
++              route: '/operations/firmware',
++            },
++            {
++              id: 'reboot-bmc',
++              label: this.$t('appNavigation.rebootBmc'),
++              route: '/operations/reboot-bmc',
++            },
++            {
++              id: 'serial-over-lan',
++              label: this.$t('appNavigation.serialOverLan'),
++              route: '/operations/serial-over-lan',
++            },
++            {
++              id: 'server-power-operations',
++              label: this.$t('appNavigation.serverPowerOperations'),
++              route: '/operations/server-power-operations',
++            },
++            {
++              id: 'virtual-media',
++              label: this.$t('appNavigation.virtualMedia'),
++              route: '/operations/virtual-media',
++            },
++          ],
++        },
++        {
++          id: 'settings',
++          label: this.$t('appNavigation.settings'),
++          icon: 'iconSettings',
++          children: [
++            {
++              id: 'date-time',
++              label: this.$t('appNavigation.dateTime'),
++              route: '/settings/date-time',
++            },
++            {
++              id: 'network',
++              label: this.$t('appNavigation.network'),
++              route: '/settings/network',
++            },
++            {
++              id: 'vlan',
++              label: this.$t('appNavigation.vlan'),
++              route: '/settings/vlan',
++            },
++            {
++              id: 'smtp',
++              label: this.$t('appNavigation.smtpSettings'),
++              route: '/settings/smtp',
++            },
++          ],
++        },
++        {
++          id: 'platform-event-filter',
++          label: this.$t('appNavigation.pef'),
++          icon: 'iconLogs',
++          children: [
++            {
++              id: 'event-filter',
++              label: this.$t('appNavigation.eventFilter'),
++              route: '/pef/eventFilter',
++            },
++            {
++              id: 'alert-destination',
++              label: this.$t('appNavigation.alertDestination'),
++              route: '/pef/alertDestination',
++            },
++          ],
++        },
++        {
++          id: 'security-and-access',
++          label: this.$t('appNavigation.securityAndAccess'),
++          icon: 'iconSecurityAndAccess',
++          children: [
++            {
++              id: 'sessions',
++              label: this.$t('appNavigation.sessions'),
++              route: '/security-and-access/sessions',
++            },
++            {
++              id: 'ldap',
++              label: this.$t('appNavigation.ldap'),
++              route: '/security-and-access/ldap',
++            },
++            {
++              id: 'user-management',
++              label: this.$t('appNavigation.userManagement'),
++              route: '/security-and-access/user-management',
++            },
++            {
++              id: 'policies',
++              label: this.$t('appNavigation.policies'),
++              route: '/security-and-access/policies',
++            },
++            {
++              id: 'certificates',
++              label: this.$t('appNavigation.certificates'),
++              route: '/security-and-access/certificates',
++            },
++          ],
++        },
++        {
++          id: 'resource-management',
++          label: this.$t('appNavigation.resourceManagement'),
++          icon: 'iconResourceManagement',
++          children: [
++            {
++              id: 'power',
++              label: this.$t('appNavigation.power'),
++              route: '/resource-management/power',
++            },
++          ],
++        },
++        {
++          id: 'nic',
++          label: this.$t('appNavigation.nicInformation'),
++          icon: 'iconNic',
++          route: '/nic',
++        },
++        {
++          id: 'nvmeInformation',
++          label: this.$t('appNavigation.nvmeInformation'),
++          route: '/nvme-information',
++          icon: 'iconObjectStorage',
++        },
++      ],
++    };
++  },
++};
++
++export default AppNavigationMixin;
+diff --git a/src/env/router/ami.js b/src/env/router/ami.js
+new file mode 100644
+index 0000000..f98fd1e
+--- /dev/null
++++ b/src/env/router/ami.js
+@@ -0,0 +1,331 @@
++import AppLayout from '@/layouts/AppLayout.vue';
++import ChangePassword from '@/views/ChangePassword';
++import Sessions from '@/views/SecurityAndAccess/Sessions';
++import ConsoleLayout from '@/layouts/ConsoleLayout.vue';
++import DateTime from '@/views/Settings/DateTime';
++import EventLogs from '@/views/Logs/EventLogs';
++import Firmware from '@/views/Operations/Firmware';
++import Inventory from '@/views/HardwareStatus/Inventory';
++import Ldap from '@/views/SecurityAndAccess/Ldap';
++import Kvm from '@/views/Operations/Kvm';
++import FactoryDefault from '@/views/Operations/FactoryDefault';
++import KvmConsole from '@/views/Operations/Kvm/KvmConsole';
++import UserManagement from '@/views/SecurityAndAccess/UserManagement';
++import Login from '@/views/Login';
++import LoginLayout from '@/layouts/LoginLayout';
++import SmtpSettings from '@/views/Settings/SMTP';
++import EventFilter from '@/views/PEF/EventFilter';
++import AlertDestination from '@/views/PEF/AlertDestination';
++import Network from '@/views/Settings/Network';
++import Vlan from '@/views/Settings/Vlan';
++import Overview from '@/views/Overview';
++import PageNotFound from '@/views/PageNotFound';
++import PostCodeLogs from '@/views/Logs/PostCodeLogs';
++import ProfileSettings from '@/views/ProfileSettings';
++import RebootBmc from '@/views/Operations/RebootBmc';
++import Policies from '@/views/SecurityAndAccess/Policies';
++import Sensors from '@/views/HardwareStatus/Sensors';
++import SerialOverLan from '@/views/Operations/SerialOverLan';
++import SerialOverLanConsole from '@/views/Operations/SerialOverLan/SerialOverLanConsole';
++import ServerPowerOperations from '@/views/Operations/ServerPowerOperations';
++import Certificates from '@/views/SecurityAndAccess/Certificates';
++import VirtualMedia from '@/views/Operations/VirtualMedia';
++import Power from '@/views/ResourceManagement/Power';
++import nicInformation from '@/views/Nic';
++import i18n from '@/i18n';
++import Dumps from '@/views/Logs/Dumps';
++import NvmeInformation from '@/views/NvmeInformation';
++
++const routes = [
++  {
++    path: '/login',
++    component: LoginLayout,
++    children: [
++      {
++        path: '',
++        name: 'login',
++        component: Login,
++        meta: {
++          title: i18n.t('appPageTitle.login'),
++        },
++      },
++      {
++        path: '/change-password',
++        name: 'change-password',
++        component: ChangePassword,
++        meta: {
++          title: i18n.t('appPageTitle.changePassword'),
++          requiresAuth: true,
++        },
++      },
++    ],
++  },
++  {
++    path: '/console',
++    component: ConsoleLayout,
++    meta: {
++      requiresAuth: true,
++    },
++    children: [
++      {
++        path: 'serial-over-lan-console',
++        name: 'serial-over-lan-console',
++        component: SerialOverLanConsole,
++        meta: {
++          title: i18n.t('appPageTitle.serialOverLan'),
++        },
++      },
++      {
++        path: 'kvm',
++        name: 'kvm-console',
++        component: KvmConsole,
++        meta: {
++          title: i18n.t('appPageTitle.kvm'),
++        },
++      },
++    ],
++  },
++  {
++    path: '/',
++    meta: {
++      requiresAuth: true,
++    },
++    component: AppLayout,
++    children: [
++      {
++        path: '',
++        name: 'overview',
++        component: Overview,
++        meta: {
++          title: i18n.t('appPageTitle.overview'),
++        },
++      },
++      {
++        path: '/profile-settings',
++        name: 'profile-settings',
++        component: ProfileSettings,
++        meta: {
++          title: i18n.t('appPageTitle.profileSettings'),
++        },
++      },
++      {
++        path: '/logs/dumps',
++        name: 'dumps',
++        component: Dumps,
++        meta: {
++          title: i18n.t('appPageTitle.dumps'),
++        },
++      },
++      {
++        path: '/logs/event-logs',
++        name: 'event-logs',
++        component: EventLogs,
++        meta: {
++          title: i18n.t('appPageTitle.eventLogs'),
++        },
++      },
++      {
++        path: '/logs/post-code-logs',
++        name: 'post-code-logs',
++        component: PostCodeLogs,
++        meta: {
++          title: i18n.t('appPageTitle.postCodeLogs'),
++        },
++      },
++      {
++        path: '/hardware-status/inventory',
++        name: 'inventory',
++        component: Inventory,
++        meta: {
++          title: i18n.t('appPageTitle.inventory'),
++        },
++      },
++      {
++        path: '/hardware-status/sensors',
++        name: 'sensors',
++        component: Sensors,
++        meta: {
++          title: i18n.t('appPageTitle.sensors'),
++        },
++      },
++      {
++        path: '/security-and-access/sessions',
++        name: 'sessions',
++        component: Sessions,
++        meta: {
++          title: i18n.t('appPageTitle.sessions'),
++        },
++      },
++      {
++        path: '/security-and-access/ldap',
++        name: 'ldap',
++        component: Ldap,
++        meta: {
++          title: i18n.t('appPageTitle.ldap'),
++        },
++      },
++      {
++        path: '/security-and-access/user-management',
++        name: 'user-management',
++        component: UserManagement,
++        meta: {
++          title: i18n.t('appPageTitle.userManagement'),
++        },
++      },
++      {
++        path: '/security-and-access/policies',
++        name: 'policies',
++        component: Policies,
++        meta: {
++          title: i18n.t('appPageTitle.policies'),
++        },
++      },
++      {
++        path: '/security-and-access/certificates',
++        name: 'certificates',
++        component: Certificates,
++        meta: {
++          title: i18n.t('appPageTitle.certificates'),
++        },
++      },
++      {
++        path: '/settings/date-time',
++        name: 'date-time',
++        component: DateTime,
++        meta: {
++          title: i18n.t('appPageTitle.dateTime'),
++        },
++      },
++      {
++        path: '/operations/kvm',
++        name: 'kvm',
++        component: Kvm,
++        meta: {
++          title: i18n.t('appPageTitle.kvm'),
++        },
++      },
++      {
++        path: '/operations/factory-default',
++        name: 'factory-default',
++        component: FactoryDefault,
++        meta: {
++          title: i18n.t('appPageTitle.FactoryDefault'),
++        },
++      },
++      {
++        path: '/operations/firmware',
++        name: 'firmware',
++        component: Firmware,
++        meta: {
++          title: i18n.t('appPageTitle.firmware'),
++        },
++      },
++      {
++        path: '/settings/smtp',
++        name: 'smtpSettings',
++        component: SmtpSettings,
++        meta: {
++          title: i18n.t('appPageTitle.smtpSettings'),
++        },
++      },
++      {
++        path: '/pef/eventFilter',
++        name: 'eventFilter',
++        component: EventFilter,
++        meta: {
++          title: i18n.t('appPageTitle.eventFilter'),
++        },
++      },
++      {
++        path: '/pef/alertDestination',
++        name: 'alertDestination',
++        component: AlertDestination,
++        meta: {
++          title: i18n.t('appPageTitle.alertDestination'),
++        },
++      },
++      {
++        path: '/settings/network',
++        name: 'network',
++        component: Network,
++        meta: {
++          title: i18n.t('appPageTitle.network'),
++        },
++      },
++      {
++        path: '/settings/vlan',
++        name: 'vlan',
++        component: Vlan,
++        meta: {
++          title: i18n.t('appPageTitle.vlan'),
++        },
++      },
++      {
++        path: '/resource-management/power',
++        name: 'power',
++        component: Power,
++        meta: {
++          title: i18n.t('appPageTitle.power'),
++        },
++      },
++      {
++        path: '/operations/reboot-bmc',
++        name: 'reboot-bmc',
++        component: RebootBmc,
++        meta: {
++          title: i18n.t('appPageTitle.rebootBmc'),
++        },
++      },
++      {
++        path: '/operations/serial-over-lan',
++        name: 'serial-over-lan',
++        component: SerialOverLan,
++        meta: {
++          title: i18n.t('appPageTitle.serialOverLan'),
++        },
++      },
++      {
++        path: '/operations/server-power-operations',
++        name: 'server-power-operations',
++        component: ServerPowerOperations,
++        meta: {
++          title: i18n.t('appPageTitle.serverPowerOperations'),
++        },
++      },
++      {
++        path: '/operations/virtual-media',
++        name: 'virtual-media',
++        component: VirtualMedia,
++        meta: {
++          title: i18n.t('appPageTitle.virtualMedia'),
++        },
++      },
++      {
++        path: '/nic',
++        name: 'nic-information',
++        component: nicInformation,
++        meta: {
++          title: i18n.t('appPageTitle.nicInformation'),
++        },
++      },
++      {
++        path: '/nvme-information',
++        name: 'nvme-information',
++        component: NvmeInformation,
++        meta: {
++          title: i18n.t('appPageTitle.nvmeInformation'),
++        },
++      },
++      {
++        path: '*',
++        name: 'page-not-found',
++        component: PageNotFound,
++        meta: {
++          title: i18n.t('appPageTitle.pageNotFound'),
++        },
++      },
++    ],
++  },
++];
++
++export default routes;
+diff --git a/src/env/store/ami.js b/src/env/store/ami.js
+new file mode 100644
+index 0000000..7327585
+--- /dev/null
++++ b/src/env/store/ami.js
+@@ -0,0 +1,6 @@
++import store from '@/store';
++import DumpsStore from '@/store/modules/Logs/DumpsStore';
++
++store.registerModule('dumps', DumpsStore);
++
++export default store;
+diff --git a/src/layouts/AppLayout.vue b/src/layouts/AppLayout.vue
+index 075cba7..507c383 100644
+--- a/src/layouts/AppLayout.vue
++++ b/src/layouts/AppLayout.vue
+@@ -65,7 +65,6 @@ export default {
+ 
+ <style lang="scss" scoped>
+ .app-container {
+-  background-color: lightgray;
+   display: grid;
+   grid-template-columns: 100%;
+   grid-template-rows: auto;
+@@ -94,9 +93,5 @@ export default {
+ 
+ .app-content {
+   grid-area: content;
+-  background-color: lightgray;
+-}
+-.loading {
+-  height: fit-content;
+ }
+ </style>
+diff --git a/src/layouts/LoginLayout.vue b/src/layouts/LoginLayout.vue
+index 1412f80..6c61d5a 100644
+--- a/src/layouts/LoginLayout.vue
++++ b/src/layouts/LoginLayout.vue
+@@ -16,14 +16,4 @@ export default {
+ };
+ </script>
+ 
+-<style lang="scss" scoped>
+-#newform {
+-  border-style: solid;
+-  border-color: black;
+-  padding-left: 42px;
+-  padding-right: 10px;
+-  padding-top: 5px;
+-  padding-bottom: 3px;
+-  width: 450px;
+-}
+-</style>
++<style lang="scss" scoped></style>
+diff --git a/src/views/Login/Login.vue b/src/views/Login/Login.vue
+index 4d9fd31..9f5acbc 100644
+--- a/src/views/Login/Login.vue
++++ b/src/views/Login/Login.vue
+@@ -184,69 +184,4 @@ export default {
+ };
+ </script>
+ 
+-<style lang="scss" scoped>
+-.login-container {
+-  background: gray('100');
+-  display: flex;
+-  flex-direction: column;
+-  gap: $spacer * 2;
+-  min-height: 100vh;
+-  max-width: none !important;
+-  justify-content: space-around;
+-
+-  @include media-breakpoint-up('md') {
+-    background: radial-gradient(circle, #4bb1b9 0%, #191c24 100%) !important;
+-    flex-direction: row;
+-  }
+-}
+-.card-cont {
+-  width: 100%;
+-  transform: translate(-50%, -50%);
+-  top: 40%;
+-  left: 50%;
+-  border: #3f3f3f;
+-  background: #ffffff;
+-  box-shadow: 0 15px 25px rgb(0 0 0 / 60%);
+-}
+-.h4 {
+-  padding-top: 7%;
+-}
+-.input {
+-  width: 100%;
+-  height: 50px;
+-}
+-.btns {
+-  width: 100%;
+-  height: 50px;
+-}
+-.valid {
+-  margin-top: 10px;
+-  margin-bottom: 10px;
+-}
+-.containers {
+-  box-shadow: 0px 10px 40px -10px rgba(0, 0, 0, 0.7);
+-  width: 130px;
+-  height: 130px;
+-  position: absolute;
+-  top: -14%;
+-  left: 110px;
+-  background: #252323;
+-}
+-
+-.logo-pos {
+-  position: absolute;
+-  top: -20%;
+-  left: 34%;
+-}
+-
+-.imges {
+-  position: absolute;
+-  top: 35%;
+-  left: 13%;
+-}
+-.img-bmc {
+-  position: absolute;
+-  bottom: 2%;
+-  right: 2%;
+-}
+-</style>
++<style lang="scss" scoped></style>
+-- 
+2.25.1
+

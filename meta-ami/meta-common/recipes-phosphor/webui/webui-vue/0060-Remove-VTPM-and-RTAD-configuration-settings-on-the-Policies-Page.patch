@@ -1,0 +1,71 @@
+From 0064a132d177796e73f797ba184319ad357d7146 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Wed, 21 Jun 2023 11:36:55 +0530
+Subject: [PATCH] Remove VTPM and RTAD configuration settings on the Policies
+ page
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/views/SecurityAndAccess/Policies/Policies.vue | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/views/SecurityAndAccess/Policies/Policies.vue b/src/views/SecurityAndAccess/Policies/Policies.vue
+index ba18bf4..b484cec 100644
+--- a/src/views/SecurityAndAccess/Policies/Policies.vue
++++ b/src/views/SecurityAndAccess/Policies/Policies.vue
+@@ -53,7 +53,7 @@
+             </b-form-checkbox>
+           </b-col>
+         </b-row>
+-        <b-row class="setting-section">
++        <b-row v-if="DisplaySection" class="setting-section">
+           <b-col class="d-flex align-items-center justify-content-between">
+             <dl class="mt-3 mr-3 w-75">
+               <dt>{{ $t('pagePolicies.vtpm') }}</dt>
+@@ -78,7 +78,7 @@
+             </b-form-checkbox>
+           </b-col>
+         </b-row>
+-        <b-row class="setting-section">
++        <b-row v-if="DisplaySection" class="setting-section">
+           <b-col class="d-flex align-items-center justify-content-between">
+             <dl class="mt-3 mr-3 w-75">
+               <dt>{{ $t('pagePolicies.rtad') }}</dt>
+@@ -114,7 +114,7 @@
+             <b-form-checkbox
+               id="kvmSwitch"
+               v-model="kvmState"
+-              data-test-id="policies-toggle-rtad"
++              data-test-id="policies-toggle-kvm"
+               switch
+               @change="changeKmvState"
+             >
+@@ -139,7 +139,7 @@
+             <b-form-checkbox
+               id="vmcSwitch"
+               v-model="vmcState"
+-              data-test-id="policies-toggle-rtad"
++              data-test-id="policies-toggle-vmc"
+               switch
+               @change="changeVmcState"
+             >
+@@ -164,7 +164,7 @@
+             <b-form-checkbox
+               id="solSwitch"
+               v-model="solState"
+-              data-test-id="policies-toggle-vtpm"
++              data-test-id="policies-toggle-sol"
+               switch
+               @change="changeSOLState"
+             >
+@@ -312,6 +312,7 @@ export default {
+       ],
+       modifySSHPolicyDisabled:
+         process.env.VUE_APP_MODIFY_SSH_POLICY_DISABLED === 'true',
++      DisplaySection: false,
+     };
+   },
+   computed: {
+-- 
+2.25.1
+

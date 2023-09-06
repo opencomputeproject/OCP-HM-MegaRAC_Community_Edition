@@ -1,0 +1,51 @@
+From b29c06c30168b1ed6639cded6e19bd1721fce37e Mon Sep 17 00:00:00 2001
+From: arjuncr <arjuncr@ami.com>
+Date: Wed, 10 May 2023 21:26:53 +0530
+Subject: [PATCH] Fix For CPU Sensor dbus entry is not creating
+
+Signed-off-by: arjuncr <arjuncr@ami.com>
+---
+ src/IntelCPUSensorMain.cpp | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/src/IntelCPUSensorMain.cpp b/src/IntelCPUSensorMain.cpp
+index 805b396c..44896c5b 100644
+--- a/src/IntelCPUSensorMain.cpp
++++ b/src/IntelCPUSensorMain.cpp
+@@ -95,11 +95,13 @@ static constexpr auto hiddenProps{std::to_array<const char*>(
+     {IntelCPUSensor::labelTcontrol, "Tthrottle", "Tjmax"})};
+ 
+ // here is the not supported sensor (nss) list, remove the list if supported
+-std::vector <std::string> nss{"Platform Power Average CPU1", "Platform Energy CPU1",
++/*std::vector <std::string> nss{"Platform Power Average CPU1", "Platform Energy CPU1",
+                                "Platform Power Cap CPU1", "Cpu Power Cap CPU2",
+                                "Cpu Power Cap CPU1", "Dimm Power Cap CPU1",
+                                "Dimm Power Cap CPU2", "Dimm Power Average CPU1"
+-                             };
++                             };*/
++
++std::vector <std::string> nss {""};
+ 
+ static const boost::container::flat_map<std::string, SensorProperties>
+     sensorPropertiesMap = {
+@@ -316,14 +318,14 @@ bool createSensors(boost::asio::io_service& io,
+         auto directory = hwmonNamePath.parent_path();
+         std::vector<fs::path> inputPaths;
+         if (!findFiles(directory,
+-                       R"((temp|power|energy)\d+_(input|average|cap)$)",
++                       R"((temp|power|energy)\d+_(input|average|cap_min|cap_max|cap)$)",
+                        inputPaths, 0))
+         {
+-            std::cerr << "No temperature sensors in system\n";
++            std::cerr << "No CPU sensors in system\n";
+             continue;
+         }
+ 
+-        // iterate through all found temp sensors
++        // iterate through all found cpu sensors
+         for (const auto& inputPath : inputPaths)
+         {
+             auto fileParts = splitFileName(inputPath);
+-- 
+2.34.1
+

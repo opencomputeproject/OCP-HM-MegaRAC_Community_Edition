@@ -1,0 +1,247 @@
+From aef9279e48d3c5d0ed14c8c31594ff8054d49b37 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Fri, 26 May 2023 11:35:51 +0530
+Subject: [PATCH] Enable all event filters option
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                    |   2 +-
+ src/store/modules/Pef/EventFilterStore.js |   8 ++
+ src/views/PEF/EventFilter/eventFilter.vue | 143 ++++++++++++----------
+ 3 files changed, 84 insertions(+), 69 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 46b72db..77d7799 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -866,7 +866,7 @@
+     "pageDescription": "Select the Events that will trigger the alert",
+     "sectionTitle": "Event Filter",
+     "eventFilterLabel": "Configure Alert Destination details",
+-    "enableAllEvents": "Enable all Event Filters",
++    "enableAllEvents": "Enable/Disable all Event Filters",
+     "temperatureSensorOutOfRange": "Temperature Sensor Out of Range",
+     "fanFailure": "Fan Failure",
+     "powerSupplyFailure": "Power Supply Failure",
+diff --git a/src/store/modules/Pef/EventFilterStore.js b/src/store/modules/Pef/EventFilterStore.js
+index 9597fa0..6a22636 100644
+--- a/src/store/modules/Pef/EventFilterStore.js
++++ b/src/store/modules/Pef/EventFilterStore.js
+@@ -114,15 +114,23 @@ const EventFilterStore = {
+         enableStatus: false,
+       },
+     ],
++    checkAll: null,
+   },
+   getters: {
+     getAlertData: (state) => state.alertData,
++    getCheckAll: (state) => state.checkAll,
+   },
+   mutations: {
+     setAlertData: (state, eventFilterData) => {
+       let EnabledFilters = eventFilterData.FilterEnable;
++      state.checkAll = true;
+       for (var i = 0; i < EnabledFilters.length; i++) {
+         state.alertData[i].enableStatus = EnabledFilters[i] ? true : false;
++        if (state.alertData[i].isSupported) {
++          if (!state.alertData[i].enableStatus) {
++            state.checkAll = false;
++          }
++        }
+       }
+     },
+   },
+diff --git a/src/views/PEF/EventFilter/eventFilter.vue b/src/views/PEF/EventFilter/eventFilter.vue
+index 3121798..373e434 100644
+--- a/src/views/PEF/EventFilter/eventFilter.vue
++++ b/src/views/PEF/EventFilter/eventFilter.vue
+@@ -1,71 +1,70 @@
+ <template>
+   <b-container fluid="xl">
+     <page-title :description="$t('pageEventFilter.pageDescription')" />
+-    <page-section :section-title="$t('pageEventFilter.sectionTitle')">
+-      <b-form novalidate @submit.prevent="handleSubmit">
+-        <div class="form-background p-3">
+-          <b-form-group
+-            class="m-0"
+-            :label="$t('pageEventFilter.sectionTitle')"
+-            label-class="sr-only"
++    <b-form novalidate @submit.prevent="handleSubmit">
++      <div class="form-background p-3">
++        <b-form-group
++          class="m-0"
++          :label="$t('pageEventFilter.sectionTitle')"
++          label-class="sr-only"
++          :disabled="loading"
++        >
++          <b-row>
++            <b-col md="9" lg="8" xl="9">
++              <b-form-group :label="$t('pageEventFilter.enableAllEvents')">
++                <b-form-checkbox
++                  v-model="checkAll"
++                  data-test-id="checkAllEventFilter"
++                  switch
++                  @change="enableAllTheEvents"
++                >
++                  <span v-if="checkAll">{{ $t('global.status.enabled') }}</span>
++                  <span v-else>{{ $t('global.status.disabled') }}</span>
++                </b-form-checkbox>
++              </b-form-group>
++            </b-col>
++          </b-row>
++          <b-row>
++            <b-col md="9" lg="8" xl="9">
++              <b-row>
++                <b-col
++                  v-for="(events, $index) in alertData"
++                  v-show="events.isSupported"
++                  :key="$index"
++                  sm="6"
++                  xl="4"
++                >
++                  <b-form-group :label="events.eventName">
++                    <b-form-checkbox
++                      v-model="events.enableStatus"
++                      data-test-id="alert-input-enable"
++                      switch
++                    >
++                      <span v-if="events.enableStatus">
++                        {{ $t('global.status.enabled') }}
++                      </span>
++                      <span v-else>{{ $t('global.status.disabled') }}</span>
++                    </b-form-checkbox>
++                  </b-form-group>
++                </b-col>
++              </b-row>
++            </b-col>
++          </b-row>
++        </b-form-group>
++      </div>
++      <b-row class="mt-4 mb-5">
++        <b-col>
++          <b-btn
++            variant="primary"
++            type="submit"
++            data-test-id="eventFilter-button-saveSettings"
+             :disabled="loading"
+           >
+-            <b-row>
+-              <b-col md="9" lg="8" xl="9">
+-                <b-form-group>
+-                  <b-form-checkbox
+-                    v-model="checkAll"
+-                    data-test-id="checkAllEventFilter"
+-                    switch
+-                    @change="enableAllTheEvents"
+-                  >
+-                    <span>{{ $t('pageEventFilter.enableAllEvents') }}</span>
+-                  </b-form-checkbox>
+-                </b-form-group>
+-              </b-col>
+-            </b-row>
+-            <b-row>
+-              <b-col md="9" lg="8" xl="9">
+-                <b-row>
+-                  <b-col
+-                    v-for="(events, $index) in alertData"
+-                    v-show="events.isSupported"
+-                    :key="$index"
+-                    sm="6"
+-                    xl="4"
+-                  >
+-                    <b-form-group :label="events.eventName">
+-                      <b-form-checkbox
+-                        v-model="events.enableStatus"
+-                        data-test-id="alert-input-enable"
+-                        switch
+-                      >
+-                        <span v-if="events.enableStatus">
+-                          {{ $t('global.status.enabled') }}
+-                        </span>
+-                        <span v-else>{{ $t('global.status.disabled') }}</span>
+-                      </b-form-checkbox>
+-                    </b-form-group>
+-                  </b-col>
+-                </b-row>
+-              </b-col>
+-            </b-row>
+-          </b-form-group>
+-        </div>
+-        <b-row class="mt-4 mb-5">
+-          <b-col>
+-            <b-btn
+-              variant="primary"
+-              type="submit"
+-              data-test-id="eventFilter-button-saveSettings"
+-              :disabled="loading"
+-            >
+-              {{ $t('global.action.saveSettings') }}
+-            </b-btn>
+-          </b-col>
+-        </b-row>
+-      </b-form>
+-    </page-section>
++            {{ $t('global.action.saveSettings') }}
++          </b-btn>
++        </b-col>
++      </b-row>
++    </b-form>
+   </b-container>
+ </template>
+ 
+@@ -73,22 +72,29 @@
+ import BVToastMixin from '@/components/Mixins/BVToastMixin';
+ import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
+ import PageTitle from '@/components/Global/PageTitle';
+-import PageSection from '@/components/Global/PageSection';
+ 
+ export default {
+   name: 'EventFilterSettings',
+   components: {
+     PageTitle,
+-    PageSection,
+   },
+   mixins: [BVToastMixin, LoadingBarMixin],
+   data() {
+     return {
+       alertData: this.$store.getters['eventFilter/getAlertData'],
+-      checkAll: false,
+       loading,
+     };
+   },
++  computed: {
++    checkAll: {
++      get() {
++        return this.$store.getters['eventFilter/getCheckAll'];
++      },
++      set(newValue) {
++        return newValue;
++      },
++    },
++  },
+   created() {
+     this.startLoader();
+     this.$store.dispatch('eventFilter/getEventFilterData').finally(() => {
+@@ -102,6 +108,7 @@ export default {
+         .dispatch('eventFilter/setEventFilterData', this.alertData)
+         .then((success) => {
+           this.successToast(success);
++          this.checkAll = this.$store.getters['eventFilter/getCheckAll'];
+         })
+         .catch(({ message }) => {
+           this.errorToast(message);
+@@ -110,9 +117,9 @@ export default {
+           this.endLoader();
+         });
+     },
+-    enableAllTheEvents() {
++    enableAllTheEvents(checkAll) {
+       this.alertData.forEach((each) => {
+-        each.enableStatus = this.checkAll;
++        each.enableStatus = checkAll;
+       });
+     },
+   },
+-- 
+2.25.1
+

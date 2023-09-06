@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: collect the IPMI Channel Access configuration.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="Channel Access"
+file_name="channelaccess.log"
+command="cat /usr/share/ipmi-providers/channel_access.json"
+
+add_cmd_output "$command" "$file_name" "$desc"

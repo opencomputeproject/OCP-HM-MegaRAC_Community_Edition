@@ -1,0 +1,70 @@
+diff --git a/redfish-core/lib/virtual_media.hpp b/redfish-core/lib/virtual_media.hpp
+index e94e23396..67f5cce14 100644
+--- a/redfish-core/lib/virtual_media.hpp
++++ b/redfish-core/lib/virtual_media.hpp
+
+@@ -46,6 +166,10 @@ inline std::string getTransferProtocolTypeFromUri(const std::string& imageUri)
+     {
+         return "HTTPS";
+     }
++    else if (scheme == "nfs")
++    {
++        return "NFS";
++    }
+
+     return "None";
+ }
+@@ -296,6 +438,7 @@ enum class TransferProtocol
+ {
+     https,
+     smb,
++    nfs,
+     invalid
+ };
+
+@@ -315,6 +458,10 @@ inline std::optional<TransferProtocol>
+     {
+         return TransferProtocol::https;
+     }
++    if (scheme == "nfs")
++    {
++        return TransferProtocol::nfs;
++    }
+     if (!scheme.empty())
+     {
+         return TransferProtocol::invalid;
+@@ -339,7 +486,10 @@ inline std::optional<TransferProtocol> getTransferProtocolFromParam(
+     {
+         return TransferProtocol::smb;
+     }
+-
++    if (*transferProtocolType == "NFS")
++    {
++        return TransferProtocol::nfs;
++    }
+     if (*transferProtocolType == "HTTPS")
+     {
+         return TransferProtocol::https;
+@@ -360,7 +510,10 @@ inline std::string
+     {
+         return "smb://" + imageUri;
+     }
+-
++    if (transferProtocol == TransferProtocol::nfs)
++    {
++        return "nfs://" + imageUri;
++    }
+     if (transferProtocol == TransferProtocol::https)
+     {
+         return "https://" + imageUri;
+@@ -430,7 +584,7 @@ inline bool
+     {
+         BMCWEB_LOG_ERROR << "Request action parameter ImageUrl must "
+                             "contain specified protocol type from list: "
+-                            "(smb, https).";
++                            "(smb,nfs, https).";
+
+         messages::resourceAtUriInUnknownFormat(res, *url);
+
+
+

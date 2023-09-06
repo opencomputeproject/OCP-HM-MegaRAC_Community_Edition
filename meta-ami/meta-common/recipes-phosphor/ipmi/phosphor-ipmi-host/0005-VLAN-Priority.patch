@@ -1,0 +1,289 @@
+--- /dev/null
++++ b/transporthandler.cpp	2022-10-19 15:39:14.425187834 +0530
+@@ -536,14 +536,24 @@
+  */
+ uint16_t getVLANProperty(sdbusplus::bus_t& bus, const ChannelParams& params)
+ {
++     auto vlan = 0;
+     // VLAN devices will always have a separate logical object
+     if (params.ifPath == params.logicalPath)
+     {
+-        return 0;
++        return vlan;
++    }
++    try
++    {
++        vlan = std::get<uint32_t>(getDbusProperty(
++            bus, params.service, params.logicalPath, INTF_VLAN, "Id"));
+     }
++    catch (const sdbusplus::exception::SdBusError& e)
++    {
++        log<level::ERR>("error in getVLANProperty", entry("name=%s", e.name()),
++                        entry("what=%s", e.what()));
++        elog<InternalFailure>();
++     }
+ 
+-    auto vlan = std::get<uint32_t>(getDbusProperty(
+-        bus, params.service, params.logicalPath, INTF_VLAN, "Id"));
+     if ((vlan & VLAN_VALUE_MASK) != vlan)
+     {
+         logWithChannel<level::ERR>(params, "networkd returned an invalid vlan",
+@@ -552,117 +562,100 @@
+     }
+     return vlan;
+ }
+-
+-/** @brief Deletes all of the possible configuration parameters for a channel
++/** @brief Gets the vlan Priority configured on the interface
+  *
+  *  @param[in] bus    - The bus object used for lookups
+  *  @param[in] params - The parameters for the channel
+  */
+-void deconfigureChannel(sdbusplus::bus_t& bus, ChannelParams& params)
++uint16_t getVLANPriority(sdbusplus::bus::bus& bus, const ChannelParams& params)
+ {
+-    // Delete all objects associated with the interface
+-    auto objreq = bus.new_method_call(MAPPER_BUS_NAME, MAPPER_OBJ, MAPPER_INTF,
+-                                      "GetSubTree");
+-    objreq.append(PATH_ROOT, 0, std::vector<std::string>{DELETE_INTERFACE});
+-    auto objreply = bus.call(objreq);
+-    ObjectTree objs;
+-    objreply.read(objs);
+-    for (const auto& [path, impls] : objs)
++     auto vlan = 0;
++    if (params.ifPath == params.logicalPath)
+     {
+-        if (path.find(params.ifname) == path.npos)
+-        {
+-            continue;
+-        }
+-        for (const auto& [service, intfs] : impls)
+-        {
+-            deleteObjectIfExists(bus, service, path);
+-        }
+-        // Update params to reflect the deletion of vlan
+-        if (path == params.logicalPath)
+-        {
+-            params.logicalPath = params.ifPath;
+-        }
++	     return vlan;
+     }
+-
+-    // Clear out any settings on the lower physical interface
+-    setDHCPv6Property(bus, params, EthernetInterface::DHCPConf::none, false);
++     try
++    {
++        vlan = std::get<uint32_t>(getDbusProperty(
++            bus, params.service, params.logicalPath, INTF_VLAN, "Priority"));
++    }
++    catch (const sdbusplus::exception::SdBusError& e)
++    {
++        log<level::ERR>("error in getVLANPriority", entry("name=%s", e.name()),
++                        entry("what=%s", e.what()));
++        elog<InternalFailure>();
++    }
++     return vlan;
+ }
+-
+-/** @brief Creates a new VLAN on the specified interface
++/** @brief Sets the vlan Priority configured on the interface
+  *
+  *  @param[in] bus    - The bus object used for lookups
+  *  @param[in] params - The parameters for the channel
+- *  @param[in] vlan   - The id of the new vlan
++ *  @param[in] vlan_priority - The priority for VLAN
++ *  @return 1 if VLAN available else 0
+  */
+-void createVLAN(sdbusplus::bus_t& bus, ChannelParams& params, uint16_t vlan)
++uint16_t setVLANPriority(sdbusplus::bus::bus& bus, const ChannelParams& params,
++                         uint32_t vlan_priority)
+ {
+-    if (vlan == 0)
++     // VLAN devices will always have a separate logical object
++    if (params.ifPath == params.logicalPath)
+     {
+-        return;
++        return 0;
+     }
+-
+-    auto req = bus.new_method_call(params.service.c_str(), PATH_ROOT,
+-                                   INTF_VLAN_CREATE, "VLAN");
+-    req.append(params.ifname, static_cast<uint32_t>(vlan));
+-    auto reply = bus.call(req);
+-    sdbusplus::message::object_path newPath;
+-    reply.read(newPath);
+-    params.logicalPath = std::move(newPath);
++    try
++    {
++        setDbusProperty(bus, params.service, params.logicalPath, INTF_VLAN,
++                        "Priority", vlan_priority);
++    }
++     catch (const sdbusplus::exception::SdBusError& e)
++    {
++        log<level::ERR>("error in setVLANPriority", entry("name=%s", e.name()),
++                        entry("what=%s", e.what()));
++        elog<InternalFailure>();
++     }
++     return 1;
+ }
+-
+-/** @brief Performs the necessary reconfiguration to change the VLAN
++/** @brief Creates a new VLAN on the specified interface
+  *
+  *  @param[in] bus    - The bus object used for lookups
+  *  @param[in] params - The parameters for the channel
+- *  @param[in] vlan   - The new vlan id to use
++ *  @param[in] vlan   - The id of the new vlan
+  */
+-void reconfigureVLAN(sdbusplus::bus_t& bus, ChannelParams& params,
+-                     uint16_t vlan)
++void createVLAN(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlan)
+ {
+-    // Unfortunatetly we don't have built-in functions to migrate our interface
+-    // customizations to new VLAN interfaces, or have some kind of decoupling.
+-    // We therefore must retain all of our old information, setup the new VLAN
+-    // configuration, then restore the old info.
+-
+-    // Save info from the old logical interface
+-    ObjectLookupCache ips(bus, params, INTF_IP);
+-    auto ifaddr4 = findIfAddr<AF_INET>(bus, params, 0, originsV4, ips);
+-    std::vector<IfAddr<AF_INET6>> ifaddrs6;
+-    for (uint8_t i = 0; i < MAX_IPV6_STATIC_ADDRESSES; ++i)
+-    {
+-        auto ifaddr6 =
+-            findIfAddr<AF_INET6>(bus, params, i, originsV6Static, ips);
+-        if (!ifaddr6)
+-        {
+-            break;
+-        }
+-        ifaddrs6.push_back(std::move(*ifaddr6));
+-    }
+-    EthernetInterface::DHCPConf dhcp = getDHCPProperty(bus, params);
+-    ObjectLookupCache neighbors(bus, params, INTF_NEIGHBOR);
+-    auto neighbor4 = findGatewayNeighbor<AF_INET>(bus, params, neighbors);
+-    auto neighbor6 = findGatewayNeighbor<AF_INET6>(bus, params, neighbors);
+-
+-    deconfigureChannel(bus, params);
+-    createVLAN(bus, params, vlan);
+-
+-    // Re-establish the saved settings
+-    setDHCPv6Property(bus, params, dhcp, false);
+-    if (ifaddr4)
++    auto vlanid = getVLANProperty(bus, params);
++    if (vlanid == vlan)
+     {
+-        createIfAddr<AF_INET>(bus, params, ifaddr4->address, ifaddr4->prefix);
++	    return;
+     }
+-    for (const auto& ifaddr6 : ifaddrs6)
++    try
+     {
+-        createIfAddr<AF_INET6>(bus, params, ifaddr6.address, ifaddr6.prefix);
++	auto req = bus.new_method_call(params.service.c_str(), PATH_ROOT,
++                                       INTF_VLAN_CREATE, "VLAN");
++        req.append(params.ifname, static_cast<uint32_t>(vlan));
++        bus.call_noreply(req);
+     }
+-    if (neighbor4)
++   catch (const sdbusplus::exception::SdBusError& e)
+     {
+-        createNeighbor<AF_INET>(bus, params, neighbor4->ip, neighbor4->mac);
++        log<level::ERR>("error in createVLAN", entry("name=%s", e.name()),
++                        entry("what=%s", e.what()));
++        elog<InternalFailure>();
+     }
+-    if (neighbor6)
++}
++
++/** @brief delete a VLAN on the specified interface
++ *
++ *  @param[in] bus    - The bus object used for lookups
++ *  @param[in] params - The parameters for the channel
++ *  @param[in] vlan   - The new vlan id to use
++ */
++void deleteVLAN(sdbusplus::bus::bus& bus, ChannelParams& params, uint16_t vlan)
++{
++    auto vlanid = getVLANProperty(bus, params);
++    if (vlanid == vlan && vlanid != 0)
++
+     {
+-        createNeighbor<AF_INET6>(bus, params, neighbor6->ip, neighbor6->mac);
++	deleteObjectIfExists(bus, params.service, params.logicalPath);
+     }
+ }
+ 
+@@ -1187,14 +1180,41 @@
+             if (!vlanEnable)
+             {
+                 lastDisabledVlan[channel] = vlan;
+-                vlan = 0;
++                channelCall<deleteVLAN>(channel, vlan);
++                return responseSuccess();
+             }
+             else if (vlan == 0 || vlan == VLAN_VALUE_MASK)
+             {
+                 return responseInvalidFieldRequest();
+             }
++	    channelCall<createVLAN>(channel, vlan);
++            return responseSuccess();
++        }
++	case LanParam::VLANPriority:
++        {
++            uint5_t reserved = 0;
++            uint3_t vlanPriority = 0;
++            if (req.unpack(vlanPriority) || req.unpack(reserved) ||
++                (!req.fullyUnpacked()))
++            {
++                return responseReqDataLenInvalid();
++            }
++
++            if (((uint32_t)vlanPriority) > maxPriority)
++            {
++                return responseInvalidFieldRequest();
++            }
++
++            if (reserved)
++            {
++                return responseInvalidFieldRequest();
++            }
+ 
+-            channelCall<reconfigureVLAN>(channel, vlan);
++            if (channelCall<setVLANPriority>(channel, (uint32_t)vlanPriority) ==
++                0)
++            {
++                return responseCommandNotAvailable();
++            }
+             return responseSuccess();
+         }
+         case LanParam::CiphersuiteSupport:
+@@ -1659,6 +1679,12 @@
+             ret.pack(dataRef(prefix));
+             return responseSuccess(std::move(ret));
+         }
++	case LanParam::VLANPriority:
++        {
++            uint8_t vlanPriority = channelCall<getVLANPriority>(channel);
++            ret.pack(vlanPriority);
++            return responseSuccess(std::move(ret));
++        }
+         case LanParam::cipherSuitePrivilegeLevels:
+         {
+             std::array<uint4_t, ipmi::maxCSRecords> csPrivilegeLevels;
+--- /dev/null
++++ b/transporthandler.hpp  
+@@ -56,6 +56,7 @@
+ constexpr auto INTF_VLAN = "xyz.openbmc_project.Network.VLAN";
+ constexpr auto INTF_VLAN_CREATE = "xyz.openbmc_project.Network.VLAN.Create";
+ constexpr auto INTF_ARPCONTROL = "xyz.openbmc_project.Network.ARPControl";
++constexpr auto maxPriority = 7;
+
+ /** @brief IPMI LAN Parameters */
+ enum class LanParam : uint8_t
+@@ -72,6 +73,7 @@
+     Gateway1 = 12,
+     Gateway1MAC = 13,
+     VLANId = 20,
++    VLANPriority = 21,
+     CiphersuiteSupport = 22,
+     CiphersuiteEntries = 23,
+     cipherSuitePrivilegeLevels = 24,

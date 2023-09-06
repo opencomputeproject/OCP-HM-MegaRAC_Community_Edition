@@ -1,0 +1,41 @@
+diff -Naur A/include/sdrutils.hpp B/include/sdrutils.hpp
+--- A/include/sdrutils.hpp	2022-07-27 12:35:31.453967296 +0530
++++ B/include/sdrutils.hpp	2022-07-27 12:54:36.324210066 +0530
+@@ -24,6 +24,29 @@
+ 
+ namespace details
+ {
++
++inline static void filterSensors(SensorSubTree& subtree)
++{
++    subtree.erase(
++        std::remove_if(subtree.begin(), subtree.end(),
++                       [](SensorSubTree::value_type& kv) {
++                           auto& [_, serviceToIfaces] = kv;
++
++                           static std::array<const char*, 2> serviceFilter = {
++                               "xyz.openbmc_project.Pmt",
++                               "xyz.openbmc_project.pldm"};
++
++                           for (const char* service : serviceFilter)
++                           {
++                               serviceToIfaces.erase(service);
++                           }
++
++                           return serviceToIfaces.empty();
++                       }),
++        subtree.end());
++}
++
++
+ inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+ {
+     static std::shared_ptr<SensorSubTree> sensorTreePtr;
+@@ -80,6 +103,7 @@
+         phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+         return sensorTreeUpdated;
+     }
++    details::filterSensors(*sensorTreePtr);
+     subtree = sensorTreePtr;
+     sensorTreeUpdated = true;
+     return sensorTreeUpdated;

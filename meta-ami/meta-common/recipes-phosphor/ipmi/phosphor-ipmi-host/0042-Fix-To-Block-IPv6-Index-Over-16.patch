@@ -1,0 +1,18 @@
+diff --git a/transporthandler.cpp b/transporthandler.cpp
+old mode 100755
+new mode 100644
+index e3a95b3..12a0e22
+--- a/transporthandler.cpp
++++ b/transporthandler.cpp
+@@ -1268,6 +1268,11 @@ RspType<> setLan(Context::ptr ctx, uint4_t channelBits, uint4_t reserved1,
+             {
+                 return responseInvalidFieldRequest();
+             }
++            if (set > MAX_IPV6_STATIC_ADDRESSES)
++            {
++                return responseParmOutOfRange();
++            }
++
+             copyInto(ip, ipbytes);
+             if (enabled)
+             {

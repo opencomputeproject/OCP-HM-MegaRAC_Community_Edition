@@ -1,0 +1,55 @@
+From bd26eb15938c67386dba90785032a144c1b5ae29 Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Wed, 21 Jun 2023 12:42:27 +0530
+Subject: [PATCH 52/52] Fixed Apache Benchmark tool timeout issue
+
+Description:
+EIP 752081 - [OT0.2] [Archercity]Performnace test via Ab_tool getting timeout error for KeepAlive=true in both basic and session auth
+
+Root Cause:
+
+Ab tool is using the HTTP 1.0 version to make the http requests.
+BmcWeb is using the HTTP 1.1 version. When ab tool makeing the http
+request with keep alive enabled, bmcweb is not closing the connection
+request but ab tool is waiting for the connection to close.
+
+Due to that timeout is happaned.
+
+Fix:
+
+Handled to close the keep alive request from HTTP 1.0 version after
+the request is completed.
+
+Signed-off-by: Pranoy Goru <gorumanip@ami.com>
+---
+ http/http_connection.hpp | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/http/http_connection.hpp b/http/http_connection.hpp
+index 939b6721..a257c910 100644
+--- a/http/http_connection.hpp
++++ b/http/http_connection.hpp
+@@ -690,6 +690,20 @@ class Connection :
+                 BMCWEB_LOG_DEBUG << this << " from write(1)";
+                 return;
+             }
++            if (res.keepAlive()){
++                std::error_code reqEc;
++                crow::Request& Req = req.emplace(parser->release(), reqEc);
++                if (reqEc)
++                {
++                    BMCWEB_LOG_DEBUG << "Request failed to construct" << reqEc;
++                    return;
++                }
++                // close the request connection from HTTP 1.0
++                if(Req.version() == 10){
++                    close();
++                    return;
++                }
++            }
+ 
+             serializer.reset();
+             BMCWEB_LOG_DEBUG << this << " Clearing response";
+-- 
+2.17.1
+

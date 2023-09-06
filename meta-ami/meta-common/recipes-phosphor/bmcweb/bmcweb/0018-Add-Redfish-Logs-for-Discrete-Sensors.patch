@@ -1,0 +1,47 @@
+From aae281da05d5ca9be59f19e2d7e41eee493b7e59 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Mon, 21 Nov 2022 12:56:16 +0530
+Subject: [PATCH] Add Redfish Logs for Discrete Sensors
+
+Add Discrete Sensors event logs to redfish along with ipmi.
+Verified the logs are available in /var/log/redfish & ipmi_sel
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ .../registries/openbmc_message_registry.hpp   | 20 +++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/redfish-core/include/registries/openbmc_message_registry.hpp b/redfish-core/include/registries/openbmc_message_registry.hpp
+index daeb8c66..a6e93864 100644
+--- a/redfish-core/include/registries/openbmc_message_registry.hpp
++++ b/redfish-core/include/registries/openbmc_message_registry.hpp
+@@ -2103,6 +2103,26 @@ constexpr std::array registry = {
+             {},
+             "None.",
+         }},
++    MessageEntry{
++        "SensorProcessorPresence",
++        {
++            "Indicates that Processor Presence is detected",
++            "%1 asserted %2 Event",
++            "OK",
++            2,
++            {"string", "string"},
++            "None.",
++        }},
++    MessageEntry{
++        "SensorWatchdog2",
++        {
++            "Indicates that Watchdog2 Event Detected",
++            "%1 asserted %2 Event",
++            "OK",
++            2,
++            {"string", "string"},
++            "None.",
++        }},
+     MessageEntry{"ResetButtonPressed",
+                  {
+                      "Indicates that the reset button was pressed.",
+-- 
+2.25.1
+

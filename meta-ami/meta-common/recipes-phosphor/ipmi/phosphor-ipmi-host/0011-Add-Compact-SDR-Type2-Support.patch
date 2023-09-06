@@ -1,0 +1,97 @@
+From 177cbf6af5393ac313878f531175a8981d794f01 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Fri, 14 Oct 2022 01:24:26 +0530
+Subject: [PATCH] Add Compact SDR Type2  Support
+
+Tested:
+Verified Sensor and SDR ipmitool list working.
+
+root@intel-obmc:~# ipmitool sensor | head -n 5
+System Airflow   | 23.000     | unspecified | ok    | na        | na        | na        | na        | na        | na
+Status cpu0      | 0x0        | discrete   | 0x8000| na        | na        | na        | na        | na        | na
+Status cpu1      | 0x0        | discrete   | 0x8000| na        | na        | na        | na        | na        | na
+Cpu Energy CPU1  | 856.800    | unspecified | ok    | na        | na        | na        | na        | na        | na
+Cpu Energy CPU2  | 957.600    | unspecified | ok    | na        | na        | na        | na        | na        | n
+
+root@intel-obmc:~# ipmitool sdr elist | head -n 5
+System Airflow   | 00h | ok  |  0.1 | 23 unspecified
+Status cpu0      | 01h | ok  |  3.1 | Presence detected
+Status cpu1      | 02h | ok  |  3.1 | Presence detected
+Cpu Energy CPU1  | 03h | ok  |  0.1 | 856.80 unspecif
+Cpu Energy CPU2  | 04h | ok  |  0.1 | 957.60 unspecif
+root@intel-obmc:~#
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ sensorhandler.hpp | 41 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+diff --git a/sensorhandler.hpp b/sensorhandler.hpp
+index ea9fa3c..aef873a 100644
+--- a/sensorhandler.hpp
++++ b/sensorhandler.hpp
+@@ -189,6 +189,7 @@ inline void set_record_id(int id, SensorDataRecordHeader* hdr)
+ enum SensorDataRecordType
+ {
+     SENSOR_DATA_FULL_RECORD = 0x1,
++    SENSOR_DATA_COMPACT_RECORD = 0x2,
+     SENSOR_DATA_EVENT_RECORD = 0x3,
+     SENSOR_DATA_FRU_RECORD = 0x11,
+     SENSOR_DATA_ENTITY_RECORD = 0x8,
+@@ -340,6 +341,34 @@ struct SensorDataFullRecordBody
+     char id_string[FULL_RECORD_ID_STR_MAX_LENGTH];
+ } __attribute__((packed));
+ 
++/** @struct SensorDataCompactRecord
++ *
++ *  Compact Sensor Record(body) - SDR Type 2
++ */
++struct SensorDataCompactRecordBody
++{
++    uint8_t entity_id;
++    uint8_t entity_instance;
++    uint8_t sensor_initialization;
++    uint8_t sensor_capabilities; // no macro support
++    uint8_t sensor_type;
++    uint8_t event_reading_type;
++    uint8_t supported_assertions[2];          // no macro support
++    uint8_t supported_deassertions[2];        // no macro support
++    uint8_t discrete_reading_setting_mask[2]; // no macro support
++    uint8_t sensor_units_1;
++    uint8_t sensor_units_2_base;
++    uint8_t sensor_units_3_modifier;
++    uint8_t record_sharing[2];
++    uint8_t positive_threshold_hysteresis;
++    uint8_t negative_threshold_hysteresis;
++    uint8_t reserved[3];
++    uint8_t oem_reserved;
++    uint8_t id_string_info;
++    char id_string[FULL_RECORD_ID_STR_MAX_LENGTH];
++} __attribute__((packed));
++
++
+ /** @struct SensorDataEventRecord
+  *
+  *  Event Only Sensor Record(body) - SDR Type 3
+@@ -624,6 +653,18 @@ struct SensorDataFullRecord
+     SensorDataFullRecordBody body;
+ } __attribute__((packed));
+ 
++/** @struct SensorDataComapactRecord
++ *
++ *  Compact Sensor Record - SDR Type 2
++ */
++struct SensorDataCompactRecord
++{
++    SensorDataRecordHeader header;
++    SensorDataRecordKey key;
++    SensorDataCompactRecordBody body;
++} __attribute__((packed));
++
++
+ /** @struct SensorDataEventRecord
+  *
+  *  Event Only Sensor Record - SDR Type 3
+-- 
+2.25.1
+

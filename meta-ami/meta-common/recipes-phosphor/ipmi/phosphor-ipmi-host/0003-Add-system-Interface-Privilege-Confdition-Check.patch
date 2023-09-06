@@ -1,0 +1,76 @@
+From c626e83f01786b74d2581cca9f7124f66d88f4ce Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Thu, 18 Aug 2022 16:11:26 +0530
+Subject: [PATCH 3/3] Add system Interface Privilege Confdition Check
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ include/ipmid/api-types.hpp |  1 +
+ ipmid-new.cpp               | 25 +++++++++++++++++++++++--
+ 2 files changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/include/ipmid/api-types.hpp b/include/ipmid/api-types.hpp
+index 518db03c..42d98092 100644
+--- a/include/ipmid/api-types.hpp
++++ b/include/ipmid/api-types.hpp
+@@ -69,6 +69,7 @@ enum class Privilege : uint8_t
+     Operator,
+     Admin,
+     Oem,
++    sysIface = 0xff,
+ };
+ 
+ // IPMI Net Function number as specified by IPMI V2.0 spec.
+diff --git a/ipmid-new.cpp b/ipmid-new.cpp
+index 7f558cd2..a51b06ce 100644
+--- a/ipmid-new.cpp
++++ b/ipmid-new.cpp
+@@ -49,6 +49,10 @@
+ #include <utility>
+ #include <vector>
+ 
++// Channel number assignments
++static constexpr unsigned short sysInterface = 0x0F;
++static constexpr unsigned short dbusInterface = 0x08;
++
+ namespace fs = std::filesystem;
+ 
+ using namespace phosphor::logging;
+@@ -248,7 +252,16 @@ message::Response::ptr executeIpmiCommandCommon(
+             return filterResponse;
+         }
+         HandlerTuple& chosen = cmdIter->second;
+-        if (request->ctx->priv < std::get<Privilege>(chosen))
++        // if (request->ctx->priv < std::get<Privilege>(chosen))
++        if (request->ctx->channel != dbusInterface &&
++            request->ctx->channel != sysInterface &&
++            std::get<Privilege>(chosen) == Privilege::sysIface)
++        {
++            return errorResponse(request, ccInsufficientPrivilege);
++        }
++        if ((request->ctx->priv < std::get<Privilege>(chosen)) &&
++            (std::get<Privilege>(chosen) != Privilege::sysIface))
++
+         {
+             return errorResponse(request, ccInsufficientPrivilege);
+         }
+@@ -266,7 +279,15 @@ message::Response::ptr executeIpmiCommandCommon(
+                 return filterResponse;
+             }
+             HandlerTuple& chosen = cmdIter->second;
+-            if (request->ctx->priv < std::get<Privilege>(chosen))
++            // if (request->ctx->priv < std::get<Privilege>(chosen))
++            if (request->ctx->channel != dbusInterface &&
++                request->ctx->channel != sysInterface &&
++                std::get<Privilege>(chosen) == Privilege::sysIface)
++            {
++                return errorResponse(request, ccInsufficientPrivilege);
++            }
++            if ((request->ctx->priv < std::get<Privilege>(chosen)) &&
++                (std::get<Privilege>(chosen) != Privilege::sysIface))
+             {
+                 return errorResponse(request, ccInsufficientPrivilege);
+             }
+-- 
+2.25.1
+

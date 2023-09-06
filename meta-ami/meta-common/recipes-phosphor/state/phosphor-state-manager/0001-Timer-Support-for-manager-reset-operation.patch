@@ -1,0 +1,128 @@
+From 3158dbd10fc170190f754027ddaf6260d4493c3e Mon Sep 17 00:00:00 2001
+From: ramadevip <ramadevip@ami.com>
+Date: Thu, 22 Jun 2023 20:52:29 +0530
+Subject: [PATCH] Timer Support for manager reset operation
+
+Signed-off-by: ramadevip <ramadevip@ami.com>
+---
+ bmc_state_manager.cpp      |  9 ++++++++-
+ bmc_state_manager.hpp      | 24 ++++++++++++++++++++++++
+ bmc_state_manager_main.cpp | 12 ++++++++++--
+ 3 files changed, 42 insertions(+), 3 deletions(-)
+
+diff --git a/bmc_state_manager.cpp b/bmc_state_manager.cpp
+index 473329c..2e1fda3 100644
+--- a/bmc_state_manager.cpp
++++ b/bmc_state_manager.cpp
+@@ -1,3 +1,5 @@
++#include "config.h"
++
+ #include "bmc_state_manager.hpp"
+ 
+ #include "utils.hpp"
+@@ -242,7 +244,12 @@ BMC::Transition BMC::requestedBMCTransition(Transition value)
+          "{REQUESTED_BMC_TRANSITION}",
+          "REQUESTED_BMC_TRANSITION", value);
+ 
+-    executeTransition(value);
++    uint16_t timeOutValue = timeOut();
++
++    info("timeout value""{TIMEOUT}","TIMEOUT", timeOutValue);
++    auto interval = std::chrono::seconds(timeOutValue); // start gTimer
++    gTimer->restart(interval);
++
+     return server::BMC::requestedBMCTransition(value);
+ }
+ 
+diff --git a/bmc_state_manager.hpp b/bmc_state_manager.hpp
+index 29e318f..24138f5 100644
+--- a/bmc_state_manager.hpp
++++ b/bmc_state_manager.hpp
+@@ -5,6 +5,13 @@
+ #include <linux/watchdog.h>
+ 
+ #include <sdbusplus/bus.hpp>
++#include <sdeventplus/event.hpp>
++#include <sdeventplus/utility/timer.hpp>
++#include <sdbusplus/bus/match.hpp>
++
++#include<iostream>
++
++#include <boost/asio.hpp>
+ 
+ namespace phosphor
+ {
+@@ -17,6 +24,8 @@ using BMCInherit = sdbusplus::server::object_t<
+     sdbusplus::xyz::openbmc_project::State::server::BMC>;
+ namespace sdbusRule = sdbusplus::bus::match::rules;
+ 
++using Timer = sdeventplus::utility::Timer<sdeventplus::ClockId::RealTime>;
++
+ /** @class BMC
+  *  @brief OpenBMC BMC state management implementation.
+  *  @details A concrete implementation for xyz.openbmc_project.State.BMC
+@@ -44,6 +53,18 @@ class BMC : public BMCInherit
+         discoverInitialState();
+         discoverLastRebootCause();
+         this->emit_object_added();
++
++	std::cerr << "bmc constsructor called 1" << "\n";
++        auto timerCB = [&](Timer&) {
++
++                Transition value = sdbusplus::xyz::openbmc_project::State::server::BMC::requestedBMCTransition();
++                timeOut(0);
++                executeTransition(value);
++                };
++
++        gTimer = std::make_unique<
++                sdeventplus::utility::Timer<sdeventplus::ClockId::RealTime>>(
++                bus.get_event(), std::move(timerCB));
+     };
+ 
+     /** @brief Set value of BMCTransition **/
+@@ -102,6 +123,9 @@ class BMC : public BMCInherit
+     /** @brief Used to subscribe to dbus system state changes **/
+     std::unique_ptr<sdbusplus::bus::match_t> stateSignal;
+ 
++     /** Timer for Bmc reset operation */
++    std::shared_ptr<Timer> gTimer;
++
+     /**
+      * @brief discover the last reboot cause of the bmc
+      **/
+diff --git a/bmc_state_manager_main.cpp b/bmc_state_manager_main.cpp
+index 1d6f617..a33fd32 100644
+--- a/bmc_state_manager_main.cpp
++++ b/bmc_state_manager_main.cpp
+@@ -12,6 +12,12 @@ int main()
+     // 0 is for the current instance
+     auto objPathInst = std::string(BMC_OBJPATH) + '0';
+ 
++    // Get a default event loop
++    sdeventplus::Event event = sdeventplus::Event::get_default();
++
++    // Attach the bus to sd_event to service user requests
++    bus.attach_event(event.get(), SD_EVENT_PRIORITY_NORMAL);
++
+     // Add sdbusplus ObjectManager.
+     sdbusplus::server::manager_t objManager(bus, objPathInst.c_str());
+ 
+@@ -19,11 +25,13 @@ int main()
+ 
+     bus.request_name(BMC_BUSNAME);
+ 
+-    while (true)
++     event.loop();
++
++    /*while (true)
+     {
+         bus.process_discard();
+         bus.wait();
+-    }
++    }*/
+ 
+     exit(EXIT_SUCCESS);
+ }
+-- 
+2.25.1
+

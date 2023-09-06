@@ -1,0 +1,498 @@
+From 897fa07e374e09a86221c98058e85673d67649bc Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Thu, 29 Dec 2022 10:26:20 +0530
+Subject: [PATCH] Added_Sevice_Conf_for_KVM_VM_SSLSOL
+
+---
+ redfish-core/include/utils/service_utils.hpp | 252 +++++++++++++++++++
+ redfish-core/lib/systems.hpp                 | 171 +++++++++++--
+ 2 files changed, 405 insertions(+), 18 deletions(-)
+ create mode 100644 redfish-core/include/utils/service_utils.hpp
+
+diff --git a/redfish-core/include/utils/service_utils.hpp b/redfish-core/include/utils/service_utils.hpp
+new file mode 100644
+index 00000000..68fe6d1b
+--- /dev/null
++++ b/redfish-core/include/utils/service_utils.hpp
+@@ -0,0 +1,252 @@
++#pragma once
++
++#include "dbus_utility.hpp"
++#include "error_messages.hpp"
++#include "openbmc_dbus_rest.hpp"
++
++#include <boost/container/flat_map.hpp>
++#include <nlohmann/json.hpp>
++
++namespace redfish
++{
++namespace service_util
++{
++static constexpr const char* serviceManagerService =
++    "xyz.openbmc_project.Control.Service.Manager";
++static constexpr const char* serviceManagerPath =
++    "/xyz/openbmc_project/control/service";
++static constexpr const char* serviceConfigInterface =
++    "xyz.openbmc_project.Control.Service.Attributes";
++static constexpr const char* portConfigInterface =
++    "xyz.openbmc_project.Control.Service.SocketAttributes";
++
++static bool matchService(const sdbusplus::message::object_path& objPath,
++                         const std::string& serviceName)
++{
++    // For service named as <unitName>@<instanceName>, only compare the unitName
++    // part. In DBus object path, '@' is escaped as "_40"
++    // service-config-manager's object path is NOT encoded with sdbusplus, so
++    // here we have to use the hardcoded "_40" to match
++    std::string fullUnitName = objPath.filename();
++    size_t pos = fullUnitName.find("_40");
++    return fullUnitName.substr(0, pos) == serviceName;
++}
++
++void getEnabled(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                const std::string& serviceName,
++                const nlohmann::json::json_pointer& valueJsonPtr)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, serviceName,
++         valueJsonPtr](const boost::system::error_code ec,
++                       const dbus::utility::ManagedObjectType& objects) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            bool serviceFound = false;
++            for (const auto& [path, interfaces] : objects)
++            {
++                if (matchService(path, serviceName))
++                {
++                    serviceFound = true;
++                    for (const auto& [interface, properties] : interfaces)
++                    {
++                        if (interface != serviceConfigInterface)
++                        {
++                            continue;
++                        }
++
++                        for (const auto& [key, val] : properties)
++                        {
++                            // Service is enabled if one instance is running or
++                            // enabled
++                            if (key == "Enabled" || key == "Running")
++                            {
++                                const auto* enabled = std::get_if<bool>(&val);
++                                if (enabled == nullptr)
++                                {
++                                    messages::internalError(asyncResp->res);
++                                    return;
++                                }
++                                if (*enabled)
++                                {
++                                    asyncResp->res.jsonValue[valueJsonPtr] =
++                                        true;
++				    if (serviceName == "start_2dipkvm")
++					    asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = "4";
++                                    return;
++                                }
++				else
++				{
++	    			    if (serviceName == "start_2dipkvm")
++					asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = "0";
++				}
++                            }
++                        }
++                    }
++                }
++            }
++            // Not populating the property when service is not found
++            if (serviceFound)
++            {
++                asyncResp->res.jsonValue[valueJsonPtr] = false;
++            }
++        },
++        serviceManagerService, serviceManagerPath,
++        "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
++}
++
++void getPortNumber(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                   const std::string& serviceName,
++                   const nlohmann::json::json_pointer& valueJsonPtr)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, serviceName,
++         valueJsonPtr](const boost::system::error_code ec,
++                       const dbus::utility::ManagedObjectType& objects) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            bool serviceFound = false;
++            for (const auto& [path, interfaces] : objects)
++            {
++                if (matchService(path, serviceName))
++                {
++                    serviceFound = true;
++                    for (const auto& [interface, properties] : interfaces)
++                    {
++                        if (interface != portConfigInterface)
++                        {
++                            continue;
++                        }
++
++                        for (const auto& [key, val] : properties)
++                        {
++                            // For service with multiple instances, return the
++                            // port of first instance found as redfish only
++                            // support one port value, they should be same
++                            if (key == "Port")
++                            {
++                                const auto* port = std::get_if<uint16_t>(&val);
++                                if (port == nullptr)
++                                {
++                                    messages::internalError(asyncResp->res);
++                                    return;
++                                }
++                                asyncResp->res.jsonValue[valueJsonPtr] = *port;
++                                return;
++                            }
++                        }
++                    }
++                }
++            }
++            // Not populating the property when service is not found
++            if (serviceFound)
++            {
++                asyncResp->res.jsonValue[valueJsonPtr] = 0;
++            }
++        },
++        serviceManagerService, serviceManagerPath,
++        "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
++}
++
++template <typename T>
++static inline void
++    setProperty(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                const std::string& path, const std::string& interface,
++                const std::string& property, T value)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp](const boost::system::error_code ec) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++        },
++        serviceManagerService, path, "org.freedesktop.DBus.Properties", "Set",
++        interface, property, dbus::utility::DbusVariantType{value});
++}
++
++void setEnabled(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                const std::string& serviceName, const bool enabled)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, serviceName,
++         enabled](const boost::system::error_code ec,
++                  const dbus::utility::ManagedObjectType& objects) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            bool serviceFound = false;
++            for (const auto& [path, _] : objects)
++            {
++                if (matchService(path, serviceName))
++                {
++                    serviceFound = true;
++                    setProperty(asyncResp, path, serviceConfigInterface,
++                                "Running", enabled);
++                    setProperty(asyncResp, path, serviceConfigInterface,
++                                "Enabled", enabled);
++                }
++            }
++
++            // The Redfish property will not be populated in if service is not
++            // found, return PropertyUnknown for PATCH request
++            if (!serviceFound)
++            {
++                messages::propertyUnknown(asyncResp->res, "Enabled");
++                return;
++            }
++        },
++        serviceManagerService, serviceManagerPath,
++        "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
++}
++
++void setPortNumber(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                   const std::string& serviceName, const uint16_t portNumber)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp, serviceName,
++         portNumber](const boost::system::error_code ec,
++                     const dbus::utility::ManagedObjectType& objects) {
++            if (ec)
++            {
++                messages::internalError(asyncResp->res);
++                return;
++            }
++
++            bool serviceFound = false;
++            for (const auto& [path, _] : objects)
++            {
++                if (matchService(path, serviceName))
++                {
++                    serviceFound = true;
++                    setProperty(asyncResp, path, portConfigInterface, "Port",
++                                portNumber);
++                }
++            }
++
++            // The Redfish property will not be populated in if service is not
++            // found, return PropertyUnknown for PATCH request
++            if (!serviceFound)
++            {
++                messages::propertyUnknown(asyncResp->res, "Enabled");
++                return;
++            }
++        },
++        serviceManagerService, serviceManagerPath,
++        "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
++}
++
++} // namespace service_util
++} // namespace redfish
+diff --git a/redfish-core/lib/systems.hpp b/redfish-core/lib/systems.hpp
+index db68cd1f..15e9bbfd 100644
+--- a/redfish-core/lib/systems.hpp
++++ b/redfish-core/lib/systems.hpp
+@@ -32,11 +32,18 @@
+ #include <utils/dbus_utils.hpp>
+ #include <utils/json_utils.hpp>
+ #include <utils/sw_utils.hpp>
++#include <utils/service_utils.hpp>
+ 
+ #include <variant>
+ 
+ namespace redfish
+ {
++static constexpr const char* serialConsoleSshServiceName =
++    "obmc_2dconsole_2dssh";
++static constexpr const char* virtualMediaServiceName =
++    "xyz_2eopenbmc_project_2eVirtualMedia";
++static constexpr const char* kvmServiceName =
++    "start_2dipkvm";
+ 
+ /**
+  * @brief Updates the Functional State of DIMMs
+@@ -2800,6 +2807,59 @@ inline void setIdlePowerSaver(const std::shared_ptr<bmcweb::AsyncResp>& aResp,
+     BMCWEB_LOG_DEBUG << "EXIT: Set idle power saver parameters";
+ }
+ 
++/**
++ * @brief Retrieves Serial console over SSH properties
++ * // https://github.com/openbmc/docs/blob/master/console.md
++ *
++ * @param[in] aResp     Shared pointer for completing asynchronous calls.
++ * @return None.
++ */
++inline void getSerialConsoleSshStatus(
++    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    service_util::getEnabled(
++        asyncResp, serialConsoleSshServiceName,
++        nlohmann::json::json_pointer("/SerialConsole/SSH/ServiceEnabled"));
++    service_util::getPortNumber(
++        asyncResp, serialConsoleSshServiceName,
++        nlohmann::json::json_pointer("/SerialConsole/SSH/Port"));
++    asyncResp->res.jsonValue["SerialConsole"]["SSH"]["HotKeySequenceDisplay"] =
++        "Press ~. to exit console";
++}
++
++/**
++ * @brief Retrieves virtual media properties
++ *
++ * @param[in] aResp     Shared pointer for completing asynchronous calls.
++ *
++ * @return None.
++ */
++inline void
++    getVirtualMediaConfig(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    service_util::getEnabled(
++        asyncResp, virtualMediaServiceName,
++        nlohmann::json::json_pointer("/VirtualMediaConfig/ServiceEnabled"));
++}
++
++/**
++ * @brief Retrieves KVM properties
++ *
++ * @param[in] aResp     Shared pointer for completing asynchronous calls.
++ *
++ * @return None.
++ */
++inline void
++    getKvmConfig(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    service_util::getEnabled(
++        asyncResp, kvmServiceName,
++        nlohmann::json::json_pointer("/GraphicalConsole/ServiceEnabled"));
++    asyncResp->res.jsonValue["GraphicalConsole"] = {
++                {"ConnectTypesSupported", {"KVMIP"}},};
++}
++
++
+ inline void handleComputerSystemHead(
+     crow::App& app, const crow::Request& req,
+     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+@@ -3115,23 +3175,11 @@ inline void requestRoutesSystems(App& app)
+         asyncResp->res.jsonValue["SerialConsole"]["IPMI"]["ServiceEnabled"] =
+             true;
+ 
+-        // TODO (Gunnar): Should look for obmc-console-ssh@2200.service
+-        asyncResp->res.jsonValue["SerialConsole"]["SSH"]["ServiceEnabled"] =
+-            true;
+-        asyncResp->res.jsonValue["SerialConsole"]["SSH"]["Port"] = 2200;
+-        asyncResp->res
+-            .jsonValue["SerialConsole"]["SSH"]["HotKeySequenceDisplay"] =
+-            "Press ~. to exit console";
+-
+-#ifdef BMCWEB_ENABLE_KVM
+-        // Fill in GraphicalConsole info
+-        asyncResp->res.jsonValue["GraphicalConsole"]["ServiceEnabled"] = true;
+-        asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] =
+-            4;
+-        asyncResp->res.jsonValue["GraphicalConsole"]["ConnectTypesSupported"] =
+-            nlohmann::json::array_t({"KVMIP"});
+-
+-#endif // BMCWEB_ENABLE_KVM
++#ifdef BMCWEB_ENABLE_VM_NBDPROXY
++		 asyncResp->res.jsonValue["VirtualMedia"] = {
++                {"@odata.id", "/redfish/v1/Managers/bmc/VirtualMedia"}};
++#endif // BMCWEB_ENABLE_VM_NBDPROXY
++
+         constexpr const std::array<const char*, 4> inventoryForSystems = {
+             "xyz.openbmc_project.Inventory.Item.Dimm",
+             "xyz.openbmc_project.Inventory.Item.Cpu",
+@@ -3187,6 +3235,10 @@ inline void requestRoutesSystems(App& app)
+         getTrustedModuleRequiredToBoot(asyncResp);
+         getPowerMode(asyncResp);
+         getIdlePowerSaver(asyncResp);
++	getSerialConsoleSshStatus(asyncResp);
++	getVirtualMediaConfig(asyncResp);
++	getKvmConfig(asyncResp);
++
+         });
+ 
+     BMCWEB_ROUTE(app, "/redfish/v1/Systems/<str>/")
+@@ -3227,6 +3279,9 @@ inline void requestRoutesSystems(App& app)
+         std::optional<uint64_t> ipsEnterTime;
+         std::optional<uint8_t> ipsExitUtil;
+         std::optional<uint64_t> ipsExitTime;
++	std::optional<nlohmann::json> serialConsole;
++	std::optional<nlohmann::json> virtualMediaConfig;
++	std::optional<nlohmann::json> kvmConfig;
+ 
+         // clang-format off
+                 if (!json_util::readJsonPatch(
+@@ -3247,7 +3302,10 @@ inline void requestRoutesSystems(App& app)
+                         "IdlePowerSaver/EnterUtilizationPercent", ipsEnterUtil,
+                         "IdlePowerSaver/EnterDwellTimeSeconds", ipsEnterTime,
+                         "IdlePowerSaver/ExitUtilizationPercent", ipsExitUtil,
+-                        "IdlePowerSaver/ExitDwellTimeSeconds", ipsExitTime))
++                        "IdlePowerSaver/ExitDwellTimeSeconds", ipsExitTime,
++		         "SerialConsole", serialConsole,
++		         "VirtualMediaConfig", virtualMediaConfig,
++		         "GraphicalConsole", kvmConfig))
+                 {
+                     return;
+                 }
+@@ -3311,6 +3369,83 @@ inline void requestRoutesSystems(App& app)
+             setIdlePowerSaver(asyncResp, ipsEnable, ipsEnterUtil, ipsEnterTime,
+                               ipsExitUtil, ipsExitTime);
+         }
++        if (kvmConfig)
++        {
++            std::optional<bool> kvmServiceEnabled;
++
++            if (!json_util::readJson(*kvmConfig, asyncResp->res,
++                           "ServiceEnabled", kvmServiceEnabled))
++            {
++                return;
++            }
++
++            if (kvmServiceEnabled)
++            {
++                service_util::setEnabled(asyncResp,
++                           kvmServiceName,
++                           *kvmServiceEnabled);
++                asyncResp->res.jsonValue["GraphicalConsole"] = {
++                           {"MaxConcurrentSessions", *kvmServiceEnabled ? 4 : 0},
++                           {"ConnectTypesSupported", {"KVMIP"}},
++                };
++
++             }
++         }
++
++         if (serialConsole)
++         {
++            std::optional<nlohmann::json> ssh;
++            if (!json_util::readJson(*serialConsole, asyncResp->res,
++                            "SSH", ssh))
++            {
++                return;
++            }
++
++            if (ssh)
++            {
++                std::optional<bool> sshServiceEnabled;
++                std::optional<uint16_t> sshPortNumber;
++                if (!json_util::readJson(
++                                *ssh, asyncResp->res, "ServiceEnabled",
++                                sshServiceEnabled, "Port", sshPortNumber))
++                {
++                   return;
++                }
++
++                if (sshServiceEnabled)
++                {
++                   service_util::setEnabled(
++                                 asyncResp, serialConsoleSshServiceName,
++                                 *sshServiceEnabled);
++                }
++
++                if (sshPortNumber)
++                {
++                   service_util::setPortNumber(
++                                asyncResp, serialConsoleSshServiceName,
++                                *sshPortNumber);
++                }
++             }
++          }
++
++          if (virtualMediaConfig)
++          {
++             std::optional<bool> vmServiceEnabled;
++             if (!json_util::readJson(*virtualMediaConfig,
++                             asyncResp->res, "ServiceEnabled",
++                             vmServiceEnabled))
++             {
++                return;
++             }
++
++             if (vmServiceEnabled)
++             {
++                service_util::setEnabled(asyncResp,
++                              virtualMediaServiceName,
++                              *vmServiceEnabled);
++             }
++           }
++
+         });
+ }
+ 

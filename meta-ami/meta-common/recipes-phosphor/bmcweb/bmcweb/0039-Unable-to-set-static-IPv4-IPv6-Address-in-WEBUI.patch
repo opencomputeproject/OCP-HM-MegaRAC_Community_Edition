@@ -1,0 +1,95 @@
+From 0a741b1c7ecc04449119662e7f81909fdf3ff3cb Mon Sep 17 00:00:00 2001
+From: gokulp <gokulp@ami.com>
+Date: Tue, 13 Jun 2023 19:57:50 +0530
+Subject: [PATCH] Unable to set static IPv4/IPv6 Address in WEBUI can be able
+ to patch ipv6 static address without changing dhcpv6 operating mode.
+
+Signed-off-by: gokulp <gokulp@ami.com>
+---
+ redfish-core/lib/ethernet.hpp | 42 +++++++++++++++++++++++++++++++----
+ 1 file changed, 38 insertions(+), 4 deletions(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 0e72ab4d..50a4b208 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -760,7 +760,7 @@ inline void
+             prefixLength, gateway);
+         },
+         "xyz.openbmc_project.Network",
+-        +"/xyz/openbmc_project/network/" + ifaceId + "/ipv4/" + id,
++        +"/xyz/openbmc_project/network/" + ifaceId + id,
+         "xyz.openbmc_project.Object.Delete", "Delete");
+ }
+ 
+@@ -1146,6 +1146,27 @@ inline void setDHCPEnabled(const std::string& ifaceId,
+         dbus::utility::DbusVariantType{dhcp});
+ }
+ 
++inline void setDHCPState(const std::string& ifaceId,
++                           const std::string& propertyName, const bool value,                           
++                           const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
++{
++    crow::connections::systemBus->async_method_call(
++        [asyncResp](const boost::system::error_code ec) {
++        if (ec)
++        {
++            BMCWEB_LOG_ERROR << "D-Bus responses error: " << ec;
++            messages::internalError(asyncResp->res);
++            return;
++        }
++        messages::success(asyncResp->res);
++        },
++        "xyz.openbmc_project.Network",
++        "/xyz/openbmc_project/network/" + ifaceId,
++        "org.freedesktop.DBus.Properties", "Set",
++        "xyz.openbmc_project.Network.EthernetInterface", propertyName,
++        dbus::utility::DbusVariantType(value));
++}
++
+ inline void setEthernetInterfaceBoolProperty(
+     const std::string& ifaceId, const std::string& propertyName,
+     const bool& value, const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+@@ -1322,6 +1343,7 @@ inline void handleIPv4StaticPatch(
+     const boost::container::flat_set<IPv4AddressData>& ipv4Data,
+     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+ {
++    setDHCPState(ifaceId, "DHCP4", false, asyncResp);
+     if ((!input.is_array()) || input.empty())
+     {
+         messages::propertyValueTypeError(
+@@ -1623,6 +1645,7 @@ inline void handleIPv6StaticAddressesPatch(
+     const boost::container::flat_set<IPv6AddressData>& ipv6Data,
+     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+ {
++    setDHCPState(ifaceId, "DHCP6", false, asyncResp);
+     if (!input.is_array() || input.empty())
+     {
+         messages::propertyValueTypeError(
+@@ -2127,9 +2150,20 @@ inline void requestEthernetInterfacesRoutes(App& app)
+ 
+             if (ipv6StaticAddresses)
+             {
+-                const nlohmann::json& ipv6Static = *ipv6StaticAddresses;
+-                handleIPv6StaticAddressesPatch(ifaceId, ipv6Static, ipv6Data,
+-                                               asyncResp);
++                 //if (v6dhcpParms.dhcpv6OperatingMode != "")
++                {
++                    if ((*v6dhcpParms.dhcpv6OperatingMode == "Stateful"))
++                    {
++                        messages::propertyMissing(asyncResp->res, "OperatingMode: Disabled");
++                        return;
++                    }
++                    else
++                    {
++                        const nlohmann::json& ipv6Static = *ipv6StaticAddresses;
++                        handleIPv6StaticAddressesPatch(ifaceId, ipv6Static, ipv6Data,
++                                                    asyncResp);
++                    }                
++                }
+             }
+ 
+             if (interfaceEnabled)
+-- 
+2.34.1
+

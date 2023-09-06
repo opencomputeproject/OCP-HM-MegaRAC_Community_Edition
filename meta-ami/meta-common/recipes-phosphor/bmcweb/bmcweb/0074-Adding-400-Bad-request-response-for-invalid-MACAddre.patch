@@ -1,0 +1,27 @@
+From 26a5cd0b6332918d48a9e422cb90636041282656 Mon Sep 17 00:00:00 2001
+From: Sandeep <sandeepap@ami.com>
+Date: Fri, 30 Jun 2023 13:18:55 +0530
+Subject: [PATCH] Adding 400 Bad request response for invalid MACAddress
+
+Signed-off-by: sandeepap <sandeepap@ami.com>
+---
+ redfish-core/lib/ethernet.hpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 6fa5ebc9..cef20d63 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -1112,7 +1112,8 @@ inline void
+                 messages::propertyNotWritable(asyncResp->res, "MACAddress");
+                 return;
+             }
+-            messages::internalError(asyncResp->res);
++	    messages::actionParameterNotSupported(asyncResp->res, macAddress,
++                                                  "MACAddress");
+             return;
+         }
+         },
+-- 
+2.25.1
+

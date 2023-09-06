@@ -1,0 +1,26 @@
+From 8d57b590abf5be0be34fc3fdc09006831b07b1a3 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Tue, 13 Jun 2023 12:57:44 +0530
+Subject: [PATCH] serial console opened in new tab shows error
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/views/Operations/SerialOverLan/SerialOverLanConsole.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/views/Operations/SerialOverLan/SerialOverLanConsole.vue b/src/views/Operations/SerialOverLan/SerialOverLanConsole.vue
+index 694083f..51d2bb3 100644
+--- a/src/views/Operations/SerialOverLan/SerialOverLanConsole.vue
++++ b/src/views/Operations/SerialOverLan/SerialOverLanConsole.vue
+@@ -78,7 +78,7 @@ export default {
+     },
+   },
+   created() {
+-    this.$store.dispatch('global/getServerStatus');
++    this.$store.dispatch('global/getSystemInfo');
+   },
+   mounted() {
+     this.openTerminal();
+-- 
+2.25.1
+

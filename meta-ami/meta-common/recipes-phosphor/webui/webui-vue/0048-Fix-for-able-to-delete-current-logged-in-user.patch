@@ -1,0 +1,109 @@
+From c691f8db3d9ed8c89ed4ff4f248bc1c7c2d72873 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Tue, 23 May 2023 19:36:48 +0530
+Subject: [PATCH] Fix for able to delete current logged in user
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                        |  1 +
+ .../SecurityAndAccess/UserManagementStore.js  | 19 +++++++++++
+ .../UserManagement/UserManagement.vue         | 34 ++++++++++++++++---
+ 3 files changed, 50 insertions(+), 4 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 46b72db..e0f3aff 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -667,6 +667,7 @@
+       "errorBatchEnable": "Error enabling %{count} user. | Error enabling %{count} users.",
+       "errorCreateUser": "Username '%{username}' already exists.",
+       "errorDeleteUser": "Error deleting user '%{username}'.",
++      "errorDeleteLoggedUser": "User '%{username}' currently logged-in another session",
+       "errorLoadAccountSettings": "Error loading account settings",
+       "errorLoadUsers": "Error loading users.",
+       "errorSaveSettings": "Error saving account settings.",
+diff --git a/src/store/modules/SecurityAndAccess/UserManagementStore.js b/src/store/modules/SecurityAndAccess/UserManagementStore.js
+index 362f3f6..66e925d 100644
+--- a/src/store/modules/SecurityAndAccess/UserManagementStore.js
++++ b/src/store/modules/SecurityAndAccess/UserManagementStore.js
+@@ -52,6 +52,25 @@ const UserManagementStore = {
+     },
+   },
+   actions: {
++    async getSessionsData() {
++      return await api
++        .get('/redfish/v1/SessionService/Sessions')
++        .then((response) =>
++          response.data.Members.map((sessionLogs) => sessionLogs['@odata.id'])
++        )
++        .then((sessionUris) =>
++          api.all(sessionUris.map((sessionUri) => api.get(sessionUri)))
++        )
++        .then((sessionUris) => {
++          const allSessionsData = sessionUris.map((sessionUri) => {
++            return sessionUri.data;
++          });
++          return allSessionsData;
++        })
++        .catch((error) => {
++          console.log('Client Session Data:', error);
++        });
++    },
+     async getUsers({ commit }) {
+       return await api
+         .get('/redfish/v1/AccountService/Accounts')
+diff --git a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+index b17be86..3b3bb02 100644
+--- a/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
++++ b/src/views/SecurityAndAccess/UserManagement/UserManagement.vue
+@@ -133,6 +133,7 @@ import BVTableSelectableMixin, {
+ } from '@/components/Mixins/BVTableSelectableMixin';
+ import BVToastMixin from '@/components/Mixins/BVToastMixin';
+ import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import i18n from '@/i18n';
+ 
+ export default {
+   name: 'UserManagement',
+@@ -303,10 +304,35 @@ export default {
+     deleteUser({ username }) {
+       this.startLoader();
+       this.$store
+-        .dispatch('userManagement/deleteUser', username)
+-        .then((success) => this.successToast(success))
+-        .catch(({ message }) => this.errorToast(message))
+-        .finally(() => this.endLoader());
++        .dispatch('userManagement/getSessionsData')
++        .then((allSessions) => {
++          let userDelete = true;
++          allSessions.forEach((session) => {
++            if (
++              session.SessionType == 'WebUI' &&
++              session.UserName == username
++            ) {
++              userDelete = false;
++            }
++          });
++          return userDelete;
++        })
++        .then((userDelete) => {
++          if (userDelete) {
++            this.$store
++              .dispatch('userManagement/deleteUser', username)
++              .then((success) => this.successToast(success))
++              .catch(({ message }) => this.errorToast(message))
++              .finally(() => this.endLoader());
++          } else {
++            this.endLoader();
++            this.errorToast(
++              i18n.t('pageUserManagement.toast.errorDeleteLoggedUser', {
++                username,
++              })
++            );
++          }
++        });
+     },
+     onBatchAction(action) {
+       switch (action) {
+-- 
+2.25.1
+

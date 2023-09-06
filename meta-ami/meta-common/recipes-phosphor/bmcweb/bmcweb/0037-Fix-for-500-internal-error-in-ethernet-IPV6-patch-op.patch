@@ -1,0 +1,35 @@
+From 7b9256414b5d22316aefe2802dc81e39e4daedcd Mon Sep 17 00:00:00 2001
+From: sandeepap <sandeepap@ami.com>
+Date: Mon, 12 Jun 2023 12:00:24 +0530
+Subject: [PATCH] Fix for 500 internal error in ethernet IPV6 patch operation
+
+Signed-off-by: sandeepap <sandeepap@ami.com>
+---
+ redfish-core/lib/ethernet.hpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 0e72ab4d..74e27618 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -784,7 +784,7 @@ inline void deleteIPv6(const std::string& ifaceId, const std::string& ipHash,
+         }
+         },
+         "xyz.openbmc_project.Network",
+-        "/xyz/openbmc_project/network/" + ifaceId + "/ipv6/" + ipHash,
++        "/xyz/openbmc_project/network/" + ifaceId  + ipHash,
+         "xyz.openbmc_project.Object.Delete", "Delete");
+ }
+ 
+@@ -826,7 +826,7 @@ inline void
+             prefixLength, "");
+         },
+         "xyz.openbmc_project.Network",
+-        +"/xyz/openbmc_project/network/" + ifaceId + "/ipv6/" + id,
++        +"/xyz/openbmc_project/network/" + ifaceId  + id,
+         "xyz.openbmc_project.Object.Delete", "Delete");
+ }
+ 
+-- 
+2.17.1
+

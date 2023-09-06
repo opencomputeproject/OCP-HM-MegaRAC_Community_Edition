@@ -1,0 +1,33 @@
+From d137d40c961872a2132d627a76cecf74219640a7 Mon Sep 17 00:00:00 2001
+From: "vamsikrishnak@ami.com" <vamsikrishnak@ami.com>
+Date: Mon, 5 Jun 2023 18:45:06 +0530
+Subject: [PATCH] Fixed the Attribute MaxConcurrentSession type to integer
+
+Signed-off-by: vamsikrishnak@ami.com <vamsikrishnak@ami.com>
+---
+ redfish-core/include/utils/service_utils.hpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/include/utils/service_utils.hpp b/redfish-core/include/utils/service_utils.hpp
+index 68fe6d1b..42691b9e 100644
+--- a/redfish-core/include/utils/service_utils.hpp
++++ b/redfish-core/include/utils/service_utils.hpp
+@@ -76,13 +76,13 @@ void getEnabled(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                                     asyncResp->res.jsonValue[valueJsonPtr] =
+                                         true;
+ 				    if (serviceName == "start_2dipkvm")
+-					    asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = "4";
++					    asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = 4;
+                                     return;
+                                 }
+ 				else
+ 				{
+ 	    			    if (serviceName == "start_2dipkvm")
+-					asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = "0";
++					asyncResp->res.jsonValue["GraphicalConsole"]["MaxConcurrentSessions"] = 0;
+ 				}
+                             }
+                         }
+-- 
+2.17.1
+

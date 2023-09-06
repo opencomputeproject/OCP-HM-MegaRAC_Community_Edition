@@ -1,0 +1,26 @@
+From 83760d53489b31b0aa34efb14b6735cd4f03dc84 Mon Sep 17 00:00:00 2001
+From: "vamsikrishnak@ami.com" <vamsikrishnak@ami.com>
+Date: Fri, 2 Jun 2023 12:01:17 +0530
+Subject: [PATCH] FIXED PATCH operation in EthernetInterface
+
+Signed-off-by: vamsikrishnak@ami.com <vamsikrishnak@ami.com>
+---
+ redfish-core/lib/ethernet.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 638798a1..932b59fe 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -1180,7 +1180,7 @@ inline void setDHCPv4Config(const std::string& propertyName, const bool& value,
+         }
+         },
+         "xyz.openbmc_project.Network",
+-        "/xyz/openbmc_project/network/config/dhcp",
++        "/xyz/openbmc_project/network/dhcp",
+         "org.freedesktop.DBus.Properties", "Set",
+         "xyz.openbmc_project.Network.DHCPConfiguration", propertyName,
+         dbus::utility::DbusVariantType{value});
+-- 
+2.17.1
+

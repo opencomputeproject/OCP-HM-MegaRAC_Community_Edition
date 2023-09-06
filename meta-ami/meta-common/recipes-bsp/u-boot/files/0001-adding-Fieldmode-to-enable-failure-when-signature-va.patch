@@ -1,0 +1,22 @@
+From b24fa21e3f971fbadfb34cb3996dee038ed4fc77 Mon Sep 17 00:00:00 2001
+From: Abinaya L <abinayal@ami.com>
+Date: Thu, 25 May 2023 00:23:47 +0530
+Subject: [PATCH] adding Fieldmode to enable failure when signature validation
+ fails
+
+---
+ include/configs/intel_ast2600.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/configs/intel_ast2600.h b/include/configs/intel_ast2600.h
+index 101566bdde..e40b56754a 100644
+--- a/include/configs/intel_ast2600.h
++++ b/include/configs/intel_ast2600.h
+@@ -34,6 +34,7 @@
+ 	"loadaddr=" STR(CONFIG_SYS_LOAD_ADDR) "\0"	\
+ 	"bootspi=fdt addr 20100000 && fdt header get fitsize totalsize && cp.b 20100000 ${loadaddr} ${fitsize} && bootm; echo Error loading kernel FIT image\0"	\
+ 	"verify=yes\0"	\
++	"fieldmode=true\0" \
+ 	""
+ 
+ #endif	/* __CONFIG_H */

@@ -1,0 +1,357 @@
+From 5c427bbc198b780ae3d6d490c47a0839f5411916 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Thu, 10 Nov 2022 22:29:39 +0530
+Subject: [PATCH] Add Watchdog2 Discrete Sensor
+
+Add EM Json Config, SDR Support for Watchdog2 Type DS.
+Add Support in dbus-sensors for monitoring.
+
+Tested:
+Verified in BMC dbus-objects are successfully created for watchdog2 sensor.
+Verifed watchdog2 is updated based on the signal from phosphor-watchdog.
+
+root@intel-obmc:~# ipmitool raw 0x06 0x24 0x01 0x01 0x00 0x00 0x10 0x00
+				//ipmi hard reset set success
+root@intel-obmc:~# ipmitool raw 0x06 0x22
+				//ipmi watchdog reset success
+root@intel-obmc:~#
+root@intel-obmc:~# ipmitool sdr elist | grep -i watchdog
+Watchdog2        | 48h | ok  | 46.1 | Hard reset
+root@intel-obmc:~#
+root@intel-obmc:~#
+root@intel-obmc:~# ipmitool raw 0x06 0x24 0x01 0x02 0x00 0x00 0x10 0x00
+				//ipmi Power down set  success
+root@intel-obmc:~# ipmitool raw 0x06 0x22
+				//ipmi watchdog resete success
+root@intel-obmc:~#
+root@intel-obmc:~# ipmitool sdr elist | grep -i watchdog
+Watchdog2        | 48h | ok  | 46.1 | Power down
+root@intel-obmc:~#
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/sdrutils.hpp       |  14 ++--
+ include/sensorcommands.hpp |  15 ++++
+ src/sensorcommands.cpp     | 167 ++++++++++++++++++++++++++++++++++---
+ 3 files changed, 178 insertions(+), 18 deletions(-)
+
+diff --git a/include/sdrutils.hpp b/include/sdrutils.hpp
+index f3ec8d3..e1ecd08 100644
+--- a/include/sdrutils.hpp
++++ b/include/sdrutils.hpp
+@@ -60,7 +60,7 @@ static constexpr uint8_t sysEntityInstance = 0x01;
+ static constexpr uint8_t eidReserved = 0x00;
+ static constexpr uint8_t processorSensorType = 0x07;
+ static constexpr uint8_t sensorSpecificEvent = 0x6f;
+-
++static constexpr uint8_t watchdog2SensorType = 0x23;
+ 
+ namespace details
+ {
+@@ -280,9 +280,10 @@ inline static uint16_t getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+                              "/xyz/openbmc_project/object_mapper",
+                              "xyz.openbmc_project.ObjectMapper", "GetSubTree");
+     static constexpr const auto depth = 2;
+-    static constexpr std::array<const char*, 4> interfaces = {
++    static constexpr std::array<const char*, 5> interfaces = {
+         "xyz.openbmc_project.Sensor.Value",
+-	"xyz.openbmc_project.Inventory.Item.Cpu",
++        "xyz.openbmc_project.Inventory.Item.Cpu",
++        "xyz.openbmc_project.Inventory.Item.Watchdog",
+         "xyz.openbmc_project.Sensor.Threshold.Warning",
+         "xyz.openbmc_project.Sensor.Threshold.Critical"};
+     mapperCall.append("/xyz/openbmc_project/sensors", depth, interfaces);
+@@ -384,6 +385,7 @@ enum class SensorTypeCodes : uint8_t
+     current = 0x3,
+     fan = 0x4,
+     processor = 0x07,
++    watchdog2 = 0x23,
+     other = 0xB,
+ };
+ 
+@@ -393,7 +395,8 @@ const static boost::container::flat_map<const char*, SensorTypeCodes, CmpStr>
+                  {"current", SensorTypeCodes::current},
+                  {"fan_tach", SensorTypeCodes::fan},
+                  {"fan_pwm", SensorTypeCodes::fan},
+-		 {"cpu", SensorTypeCodes::processor},
++                 {"cpu", SensorTypeCodes::processor},
++                 {"watchdog", SensorTypeCodes::watchdog2},
+                  {"power", SensorTypeCodes::other}}};
+ 
+ inline static std::string getSensorTypeStringFromPath(const std::string& path)
+@@ -451,7 +454,8 @@ inline static uint16_t getSensorNumberFromPath(const std::string& path)
+ inline static uint8_t getSensorEventTypeFromPath(const std::string& path)
+ {
+     uint8_t sensorType = (getSensorTypeFromPath(path));
+-    if (sensorType == static_cast<uint8_t>(SensorTypeCodes::processor))
++    if (sensorType == static_cast<uint8_t>(SensorTypeCodes::processor) ||
++        sensorType == static_cast<uint8_t>(SensorTypeCodes::watchdog2))
+     {
+         return 0x6f; // reading type = Sensor Specific
+     }
+diff --git a/include/sensorcommands.hpp b/include/sensorcommands.hpp
+index 0b60600..ac67658 100644
+--- a/include/sensorcommands.hpp
++++ b/include/sensorcommands.hpp
+@@ -63,6 +63,10 @@ enum class IPMISensorReadingByte3 : uint8_t
+     lowerNonCritical = (1 << 0),
+     presenceDetected = (1 << 0),
+     procPresenceDetected = (1 << 7),
++    watchdog2None = (1 << 0),
++    watchdog2HardReset = (1 << 1),
++    watchdog2PowerOff = (1 << 2),
++    watchdog2PowerCycle = (1 << 3),
+ };
+ 
+ enum class IPMISensorEventEnableByte2 : uint8_t
+@@ -114,6 +118,17 @@ enum class IPMISensorEventEnableProc : uint8_t
+     procPresenceDetected = (1 << 7),
+ };
+ 
++/**
++ * @enum watchdog2 sensor event enable bit mask
++ */
++enum class IPMISensorEventEnableWatchdog2 : uint8_t
++{
++    watchdog2None = (1 << 0),
++    watchdog2HardReset = (1 << 1),
++    watchdog2PowerOff = (1 << 2),
++    watchdog2PowerCycle = (1 << 3),
++};
++
+ enum class IPMINetfnSensorCmds : ipmi_cmd_t
+ {
+     ipmiCmdGetDeviceSDRInfo = 0x20,
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index 2123d01..47672ad 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -15,7 +15,6 @@
+ */
+ 
+ #include "sensorcommands.hpp"
+-
+ #include "commandutils.hpp"
+ #include "ipmi_to_redfish_hooks.hpp"
+ #include "sdrutils.hpp"
+@@ -163,11 +162,12 @@ static sdbusplus::bus::match_t thresholdChanged(
+ 
+ namespace sensor
+ {
+-static constexpr const char* cpuInterface =
+-    "xyz.openbmc_project.Inventory.Item.Cpu";
+ static constexpr const char* sensorInterface =
+     "xyz.openbmc_project.Sensor.Value";
+-
++static constexpr const char* cpuInterface =
++    "xyz.openbmc_project.Inventory.Item.Cpu";
++static constexpr const char* watchdog2Interface =
++    "xyz.openbmc_project.Inventory.Item.Watchdog";
+ /**
+  * @brief Gets assertion status for Processor type sensor
+  *
+@@ -193,6 +193,38 @@ bool getCpuStatus(const SensorMap& sensorMap, uint8_t& assertions)
+ 
+     return true;
+ }
++
++bool getwd2Status(const SensorMap& sensorMap, uint8_t& assertions)
++{
++    auto statusObject =
++        sensorMap.find("xyz.openbmc_project.Inventory.Item.Watchdog");
++    if (statusObject != sensorMap.end())
++    {
++        auto status = statusObject->second.find("Status");
++        if (status != statusObject->second.end())
++        {
++            std::string action = std::get<std::string>(status->second);
++            if (action == "HardReset")
++            {
++                assertions |= static_cast<uint8_t>(
++                    IPMISensorReadingByte3::watchdog2HardReset);
++            }
++            if (action == "PowerOff")
++            {
++                assertions |= static_cast<uint8_t>(
++                    IPMISensorReadingByte3::watchdog2PowerOff);
++            }
++            if (action == "PowerCycle")
++            {
++                assertions |= static_cast<uint8_t>(
++                    IPMISensorReadingByte3::watchdog2PowerCycle);
++            }
++        }
++    }
++
++    return true;
++}
++
+ } // namespace sensor
+ 
+ static void getSensorMaxMin(const SensorMap& sensorMap, double& max,
+@@ -393,7 +425,7 @@ bool constructCpuSdr(ipmi::Context::ptr ctx, uint16_t sensorNum,
+     record.header.record_length = sizeof(get_sdr::SensorDataCompactRecord) -
+                                   sizeof(get_sdr::SensorDataRecordHeader);
+     record.key.owner_id = bmcI2CAddr;
+-    record.key.owner_lun = lun; // need to update
++    record.key.owner_lun = lun;
+     record.key.sensor_number = sensorNumber;
+     record.body.sensor_type = processorSensorType;
+     record.body.entity_id = entityId;
+@@ -401,14 +433,6 @@ bool constructCpuSdr(ipmi::Context::ptr ctx, uint16_t sensorNum,
+ 
+     std::string type = getSensorTypeStringFromPath(path);
+     auto typeCstr = type.c_str();
+-/*
+-    auto findUnits = sensorUnits.find(typeCstr);
+-    if (findUnits != sensorUnits.end())
+-    {
+-        record.body.sensor_units_2_base =
+-            static_cast<uint8_t>(findUnits->second);
+-    } // else default 0x0 unspecified
+-*/
+     for (const auto& [unitsType, units] : sensorUnits)
+     {
+         if (type == unitsType)
+@@ -465,7 +489,90 @@ bool constructCpuSdr(ipmi::Context::ptr ctx, uint16_t sensorNum,
+     }
+     return true;
+ }
++bool constructWatchdog2Sdr(ipmi::Context::ptr ctx, uint16_t sensorNum,
++                           uint16_t recordID, const std::string& service,
++                           const std::string& path,
++                           get_sdr::SensorDataCompactRecord& record)
++{
++    uint8_t sensorNumber = static_cast<uint8_t>(sensorNum);
++    uint8_t lun = static_cast<uint8_t>(sensorNum >> 8);
++    uint8_t entityId = 0x2e;
++    uint8_t entityInstance = 0x01;
+ 
++    get_sdr::header::set_record_id(
++        recordID, reinterpret_cast<get_sdr::SensorDataRecordHeader*>(&record));
++    record.header.sdr_version = ipmiSdrVersion;
++    record.header.record_type = get_sdr::SENSOR_DATA_COMPACT_RECORD;
++    record.header.record_length = sizeof(get_sdr::SensorDataCompactRecord) -
++                                  sizeof(get_sdr::SensorDataRecordHeader);
++    record.key.owner_id = bmcI2CAddr;
++    record.key.owner_lun = lun;
++    record.key.sensor_number = sensorNumber;
++    record.body.sensor_type = watchdog2SensorType;
++    record.body.entity_id = entityId;
++    record.body.entity_instance = entityInstance;
++    std::string type = getSensorTypeStringFromPath(path);
++    auto typeCstr = type.c_str();
++
++    for (const auto& [unitsType, units] : sensorUnits)
++    {
++        if (type == unitsType)
++        {
++            record.body.sensor_units_2_base = static_cast<uint8_t>(units);
++        }
++    }
++    record.body.event_reading_type = sensorSpecificEvent;
++    SensorMap sensorMap;
++    if (!getSensorMap(ctx->yield, service, path, sensorMap,
++                      sensorMapSdrUpdatePeriod))
++    {
++        phosphor::logging::log<phosphor::logging::level::ERR>(
++            "Failed to update sensor map for watchdog2 sensor",
++            phosphor::logging::entry("SERVICE=%s", service.c_str()),
++            phosphor::logging::entry("PATH=%s", path.c_str()));
++        return false;
++    }
++    // follow the association chain to get the parent board's entityid and
++    // entityInstance
++    updateIpmiFromAssociation(path, sensorMap, entityId, entityInstance);
++    std::string name;
++    size_t nameStart = path.rfind("/");
++    if (nameStart != std::string::npos)
++    {
++        name = path.substr(nameStart + 1, std::string::npos - nameStart);
++    }
++    std::replace(name.begin(), name.end(), '_', ' ');
++    record.body.id_string_info = name.size();
++    std::strncpy(record.body.id_string, name.c_str(),
++                 sizeof(record.body.id_string));
++    details::sdrStatsTable.updateName(sensorNumber, name);
++    if (sensorMap.find("xyz.openbmc_project.Inventory.Item.Watchdog") !=
++        sensorMap.end())
++    {
++        // HardReset
++        record.body.supported_assertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2HardReset);
++        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2HardReset);
++        record.body.discrete_reading_setting_mask[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2HardReset);
++        // PowerOff
++        record.body.supported_assertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerOff);
++        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerOff);
++        record.body.discrete_reading_setting_mask[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerOff);
++        // PowerCycle
++        record.body.supported_assertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerCycle);
++        record.body.supported_deassertions[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerCycle);
++        record.body.discrete_reading_setting_mask[0] |= static_cast<uint8_t>(
++            IPMISensorEventEnableWatchdog2::watchdog2PowerCycle);
++    }
++    return true;
++}
+ 
+ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+                                      ipmi::message::Payload& p)
+@@ -623,6 +730,26 @@ ipmi::RspType<uint8_t, uint8_t, uint8_t, std::optional<uint8_t>>
+         return ipmi::responseSuccess(value, operation, assertions,
+                                      std::nullopt);
+     }
++
++    auto wd2Interface = sensorMap.find(sensor::watchdog2Interface);
++    if (wd2Interface != sensorMap.end())
++    {
++        uint8_t assertions = 0;
++
++        if (!sensor::getwd2Status(sensorMap, assertions))
++        {
++            return ipmi::responseResponseError();
++        }
++
++        uint8_t value = 0;
++        uint8_t operation = 0;
++        operation |=
++            static_cast<uint8_t>(IPMISensorReadingByte2::sensorScanningEnable);
++
++        return ipmi::responseSuccess(value, operation, assertions,
++                                     std::nullopt);
++    }
++
+     auto sensorObject = sensorMap.find("xyz.openbmc_project.Sensor.Value");
+ 
+     if (sensorObject == sensorMap.end() ||
+@@ -1751,6 +1878,20 @@ static int
+         recordData.insert(recordData.end(), (uint8_t*)&record,
+                           ((uint8_t*)&record) + sizeof(record));
+     }
++    // handle watchdog2 sensors
++    if (std::find(interfaces.begin(), interfaces.end(),
++                  sensor::watchdog2Interface) != interfaces.end())
++    {
++        get_sdr::SensorDataCompactRecord record = {0};
++        if (!constructWatchdog2Sdr(ctx, sensorNum, recordID, connection, path,
++                                   record))
++        {
++            return GENERAL_ERROR;
++        }
++        recordData.insert(recordData.end(), (uint8_t*)&record,
++                          ((uint8_t*)&record) + sizeof(record));
++    }
++
+     return 0;
+ }
+ 
+-- 
+2.25.1
+

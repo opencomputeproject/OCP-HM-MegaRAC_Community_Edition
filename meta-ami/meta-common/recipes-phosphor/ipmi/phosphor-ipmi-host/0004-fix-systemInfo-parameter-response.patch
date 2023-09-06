@@ -1,0 +1,58 @@
+From 11f1b7b71a9435f3e12b7068af3b1acc1a9ae5a3 Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Fri, 19 Aug 2022 11:36:34 +0530
+Subject: [PATCH 4/4] fix systemInfo parameter response
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ apphandler.cpp | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/apphandler.cpp b/apphandler.cpp
+index 6cdd78f2..668b4ccd 100644
+--- a/apphandler.cpp
++++ b/apphandler.cpp
+@@ -1305,18 +1305,19 @@ ipmi::RspType<uint8_t,                // Parameter revision
+     {
+         return ipmi::responseSuccess(paramRevision, std::nullopt, std::nullopt);
+     }
+-
++    if (BlockSelector != 0) // 00h if parameter does not require a block number
++    {
++        return ipmi::responseParmNotSupported();
++    }
+     if (paramSelector == 0)
+     {
++        if (setSelector != 0)
++            return ipmi::responseInvalidFieldRequest();
++
+         return ipmi::responseSuccess(paramRevision, transferStatus,
+                                      std::nullopt);
+     }
+ 
+-    if (BlockSelector != 0) // 00h if parameter does not require a block number
+-    {
+-        return ipmi::responseParmNotSupported();
+-    }
+-
+     if (sysInfoParamStore == nullptr)
+     {
+         sysInfoParamStore = std::make_unique<SysInfoParamStore>();
+@@ -1327,12 +1328,12 @@ ipmi::RspType<uint8_t,                // Parameter revision
+     // Parameters other than Set In Progress are assumed to be strings.
+     std::tuple<bool, std::string> ret =
+         sysInfoParamStore->lookup(paramSelector);
++    std::string& paramString = std::get<1>(ret);
+     bool found = std::get<0>(ret);
+     if (!found)
+     {
+-        return ipmi::responseSensorInvalid();
++        paramString = "";
+     }
+-    std::string& paramString = std::get<1>(ret);
+     std::vector<uint8_t> configData;
+     size_t count = 0;
+     if (setSelector == 0)
+-- 
+2.25.1
+

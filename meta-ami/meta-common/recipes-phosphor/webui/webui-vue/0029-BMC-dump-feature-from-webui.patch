@@ -1,0 +1,115 @@
+From 092b66bd6e2df01c53cdb545df9d0dbf4c26bf77 Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 3 Nov 2022 16:57:28 +0530
+Subject: [PATCH]  BMC dump feature from webui
+
+Signed-off-by: sivaprabug <sivaprabug@ami.com>
+---
+ src/env/components/AppNavigation/intel.js | 5 +++++
+ src/env/router/intel.js                   | 9 +++++++++
+ src/env/store/intel.js                    | 2 ++
+ src/views/Logs/Dumps/Dumps.vue            | 3 +--
+ src/views/Overview/Overview.vue           | 4 ++--
+ 5 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index 8434cb0..fb7ec5e 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -32,6 +32,11 @@ const AppNavigationMixin = {
+           label: this.$t('appNavigation.logs'),
+           icon: 'iconLogs',
+           children: [
++            {
++              id: 'dumps',
++              label: this.$t('appNavigation.dumps'),
++              route: '/logs/dumps',
++            },
+             {
+               id: 'event-logs',
+               label: this.$t('appNavigation.eventLogs'),
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index fd67f6f..760f67c 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -29,6 +29,7 @@ import Certificates from '@/views/SecurityAndAccess/Certificates';
+ import VirtualMedia from '@/views/Operations/VirtualMedia';
+ import Power from '@/views/ResourceManagement/Power';
+ import i18n from '@/i18n';
++import Dumps from '@/views/Logs/Dumps';
+ 
+ const routes = [
+   {
+@@ -102,6 +103,14 @@ const routes = [
+           title: i18n.t('appPageTitle.profileSettings'),
+         },
+       },
++      {
++        path: '/logs/dumps',
++        name: 'dumps',
++        component: Dumps,
++        meta: {
++          title: i18n.t('appPageTitle.dumps'),
++        },
++      },
+       {
+         path: '/logs/event-logs',
+         name: 'event-logs',
+diff --git a/src/env/store/intel.js b/src/env/store/intel.js
+index 70c9b98..e5f42e1 100644
+--- a/src/env/store/intel.js
++++ b/src/env/store/intel.js
+@@ -1,7 +1,9 @@
+ import store from '@/store';
++import DumpsStore from '@/store/modules/Logs/DumpsStore';
+ 
+ // Use store.registerModule() to register env specific
+ // store modules
+ // https://vuex.vuejs.org/api/#registermodule
++store.registerModule('dumps', DumpsStore);
+ 
+ export default store;
+diff --git a/src/views/Logs/Dumps/Dumps.vue b/src/views/Logs/Dumps/Dumps.vue
+index 81c9de0..cf5e63a 100644
+--- a/src/views/Logs/Dumps/Dumps.vue
++++ b/src/views/Logs/Dumps/Dumps.vue
+@@ -60,7 +60,6 @@
+             :empty-filtered-text="$t('global.table.emptySearchMessage')"
+             :filter="searchFilter"
+             :busy="isBusy"
+-            @filtered="onChangeSearchFilter"
+             @row-selected="onRowSelected($event, filteredTableItems.length)"
+           >
+             <!-- Checkbox column -->
+@@ -306,7 +305,7 @@ export default {
+   },
+   created() {
+     this.startLoader();
+-    this.$store.dispatch('dumps/getBmcDumpEntries').finally(() => {
++    this.$store.dispatch('dumps/getAllDumps').finally(() => {
+       this.endLoader();
+       this.isBusy = false;
+     });
+diff --git a/src/views/Overview/Overview.vue b/src/views/Overview/Overview.vue
+index c729f60..edd9758 100644
+--- a/src/views/Overview/Overview.vue
++++ b/src/views/Overview/Overview.vue
+@@ -55,13 +55,13 @@ export default {
+   mixins: [LoadingBarMixin],
+   data() {
+     return {
+-      showDumps: process.env.VUE_APP_ENV_NAME === 'ibm',
++      showDumps: process.env.VUE_APP_ENV_NAME === 'intel',
+     };
+   },
+   created() {
+     this.startLoader();
+     let dumpsPromise = null;
+-    if (this.showDumps === 'ibm') {
++    if (this.showDumps === 'intel') {
+       dumpsPromise = new Promise((resolve) => {
+         this.$root.$on('overview-dumps-complete', () => resolve());
+       });
+-- 
+2.25.1
+

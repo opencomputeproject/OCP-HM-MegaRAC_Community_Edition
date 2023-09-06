@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect the SEL information .
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="BMC SEL List Information"
+file_name="selinfo.log"
+command="ipmitool sel list"
+
+add_cmd_output "$command" "$file_name" "$desc"

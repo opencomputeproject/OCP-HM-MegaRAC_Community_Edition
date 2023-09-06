@@ -1,0 +1,28 @@
+diff -Naur A/pwmtachtool.c B/pwmtachtool.c
+--- A/pwmtachtool.c	2022-08-06 13:58:09.125824619 +0530
++++ B/pwmtachtool.c	2022-08-06 14:38:54.836126250 +0530
+@@ -93,7 +93,7 @@
+ 		}
+ 		*fan_num = (unsigned char)strtol( argv[ ++i ], NULL, 10);
+ 		*rpm_value = (unsigned int)strtol( argv[ ++i ], NULL, 10);
+-		action = SET_PWM_DUTYCYCLE;
++                 action = SET_PWM_DUTYCYCLE;
+ 	}
+ 	else if( strcmp( argv[ i ], "--set-pwm-dutycycle-value" ) == 0 )
+ 	{
+@@ -104,8 +104,15 @@
+ 		}
+ 		*fan_num = (unsigned char)strtol( argv[ ++i ], NULL, 10);
+ 		*rpm_value = (unsigned int)strtol( argv[ ++i ], NULL, 10);
++		if(*rpm_value < 0 || *rpm_value > 255)
++                {
++                        printf("set-pwm-dutycycle-value should be 0 to 255 \n");
++			return -1;
++		}
+ 		action = SET_PWM_DUTYCYCLE_VALUE;
++
+ 	}
++
+ 	else if( strcmp( argv[i], "--get-pwm-dutycycle" ) == 0)
+ 	{
+ 		if (argc < 4)

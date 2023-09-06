@@ -1,0 +1,516 @@
+From 39435cdbcc4a670d166df41bd575292e448024a2 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Thu, 22 Jun 2023 12:39:19 +0530
+Subject: [PATCH] network page ipv4 static and dhcp fix
+
+---
+ src/locales/en-US.json                     |  6 +-
+ src/locales/ru-RU.json                     |  6 +-
+ src/store/modules/Settings/NetworkStore.js |  7 +-
+ src/views/Settings/Network/ModalIpv4.vue   | 56 ++++++++++--
+ src/views/Settings/Network/Network.vue     | 72 +++++++++++++++-
+ src/views/Settings/Network/TableIpv4.vue   | 99 ++++++++++------------
+ src/views/Settings/Network/TableIpv6.vue   | 20 ++---
+ 7 files changed, 187 insertions(+), 79 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 7eee903..044e574 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -877,7 +877,11 @@
+       "secondaryDns": "Secondary DNS Server",
+       "confirm": "Confirmation",
+       "ipv4Confirmation": "Please delete any one of IPV4 address to add Static IPV4 address.",
+-      "ipv6Confirmation": "Please delete any one of IPV6 address to add Static IPV6 address."
++      "ipv6Confirmation": "Please delete any one of IPV6 address to add Static IPV6 address.",
++      "confirmTitle": "Confirm?",
++      "confirmMessage":"This configuration may change the IP address of the device, making further access impossible. After confirming the device IP, you can log in with the new IP. Do you want to proceed?",
++      "informatiomTitle": "Information",
++      "informationMessage": "Network configuration has been reset successfully. Please close this browser session and open a new browser session to connect to the device with new IP"
+     },
+     "table": {
+       "addDnsAddress": "Add IP address",
+diff --git a/src/locales/ru-RU.json b/src/locales/ru-RU.json
+index f95aa05..ca50b96 100644
+--- a/src/locales/ru-RU.json
++++ b/src/locales/ru-RU.json
+@@ -715,7 +715,11 @@
+       "gateway": "Шлюз",
+       "ipAddress": "IP адрес",
+       "staticDns": "Статический DNS",
+-      "subnetMask": "Маска подсети"
++      "subnetMask": "Маска подсети",
++      "confirmTitle": "Подтверждать?",
++      "confirmMessage":"Эта конфигурация может изменить IP-адрес устройства, что сделает дальнейший доступ невозможным. После подтверждения IP-адреса устройства вы можете войти в систему с новым IP-адресом. Вы хотите продолжить?",
++      "informatiomTitle": "Информация",
++      "informationMessage": "Конфигурация сети успешно сброшена. Закройте этот сеанс браузера и откройте новый сеанс браузера, чтобы подключиться к устройству с новым IP-адресом."
+     },
+     "table": {
+       "addDnsAddress": "Добавить IP адрес",
+diff --git a/src/store/modules/Settings/NetworkStore.js b/src/store/modules/Settings/NetworkStore.js
+index f203da3..382f5b5 100644
+--- a/src/store/modules/Settings/NetworkStore.js
++++ b/src/store/modules/Settings/NetworkStore.js
+@@ -315,7 +315,12 @@ const NetworkStore = {
+       return api
+         .patch(
+           `/redfish/v1/Managers/bmc/EthernetInterfaces/${state.selectedInterfaceId}`,
+-          { IPv4StaticAddresses: ipv4TableData }
++          {
++            DHCPv4: {
++              DHCPEnabled: false,
++            },
++            IPv4StaticAddresses: ipv4TableData,
++          }
+         )
+         .then(dispatch('getEthernetData'))
+         .then(() => {
+diff --git a/src/views/Settings/Network/ModalIpv4.vue b/src/views/Settings/Network/ModalIpv4.vue
+index dcf4a57..0cb4389 100644
+--- a/src/views/Settings/Network/ModalIpv4.vue
++++ b/src/views/Settings/Network/ModalIpv4.vue
+@@ -99,6 +99,14 @@ export default {
+       type: String,
+       default: '',
+     },
++    ipv4Data: {
++      type: Object,
++      default: () => {},
++    },
++    addIpv4: {
++      type: Boolean,
++      default: false,
++    },
+   },
+   data() {
+     return {
+@@ -107,12 +115,26 @@ export default {
+         gateway: '',
+         subnetMask: '',
+       },
++      isAddIpv4: false,
+     };
+   },
+   watch: {
+     defaultGateway() {
+       this.form.gateway = this.defaultGateway;
+     },
++    addIpv4() {
++      this.isAddIpv4 = this.addIpv4;
++      if (this.isAddIpv4) {
++        this.form.ipAddress = null;
++        this.form.gateway = null;
++        this.form.subnetMask = null;
++      }
++    },
++    ipv4Data() {
++      this.form.ipAddress = this.ipv4Data?.Address;
++      this.form.gateway = this.ipv4Data?.Gateway;
++      this.form.subnetMask = this.ipv4Data?.SubnetMask;
++    },
+   },
+   validations() {
+     return {
+@@ -136,12 +158,22 @@ export default {
+     handleSubmit() {
+       this.$v.$touch();
+       if (this.$v.$invalid) return;
+-      this.$emit('ok', {
+-        Address: this.form.ipAddress,
+-        Gateway: this.form.gateway,
+-        SubnetMask: this.form.subnetMask,
+-      });
+-      this.closeModal();
++      this.$bvModal
++        .msgBoxConfirm(this.$tc('pageNetwork.modal.confirmMessage'), {
++          title: this.$tc('pageNetwork.modal.confirmTitle'),
++          okTitle: this.$t('global.action.ok'),
++          cancelTitle: this.$t('global.action.cancel'),
++        })
++        .then((addConfirmed) => {
++          if (addConfirmed) {
++            this.$emit('ok', {
++              Address: this.form.ipAddress,
++              Gateway: this.form.gateway,
++              SubnetMask: this.form.subnetMask,
++            });
++            this.closeModal();
++          }
++        });
+     },
+     closeModal() {
+       this.$nextTick(() => {
+@@ -149,9 +181,15 @@ export default {
+       });
+     },
+     resetForm() {
+-      this.form.ipAddress = null;
+-      this.form.gateway = this.defaultGateway;
+-      this.form.subnetMask = null;
++      if (this.isAddIpv4) {
++        this.form.ipAddress = null;
++        this.form.gateway = null;
++        this.form.subnetMask = null;
++      } else {
++        this.form.ipAddress = this.ipv4Data?.Address;
++        this.form.gateway = this.ipv4Data?.Gateway;
++        this.form.subnetMask = this.ipv4Data?.SubnetMask;
++      }
+       this.$v.$reset();
+       this.$emit('hidden');
+     },
+diff --git a/src/views/Settings/Network/Network.vue b/src/views/Settings/Network/Network.vue
+index 90d029c..c2699f0 100644
+--- a/src/views/Settings/Network/Network.vue
++++ b/src/views/Settings/Network/Network.vue
+@@ -1,5 +1,12 @@
+ <template>
+   <b-container fluid="xl">
++    <div v-if="networkOverlay">
++      <b-overlay :show="true" opacity="0.6" no-wrap fixed class="full-overlay">
++        <template #overlay>
++          <div></div>
++        </template>
++      </b-overlay>
++    </div>
+     <page-title :description="$t('pageNetwork.pageDescription')" />
+     <!-- Global settings for all interfaces -->
+     <network-global-settings />
+@@ -22,7 +29,14 @@
+                 <!-- Interface settings -->
+                 <network-interface-settings :tab-index="tabIndex" />
+                 <!-- IPV4 table -->
+-                <table-ipv-4 :tab-index="tabIndex" />
++                <table-ipv-4
++                  :tab-index="tabIndex"
++                  @ipv4EditData="getIpv4EditData"
++                  @ipv4TableData="getIpv4TableData"
++                  @addIpv4="isAddIpv4"
++                  @networkOverlay="isNetworkOverlay"
++                />
++                <!-- IPV6 table -->
+                 <table-ipv-6
+                   :tab-index="tabIndex"
+                   @ipv6EditData="getIpv6EditData"
+@@ -38,7 +52,12 @@
+       </b-row>
+     </page-section>
+     <!-- Modals -->
+-    <modal-ipv4 :default-gateway="defaultGateway" @ok="saveIpv4Address" />
++    <modal-ipv4
++      :default-gateway="defaultGateway"
++      :ipv4-data="ipv4Data"
++      :add-ipv4="addIpv4"
++      @ok="saveIpv4Address"
++    />
+     <modal-ipv6
+       :ipv6-data="ipv6Data"
+       :add-ipv6="addIpv6"
+@@ -91,6 +110,7 @@ export default {
+   },
+   data() {
+     return {
++      networkOverlay: false,
+       currentHostname: '',
+       currentMacAddress: '',
+       defaultGateway: '',
+@@ -98,6 +118,10 @@ export default {
+       ipv6Data: null,
+       ipv6TableData: [],
+       ipv6Index: null,
++      addIpv4: false,
++      ipv4Data: null,
++      ipv4TableData: [],
++      ipv4Index: null,
+       loading,
+       tabIndex: 0,
+     };
+@@ -117,6 +141,9 @@ export default {
+     );
+   },
+   methods: {
++    isNetworkOverlay() {
++      this.networkOverlay = true;
++    },
+     isAddIpv6() {
+       this.addIpv6 = true;
+       this.ipv6Data = null;
+@@ -130,6 +157,19 @@ export default {
+       this.ipv6Index = index;
+       this.addIpv6 = false;
+     },
++    isAddIpv4() {
++      this.addIpv4 = true;
++      this.ipv4Data = null;
++    },
++    getIpv4TableData(ipv4) {
++      this.ipv4TableData = ipv4;
++      this.ipv4Index = null;
++    },
++    getIpv4EditData(index) {
++      this.ipv4Data = this.ipv4TableData[index];
++      this.ipv4Index = index;
++      this.addIpv4 = false;
++    },
+     getModalInfo() {
+       this.defaultGateway = this.$store.getters[
+         'network/globalNetworkSettings'
+@@ -154,9 +194,33 @@ export default {
+     },
+     saveIpv4Address(modalFormData) {
+       this.startLoader();
++      if (this.ipv4Index == null) {
++        this.ipv4TableData.push(modalFormData);
++      } else {
++        this.ipv4TableData[this.ipv4Index] = modalFormData;
++      }
++      const ipv4Array = this.ipv4TableData.map((ipv4) => {
++        const { Address, SubnetMask, Gateway } = ipv4;
++        return {
++          Address,
++          SubnetMask,
++          Gateway,
++        };
++      });
+       this.$store
+-        .dispatch('network/saveIpv4Address', modalFormData)
+-        .then((message) => this.successToast(message))
++        .dispatch('network/editIpv4Address', ipv4Array)
++        .then((message) => {
++          this.successToast(message);
++          this.$bvModal
++            .msgBoxOk(this.$tc('pageNetwork.modal.informationMessage'), {
++              title: this.$tc('pageNetwork.modal.informatiomTitle'),
++            })
++            .then((addConfirmed) => {
++              if (addConfirmed) {
++                this.networkOverlay = true;
++              }
++            });
++        })
+         .catch(({ message }) => this.errorToast(message))
+         .finally(() => this.endLoader());
+     },
+diff --git a/src/views/Settings/Network/TableIpv4.vue b/src/views/Settings/Network/TableIpv4.vue
+index f34c1dc..1aa6b22 100644
+--- a/src/views/Settings/Network/TableIpv4.vue
++++ b/src/views/Settings/Network/TableIpv4.vue
+@@ -21,16 +21,6 @@
+           </dd>
+         </dl>
+       </b-col>
+-      <b-col class="text-right">
+-        <b-button
+-          :disabled="ipv4BtnDisable"
+-          variant="primary"
+-          @click="initAddIpv4Address()"
+-        >
+-          <icon-add />
+-          {{ $t('pageNetwork.table.addIpv4Address') }}
+-        </b-button>
+-      </b-col>
+     </b-row>
+     <b-table
+       responsive="md"
+@@ -48,11 +38,10 @@
+           :value="action.value"
+           :title="action.title"
+           :enabled="action.enabled"
+-          @click-table-action="onIpv4TableAction(action, $event, index)"
++          @click-table-action="editIpv4TableRow(index)"
+         >
+           <template #icon>
+             <icon-edit v-if="action.value === 'edit'" />
+-            <icon-trashcan v-if="action.value === 'delete'" />
+           </template>
+         </table-row-action>
+       </template>
+@@ -62,9 +51,7 @@
+ 
+ <script>
+ import BVToastMixin from '@/components/Mixins/BVToastMixin';
+-import IconAdd from '@carbon/icons-vue/es/add--alt/20';
+ import IconEdit from '@carbon/icons-vue/es/edit/20';
+-import IconTrashcan from '@carbon/icons-vue/es/trash-can/20';
+ import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
+ import PageSection from '@/components/Global/PageSection';
+ import TableRowAction from '@/components/Global/TableRowAction';
+@@ -73,9 +60,7 @@ import { mapState } from 'vuex';
+ export default {
+   name: 'Ipv4Table',
+   components: {
+-    IconAdd,
+     IconEdit,
+-    IconTrashcan,
+     PageSection,
+     TableRowAction,
+   },
+@@ -88,6 +73,7 @@ export default {
+   },
+   data() {
+     return {
++      networkOverlay: false,
+       ipv4BtnDisable: false,
+       form: {
+         ipv4TableItems: [],
+@@ -97,10 +83,6 @@ export default {
+           value: 'edit',
+           title: this.$t('global.action.edit'),
+         },
+-        {
+-          value: 'delete',
+-          title: this.$t('global.action.delete'),
+-        },
+       ],
+       ipv4TableFields: [
+         {
+@@ -161,10 +143,9 @@ export default {
+           AddressOrigin: ipv4.AddressOrigin,
+           actions: [
+             {
+-              value: 'delete',
+-              title: this.$t('pageNetwork.table.deleteIpv4'),
++              value: 'edit',
++              title: this.$t('pageNetwork.table.editIpv4'),
+               enabled:
+-                this.form.ipv4TableItems.length > 1 &&
+                 this.ethernetData[this.tabIndex].DHCPv4.DHCPEnabled == false
+                   ? true
+                   : false,
+@@ -173,37 +154,51 @@ export default {
+         };
+       });
+     },
+-    onIpv4TableAction(action, $event, index) {
+-      if ($event === 'delete') {
+-        this.deleteIpv4TableRow(index);
+-      }
+-    },
+-    deleteIpv4TableRow(index) {
+-      this.form.ipv4TableItems.splice(index, 1);
+-      const newIpv4Array = this.form.ipv4TableItems.map((ipv4) => {
+-        const { Address, SubnetMask, Gateway } = ipv4;
+-        return {
+-          Address,
+-          SubnetMask,
+-          Gateway,
+-        };
+-      });
+-      this.$store
+-        .dispatch('network/editIpv4Address', newIpv4Array)
+-        .then((message) => this.successToast(message))
+-        .catch(({ message }) => this.errorToast(message));
++    editIpv4TableRow(index) {
++      this.$emit('ipv4TableData', this.form.ipv4TableItems);
++      this.$emit('ipv4EditData', index);
++      this.$bvModal.show('modal-add-ipv4');
+     },
+     initAddIpv4Address() {
++      this.$emit('addIpv4');
++      this.$emit('ipv4TableData', this.form.ipv4TableItems);
+       this.$bvModal.show('modal-add-ipv4');
+     },
+     changeDhcpIpv4State(dhcpEnable) {
+       if (dhcpEnable) {
+-        const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
+-        this.$store.commit('network/setIpv4Dhcp', data);
+-        this.$store
+-          .dispatch('network/saveIpv4Dhcp', true)
+-          .then((message) => this.successToast(message))
+-          .catch(({ message }) => this.errorToast(message));
++        this.$bvModal
++          .msgBoxConfirm(this.$tc('pageNetwork.modal.confirmMessage'), {
++            title: this.$tc('pageNetwork.modal.confirmTitle'),
++            okTitle: this.$t('global.action.ok'),
++            cancelTitle: this.$t('global.action.cancel'),
++          })
++          .then((addConfirmed) => {
++            if (addConfirmed) {
++              const data = { dhcpEnable: dhcpEnable, index: this.tabIndex };
++              this.$store.commit('network/setIpv4Dhcp', data);
++              this.$store
++                .dispatch('network/saveIpv4Dhcp', true)
++                .then((message) => {
++                  this.successToast(message);
++                  this.$bvModal
++                    .msgBoxOk(
++                      this.$tc('pageNetwork.modal.informationMessage'),
++                      {
++                        title: this.$tc('pageNetwork.modal.informatiomTitle'),
++                      }
++                    )
++                    .then((addConfirmed) => {
++                      if (addConfirmed) {
++                        this.$emit('networkOverlay', true);
++                      }
++                    });
++                })
++                .catch(({ message }) => this.errorToast(message));
++            } else {
++              const data = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
++              this.$store.commit('network/setIpv4Dhcp', data);
++            }
++          });
+       } else {
+         const data = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
+         this.$store.commit('network/setIpv4Dhcp', data);
+@@ -221,15 +216,13 @@ export default {
+           this.form.ipv4TableItems.forEach((element) => {
+             element.actions = [
+               {
+-                value: 'delete',
+-                title: this.$t('pageNetwork.table.deleteIpv4'),
+-                enabled: this.form.ipv4TableItems.length > 1 ? true : false,
++                value: 'edit',
++                title: this.$t('pageNetwork.table.editIpv4'),
++                enabled: true,
+               },
+             ];
+           });
+         }
+-        // const dhcpIpv4 = { dhcpEnable: !dhcpEnable, index: this.tabIndex };
+-        // this.$store.commit('network/setIpv4Dhcp', dhcpIpv4);
+       }
+     },
+   },
+diff --git a/src/views/Settings/Network/TableIpv6.vue b/src/views/Settings/Network/TableIpv6.vue
+index aeb8da3..4a7bc82 100644
+--- a/src/views/Settings/Network/TableIpv6.vue
++++ b/src/views/Settings/Network/TableIpv6.vue
+@@ -6,6 +6,16 @@
+           {{ $t('pageNetwork.ipv6Addresses') }}
+         </h3>
+       </b-col>
++      <b-col class="text-right">
++        <b-button
++          :disabled="ipv6BtnDisable"
++          variant="primary"
++          @click="initAddIpv6Address()"
++        >
++          <icon-add />
++          {{ $t('pageNetwork.table.addIpv6Address') }}
++        </b-button>
++      </b-col>
+       <b-col class="text-right" md="3">
+         <dl>
+           <dd>
+@@ -21,16 +31,6 @@
+           </dd>
+         </dl>
+       </b-col>
+-      <b-col class="text-right">
+-        <b-button
+-          :disabled="ipv6BtnDisable"
+-          variant="primary"
+-          @click="initAddIpv6Address()"
+-        >
+-          <icon-add />
+-          {{ $t('pageNetwork.table.addIpv6Address') }}
+-        </b-button>
+-      </b-col>
+     </b-row>
+     <b-table
+       responsive="md"
+-- 
+2.25.1
+

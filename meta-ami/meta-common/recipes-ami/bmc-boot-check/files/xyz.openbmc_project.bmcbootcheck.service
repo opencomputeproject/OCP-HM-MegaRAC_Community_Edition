@@ -1,0 +1,10 @@
+[Unit]
+Description=Check if bmc reboot is caused by AC loss
+
+[Service]
+RemainAfterExit=true
+Type=oneshot
+ExecStart=/usr/bin/env bmc-boot-check.sh
+
+[Install]
+WantedBy=multi-user.target

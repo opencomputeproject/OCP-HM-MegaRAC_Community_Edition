@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# config: 2 30
+# @brief: Collect the sensor information.
+#
+
+. $DREPORT_INCLUDE/functions
+
+desc="BMC Sensor List Information"
+file_name="sensorinfo.log"
+command="ipmitool sensor list"
+
+add_cmd_output "$command" "$file_name" "$desc"

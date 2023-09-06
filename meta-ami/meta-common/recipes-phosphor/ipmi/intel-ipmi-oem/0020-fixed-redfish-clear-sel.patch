@@ -1,0 +1,74 @@
+From dbc502ec899b1f3857ccc119a1521095b432e585 Mon Sep 17 00:00:00 2001
+From: Shamim Ali <shamima@ami.com>
+Date: Tue, 17 Jan 2023 18:19:55 +0530
+Subject: [PATCH] clear redfish events
+
+add support for clearing redfish sel events
+
+Signed-off-by: Shamim Ali <shamima@ami.com>
+---
+ src/storagecommands.cpp | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/src/storagecommands.cpp b/src/storagecommands.cpp
+index 1a110ee..5d59cb3 100644
+--- a/src/storagecommands.cpp
++++ b/src/storagecommands.cpp
+@@ -43,6 +43,7 @@ namespace intel_oem::ipmi::sel
+ {
+ static const std::filesystem::path selLogDir = "/var/log";
+ static const std::string selLogFilename = "ipmi_sel";
++static const std::string redfishLogFilename = "redfish";
+ 
+ static int getFileTimestamp(const std::filesystem::path& file)
+ {
+@@ -833,6 +834,28 @@ static bool getSELLogFiles(std::vector<std::filesystem::path>& selLogFiles)
+     return !selLogFiles.empty();
+ }
+ 
++static bool
++    getRedfishLogFiles(std::vector<std::filesystem::path>& redfishLogFiles)
++{
++    // Loop through the directory looking for redfish log files
++    for (const std::filesystem::directory_entry& dirEnt :
++         std::filesystem::directory_iterator(intel_oem::ipmi::sel::selLogDir))
++    {
++        std::string filename = dirEnt.path().filename();
++        if (boost::starts_with(filename,
++                               intel_oem::ipmi::sel::redfishLogFilename))
++        {
++            // If we find an redfish log file, save the path
++            redfishLogFiles.emplace_back(intel_oem::ipmi::sel::selLogDir /
++                                         filename);
++        }
++    }
++
++    std::sort(redfishLogFiles.begin(), redfishLogFiles.end());
++
++    return !redfishLogFiles.empty();
++}
++
+ static int countSELEntries()
+ {
+     // Get the list of ipmi_sel log files
+@@ -1285,6 +1308,17 @@ ipmi::RspType<uint8_t> ipmiStorageClearSEL(ipmi::Context::ptr ctx,
+         }
+     }
+ 
++    // Clear the Redfish by deleting the log files
++    std::vector<std::filesystem::path> redfishLogFiles;
++    if (getRedfishLogFiles(redfishLogFiles))
++    {
++        for (const std::filesystem::path& file : redfishLogFiles)
++        {
++            std::error_code ec;
++            std::filesystem::remove(file, ec);
++        }
++    }
++
+     // Reload rsyslog so it knows to start new log files
+     std::shared_ptr<sdbusplus::asio::connection> dbus = getSdBus();
+     sdbusplus::message_t rsyslogReload = dbus->new_method_call(
+-- 
+2.25.1
+

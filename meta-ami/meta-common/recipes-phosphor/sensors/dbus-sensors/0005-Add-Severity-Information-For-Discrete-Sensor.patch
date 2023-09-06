@@ -1,0 +1,208 @@
+From ff7c08013cf2d4a5d4dd8e360a7948711ee06466 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Mon, 21 Nov 2022 21:13:43 +0530
+Subject: [PATCH] Add Redfish Logs for Discrete Sensors
+
+Add Discrete Sensors event logs to redfish along with ipmi.
+Verified the logs are available in /var/log/redfish & ipmi_sel.
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/ProcessorStatus.hpp |  2 +-
+ include/Utils.hpp           |  9 +++++----
+ src/ProcessorStatus.cpp     | 24 ++++++++++++------------
+ src/Utils.cpp               | 27 ++++++++++++++++++++++-----
+ src/WatchdogSensor.cpp      | 15 +++++++++++----
+ 5 files changed, 51 insertions(+), 26 deletions(-)
+
+diff --git a/include/ProcessorStatus.hpp b/include/ProcessorStatus.hpp
+index 9abbb7c..5ed8b34 100644
+--- a/include/ProcessorStatus.hpp
++++ b/include/ProcessorStatus.hpp
+@@ -52,6 +52,6 @@ class ProcessorStatus :
+ 		    const std::string& gpioName, gpiod::line& gpioLine,
+                     boost::asio::posix::stream_descriptor& gpioEventDescriptor);
+     void monitor(std::shared_ptr<sdbusplus::asio::connection>& conn,
+-		    const std::string &sensorPath, const std::vector<uint8_t>procPresence,
++		    const std::vector<std::string> &logData, const std::vector<uint8_t>procPresence,
+ 		    boost::asio::posix::stream_descriptor& event, gpiod::line& line);
+ };
+diff --git a/include/Utils.hpp b/include/Utils.hpp
+index dcac772..ba29b82 100644
+--- a/include/Utils.hpp
++++ b/include/Utils.hpp
+@@ -6,6 +6,7 @@
+ #include <sdbusplus/asio/connection.hpp>
+ #include <sdbusplus/asio/object_server.hpp>
+ #include <sdbusplus/message/types.hpp>
++#include <phosphor-logging/lg2.hpp>
+ 
+ #include <filesystem>
+ #include <functional>
+@@ -28,7 +29,7 @@ constexpr const char* cpuInventoryPath =
+     "/xyz/openbmc_project/inventory/system/chassis/motherboard";
+ const std::regex illegalDbusRegex("[^A-Za-z0-9_]");
+ 
+-static const std::string ipmiSELAddMessage = "SEL Entry";
++static const std::string ipmiSELAddMessage = "";
+ static constexpr uint16_t selBMCGenID = 0x0020;
+ //Processor sensor
+ static const std::string processorPath = "/xyz/openbmc_project/sensors/cpu/";
+@@ -63,9 +64,9 @@ inline std::string escapeName(const std::string& sensorName)
+     return boost::replace_all_copy(sensorName, " ", "_");
+ }
+ 
+-//Add IPMI Sel
+-void addIpmiSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const std::string sensorPath,
+-                std::vector<uint8_t> eventData, bool assert );
++//Add logg to IPMI & Refish
++void addSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, std::vector<std::string> logData,
++		std::vector<uint8_t> eventData, bool assert );
+ enum class PowerState
+ {
+     on,
+diff --git a/src/ProcessorStatus.cpp b/src/ProcessorStatus.cpp
+index 05fb36f..e86bc6b 100644
+--- a/src/ProcessorStatus.cpp
++++ b/src/ProcessorStatus.cpp
+@@ -74,6 +74,7 @@ bool ProcessorStatus::setupEvent(std::shared_ptr<sdbusplus::asio::connection>& c
+     }
+ 
+     bool state = (gpioLine.get_value() == 1);
++    std::vector<std::string> logData;
+     sdbusplus::xyz::openbmc_project::Inventory::server::Item::present(state);
+ 
+     int gpioLineFd = gpioLine.event_get_fd();
+@@ -85,27 +86,28 @@ bool ProcessorStatus::setupEvent(std::shared_ptr<sdbusplus::asio::connection>& c
+ 
+     gpioEventDescriptor.assign(gpioLineFd);
+     
+-    //Log SEL Entry
+-    const std::string objPath = processorPath + name;
+-
++    logData.push_back(name);
++    logData.push_back("PresenceDetected");
++    logData.push_back(processorPath + name);
++    logData.push_back("SensorProcessorPresence");
+     if(state)
+     {
+-	    addIpmiSelEntry(conn, objPath, procPresence, state);
++	    addSelEntry(conn, logData, procPresence, state);
+     }
+ 
+-    monitor(conn, objPath, procPresence,gpioEventDescriptor, gpioLine);
++    monitor(conn, logData, procPresence,gpioEventDescriptor, gpioLine);
+ 
+     return true;
+ }
+ 
+ void ProcessorStatus::monitor(std::shared_ptr<sdbusplus::asio::connection>& conn,
+-		const std::string &sensorPath, const std::vector<uint8_t>procPresence,
++		const std::vector<std::string> &logData, const std::vector<uint8_t>procPresence,
+ 	       	boost::asio::posix::stream_descriptor& event, gpiod::line& line)
+ {
+ 
+     event.async_wait(
+         boost::asio::posix::stream_descriptor::wait_read,
+-        [this, &conn, &event, &line, &sensorPath, &procPresence](const boost::system::error_code ec) {
++        [this, &conn, &event, &line, &logData, &procPresence](const boost::system::error_code ec) {
+ 	if (ec)
+             {
+                 std::cerr << " fd handler error: " << ec.message() << "\n";
+@@ -115,10 +117,8 @@ void ProcessorStatus::monitor(std::shared_ptr<sdbusplus::asio::connection>& conn
+             sdbusplus::xyz::openbmc_project::Inventory::server::Item::present(
+                 lineEvent.event_type == gpiod::line_event::FALLING_EDGE);
+ 
+-	    //LOG SEL Event
+-	    addIpmiSelEntry(conn, sensorPath, procPresence, 
+-			   lineEvent.event_type == gpiod::line_event::FALLING_EDGE);
+-            // Start monitoring for next event
+-            monitor(conn, sensorPath, procPresence, event, line);
++            addSelEntry(conn, logData, procPresence, lineEvent.event_type == gpiod::line_event::FALLING_EDGE);
++	    // Start monitoring for next event
++            monitor(conn, logData, procPresence, event, line);
+         });
+ }
+diff --git a/src/Utils.cpp b/src/Utils.cpp
+index f783644..6494e6e 100644
+--- a/src/Utils.cpp
++++ b/src/Utils.cpp
+@@ -42,12 +42,28 @@ static bool manufacturingMode = false;
+ static std::unique_ptr<sdbusplus::bus::match_t> powerMatch = nullptr;
+ static std::unique_ptr<sdbusplus::bus::match_t> postMatch = nullptr;
+ 
+-/**
+- * Add IpmiSElEvent
+- */
+-void addIpmiSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const std::string sensorPath,
+-              const  std::vector<uint8_t> eventData, bool assert )
++//Log into redfish & Ipmi event logs
++void addSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const std::vector< std::string> logData,
++              const std::vector<uint8_t> eventData, bool assert )
+ {
++	const std::string sensorName = logData[0];
++	const std::string eventName = logData[1];
++	const std::string sensorPath = logData[2];
++	const std::string redfishId = "OpenBMC.0.1." + logData[3];
++
++	//Log into Redfish
++	if (assert)
++	{
++		lg2::info("{EVENT} assert", "EVENT", eventName,
++			"REDFISH_MESSAGE_ID", redfishId,"REDFISH_MESSAGE_ARGS",(sensorName + "," + eventName));
++	}
++	else
++	{
++                lg2::info("{EVENT} deassert", "EVENT", eventName,
++                        "REDFISH_MESSAGE_ID", redfishId,"REDFISH_MESSAGE_ARGS",(sensorName + "," + eventName));
++	}
++
++	// Log into IPMI
+         auto method = conn->new_method_call(ipmiService, ipmiObjPath, ipmiIntf, ipmiSelAddMethod);
+         method.append(ipmiSELAddMessage, sensorPath, eventData, assert,
+                         selBMCGenID);
+@@ -63,6 +79,7 @@ void addIpmiSelEntry(std::shared_ptr<sdbusplus::asio::connection>& conn, const s
+ 
+ 
+ }
++
+ /**
+  * return the contents of a file
+  * @param[in] hwmonFile - the path to the file to read
+diff --git a/src/WatchdogSensor.cpp b/src/WatchdogSensor.cpp
+index 632b361..52daea1 100644
+--- a/src/WatchdogSensor.cpp
++++ b/src/WatchdogSensor.cpp
+@@ -51,9 +51,11 @@ WatchdogSensor::WatchdogSensor(
+     auto watchdogEventMatcherCallback = [this, &conn, objPath](
+                                             sdbusplus::message::message& msg) {
+         std::optional<std::string_view> expireAction;
+-    // SEL event data is three bytes where 0xFF means unspecifiedselEvtDataMaxSize
+-    std::vector<uint8_t> eventData(selEvtDataMaxSize, 0xFF);
+-    bool state = true;
++    
++	// SEL event data is three bytes where 0xFF means unspecifiedselEvtDataMaxSize
++    	std::vector<uint8_t> eventData(selEvtDataMaxSize, 0xFF);
++   	std::vector<std::string> logData;
++    	bool state = true;
+ 
+         sdbusplus::message::message getWatchdogStatus =
+             conn->new_method_call(msg.get_sender(), msg.get_path(),
+@@ -113,8 +115,13 @@ WatchdogSensor::WatchdogSensor(
+             sensorInterface->set_property(
+                 "Status", static_cast<std::string>("TimerInterrupt"));
+         }
++	std::string action{*expireAction};
++	logData.push_back(name);
++	logData.push_back(action);
++	logData.push_back(objPath);
++	logData.push_back("SensorWatchdog2");
+ 
+-	addIpmiSelEntry(conn, objPath, eventData, state);
++	addSelEntry(conn, logData, eventData, state);
+     };
+ 
+     watchdogEventMatcher = std::make_shared<sdbusplus::bus::match::match>(
+-- 
+2.25.1
+

@@ -1,0 +1,2024 @@
+From 00b10c79f55034e61ecd12b3b42dd6d53b6327c2 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Mon, 5 Jun 2023 12:17:49 +0000
+Subject: [PATCH] Add Softkeyboard support in KVM WebUI
+
+This patch will add the softkeyboard in KVM page WebUI. The following
+languages are supported. English, Italian, Dutch, French, German,
+Russian and Spanish.
+
+The softkeyboard is having drag and drop support. Which can be
+draggable within the WebUI application.
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ .env.ami                                      |    1 +
+ package.json                                  |    1 +
+ src/components/SoftKeyboard/draggableDiv.vue  |   73 +
+ .../SoftKeyboard/keyboardLayouts.js           | 1238 +++++++++++++++++
+ src/components/SoftKeyboard/softKeyboard.css  |  179 +++
+ src/components/SoftKeyboard/softKeyboard.vue  |  327 +++++
+ src/store/modules/Operations/KvmStore.js      |   12 +
+ src/views/Operations/Kvm/KvmConsole.vue       |   36 +-
+ 8 files changed, 1866 insertions(+), 1 deletion(-)
+ create mode 100644 src/components/SoftKeyboard/draggableDiv.vue
+ create mode 100644 src/components/SoftKeyboard/keyboardLayouts.js
+ create mode 100644 src/components/SoftKeyboard/softKeyboard.css
+ create mode 100644 src/components/SoftKeyboard/softKeyboard.vue
+
+diff --git a/.env.ami b/.env.ami
+index e6d430a..ff5f466 100644
+--- a/.env.ami
++++ b/.env.ami
+@@ -7,6 +7,7 @@ VUE_APP_SWITCH_TO_BACKUP_IMAGE_DISABLED="true"
+ VUE_APP_MODIFY_SSH_POLICY_DISABLED="true"
+ VUE_APP_VIRTUAL_MEDIA_LIST_ENABLED="true"
+ VUE_APP_EVENT_LOGS_DELETE_BUTTON_DISABLED="true"
++VUE_APP_KVM_SOFT_KEYBOARD_SUPPORT="true"
+ CUSTOM_STYLES="true"
+ CUSTOM_APP_NAV="true"
+ CUSTOM_STORE="true"
+diff --git a/package.json b/package.json
+index 91d4543..53adeb7 100644
+--- a/package.json
++++ b/package.json
+@@ -25,6 +25,7 @@
+     "date-fns-tz": "1.1.3",
+     "js-cookie": "2.2.1",
+     "lodash": "4.17.21",
++    "simple-keyboard": "3.5.43",
+     "vue": "2.6.12",
+     "vue-i18n": "8.24.2",
+     "vue-router": "3.5.1",
+diff --git a/src/components/SoftKeyboard/draggableDiv.vue b/src/components/SoftKeyboard/draggableDiv.vue
+new file mode 100644
+index 0000000..1ef0928
+--- /dev/null
++++ b/src/components/SoftKeyboard/draggableDiv.vue
+@@ -0,0 +1,73 @@
++<template>
++  <div id="draggable-container" ref="draggableContainer">
++    <div id="draggable-header" @mousedown="dragMouseDown">
++      <slot name="header"></slot>
++    </div>
++    <slot name="main"></slot>
++    <slot name="footer"></slot>
++  </div>
++</template>
++
++<script>
++export default {
++  name: 'DraggableDiv',
++  data: function () {
++    return {
++      positions: {
++        clientX: undefined,
++        clientY: undefined,
++        movementX: 0,
++        movementY: 0,
++      },
++    };
++  },
++  mounted() {
++    this.$root.$on('reset-keyboard-location', () => this.resetPosition());
++  },
++  methods: {
++    dragMouseDown: function (event) {
++      event.preventDefault();
++      // get the mouse cursor position at startup:
++      this.positions.clientX = event.clientX;
++      this.positions.clientY = event.clientY;
++      document.onmousemove = this.elementDrag;
++      document.onmouseup = this.closeDragElement;
++    },
++    elementDrag: function (event) {
++      event.preventDefault();
++      this.positions.movementX = this.positions.clientX - event.clientX;
++      this.positions.movementY = this.positions.clientY - event.clientY;
++      this.positions.clientX = event.clientX;
++      this.positions.clientY = event.clientY;
++      // set the element's new position:
++      this.$refs.draggableContainer.style.top =
++        this.$refs.draggableContainer.offsetTop -
++        this.positions.movementY +
++        'px';
++      this.$refs.draggableContainer.style.left =
++        this.$refs.draggableContainer.offsetLeft -
++        this.positions.movementX +
++        'px';
++    },
++    closeDragElement() {
++      document.onmouseup = null;
++      document.onmousemove = null;
++    },
++    resetPosition() {
++      this.$refs.draggableContainer.style.top = '';
++      this.$refs.draggableContainer.style.left = '';
++    },
++  },
++};
++</script>
++
++<style>
++#draggable-container {
++  width: 40%;
++  position: absolute;
++  z-index: 1;
++}
++#draggable-header {
++  z-index: 1;
++}
++</style>
+diff --git a/src/components/SoftKeyboard/keyboardLayouts.js b/src/components/SoftKeyboard/keyboardLayouts.js
+new file mode 100644
+index 0000000..7618ab6
+--- /dev/null
++++ b/src/components/SoftKeyboard/keyboardLayouts.js
+@@ -0,0 +1,1238 @@
++var layoutValues = {
++  keyMappingForArrowKeys: {
++    '{arrowup}': 'XK_Up',
++    '{arrowleft}': 'XK_Left',
++    '{arrowdown}': 'XK_Down',
++    '{arrowright}': 'XK_Right',
++  },
++  scanCodeLayoutObj: {
++    layout: {
++      default: [
++        '{XK_Escape} {XK_F1} {XK_F2} {XK_F3} {XK_F4} {XK_F5} {XK_F6} {XK_F7} {XK_F8} {XK_F9} {XK_F10} {XK_F11} {XK_F12}',
++        '{XK_grave} {XK_1} {XK_2} {XK_3} {XK_4} {XK_5} {XK_6} {XK_7} {XK_8} {XK_9} {XK_0} {XK_minus} {XK_equal} {XK_BackSpace}',
++        '{XK_Tab} {XK_q} {XK_w} {XK_e} {XK_r} {XK_t} {XK_y} {XK_u} {XK_i} {XK_o} {XK_p} {XK_bracketleft} {XK_bracketright} {XK_backslash}',
++        '{XK_Caps_Lock} {XK_a} {XK_s} {XK_d} {XK_f} {XK_g} {XK_h} {XK_j} {XK_k} {XK_l} {XK_semicolon} {XK_apostrophe} {XK_KP_Enter}',
++        '{XK_Shift_L} {XK_z} {XK_x} {XK_c} {XK_v} {XK_b} {XK_n} {XK_m} {XK_comma} {XK_dot} {XK_slash} {XK_Shift_L}',
++        '{XK_Control_L} {XK_Alt_L} {XK_Meta_L} {space} {XK_Meta_L} {XK_Alt_L}',
++      ],
++      shift: [
++        '{XK_Escape} {XK_F1} {XK_F2} {XK_F3} {XK_F4} {XK_F5} {XK_F6} {XK_F7} {XK_F8} {XK_F9} {XK_F10} {XK_F11} {XK_F12}',
++        '{XK_asciitilde} {XK_exclam} {XK_at} {XK_numbersign} {XK_dollar} {XK_percent} {XK_asciicircum} {XK_ampersand} {XK_asterisk} {XK_left_bracket} {XK_right_bracket} {XK_underscore} {XK_plus} {XK_BackSpace}',
++        '{XK_Tab} {XK_Q} {XK_W} {XK_E} {XK_R} {XK_T} {XK_Y} {XK_U} {XK_I} {XK_O} {XK_P} {XK_braceleft} {XK_braceright} {XK_bar}',
++        '{XK_Caps_Lock} {XK_A} {XK_S} {XK_D} {XK_F} {XK_G} {XK_H} {XK_J} {XK_K} {XK_L} {XK_colon} {XK_quotedbl} {XK_KP_Enter}',
++        '{XK_Shift_L} {XK_Z} {XK_X} {XK_C} {XK_V} {XK_B} {XK_N} {XK_M} {XK_less} {XK_greater} {XK_question} {XK_Shift_L}',
++        '{XK_Control_L} {XK_Alt_L} {XK_Meta_L} {space} {XK_Meta_L} {XK_Alt_L}',
++      ],
++      caps: [
++        '{XK_Escape} {XK_F1} {XK_F2} {XK_F3} {XK_F4} {XK_F5} {XK_F6} {XK_F7} {XK_F8} {XK_F9} {XK_F10} {XK_F11} {XK_F12}',
++        '{XK_grave_caps} {XK_1} {XK_2_caps} {XK_3} {XK_4} {XK_5} {XK_6} {XK_7_caps} {XK_8} {XK_9_caps} {XK_0_caps} {XK_minus_caps} {XK_equal_caps} {XK_BackSpace}',
++        '{XK_Tab} {XK_Q} {XK_W} {XK_E} {XK_R} {XK_T} {XK_Y} {XK_U} {XK_I} {XK_O} {XK_P} {XK_bracketleft_caps} {XK_bracketright} {XK_backslash_caps}',
++        '{XK_Caps_Lock} {XK_A} {XK_S} {XK_D} {XK_F} {XK_G} {XK_H} {XK_J} {XK_K} {XK_L} {XK_semicolon_caps} {XK_apostrophe_caps} {XK_KP_Enter}',
++        '{XK_Shift_L} {XK_Z} {XK_X} {XK_C} {XK_V} {XK_B} {XK_N} {XK_M_caps} {XK_comma} {XK_dot} {XK_slash} {XK_Shift_L}',
++        '{XK_Control_L} {XK_Alt_L} {XK_Meta_L} {space} {XK_Meta_L} {XK_Alt_L}',
++      ],
++    },
++  },
++  displayObjEnglish: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row - Numbers, Backspace and Special Characters
++      '{XK_grave}': '`',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': '-',
++      '{XK_equal}': '=',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row - Qwerty, Tab and special Characters
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'q',
++      '{XK_w}': 'w',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'y',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '[',
++      '{XK_bracketright}': ']',
++      '{XK_backslash}': '\\',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row - Caps Lock, asdf, enter and special characters
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'a',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': 'l',
++      '{XK_semicolon}': ';',
++      '{XK_apostrophe}': "'",
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row - Shift, zxcv and special characters
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': 'z',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': 'm',
++      '{XK_comma}': ',',
++      '{XK_dot}': '.',
++      '{XK_slash}': '/',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '~',
++      '{XK_exclam}': '!',
++      '{XK_at}': '@',
++      '{XK_numbersign}': '#',
++      '{XK_dollar}': '$',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': '^',
++      '{XK_ampersand}': '&',
++      '{XK_asterisk}': '*',
++      '{XK_left_bracket}': '(',
++      '{XK_right_bracket}': ')',
++      '{XK_underscore}': '_',
++      '{XK_plus}': '+',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'Q',
++      '{XK_W}': 'W',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Y',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '{',
++      '{XK_braceright}': '}',
++      '{XK_bar}': '|',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'A',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': ':',
++      '{XK_quotedbl}': '"',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'Z',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': 'M',
++      '{XK_less}': '<',
++      '{XK_greater}': '>',
++      '{XK_question}': '?',
++
++      '{XK_semicolon_caps}': ';',
++      '{XK_apostrophe_caps}': "'",
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': 'M',
++      '{XK_bracketleft_caps}': '[',
++      '{XK_minus_caps}': '-',
++      '{XK_equal_caps}': '=',
++      '{XK_backslash_caps}': '\\',
++      '{XK_grave_caps}': '`',
++    },
++  },
++  displayObjItalian: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '\\',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': "'",
++      '{XK_equal}': '\u00EC',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'q',
++      '{XK_w}': 'w',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'y',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '\u00E8',
++      '{XK_bracketright}': '+',
++      '{XK_backslash}': '\u00F9',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'a',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': 'l',
++      '{XK_semicolon}': '\u00F2',
++      '{XK_apostrophe}': '\u00E0',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'Shift',
++      '{XK_z}': 'z',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': 'm',
++      '{XK_comma}': ',',
++      '{XK_dot}': '.',
++      '{XK_slash}': '-',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '|',
++      '{XK_exclam}': '!',
++      '{XK_at}': '"',
++      '{XK_numbersign}': '\u00A3',
++      '{XK_dollar}': '$',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': '&',
++      '{XK_ampersand}': '/',
++      '{XK_asterisk}': '(',
++      '{XK_left_bracket}': ')',
++      '{XK_right_bracket}': '=',
++      '{XK_underscore}': '?',
++      '{XK_plus}': '^',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'Q',
++      '{XK_W}': 'W',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Y',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '\u00E9',
++      '{XK_braceright}': '*',
++      '{XK_bar}': '\u00A7',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'A',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': '\u00E7',
++      '{XK_quotedbl}': '\u00B0',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'Z',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': 'M',
++      '{XK_less}': ';',
++      '{XK_greater}': ':',
++      '{XK_question}': '_',
++
++      '{XK_semicolon_caps}': 'Ò',
++      '{XK_apostrophe_caps}': 'À',
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': 'M',
++      '{XK_bracketleft_caps}': 'È',
++      '{XK_minus_caps}': "'",
++      '{XK_equal_caps}': '\u00CC',
++      '{XK_backslash_caps}': '\u00D9',
++      '{XK_grave_caps}': '\\',
++    },
++  },
++  displayObjDutch: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '@',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': '/',
++      '{XK_equal}': '°',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'q',
++      '{XK_w}': 'w',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'y',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '¨',
++      '{XK_bracketright}': '*',
++      '{XK_backslash}': '<',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'a',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': 'l',
++      '{XK_semicolon}': '+',
++      '{XK_apostrophe}': '`',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': 'z',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': 'm',
++      '{XK_comma}': ',',
++      '{XK_dot}': '.',
++      '{XK_slash}': '-',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '§',
++      '{XK_exclam}': '!',
++      '{XK_at}': '"',
++      '{XK_numbersign}': '#',
++      '{XK_dollar}': '$',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': '&',
++      '{XK_ampersand}': '_',
++      '{XK_asterisk}': '(',
++      '{XK_left_bracket}': ')',
++      '{XK_right_bracket}': "'",
++      '{XK_underscore}': '?',
++      '{XK_plus}': '~',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'Q',
++      '{XK_W}': 'W',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Y',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '^',
++      '{XK_braceright}': '|',
++      '{XK_bar}': '>',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'A',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': '±',
++      '{XK_quotedbl}': '`',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'Z',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': 'M',
++      '{XK_less}': ';',
++      '{XK_greater}': ':',
++      '{XK_question}': '=',
++      '{XK_semicolon_caps}': '+',
++      '{XK_apostrophe_caps}': '\u00B4',
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': 'M',
++      '{XK_bracketleft_caps}': '¨',
++      '{XK_minus_caps}': '/',
++      '{XK_equal_caps}': '°',
++      '{XK_backslash_caps}': '<',
++      '{XK_grave_caps}': '@',
++    },
++  },
++  displayObjFrench: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '\u00B2',
++      '{XK_1}': '&',
++      '{XK_2}': '\u00E9',
++      '{XK_3}': '"',
++      '{XK_4}': "'",
++      '{XK_5}': '(',
++      '{XK_6}': '-',
++      '{XK_7}': '\u00E8',
++      '{XK_8}': '_',
++      '{XK_9}': '\u00E7',
++      '{XK_0}': '\u00E0',
++      '{XK_minus}': ')',
++      '{XK_equal}': '=',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'a',
++      '{XK_w}': 'z',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'y',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '^',
++      '{XK_bracketright}': '$',
++      '{XK_backslash}': '*',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'q',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': '\u006C',
++      '{XK_semicolon}': 'm',
++      '{XK_apostrophe}': '\u00F9',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': 'w',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': ',',
++      '{XK_comma}': ';',
++      '{XK_dot}': ':',
++      '{XK_slash}': '!',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '~',
++      '{XK_exclam}': '1',
++      '{XK_at}': '2',
++      '{XK_numbersign}': '3',
++      '{XK_dollar}': '4',
++      '{XK_percent}': '5',
++      '{XK_asciicircum}': '6',
++      '{XK_ampersand}': '7',
++      '{XK_asterisk}': '8',
++      '{XK_left_bracket}': '9',
++      '{XK_right_bracket}': '0',
++      '{XK_underscore}': '\u00B0',
++      '{XK_plus}': '+',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'A',
++      '{XK_W}': 'Z',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Y',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '¨',
++      '{XK_braceright}': '\u00A3',
++      '{XK_bar}': '\u00B5',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'Q',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': 'M',
++      '{XK_quotedbl}': '%',
++      '{XK_semicolon_caps}': 'M',
++      '{XK_apostrophe_caps}': 'Ù',
++      '{XK_2_caps}': 'É',
++      '{XK_7_caps}': 'È',
++      '{XK_9_caps}': 'Ç',
++      '{XK_0_caps}': 'À',
++      '{XK_M_caps}': ',',
++      '{XK_bracketleft_caps}': '^',
++      '{XK_minus_caps}': ')',
++      '{XK_equal_caps}': '=',
++      '{XK_backslash_caps}': '*',
++      '{XK_grave_caps}': '\u00B2',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'W',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': '?',
++      '{XK_less}': '.',
++      '{XK_greater}': '/',
++      '{XK_question}': '\u00A7',
++    },
++  },
++  displayObjGerman: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '^',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': 'ß',
++      '{XK_equal}': '\u00B4',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'q',
++      '{XK_w}': 'w',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'z',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '\u00FC',
++      '{XK_bracketright}': '+',
++      '{XK_backslash}': '#',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'a',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': 'l',
++      '{XK_semicolon}': '\u00F6',
++      '{XK_apostrophe}': '\u00E4',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': 'y',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': 'm',
++      '{XK_comma}': ',',
++      '{XK_dot}': '.',
++      '{XK_slash}': '-',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '\u00B0',
++      '{XK_exclam}': '!',
++      '{XK_at}': '"',
++      '{XK_numbersign}': '\u00A7',
++      '{XK_dollar}': '$',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': '&',
++      '{XK_ampersand}': '/',
++      '{XK_asterisk}': '(',
++      '{XK_left_bracket}': ')',
++      '{XK_right_bracket}': '=',
++      '{XK_underscore}': '?',
++      '{XK_plus}': '`',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'Q',
++      '{XK_W}': 'W',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Z',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '\u00DC',
++      '{XK_braceright}': '*',
++      '{XK_bar}': "'",
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'A',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': '\u00D6',
++      '{XK_quotedbl}': '\u00C4',
++      '{XK_semicolon_caps}': 'Ö',
++      '{XK_apostrophe_caps}': 'Ä',
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': 'M',
++      '{XK_bracketleft_caps}': 'Ü',
++      '{XK_minus_caps}': 'ẞ',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'Y',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': 'M',
++      '{XK_less}': ';',
++      '{XK_greater}': ':',
++      '{XK_question}': '_',
++      '{XK_equal_caps}': '\u00B4',
++      '{XK_backslash_caps}': '#',
++      '{XK_grave_caps}': '\u005E',
++    },
++  },
++  displayObjRussian: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '\u0451',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': '-',
++      '{XK_equal}': '=',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': '\u0439',
++      '{XK_w}': '\u0446',
++      '{XK_e}': '\u0443',
++      '{XK_r}': '\u043a',
++      '{XK_t}': '\u0435',
++      '{XK_y}': '\u043d',
++      '{XK_u}': '\u0433',
++      '{XK_i}': '\u0448',
++      '{XK_o}': '\u0449',
++      '{XK_p}': '\u0437',
++      '{XK_bracketleft}': '\u0445',
++      '{XK_bracketright}': '\u044a',
++      '{XK_backslash}': '\\',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': '\u0444',
++      '{XK_s}': '\u044b',
++      '{XK_d}': '\u0432',
++      '{XK_f}': '\u0430',
++      '{XK_g}': '\u043f',
++      '{XK_h}': '\u0440',
++      '{XK_j}': '\u043e',
++      '{XK_k}': '\u043b',
++      '{XK_l}': '\u0434',
++      '{XK_semicolon}': '\u0436',
++      '{XK_apostrophe}': '\u044d',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': '\u044f',
++      '{XK_x}': '\u0447',
++      '{XK_c}': '\u0441',
++      '{XK_v}': '\u043c',
++      '{XK_b}': '\u0438',
++      '{XK_n}': '\u0442',
++      '{XK_m}': '\u044c',
++      '{XK_comma}': '\u0431',
++      '{XK_dot}': '\u044e',
++      '{XK_slash}': '.',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '\u0401',
++      '{XK_exclam}': '!',
++      '{XK_at}': '"',
++      '{XK_numbersign}': '\u2116',
++      '{XK_dollar}': ';',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': ':',
++      '{XK_ampersand}': '?',
++      '{XK_asterisk}': '*',
++      '{XK_left_bracket}': '(',
++      '{XK_right_bracket}': ')',
++      '{XK_underscore}': '_',
++      '{XK_plus}': '+',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': '\u0419',
++      '{XK_W}': '\u0426',
++      '{XK_E}': '\u0423',
++      '{XK_R}': '\u041a',
++      '{XK_T}': '\u0415',
++      '{XK_Y}': '\u041d',
++      '{XK_U}': '\u0413',
++      '{XK_I}': '\u0428',
++      '{XK_O}': '\u0429',
++      '{XK_P}': '\u0417',
++      '{XK_braceleft}': '\u0425',
++      '{XK_braceright}': '\u042a',
++      '{XK_bar}': '/',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': '\u0424',
++      '{XK_S}': '\u042b',
++      '{XK_D}': '\u0412',
++      '{XK_F}': '\u0410',
++      '{XK_G}': '\u041f',
++      '{XK_H}': '\u0420',
++      '{XK_J}': '\u041e',
++      '{XK_K}': '\u041b',
++      '{XK_L}': '\u0414',
++      '{XK_colon}': '\u0416',
++      '{XK_quotedbl}': '\u042d',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': '\u042f',
++      '{XK_X}': '\u0427',
++      '{XK_C}': '\u0421',
++      '{XK_V}': '\u041c',
++      '{XK_B}': '\u0418',
++      '{XK_N}': '\u0422',
++      '{XK_M}': '\u042c',
++      '{XK_less}': '\u0411',
++      '{XK_greater}': '\u042e',
++      '{XK_question}': ',',
++      '{XK_semicolon_caps}': '\u0416',
++      '{XK_apostrophe_caps}': '\u042D',
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': '\u042c',
++      '{XK_bracketleft_caps}': 'X',
++      '{XK_minus_caps}': '-',
++      '{XK_grave_caps}': '\u0401',
++      '{XK_equal_caps}': '=',
++      '{XK_backslash_caps}': '\\',
++    },
++  },
++  displayObjSpanish: {
++    display: {
++      // First Row - Function Keys and Esc
++      // ------------------------------------------------------------
++      // //
++      '{XK_Escape}': 'Esc',
++      '{XK_F1}': 'F1',
++      '{XK_F2}': 'F2',
++      '{XK_F3}': 'F3',
++      '{XK_F4}': 'F4',
++      '{XK_F5}': 'F5',
++      '{XK_F6}': 'F6',
++      '{XK_F7}': 'F7',
++      '{XK_F8}': 'F8',
++      '{XK_F9}': 'F9',
++      '{XK_F10}': 'F10',
++      '{XK_F11}': 'F11',
++      '{XK_F12}': 'F12',
++      // ------------------------------------------------------------
++      // //
++      // Second Row
++      '{XK_grave}': '\u00BA',
++      '{XK_1}': '1',
++      '{XK_2}': '2',
++      '{XK_3}': '3',
++      '{XK_4}': '4',
++      '{XK_5}': '5',
++      '{XK_6}': '6',
++      '{XK_7}': '7',
++      '{XK_8}': '8',
++      '{XK_9}': '9',
++      '{XK_0}': '0',
++      '{XK_minus}': "'",
++      '{XK_equal}': '\u00A1',
++      '{XK_BackSpace}': 'Backspace ⌫',
++      // ------------------------------------------------------------
++      // //
++      // Third Row
++      '{XK_Tab}': 'Tab',
++      '{XK_q}': 'q',
++      '{XK_w}': 'w',
++      '{XK_e}': 'e',
++      '{XK_r}': 'r',
++      '{XK_t}': 't',
++      '{XK_y}': 'y',
++      '{XK_u}': 'u',
++      '{XK_i}': 'i',
++      '{XK_o}': 'o',
++      '{XK_p}': 'p',
++      '{XK_bracketleft}': '`',
++      '{XK_bracketright}': '+',
++      '{XK_backslash}': '\u00E7',
++      // ------------------------------------------------------------
++      // //
++      // Fourth Row
++      '{XK_Caps_Lock}': 'Caps Lock ⇪',
++      '{XK_a}': 'a',
++      '{XK_s}': 's',
++      '{XK_d}': 'd',
++      '{XK_f}': 'f',
++      '{XK_g}': 'g',
++      '{XK_h}': 'h',
++      '{XK_j}': 'j',
++      '{XK_k}': 'k',
++      '{XK_l}': 'l',
++      '{XK_semicolon}': '\u00F1',
++      '{XK_apostrophe}': '\u00B4',
++      '{XK_KP_Enter}': 'Enter ↵',
++      // ------------------------------------------------------------
++      // //
++      // Fifth Row
++      '{XK_Shift_L}': 'shift ⇧',
++      '{XK_z}': 'z',
++      '{XK_x}': 'x',
++      '{XK_c}': 'c',
++      '{XK_v}': 'v',
++      '{XK_b}': 'b',
++      '{XK_n}': 'n',
++      '{XK_m}': 'm',
++      '{XK_comma}': ',',
++      '{XK_dot}': '.',
++      '{XK_slash}': '-',
++      '{XK_Shift_R}': 'shift ⇧',
++      // ------------------------------------------------------------
++      // //
++      // Last Row - Space and Control
++      '{XK_Control_L}': 'Ctrl',
++      '{XK_Alt_L}': 'Alt',
++      '{XK_Meta_L}': 'cmd ⌘',
++      '{XK_space}': 'Space',
++      '{XK_Meta_R}': 'cmd ⌘',
++      '{XK_Alt_R}': 'Alt',
++      // ------------------------------------------------------------
++      // //
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - First
++      '{XK_asciitilde}': '\u00AA',
++      '{XK_exclam}': '!',
++      '{XK_at}': '"',
++      '{XK_numbersign}': '.',
++      '{XK_dollar}': '$',
++      '{XK_percent}': '%',
++      '{XK_asciicircum}': '&',
++      '{XK_ampersand}': '/',
++      '{XK_asterisk}': '(',
++      '{XK_left_bracket}': ')',
++      '{XK_right_bracket}': '=',
++      '{XK_underscore}': '?',
++      '{XK_plus}': '\u00BF',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Second
++      '{XK_Q}': 'Q',
++      '{XK_W}': 'W',
++      '{XK_E}': 'E',
++      '{XK_R}': 'R',
++      '{XK_T}': 'T',
++      '{XK_Y}': 'Y',
++      '{XK_U}': 'U',
++      '{XK_I}': 'I',
++      '{XK_O}': 'O',
++      '{XK_P}': 'P',
++      '{XK_braceleft}': '^',
++      '{XK_braceright}': '*',
++      '{XK_bar}': '\u00C7',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Third
++      '{XK_A}': 'A',
++      '{XK_S}': 'S',
++      '{XK_D}': 'D',
++      '{XK_F}': 'F',
++      '{XK_G}': 'G',
++      '{XK_H}': 'H',
++      '{XK_J}': 'J',
++      '{XK_K}': 'K',
++      '{XK_L}': 'L',
++      '{XK_colon}': '\u00D1',
++      '{XK_quotedbl}': '\u00A8',
++      // ------------------------------------------------------------
++      // //
++      // With Shift hold - Fourth
++      '{XK_Z}': 'Z',
++      '{XK_X}': 'X',
++      '{XK_C}': 'C',
++      '{XK_V}': 'V',
++      '{XK_B}': 'B',
++      '{XK_N}': 'N',
++      '{XK_M}': 'M',
++      '{XK_less}': ';',
++      '{XK_greater}': ':',
++      '{XK_question}': '_',
++      '{XK_semicolon_caps}': 'Ñ',
++      '{XK_apostrophe_caps}': '\u00B4',
++      '{XK_2_caps}': '2',
++      '{XK_7_caps}': '7',
++      '{XK_9_caps}': '9',
++      '{XK_0_caps}': '0',
++      '{XK_M_caps}': 'M',
++      '{XK_bracketleft_caps}': '\u0060',
++      '{XK_minus_caps}': "'",
++      '{XK_backslash_caps}': '\u00C7',
++      '{XK_grave_caps}': '\u00BA',
++      '{XK_equal_caps}': '\u00A1',
++    },
++  },
++  // Render Keyboard controls
++  controlLayout: {
++    layout: {
++      default: [
++        '{XK_Print} {XK_Scroll_Lock} {XK_Pause}',
++        '{XK_Insert} {XK_Home} {XK_Page_Up}',
++        '{XK_Delete} {XK_End} {XK_Page_Down}',
++      ],
++    },
++  },
++  controlDisplayData: {
++    display: {
++      '{XK_Print}': 'Print',
++      '{XK_Scroll_Lock}': 'Scroll Lock',
++      '{XK_Pause}': 'Pause',
++      '{XK_Insert}': 'Insert',
++      '{XK_Home}': 'Home',
++      '{XK_Page_Up}': 'PgUp',
++      '{XK_Delete}': 'Delete',
++      '{XK_End}': 'End',
++      '{XK_Page_Down}': 'PgDn',
++    },
++  },
++  // Render arrow controls
++  arrowLayout: {
++    layout: {
++      default: ['{arrowup}', '{arrowleft} {arrowdown} {arrowright}'],
++    },
++  },
++};
++
++export default layoutValues;
+diff --git a/src/components/SoftKeyboard/softKeyboard.css b/src/components/SoftKeyboard/softKeyboard.css
+new file mode 100644
+index 0000000..ef3a364
+--- /dev/null
++++ b/src/components/SoftKeyboard/softKeyboard.css
+@@ -0,0 +1,179 @@
++.keyboardContainer {
++  display: flex;
++  background-color: rgba(16, 221, 235, 0.342);
++  justify-content: center;
++  width: 625px;
++  margin: 0 auto;
++  border-radius: 5px;
++  box-shadow: rgba(17, 17, 26, 0.1) 0px 1px 0px,
++    rgba(17, 17, 26, 0.1) 0px 8px 24px, rgba(17, 17, 26, 0.1) 0px 16px 48px;
++  padding-top: 5px;
++  padding-bottom: 5px;
++}
++
++.hg-theme-default .hg-button {
++  height: 32px !important;
++  font-size: 12px;
++  font-weight: 700;
++}
++
++.simple-keyboard.hg-theme-default {
++  display: inline-block;
++}
++
++.simple-keyboard-main.simple-keyboard {
++  width: 500px;
++  min-width: 500px;
++  background-color: transparent;
++}
++.simple-keyboard-main.simple-keyboard .hg-row:first-child {
++  margin-bottom: 10px;
++}
++.simple-keyboard-main.simple-keyboard .hg-button {
++  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
++    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
++}
++
++.simple-keyboard-arrows.simple-keyboard {
++  align-self: flex-end;
++  background-color: transparent;
++}
++.simple-keyboard .hg-button.selectedButton {
++  background-color: rgba(5, 25, 70, 0.53);
++  color: white;
++}
++.simple-keyboard .hg-button.emptySpace {
++  pointer-events: none;
++  background-color: transparent;
++  border: none;
++  box-shadow: none;
++}
++.simple-keyboard-arrows .hg-row {
++  justify-content: center;
++}
++.simple-keyboard-arrows .hg-button {
++  width: 30px;
++  height: 30px;
++  flex-grow: 0;
++  justify-content: center;
++  display: flex;
++  align-items: center;
++  font-weight: 700;
++}
++
++.controlArrows {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  flex-flow: column;
++}
++
++.simple-keyboard-control.simple-keyboard {
++  background-color: transparent;
++}
++
++.simple-keyboard-control.simple-keyboard .hg-row:first-child {
++  margin-bottom: 10px;
++}
++
++.simple-keyboard-control .hg-button {
++  width: 35px;
++  height: 40px;
++  flex-grow: 0;
++  justify-content: center;
++  display: flex;
++  align-items: center;
++  font-size: 10px;
++  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
++    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
++}
++
++.hg-functionBtn {
++  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
++    rgba(60, 64, 67, 0.15) 0px 1px 3px 1px !important;
++}
++
++.simple-keyboard.hg-theme-default .hg-button.hg-selectedButton {
++  background: rgba(5, 25, 70, 0.53);
++  color: white;
++}
++
++.hg-button.hg-functionBtn.hg-button-space {
++  width: 250px;
++}
++
++.hg-standardBtn:focus,
++.hg-functionBtn:focus {
++  box-shadow: #d6d6e7 0 0 0 1.5px inset, rgba(45, 35, 66, 0.4) 0 2px 4px,
++    rgba(45, 35, 66, 0.3) 0 7px 13px -3px, #d6d6e7 0 -3px 0 inset;
++}
++
++.hg-standardBtn:hover,
++.hg-functionBtn:hover {
++  box-shadow: rgba(45, 35, 66, 0.4) 0 4px 8px,
++    rgba(45, 35, 66, 0.3) 0 7px 13px -3px, #d6d6e7 0 -3px 0 inset;
++  transform: translateY(-2px);
++}
++
++.hg-standardBtn:active,
++.hg-functionBtn:active {
++  box-shadow: #d6d6e7 0 3px 7px inset;
++  transform: translateY(2px);
++}
++
++.closeBtnDiv {
++  width: 665px;
++}
++
++.closeBtn {
++  float: right;
++  align-items: center;
++  appearance: none;
++  background-image: radial-gradient(
++    100% 100% at 100% 0,
++    rgb(255, 255, 255),
++    rgb(255, 255, 255) 100%
++  );
++  border: 0;
++  border-radius: 6px;
++  box-sizing: border-box;
++  color: #000000;
++  cursor: pointer;
++  display: inline-flex;
++  font-family: "JetBrains Mono", monospace;
++  height: 25px;
++  justify-content: center;
++  line-height: 1;
++  list-style: none;
++  overflow: hidden;
++  padding-left: 5px;
++  padding-right: 5px;
++  bottom: 27px;
++  right: 42px;
++  position: relative;
++  text-align: left;
++  text-decoration: none;
++  transition: box-shadow 0.15s, transform 0.15s;
++  user-select: none;
++  -webkit-user-select: none;
++  touch-action: manipulation;
++  white-space: nowrap;
++  will-change: box-shadow, transform;
++  font-size: 12px;
++}
++
++.closeBtn:focus {
++  box-shadow: #3cd5e0 0 0 0 1.5px inset, rgba(45, 35, 66, 0.4) 0 2px 4px,
++    rgba(45, 35, 66, 0.3) 0 7px 13px -3px, #3cd5e0 0 -3px 0 inset;
++}
++
++.closeBtn:hover {
++  box-shadow: rgba(45, 35, 66, 0.4) 0 4px 8px,
++    rgba(45, 35, 66, 0.3) 0 7px 13px -3px, #000000 0 -3px 0 inset;
++  transform: translateY(-2px);
++}
++
++.closeBtn:active {
++  box-shadow: #3cd5e0 0 3px 7px inset;
++  transform: translateY(2px);
++}
+diff --git a/src/components/SoftKeyboard/softKeyboard.vue b/src/components/SoftKeyboard/softKeyboard.vue
+new file mode 100644
+index 0000000..5b8aa4b
+--- /dev/null
++++ b/src/components/SoftKeyboard/softKeyboard.vue
+@@ -0,0 +1,327 @@
++<template>
++  <div>
++    <div class="mb-2 mt-2">
++      <b-dropdown variant="link" :disabled="dropdownStatus">
++        <template #button-content>
++          <span class="responsive-text">{{ selectKeyboardLanguage }}</span>
++        </template>
++        <b-dropdown-item
++          v-for="(languageName, index) in softKeyBoardLanguages"
++          :key="index"
++          :value="languageName"
++          @click="
++            changeKeyboardLanguage(languageName, 'displayObj' + languageName)
++          "
++        >
++          {{ languageName }}
++        </b-dropdown-item>
++      </b-dropdown>
++    </div>
++    <div v-show="showSoftKeyboard" class="closeBtnDiv">
++      <button class="closeBtn" @click="closeSoftKeyboard()">
++        <icon-close />
++      </button>
++    </div>
++    <div v-show="showSoftKeyboard" class="keyboardContainer">
++      <div class="simple-keyboard-main"></div>
++      <div class="controlArrows">
++        <div class="simple-keyboard-control"></div>
++        <div class="simple-keyboard-arrows"></div>
++      </div>
++    </div>
++  </div>
++</template>
++
++<script>
++import Keyboard from 'simple-keyboard';
++import 'simple-keyboard/build/css/index.css';
++import layoutValues from './keyboardLayouts';
++import IconClose from '@carbon/icons-vue/es/close/20';
++
++export default {
++  name: 'KvmSoftKeyboard',
++  components: { IconClose },
++  data: () => ({
++    ctlBtnStatus: false,
++    altBtnStatus: false,
++    cmdBtnStatus: false,
++    capsBtnStatus: false,
++    dropdownStatus: true,
++    keyboard: null,
++    keyboardControlPad: null,
++    keyboardArrows: null,
++    showSoftKeyboard: false,
++    selectKeyboardLanguage: 'Open Softkeyboard',
++    softKeyBoardLanguages: [
++      'English',
++      'Italian',
++      'Dutch',
++      'French',
++      'German',
++      'Russian',
++      'Spanish',
++    ],
++  }),
++  mounted() {
++    this.renderSoftkeyboard('displayObjEnglish');
++    this.$root.$on('enable-softkeyboard-btn', () =>
++      this.handleSoftkeyboardDropdown(false)
++    );
++    this.$root.$on('disable-softkeyboard-btn', () =>
++      this.handleSoftkeyboardDropdown(true)
++    );
++  },
++  methods: {
++    handleSoftkeyboardDropdown(status) {
++      this.dropdownStatus = status;
++    },
++    closeSoftKeyboard() {
++      this.showSoftKeyboard = false;
++      this.selectKeyboardLanguage = 'Soft Keyboard';
++      this.$root.$emit('reset-keyboard-location');
++    },
++    changeKeyboardLanguage(name, val) {
++      if (this.selectKeyboardLanguage == name) {
++        this.selectKeyboardLanguage = 'Soft Keyboard';
++        this.showSoftKeyboard = false;
++      } else {
++        this.showSoftKeyboard = true;
++        this.selectKeyboardLanguage = name;
++        this.renderSoftkeyboard(val);
++      }
++    },
++    renderSoftkeyboard(val) {
++      if (this.keyboard) {
++        this.keyboard.destroy();
++      }
++      if (this.keyboardControlPad) {
++        this.keyboardControlPad.destroy();
++      }
++      if (this.keyboardArrows) {
++        this.keyboardArrows.destroy();
++      }
++      let commonKeyboardOptions = {
++        onKeyPress: (button) => this.onKeyPress(button),
++        theme: 'simple-keyboard hg-theme-default hg-layout-default',
++        physicalKeyboardHighlight: false,
++        syncInstanceInputs: true,
++        mergeDisplay: true,
++        debug: false,
++      };
++      this.keyboard = new Keyboard('.simple-keyboard-main', {
++        ...commonKeyboardOptions,
++        ...layoutValues.scanCodeLayoutObj,
++        ...layoutValues[val],
++      });
++      this.keyboardControlPad = new Keyboard('.simple-keyboard-control', {
++        ...commonKeyboardOptions,
++        ...layoutValues.controlLayout,
++        ...layoutValues.controlDisplayData,
++      });
++      this.keyboardArrows = new Keyboard('.simple-keyboard-arrows', {
++        ...commonKeyboardOptions,
++        ...layoutValues.arrowLayout,
++      });
++      this.retainExistingStatus();
++    },
++    retainExistingStatus() {
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].capsKeyStatus) {
++        this.keyboard.setOptions({ layoutName: 'caps' });
++        this.updateKeyValues('{XK_Caps_Lock}', 'grey', true, 'capsKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].shiftKeyStatus) {
++        this.keyboard.setOptions({ layoutName: 'shift' });
++        this.updateKeyValues('{XK_Shift_L}', 'grey', true, 'shiftKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].altKeyStatus) {
++        this.updateKeyValues('{XK_Alt_L}', 'grey', true, 'altKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].ctlKeyStatus) {
++        this.updateKeyValues('{XK_Control_L}', 'grey', true, 'ctlKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].cmdKeyStatus) {
++        this.updateKeyValues('{XK_Meta_L}', 'grey', true, 'cmdKeyStatus');
++      }
++    },
++    getFormattedKeyId(button) {
++      let formattedKey = button.replace('{', '').replace('}', '');
++      if (button == '{space}') {
++        formattedKey = 'XK_space';
++      }
++      if (button == '{XK_dot}') {
++        formattedKey = 'XK_greater';
++      }
++      if (button == '{XK_left_bracket}') {
++        formattedKey = 'XK_9';
++      }
++      if (button == '{XK_right_bracket}') {
++        formattedKey = 'XK_0';
++      }
++      if (button.indexOf('_caps') != -1) {
++        formattedKey = button.split('_caps')[0].replace('{', '');
++      }
++      if (button.indexOf('arrow') != -1) {
++        formattedKey = layoutValues.keyMappingForArrowKeys[button];
++      }
++      return formattedKey;
++    },
++    onKeyPress(button) {
++      let keyId = this.getFormattedKeyId(button);
++
++      var keyValue = button;
++      /**
++       * Handling the shift and caps lock buttons
++       */
++      if (button === '{XK_Shift_L}' || button === '{XK_Shift_R}') {
++        this.handleShift(keyId, keyValue);
++      } else if (button === '{XK_Caps_Lock}') {
++        this.handleCaps(keyId, keyValue);
++      } else if (button === '{XK_Control_L}') {
++        // handle Control button
++        this.ctlBtnStatus = !this.$store.getters['kvm/getSoftKeyboardStatus']
++          .ctlKeyStatus;
++        this.$emit('onKeyPress', keyId, keyValue, this.ctlBtnStatus);
++        if (this.ctlBtnStatus) {
++          this.updateKeyValues(button, 'grey', true, 'ctlKeyStatus');
++        } else {
++          this.updateKeyValues(button, '', false, 'ctlKeyStatus');
++        }
++      } else if (button === '{XK_Alt_L}') {
++        // handle alt buttom
++        this.altBtnStatus = !this.$store.getters['kvm/getSoftKeyboardStatus']
++          .altKeyStatus;
++        this.$emit('onKeyPress', keyId, keyValue, this.altBtnStatus);
++        if (this.altBtnStatus) {
++          this.updateKeyValues(button, 'grey', true, 'altKeyStatus');
++        } else {
++          this.updateKeyValues(button, '', false, 'altKeyStatus');
++        }
++      } else if (button === '{XK_Meta_L}') {
++        // handle command buttom
++        this.cmdBtnStatus = !this.$store.getters['kvm/getSoftKeyboardStatus']
++          .cmdKeyStatus;
++        this.$emit('onKeyPress', keyId, keyValue, this.cmdBtnStatus);
++        if (this.cmdBtnStatus) {
++          this.updateKeyValues(button, 'grey', true, 'cmdKeyStatus');
++        } else {
++          this.updateKeyValues(button, '', false, 'cmdKeyStatus');
++        }
++      } else {
++        /**
++         * Handling all the other buttons
++         */
++        this.$emit('onKeyPress', keyId, keyValue, true);
++        this.$emit('onKeyPress', keyId, keyValue, false);
++        if (this.ctlBtnStatus) {
++          this.ctlBtnStatus = false;
++          this.releaseClt();
++        }
++        if (this.altBtnStatus) {
++          this.altBtnStatus = false;
++          this.releaseAlt();
++        }
++        if (this.cmdBtnStatus) {
++          this.cmdBtnStatus = false;
++          this.releaseCmd();
++        }
++      }
++    },
++    handleShift(keyId, keyValue) {
++      let currentLayout = this.keyboard.options.layoutName;
++      let shiftToggle = currentLayout === 'default' ? 'shift' : 'default';
++      if (currentLayout == 'caps') {
++        // when user click shift with caps on
++        // release the caps button
++        this.releaseCaps();
++        shiftToggle = 'shift';
++      }
++      if (shiftToggle == 'shift') {
++        this.$emit('onKeyPress', keyId, keyValue, true);
++      } else {
++        this.$emit('onKeyPress', keyId, keyValue, true);
++        this.$emit('onKeyPress', keyId, keyValue, false);
++      }
++      this.keyboard.setOptions({ layoutName: shiftToggle });
++      if (shiftToggle == 'shift') {
++        this.updateKeyValues('{XK_Shift_L}', 'grey', true, 'shiftKeyStatus');
++      } else {
++        this.updateKeyValues('{XK_Shift_L}', '', false, 'shiftKeyStatus');
++      }
++      this.updateFuncBtnStatus();
++    },
++    handleCaps(keyId, keyValue) {
++      let currentLayout = this.keyboard.options.layoutName;
++      let capsToggle = currentLayout == 'caps' ? 'default' : 'caps';
++      if (currentLayout == 'shift') {
++        // when user click caps when the shift is enabled
++        // relese the shift button
++        this.releaseShift();
++      }
++      if (capsToggle) {
++        this.$emit('onKeyPress', keyId, keyValue, true);
++        this.$emit('onKeyPress', keyId, keyValue, false);
++        this.keyboard.setOptions({ layoutName: capsToggle });
++      }
++      if (capsToggle == 'caps') {
++        this.updateKeyValues('{XK_Caps_Lock}', 'grey', true, 'capsKeyStatus');
++      } else {
++        this.updateKeyValues('{XK_Caps_Lock}', '', false, 'capsKeyStatus');
++      }
++      this.releaseAlt();
++      this.releaseCmd();
++      this.releaseClt();
++    },
++    updateKeyValues(key, style, state, storeStatus) {
++      if (this.keyboard?.getButtonElement(key)?.length) {
++        this.keyboard.getButtonElement(key)[0].style.backgroundColor = style;
++        this.keyboard.getButtonElement(key)[1].style.backgroundColor = style;
++      } else {
++        this.keyboard.getButtonElement(key).style.backgroundColor = style;
++      }
++      this.$store.commit('kvm/updateSoftKeyStatus', [state, storeStatus]);
++    },
++    releaseShift() {
++      this.$emit('onKeyPress', 'XK_Shift_L', '{XK_Shift_L}', true);
++      this.$emit('onKeyPress', 'XK_Shift_L', '{XK_Shift_L}', false);
++      this.updateKeyValues('{XK_Shift_L}', '', false, 'shiftKeyStatus');
++    },
++    releaseCaps() {
++      this.$emit('onKeyPress', 'XK_Caps_Lock', '{XK_Caps_Lock}', true);
++      this.$emit('onKeyPress', 'XK_Caps_Lock', '{XK_Caps_Lock}', false);
++      this.updateKeyValues('{XK_Caps_Lock}', '', false, 'capsKeyStatus');
++    },
++    releaseAlt() {
++      this.$emit('onKeyPress', 'XK_Alt_L', '{XK_Alt_L}', false);
++      this.updateKeyValues('{XK_Alt_L}', '', false, 'altKeyStatus');
++    },
++    releaseCmd() {
++      this.$emit('onKeyPress', 'XK_Meta_L', '{XK_Meta_L}', false);
++      this.updateKeyValues('{XK_Meta_L}', '', false, 'cmdKeyStatus');
++    },
++    releaseClt() {
++      this.$emit('onKeyPress', 'XK_Control_L', '{XK_Control_L}', false);
++      this.updateKeyValues('{XK_Control_L}', '', false, 'ctlKeyStatus');
++    },
++    updateFuncBtnStatus() {
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].cmdKeyStatus) {
++        this.updateKeyValues('{XK_Meta_L}', 'grey', true, 'cmdKeyStatus');
++      } else {
++        this.updateKeyValues('{XK_Meta_L}', '', false, 'cmdKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].altKeyStatus) {
++        this.updateKeyValues('{XK_Alt_L}', 'grey', true, 'altKeyStatus');
++      } else {
++        this.updateKeyValues('{XK_Alt_L}', '', false, 'altKeyStatus');
++      }
++      if (this.$store.getters['kvm/getSoftKeyboardStatus'].ctlKeyStatus) {
++        this.updateKeyValues('{XK_Control_L}', 'grey', true, 'ctlKeyStatus');
++      } else {
++        this.updateKeyValues('{XK_Control_L}', '', false, 'ctlKeyStatus');
++      }
++    },
++  },
++};
++</script>
++
++<!-- Add "scoped" attribute to limit CSS to this component only -->
++<style scoped></style>
+diff --git a/src/store/modules/Operations/KvmStore.js b/src/store/modules/Operations/KvmStore.js
+index ef7df04..aa9de3f 100644
+--- a/src/store/modules/Operations/KvmStore.js
++++ b/src/store/modules/Operations/KvmStore.js
+@@ -4,13 +4,25 @@ const KvmStore = {
+   namespaced: true,
+   state: {
+     activeStatus: 0,
++    softKeyboardStates: {
++      keyboardLayoutStatus: 'default',
++      altKeyStatus: false,
++      ctlKeyStatus: false,
++      shiftKeyStatus: false,
++      capsKeyStatus: false,
++      cmdKeyStatus: false,
++    },
+   },
+   getters: {
+     getKvmActiveStatus: (state) => state.activeStatus,
++    getSoftKeyboardStatus: (state) => state.softKeyboardStates,
+   },
+   mutations: {
+     setKvmActiveStatusData: (state, statusData) =>
+       (state.activeStatus = statusData.kvmActiveStatus),
++    updateSoftKeyStatus: (state, keyStatus) => {
++      state.softKeyboardStates[keyStatus[1]] = keyStatus[0];
++    },
+   },
+   actions: {
+     async getData({ commit }) {
+diff --git a/src/views/Operations/Kvm/KvmConsole.vue b/src/views/Operations/Kvm/KvmConsole.vue
+index ea8cda7..8068614 100644
+--- a/src/views/Operations/Kvm/KvmConsole.vue
++++ b/src/views/Operations/Kvm/KvmConsole.vue
+@@ -33,6 +33,15 @@
+             <icon-launch />
+             {{ $t('pageKvm.openNewTab') }}
+           </b-button>
++          <div v-if="isSoftkeyboardSupported" class="softkeyboardBtn">
++            <draggable-div-vue>
++              <template slot="header">
++                <div>
++                  <softKeyBoard @onKeyPress="onKeyPress" />
++                </div>
++              </template>
++            </draggable-div-vue>
++          </div>
+         </b-col>
+       </b-row>
+     </div>
+@@ -42,11 +51,15 @@
+ 
+ <script>
+ import RFB from '@novnc/novnc/core/rfb';
++import Keys from '@novnc/novnc/core/input/keysym';
+ import StatusIcon from '@/components/Global/StatusIcon';
+ import IconLaunch from '@carbon/icons-vue/es/launch/20';
+ import IconArrowDown from '@carbon/icons-vue/es/arrow--down/16';
+ import BVToastMixin from '@/components/Mixins/BVToastMixin';
+ import LoadingBarMixin from '@/components/Mixins/LoadingBarMixin';
++import softKeyBoard from '@/components/SoftKeyboard/softKeyboard';
++import DraggableDivVue from '@/components/SoftKeyboard/draggableDiv';
++import '@/components/SoftKeyboard/softKeyboard.css';
+ import { throttle } from 'lodash';
+ import { mapState } from 'vuex';
+ 
+@@ -56,7 +69,13 @@ const Disconnected = 2;
+ 
+ export default {
+   name: 'KvmConsole',
+-  components: { StatusIcon, IconLaunch, IconArrowDown },
++  components: {
++    StatusIcon,
++    IconLaunch,
++    IconArrowDown,
++    softKeyBoard,
++    DraggableDivVue,
++  },
+   mixins: [BVToastMixin, LoadingBarMixin],
+   props: {
+     isFullWindow: {
+@@ -67,6 +86,8 @@ export default {
+   data() {
+     return {
+       isconsoleWindow: null,
++      isSoftkeyboardSupported:
++        process.env.VUE_APP_KVM_SOFT_KEYBOARD_SUPPORT === 'true' ? true : false,
+       rfb: null,
+       isConnected: false,
+       terminalClass: this.isFullWindow ? 'full-window' : '',
+@@ -88,12 +109,16 @@ export default {
+     },
+     serverStatus() {
+       if (this.status === Connected) {
++        this.$root.$emit('enable-softkeyboard-btn');
+         return this.$t('pageKvm.connected');
+       } else if (this.status === Disconnected) {
++        this.$root.$emit('disable-softkeyboard-btn');
+         return this.$t('pageKvm.disconnected');
+       } else if (this.getKvmActiveData()) {
++        this.$root.$emit('disable-softkeyboard-btn');
+         return this.$t('pageKvm.alreadyInMasterSession');
+       }
++      this.$root.$emit('disable-softkeyboard-btn');
+       return this.$t('pageKvm.connecting');
+     },
+   },
+@@ -190,6 +215,11 @@ export default {
+         );
+       }
+     },
++    onKeyPress(keyId, keyValue, status) {
++      if (this.rfb) {
++        this.rfb.sendKey(Keys[keyId], keyValue, status);
++      }
++    },
+   },
+ };
+ </script>
+@@ -208,4 +238,8 @@ export default {
+ .margin-left-full-window {
+   margin-left: 5px;
+ }
++
++.softkeyboardBtn {
++  padding-bottom: 57px;
++}
+ </style>
+-- 
+2.34.1
+

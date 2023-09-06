@@ -1,0 +1,143 @@
+From affba29bd578ae5ecd6075e6065869b3eb4aa987 Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Sat, 22 Oct 2022 14:10:00 +0530
+Subject: [PATCH] ProcessorSensor: Replace iterator pairs with structured
+ binding
+
+sync up with community changes for Processor service.
+commit: 054aad8f80ca83b93123c495befe03dafaf63cc0
+
+Tested:
+Verified Processor Sensor dbus-objects constructed successfully.
+Verified Processor Sensors listed with ipmitool sensor list & sdr list command.
+
+root@intel-obmc:~# ipmitool sdr elist | head -n 5
+System Airflow   | 00h | ns  |  0.1 | No Reading
+Status cpu0      | 01h | ok  |  3.1 | Presence detected
+Status cpu1      | 02h | ok  |  3.1 | Presence detected
+Pwm 0            | 03h | ok  |  0.1 | 39.98 unspecifi
+Pwm 1            | 04h | ok  |  0.1 | 39.98 unspecifi
+root@intel-obmc:~#
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ src/ProcessorStatusMain.cpp | 61 ++++++++++++-------------------------
+ 1 file changed, 19 insertions(+), 42 deletions(-)
+
+diff --git a/src/ProcessorStatusMain.cpp b/src/ProcessorStatusMain.cpp
+index 0ed6b6b..f177b22 100644
+--- a/src/ProcessorStatusMain.cpp
++++ b/src/ProcessorStatusMain.cpp
+@@ -14,8 +14,7 @@
+ #include <variant>
+ #include <vector>
+ 
+-static constexpr auto sensorTypes{std::to_array<const char*>(
+-    {"xyz.openbmc_project.Configuration.Cpustatus"})};
++static constexpr const char* sensorType = "Cpustatus";
+ 
+ void createSensors(
+     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
+@@ -29,41 +28,23 @@ void createSensors(
+         dbusConnection,
+         [&io, &objectServer, &sensors, &dbusConnection,
+          sensorsChanged](const ManagedObjectType& sensorConfigurations) {
++
+             bool firstScan = sensorsChanged == nullptr;
+-            const SensorData* sensorData = nullptr;
+             const std::string* interfacePath = nullptr;
+-            const std::pair<std::string, boost::container::flat_map<
+-                                             std::string, BasicVariantType>>*
+-                baseConfiguration = nullptr;
+-            for (const std::pair<sdbusplus::message::object_path, SensorData>&
+-                     sensor : sensorConfigurations)
+-            {
++            const std::pair<std::string, SensorBaseConfigMap>*
++		    baseConfiguration = nullptr;
++
++	    for (const auto& [path, cfgData] : sensorConfigurations)
++	    {
+                 // clear it out each loop
+                 baseConfiguration = nullptr;
+-
+-                // find base configuration
+-                for (const char* type : sensorTypes)
+-                {
+-                    auto sensorBase = sensor.second.find(type);
+-                    if (sensorBase != sensor.second.end())
+-                    {
+-                        baseConfiguration = &(*sensorBase);
+-                        break;
+-                    }
+-                }
+-                if (baseConfiguration == nullptr)
+-                {
+-                    continue;
+-                }
+-                sensorData = &(sensor.second);
+-                interfacePath = &(sensor.first.str);
+-
+-                if (sensorData == nullptr)
+-                {
+-                    std::cerr << "failed to find sensor type"
+-                              << "\n";
+-                    continue;
+-                }
++		auto sensorBase = cfgData.find(configInterfaceName(sensorType));
++		if (sensorBase == cfgData.end())
++		{
++			continue;
++		}
++		baseConfiguration = &(*sensorBase);
++		interfacePath = &path.str;
+ 
+                 if (baseConfiguration == nullptr)
+                 {
+@@ -72,7 +53,6 @@ void createSensors(
+                         << "\n";
+                     continue;
+                 }
+-
+                 auto findSensorName = baseConfiguration->second.find("Name");
+                 if (findSensorName == baseConfiguration->second.end())
+                 {
+@@ -93,7 +73,7 @@ void createSensors(
+                 std::string gpioName =
+                     std::get<std::string>(findGpioName->second);
+ 
+-                // on rescans, only update sensors we were signaled by
++		// on rescans, only update sensors we were signaled by
+                 auto findSensor = sensors.find(sensorName);
+                 if (!firstScan && findSensor != sensors.end())
+                 {
+@@ -136,7 +116,8 @@ void createSensors(
+         });
+ 
+     getter->getConfiguration(
+-        std::vector<std::string>{sensorTypes.begin(), sensorTypes.end()});
++                        std::vector<std::string>{sensorType});
++
+ }
+ 
+ int main()
+@@ -183,15 +164,11 @@ int main()
+             });
+         };
+ 
+-    for (const char* type : sensorTypes)
+-    {
+         auto match = std::make_unique<sdbusplus::bus::match::match>(
+             static_cast<sdbusplus::bus::bus&>(*systemBus),
+             "type='signal',member='PropertiesChanged',path_namespace='" +
+-                std::string(inventoryPath) + "',arg0namespace='" + type + "'",
+-            eventHandler);
++                std::string(inventoryPath) + "',arg0namespace='" +
++		configInterfaceName(sensorType) + "'", eventHandler);
+         matches.emplace_back(std::move(match));
+-    }
+-
+     io.run();
+ }
+-- 
+2.25.1
+

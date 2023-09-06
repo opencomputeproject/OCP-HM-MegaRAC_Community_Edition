@@ -1,0 +1,31 @@
+From b45d635f4ca2f2091d42e0d7df9c089ef9ced92a Mon Sep 17 00:00:00 2001
+From: vipinc <vipinc@ami.com>
+Date: Sun, 13 Nov 2022 15:12:57 +0530
+Subject: [PATCH] Fix Wrong SensorName issue
+
+Issue: https://git.ami.com/megarac/osp-team/oe2.3/-/issues/1138
+
+Signed-off-by: vipinc <vipinc@ami.com>
+---
+ include/sdrutils.hpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/include/sdrutils.hpp b/include/sdrutils.hpp
+index e9391ea..62336e5 100755
+--- a/include/sdrutils.hpp
++++ b/include/sdrutils.hpp
+@@ -87,8 +87,10 @@ inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
+                              "/xyz/openbmc_project/object_mapper",
+                              "xyz.openbmc_project.ObjectMapper", "GetSubTree");
+     static constexpr const auto depth = 2;
+-    static constexpr std::array<const char*, 3> interfaces = {
++    static constexpr std::array<const char*, 5> interfaces = {
+         "xyz.openbmc_project.Sensor.Value",
++	"xyz.openbmc_project.Inventory.Item.Cpu",
++	"xyz.openbmc_project.Inventory.Item.Watchdog",
+         "xyz.openbmc_project.Sensor.Threshold.Warning",
+         "xyz.openbmc_project.Sensor.Threshold.Critical"};
+     mapperCall.append("/xyz/openbmc_project/sensors", depth, interfaces);
+-- 
+2.25.1
+

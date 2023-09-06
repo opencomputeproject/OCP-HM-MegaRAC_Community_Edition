@@ -1,0 +1,81 @@
+From 49db93dc59f4b8196485054f906aedc2e0ffc936 Mon Sep 17 00:00:00 2001
+From: dhineskumare <dinesh1994>
+Date: Thu, 4 Aug 2022 11:08:02 +0530
+Subject: [PATCH 50/50] ARP GARP Support DBUS
+
+---
+ .../Network/ARPControl/meson.build                | 13 +++++++++++++
+ gen/xyz/openbmc_project/Network/meson.build       | 14 ++++++++++++++
+ .../Network/ARPControl.interface.yaml             | 15 +++++++++++++++
+ 3 files changed, 42 insertions(+)
+ create mode 100644 gen/xyz/openbmc_project/Network/ARPControl/meson.build
+ create mode 100644 yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml
+
+diff --git a/gen/xyz/openbmc_project/Network/ARPControl/meson.build b/gen/xyz/openbmc_project/Network/ARPControl/meson.build
+new file mode 100644
+index 00000000..aa6aa2d7
+--- /dev/null
++++ b/gen/xyz/openbmc_project/Network/ARPControl/meson.build
+@@ -0,0 +1,13 @@
++# Generated file; do not modify.
++generated_sources += custom_target(
++    'xyz/openbmc_project/Network/ARPControl__cpp'.underscorify(),
++    input: [ '../../../../../yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml',  ],
++    output: [ 'server.cpp', 'server.hpp', 'client.hpp',  ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'cpp',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.current_source_dir() / '../../../../../yaml',
++        'xyz/openbmc_project/Network/ARPControl',
++    ],
++)
+diff --git a/gen/xyz/openbmc_project/Network/meson.build b/gen/xyz/openbmc_project/Network/meson.build
+index be232643..c43ea23b 100644
+--- a/gen/xyz/openbmc_project/Network/meson.build
++++ b/gen/xyz/openbmc_project/Network/meson.build
+@@ -98,6 +98,20 @@ generated_others += custom_target(
+     ],
+ )
+ 
++subdir('ARPControl')
++generated_others += custom_target(
++    'xyz/openbmc_project/Network/ARPControl__markdown'.underscorify(),
++    input: [ '../../../../yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml',  ],
++    output: [ 'ARPControl.md' ],
++    command: [
++        sdbuspp_gen_meson_prog, '--command', 'markdown',
++        '--output', meson.current_build_dir(),
++        '--tool', sdbusplusplus_prog,
++        '--directory', meson.current_source_dir() / '../../../../yaml',
++        'xyz/openbmc_project/Network/ARPControl',
++    ],
++)
++
+ subdir('VLAN')
+ generated_others += custom_target(
+     'xyz/openbmc_project/Network/VLAN__markdown'.underscorify(),
+diff --git a/yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml b/yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml
+new file mode 100644
+index 00000000..5533939a
+--- /dev/null
++++ b/yaml/xyz/openbmc_project/Network/ARPControl.interface.yaml
+@@ -0,0 +1,15 @@
++description: >
++    This defines ARP Control configuration.
++properties:
++    - name: ARPResponse
++      type: boolean
++      description: >
++          if true then the ARP Response Message send to received ARP requests Message
++    - name: GratuitousARP
++      type: boolean
++      description: >
++          if true then the gratuitous ARP service start to broadcast gratuitous ARP Message
++    - name: GratuitousARPInterval
++      type: uint64
++      description: >
++          Controls the interval between two gratuitous ARP Messages.By default the value is 2000 milliseconds
+-- 
+2.25.1
+

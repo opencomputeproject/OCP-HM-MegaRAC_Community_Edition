@@ -1,0 +1,216 @@
+From 82941ad30b710238ef0efe3b049787e1dc40a4c9 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Thu, 18 Aug 2022 16:01:06 +0530
+Subject: [PATCH] Session timeout feature in webui
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ src/locales/en-US.json                        |  8 ++-
+ .../SecurityAndAccess/PoliciesStore.js        | 37 +++++++++++++
+ .../SecurityAndAccess/Policies/Policies.vue   | 53 +++++++++++++++++++
+ 3 files changed, 96 insertions(+), 2 deletions(-)
+
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index e43167c..9ca66a2 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -776,6 +776,7 @@
+       "errorSshEnabled": "Error enabling SSH security setting.",
+       "errorVtpmDisabled": "Error disabling VirtualTPM security setting.",
+       "errorVtpmEnabled": "Error enabling VirtualTPM security setting.",
++      "errorSessionTimeout": "Error in changing session timeout.",
+       "successIpmiDisabled": "Successfully disabled IPMI security setting.",
+       "successIpmiEnabled": "Successfully enabled IPMI security setting.",
+       "successRtadDisabled": "Successfully disabled RTAD security setting.",
+@@ -783,10 +784,13 @@
+       "successSshDisabled": "Successfully disabled SSH security setting.",
+       "successSshEnabled": "Successfully enabled SSH security setting.",
+       "successVtpmDisabled": "Successfully disabled VirtualTPM security setting.",
+-      "successVtpmEnabled": "Successfully enabled VirtualTPM security setting."
++      "successVtpmEnabled": "Successfully enabled VirtualTPM security setting.",
++      "successSessionTimeout": "Successfully changed the session timeout value."
+     },
+     "vtpm": "VirtualTPM",
+-    "vtpmDescription": "Enabling vTPM makes a TPM available to the guest operating system."
++    "vtpmDescription": "Enabling vTPM makes a TPM available to the guest operating system.",
++    "webSessionTimeOut":"WEB Session Timeout",
++    "webSessionTimeOutDescription" : "Change the Web session timeout in given options"
+   },
+   "pagePower": {
+     "description": "Set a power cap to keep power consumption at or below the specified value in watts",
+diff --git a/src/store/modules/SecurityAndAccess/PoliciesStore.js b/src/store/modules/SecurityAndAccess/PoliciesStore.js
+index 64bd336..e4c224f 100644
+--- a/src/store/modules/SecurityAndAccess/PoliciesStore.js
++++ b/src/store/modules/SecurityAndAccess/PoliciesStore.js
+@@ -8,12 +8,14 @@ const PoliciesStore = {
+     ipmiProtocolEnabled: false,
+     rtadEnabled: 'Disabled',
+     vtpmEnabled: 'Disabled',
++    sessionTimeoutValue: null,
+   },
+   getters: {
+     sshProtocolEnabled: (state) => state.sshProtocolEnabled,
+     ipmiProtocolEnabled: (state) => state.ipmiProtocolEnabled,
+     rtadEnabled: (state) => state.rtadEnabled,
+     vtpmEnabled: (state) => state.vtpmEnabled,
++    getSessionTimeoutValue: (state) => state.sessionTimeoutValue,
+   },
+   mutations: {
+     setSshProtocolEnabled: (state, sshProtocolEnabled) =>
+@@ -22,8 +24,14 @@ const PoliciesStore = {
+       (state.ipmiProtocolEnabled = ipmiProtocolEnabled),
+     setRtadEnabled: (state, rtadEnabled) => (state.rtadEnabled = rtadEnabled),
+     setVtpmEnabled: (state, vtpmEnabled) => (state.vtpmEnabled = vtpmEnabled),
++    setSessionTimeoutValue(state, sessionTimeoutValue) {
++      state.sessionTimeoutValue = sessionTimeoutValue;
++    },
+   },
+   actions: {
++    setSessionTimeoutNewValue({ commit }, sessionTimeoutNewValue) {
++      commit('setSessionTimeoutValue', sessionTimeoutNewValue);
++    },
+     async getNetworkProtocolStatus({ commit }) {
+       return await api
+         .get('/redfish/v1/Managers/bmc/NetworkProtocol')
+@@ -44,6 +52,15 @@ const PoliciesStore = {
+         })
+         .catch((error) => console.log(error));
+     },
++    async getSessionTimeout({ commit }) {
++      return await api
++        .get('/redfish/v1/SessionService')
++        .then((response) => {
++          const sessionTimeoutValue = response.data.SessionTimeout;
++          commit('setSessionTimeoutValue', sessionTimeoutValue);
++        })
++        .catch((error) => console.log(error));
++    },
+     async saveIpmiProtocolState({ commit }, protocolEnabled) {
+       commit('setIpmiProtocolEnabled', protocolEnabled);
+       const ipmi = {
+@@ -144,6 +161,26 @@ const PoliciesStore = {
+           }
+         });
+     },
++    async saveSessionTimeoutValue({ commit }, sessionTimeoutNewValue) {
++      commit('setSessionTimeoutValue', sessionTimeoutNewValue);
++      const sessionValue = {
++        SessionTimeout: sessionTimeoutNewValue,
++      };
++      return await api
++        .patch('/redfish/v1/SessionService', sessionValue)
++        .then(() => {
++          if (sessionTimeoutNewValue) {
++            return i18n.t('pagePolicies.toast.successSessionTimeout');
++          }
++        })
++        .catch((error) => {
++          console.log(error);
++          commit('setSessionTimeoutValue', sessionTimeoutNewValue);
++          if (sessionTimeoutNewValue) {
++            throw new Error(i18n.t('pagePolicies.toast.errorSessionTimeout'));
++          }
++        });
++    },
+   },
+ };
+ 
+diff --git a/src/views/SecurityAndAccess/Policies/Policies.vue b/src/views/SecurityAndAccess/Policies/Policies.vue
+index 1dc197c..c907519 100644
+--- a/src/views/SecurityAndAccess/Policies/Policies.vue
++++ b/src/views/SecurityAndAccess/Policies/Policies.vue
+@@ -103,6 +103,30 @@
+             </b-form-checkbox>
+           </b-col>
+         </b-row>
++        <b-row class="setting-section">
++          <b-col class="d-flex align-items-center justify-content-between">
++            <dl class="mt-3 mr-3 w-75">
++              <dt>{{ $t('pagePolicies.webSessionTimeOut') }}</dt>
++              <dd>
++                {{ $t('pagePolicies.webSessionTimeOutDescription') }}
++              </dd>
++            </dl>
++          </b-col>
++          <b-col lg="3" class="session-timeout">
++            <b-form-select
++              id="session-timeout-options"
++              v-model="sessionTimeoutState"
++              :options="sessionTimeOutOptions"
++              @change="saveSessionTimeoutValue()"
++            >
++              <template #first>
++                <b-form-select-option :value="null" disabled>
++                  {{ $t('global.form.selectAnOption') }}
++                </b-form-select-option>
++              </template>
++            </b-form-select>
++          </b-col>
++        </b-row>
+       </b-col>
+     </b-row>
+   </b-container>
+@@ -124,6 +148,14 @@ export default {
+   },
+   data() {
+     return {
++      sessionTimeOutOptions: [
++        { value: 1800, text: '30 Minutes' },
++        { value: 3600, text: '1 Hour' },
++        { value: 7200, text: '2 Hours' },
++        { value: 14400, text: '4 Hours' },
++        { value: 28800, text: '8 Hours' },
++        { value: 86400, text: '1 Day' },
++      ],
+       modifySSHPolicyDisabled:
+         process.env.VUE_APP_MODIFY_SSH_POLICY_DISABLED === 'true',
+     };
+@@ -169,12 +201,21 @@ export default {
+         return newValue;
+       },
+     },
++    sessionTimeoutState: {
++      get() {
++        return this.$store.getters['policies/getSessionTimeoutValue'];
++      },
++      set(newValue) {
++        this.$store.dispatch('policies/setSessionTimeoutNewValue', newValue);
++      },
++    },
+   },
+   created() {
+     this.startLoader();
+     Promise.all([
+       this.$store.dispatch('policies/getBiosStatus'),
+       this.$store.dispatch('policies/getNetworkProtocolStatus'),
++      this.$store.dispatch('policies/getSessionTimeout'),
+     ]).finally(() => this.endLoader());
+   },
+   methods: {
+@@ -202,6 +243,15 @@ export default {
+         .then((message) => this.successToast(message))
+         .catch(({ message }) => this.errorToast(message));
+     },
++    saveSessionTimeoutValue() {
++      this.$store
++        .dispatch(
++          'policies/saveSessionTimeoutValue',
++          parseInt(this.sessionTimeoutState)
++        )
++        .then((message) => this.successToast(message))
++        .catch(({ message }) => this.errorToast(message));
++    },
+   },
+ };
+ </script>
+@@ -210,4 +260,7 @@ export default {
+ .setting-section {
+   border-bottom: 1px solid gray('300');
+ }
++.session-timeout {
++  align-self: center;
++}
+ </style>
+-- 
+2.25.1
+

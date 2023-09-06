@@ -1,0 +1,110 @@
+From 4fdcfd49717cb91316f5cb9b2d60debf58223cb5 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Fri, 9 Jun 2023 12:25:51 +0000
+Subject: [PATCH] Add Locked status to login API on User locked
+
+This patch will check the UserLockedForFailedAttempt property when the
+user logins. The property will be set to true if the user reaches the
+maximum login attempt, so the API call will fail with the status code
+423 Locked.
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ include/login_routes.hpp     |  6 +++++-
+ include/pam_authenticate.hpp | 42 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+), 1 deletion(-)
+
+diff --git a/include/login_routes.hpp b/include/login_routes.hpp
+index df910e44..4afdbaf4 100644
+--- a/include/login_routes.hpp
++++ b/include/login_routes.hpp
+@@ -170,7 +170,11 @@ inline void requestRoutes(App& app)
+         {
+             int pamrc = pamAuthenticateUser(username, password);
+             bool isConfigureSelfOnly = pamrc == PAM_NEW_AUTHTOK_REQD;
+-            if ((pamrc != PAM_SUCCESS) && !isConfigureSelfOnly)
++            if (pamrc == PAM_MAXTRIES) {
++                // return the API error code as Locked 423
++                asyncResp->res.result(boost::beast::http::status::locked);
++            }
++            else if ((pamrc != PAM_SUCCESS) && !isConfigureSelfOnly)
+             {
+                 asyncResp->res.result(boost::beast::http::status::unauthorized);
+             }
+diff --git a/include/pam_authenticate.hpp b/include/pam_authenticate.hpp
+index 5ab5e11b..a92bd9f8 100644
+--- a/include/pam_authenticate.hpp
++++ b/include/pam_authenticate.hpp
+@@ -7,6 +7,8 @@
+ 
+ #include <cstring>
+ #include <memory>
++#include <variant>
++#include <dbus_utility.hpp>
+ 
+ // function used to get user input
+ inline int pamFunctionConversation(int numMsg, const struct pam_message** msg,
+@@ -79,6 +81,40 @@ inline int pamFunctionConversation(int numMsg, const struct pam_message** msg,
+     return PAM_CONV_ERR;
+ }
+ 
++// checking the UserLockedForFailedAttempt, if it is true then
++// pam_athenticate will return PAM_MAXTRIES
++
++static bool pamMaxtriescheck(std::string& userName)
++{
++    const char* userNameStr = userName.c_str();
++    const char* serviceName = "xyz.openbmc_project.User.Manager";
++    std::string objPath = "/xyz/openbmc_project/user/";
++    objPath += userNameStr;
++    const char* UserObjPath = objPath.c_str();
++    std::string lockedUserIface ="xyz.openbmc_project.User.Attributes";
++    std::string lockedUserProperty = "UserLockedForFailedAttempt";
++    std::variant <bool> lockedUserValue;
++    bool UserMaxtriesReached;
++    sdbusplus::message::message getlockedUser = crow::connections::systemBus->new_method_call(serviceName,UserObjPath,
++                                                    "org.freedesktop.DBus.Properties","Get");
++    getlockedUser.append(lockedUserIface,lockedUserProperty);
++    try
++    {
++        sdbusplus::message::message getlockedUserResp = crow::connections::systemBus->call(getlockedUser);
++        getlockedUserResp.read(lockedUserValue);
++    }
++    catch (sdbusplus::exception_t &)
++    {
++        return false;
++    }
++    UserMaxtriesReached = std::get<bool>(lockedUserValue);
++    if(UserMaxtriesReached == true)
++    {
++        return true;
++    }
++    return false;
++}
++
+ /**
+  * @brief Attempt username/password authentication via PAM.
+  * @param username The provided username aka account name.
+@@ -96,6 +132,7 @@ inline int pamAuthenticateUser(const std::string_view username,
+                                                passStrNoConst};
+     pam_handle_t* localAuthHandle = nullptr; // this gets set by pam_start
+ 
++    bool pamMaxerror;
+     int retval = pam_start("webserver", userStr.c_str(), &localConversation,
+                            &localAuthHandle);
+     if (retval != PAM_SUCCESS)
+@@ -112,6 +149,11 @@ inline int pamAuthenticateUser(const std::string_view username,
+                         "OpenBMC.0.1.InvalidLoginAttempted",
+                         "REDFISH_MESSAGE_ARGS=%s", "HTTPS", NULL);
+         pam_end(localAuthHandle, PAM_SUCCESS); // ignore retval
++        pamMaxerror = pamMaxtriescheck(userStr);
++        if(pamMaxerror == true)
++        {
++	        return PAM_MAXTRIES;
++        }
+         return retval;
+     }
+ 
+-- 
+2.34.1
+

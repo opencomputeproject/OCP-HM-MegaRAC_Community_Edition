@@ -1,0 +1,26 @@
+From ef08fc08b94673f55f207ca9266bb9eff2b46bb2 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Wed, 23 Nov 2022 13:29:09 +0530
+Subject: [PATCH] WEB UI Dump count issue fixed under overview page
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ src/views/Overview/OverviewDumps.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/views/Overview/OverviewDumps.vue b/src/views/Overview/OverviewDumps.vue
+index a2ae4e4..6db5d28 100644
+--- a/src/views/Overview/OverviewDumps.vue
++++ b/src/views/Overview/OverviewDumps.vue
+@@ -34,7 +34,7 @@ export default {
+     },
+   },
+   created() {
+-    this.$store.dispatch('dumps/getBmcDumpEntries').finally(() => {
++    this.$store.dispatch('dumps/getAllDumps').finally(() => {
+       this.$root.$emit('overview-dumps-complete');
+     });
+   },
+-- 
+2.25.1
+

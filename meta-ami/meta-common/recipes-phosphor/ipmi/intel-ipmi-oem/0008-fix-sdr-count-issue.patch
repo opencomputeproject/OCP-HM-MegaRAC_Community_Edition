@@ -1,0 +1,26 @@
+From fb1eabb4fc8c410852592f27e72992e238282ba1 Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Fri, 19 Aug 2022 10:44:19 +0530
+Subject: [PATCH 8/8] fix sdr count issue
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ src/sensorcommands.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index d204885..1560713 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -1610,6 +1610,8 @@ static ipmi::RspType<uint8_t, // respcount
+                 }
+             }
+         }
++        sdrCount +=
++            ipmi::storage::type12Count + ipmi::storage::nmDiscoverySDRCount;
+     }
+     else if (count.value_or(0) == getSensorCount)
+     {
+-- 
+2.25.1
+

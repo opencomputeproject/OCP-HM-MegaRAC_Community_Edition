@@ -1,0 +1,44 @@
+From 72c64ed109aeb9840ba2d70f22e5554ce88e0621 Mon Sep 17 00:00:00 2001
+From: shamim-ali <shamima@ami.com>
+Date: Thu, 18 Aug 2022 17:00:46 +0530
+Subject: [PATCH 7/7] Change Privilege to system interface
+
+Signed-off-by: shamim-ali <shamima@ami.com>
+---
+ src/sensorcommands.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index d204885..3ddb643 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -1870,7 +1870,7 @@ void registerSensorFunctions()
+     // <Get Device SDR Info>
+     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetDeviceSdrInfo,
+-                          ipmi::Privilege::User, ipmiSensorGetDeviceSdrInfo);
++                          ipmi::Privilege::sysIface, ipmiSensorGetDeviceSdrInfo);
+ 
+     // <Get SDR Allocation Info>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+@@ -1881,7 +1881,7 @@ void registerSensorFunctions()
+     // <Reserve SDR Repo>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdReserveDeviceSdrRepository,
+-                          ipmi::Privilege::User, ipmiStorageReserveSDR);
++                          ipmi::Privilege::sysIface, ipmiStorageReserveSDR);
+ 
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdReserveSdrRepository,
+@@ -1890,7 +1890,7 @@ void registerSensorFunctions()
+     // <Get Sdr>
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnSensor,
+                           ipmi::sensor_event::cmdGetDeviceSdr,
+-                          ipmi::Privilege::User, ipmiStorageGetSDR);
++                          ipmi::Privilege::sysIface, ipmiStorageGetSDR);
+ 
+     ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnStorage,
+                           ipmi::storage::cmdGetSdr, ipmi::Privilege::User,
+-- 
+2.25.1
+

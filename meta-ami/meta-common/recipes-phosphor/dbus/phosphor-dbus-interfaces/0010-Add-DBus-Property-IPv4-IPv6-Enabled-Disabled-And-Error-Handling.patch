@@ -1,0 +1,57 @@
+From 8387be2425593e8f578c93e9f949c14f56583ff0 Mon Sep 17 00:00:00 2001
+From: Ethan Wei <ethanwei@ami.com>
+Date: Tue, 27 Jun 2023 10:51:23 +0800
+Subject: [PATCH] Add DBus properties and error handling to save status of
+ IPv4/IPv6 	modified:  
+ yaml/xyz/openbmc_project/Network/EthernetInterface.interface.yaml
+
+---
+ .../Network/EthernetInterface.interface.yaml       | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/yaml/xyz/openbmc_project/Network/EthernetInterface.interface.yaml b/yaml/xyz/openbmc_project/Network/EthernetInterface.interface.yaml
+index f45cac7..e237940 100644
+--- a/yaml/xyz/openbmc_project/Network/EthernetInterface.interface.yaml
++++ b/yaml/xyz/openbmc_project/Network/EthernetInterface.interface.yaml
+@@ -42,10 +42,14 @@ properties:
+       type: boolean
+       description: >
+           Enable or disable IPv4 DHCP.
++      errors:
++          - xyz.openbmc_project.Common.Error.NotAllowed
+     - name: DHCP6
+       type: boolean
+       description: >
+           Enable or disable IPv6 DHCP.
++      errors:
++          - xyz.openbmc_project.Common.Error.NotAllowed
+     - name: Nameservers
+       type: array[string]
+       description: >
+@@ -101,6 +105,7 @@ properties:
+           Default IPv4 gateway of the ethernet interface.
+       errors:
+           - xyz.openbmc_project.Common.Error.InvalidArgument
++          - xyz.openbmc_project.Common.Error.NotAllowed
+     - name: DefaultGateway6
+       type: string
+       description: >
+@@ -110,6 +115,15 @@ properties:
+           https://man7.org/linux/man-pages/man3/inet_pton.3.html
+       errors:
+           - xyz.openbmc_project.Common.Error.InvalidArgument
++          - xyz.openbmc_project.Common.Error.NotAllowed
++    - name: IPv6Enable
++      type: boolean
++      description: >
++          This is Enable/Disable IPv6. Default value is true.
++    - name: IPv4Enable
++      type: boolean
++      description: >
++          This is Enable/Disable IPv4. Default value is true.
+ 
+ enumerations:
+     - name: LinkLocalConf
+-- 
+2.25.1
+

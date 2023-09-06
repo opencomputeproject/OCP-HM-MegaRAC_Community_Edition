@@ -1,0 +1,35 @@
+From c18ae30dfe12389bdf6c709891c915c7fc15a8ae Mon Sep 17 00:00:00 2001
+From: gokulp <gokulp@ami.com>
+Date: Wed, 28 Jun 2023 13:29:10 +0530
+Subject: [PATCH 2141/2141] Dmtf Tools.Redfish Service Validator getting
+
+Signed-off-by: gokulp <gokulp@ami.com>
+---
+ redfish-core/lib/log_services.hpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/redfish-core/lib/log_services.hpp b/redfish-core/lib/log_services.hpp
+index 4d06f325..a63ed7f1 100644
+--- a/redfish-core/lib/log_services.hpp
++++ b/redfish-core/lib/log_services.hpp
+@@ -2323,7 +2323,7 @@ inline void requestRoutesBMCJournalLogService(App& app)
+             "/redfish/v1/Managers/bmc/LogServices/Journal";
+         asyncResp->res.jsonValue["Name"] = "Open BMC Journal Log Service";
+         asyncResp->res.jsonValue["Description"] = "BMC Journal Log Service";
+-        asyncResp->res.jsonValue["Id"] = "BMC Journal";
++        asyncResp->res.jsonValue["Id"] = "Journal";
+         asyncResp->res.jsonValue["OverWritePolicy"] = "WrapsWhenFull";
+ 
+         std::pair<std::string, std::string> redfishDateTimeOffset =
+@@ -3062,7 +3062,7 @@ static void
+         logEntry["@odata.type"] = "#LogEntry.v1_9_0.LogEntry";
+         logEntry["@odata.id"] =
+             "/redfish/v1/Systems/system/LogServices/Crashdump/Entries/" + logID;
+-        logEntry["Name"] = "CPU Crashdump";
++        logEntry["Name"] = "Crashdump";
+         logEntry["Id"] = logID;
+         logEntry["EntryType"] = "Oem";
+         logEntry["AdditionalDataURI"] = std::move(crashdumpURI);
+-- 
+2.34.1
+

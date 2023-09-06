@@ -1,0 +1,32 @@
+From 7b81749f0869b0e7c3bcd53d05880c0e437c69f0 Mon Sep 17 00:00:00 2001
+From: prasannas <prasannas@ami.com>
+Date: Tue, 27 Jun 2023 15:54:42 +0530
+Subject: [PATCH 2140/2140] Fix-for-Empty-response-body-for-updating-username
+
+---
+ redfish-core/lib/account_service.hpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+index 77ee26a..bf6b11f 100644
+--- a/redfish-core/lib/account_service.hpp
++++ b/redfish-core/lib/account_service.hpp
+@@ -2131,6 +2131,7 @@ inline void
+     {
+         updateUserProperties(asyncResp, username, password, enabled, roleId,
+                              locked);
++	messages::success(asyncResp->res);
+         return;
+     }
+     crow::connections::systemBus->async_method_call(
+@@ -2146,6 +2147,7 @@ inline void
+ 
+         updateUserProperties(asyncResp, newUser, password, enabled, roleId,
+                              locked);
++	messages::success(asyncResp->res);
+         },
+         "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
+         "xyz.openbmc_project.User.Manager", "RenameUser", username,
+-- 
+2.9.5
+

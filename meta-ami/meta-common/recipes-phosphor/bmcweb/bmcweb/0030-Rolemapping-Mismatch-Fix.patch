@@ -1,0 +1,44 @@
+From 83fb1cb6360a8bc8e6d20224935c9e1fc09d4fa0 Mon Sep 17 00:00:00 2001
+From: "vamsikrishnak@ami.com" <vamsikrishnak@ami.com>
+Date: Wed, 24 May 2023 11:21:49 +0530
+Subject: [PATCH] Rolemapping Mismatch Fix
+
+This commit fixes the Rolemapping property mismatch in redfish which
+is effecting webui.
+
+signed-off-by: vamsikrishnak@ami.com <vamsikrishnak@ami.com>
+---
+ redfish-core/lib/account_service.hpp | 17 +++++------------
+ 1 file changed, 5 insertions(+), 12 deletions(-)
+
+diff --git a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+index fcd19749..77ee26a3 100644
+--- a/redfish-core/lib/account_service.hpp
++++ b/redfish-core/lib/account_service.hpp
+@@ -227,18 +227,11 @@ inline void parseLDAPConfigData(nlohmann::json& jsonResponse,
+     {
+         BMCWEB_LOG_DEBUG << "Pushing the data groupName="
+                          << obj.second.groupName << "\n";
+-
+-        nlohmann::json::array_t remoteGroupArray;
+-        nlohmann::json::object_t remoteGroup;
+-        remoteGroup["RemoteGroup"] = obj.second.groupName;
+-        remoteGroupArray.emplace_back(std::move(remoteGroup));
+-        roleMapArray.emplace_back(std::move(remoteGroupArray));
+-
+-        nlohmann::json::array_t localRoleArray;
+-        nlohmann::json::object_t localRole;
+-        localRole["LocalRole"] = getRoleIdFromPrivilege(obj.second.privilege);
+-        localRoleArray.emplace_back(std::move(localRole));
+-        roleMapArray.emplace_back(std::move(localRoleArray));
++       
++       	roleMapArray.push_back(
++            {nlohmann::json::array({"RemoteGroup", obj.second.groupName}),
++             nlohmann::json::array(
++                 {"LocalRole", getRoleIdFromPrivilege(obj.second.privilege)})});
+     }
+ }
+ 
+-- 
+2.17.1
+

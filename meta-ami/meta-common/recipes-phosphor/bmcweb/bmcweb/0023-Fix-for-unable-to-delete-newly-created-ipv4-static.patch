@@ -1,0 +1,45 @@
+From c031db2bbc5b354b90487cfd53291ef84e41f494 Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Wed, 14 Dec 2022 02:47:10 +0530
+Subject: [PATCH] Fix for unable to delete newly created ipv4 static ip address
+
+---
+ redfish-core/lib/ethernet.hpp | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 4679cd4d..49c3f173 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -1458,6 +1458,11 @@ inline void handleIPv4StaticPatch(
+             entryIdx++;
+         }
+     }
++    while (nicIpEntry != ipv4Data.cend())
++    {
++        deleteIPv4(ifaceId, nicIpEntry->id, asyncResp);
++        nicIpEntry = getNextStaticIpEntry(++nicIpEntry, ipv4Data.cend());
++    }
+ }
+ 
+ inline void handleStaticNameServersPatch(
+@@ -1589,6 +1594,7 @@ inline void handleIPv6StaticAddressesPatch(
+     size_t entryIdx = 1;
+     boost::container::flat_set<IPv6AddressData>::const_iterator nicIpEntry =
+         getNextStaticIpEntry(ipv6Data.cbegin(), ipv6Data.cend());
++
+     for (const nlohmann::json& thisJson : input)
+     {
+         std::string pathString =
+@@ -1692,6 +1698,11 @@ inline void handleIPv6StaticAddressesPatch(
+             entryIdx++;
+         }
+     }
++    while (nicIpEntry != ipv6Data.cend())
++    {
++        deleteIPv6(ifaceId, nicIpEntry->id, asyncResp);
++        nicIpEntry = getNextStaticIpEntry(++nicIpEntry, ipv6Data.cend());
++    }
+ }
+ 
+ inline void parseInterfaceData(

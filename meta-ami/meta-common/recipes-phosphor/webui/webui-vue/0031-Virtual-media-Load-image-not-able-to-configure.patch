@@ -1,0 +1,26 @@
+From 901ee5452d91aab73d088a68a10006dc1e08ddd0 Mon Sep 17 00:00:00 2001
+From: dineshkumar <dineshkumar@ami.com>
+Date: Mon, 14 Nov 2022 17:04:51 +0530
+Subject: [PATCH] Virtual media Load image not able to configure
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ src/views/Operations/VirtualMedia/ModalConfigureConnection.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue b/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
+index 04000a7..34ee087 100644
+--- a/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
++++ b/src/views/Operations/VirtualMedia/ModalConfigureConnection.vue
+@@ -159,7 +159,7 @@ export default {
+     handleSubmit() {
+       this.$v.$touch();
+       if (this.$v.$invalid) return;
+-      const ext = this.form.imagePath.split('.')[1];
++      const ext = this.form.imagePath.slice(-3);
+       if (ext == 'iso' || ext == 'img' || ext == 'ima' || ext == 'nrg') {
+         let connectionData = {};
+         Object.assign(connectionData, this.form);
+-- 
+2.25.1
+

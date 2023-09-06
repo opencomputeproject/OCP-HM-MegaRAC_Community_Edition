@@ -1,0 +1,25 @@
+From 4a7fcecb10ca753eda2c4f6958487a65eba875bf Mon Sep 17 00:00:00 2001
+From: sandeepap <sandeepap@ami.com>
+Date: Thu, 29 Jun 2023 12:37:21 +0530
+Subject: [PATCH] Adding successResponse for Factory Default Reset
+
+Signed-off-by: sandeepap <sandeepap@ami.com>
+---
+ redfish-core/lib/managers.hpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index 3b437c2..89bf71b 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -516,6 +516,7 @@ inline void requestRoutesManagerResetToDefaultsAction(App& app)
+             // Factory Reset doesn't actually happen until a reboot
+             // Can't erase what the BMC is running on
+             doBMCGracefulRestart(asyncResp);
++            messages::success(asyncResp->res);
+             },
+             "xyz.openbmc_project.Software.BMC.Updater",
+             "/xyz/openbmc_project/software",
+-- 
+2.9.5
+

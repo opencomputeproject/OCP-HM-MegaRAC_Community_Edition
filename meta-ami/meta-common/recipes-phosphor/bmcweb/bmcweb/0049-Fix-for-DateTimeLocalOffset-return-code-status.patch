@@ -1,0 +1,37 @@
+From 1bca65f0a06809afdb02a110243e1765b3172cba Mon Sep 17 00:00:00 2001
+From: prasannas <prasannas@ami.com>
+Date: Mon, 19 Jun 2023 16:33:04 +0530
+Subject: [PATCH 2138/2138] Fix for DateTimeLocalOffset returns wrong status
+ code
+
+---
+ redfish-core/lib/managers.hpp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/managers.hpp b/redfish-core/lib/managers.hpp
+index 26ac91b..9965bd8 100644
+--- a/redfish-core/lib/managers.hpp
++++ b/redfish-core/lib/managers.hpp
+@@ -2550,6 +2550,10 @@ inline void requestRoutesManager(App& app)
+         {
+             return;
+         }
++        asyncResp->res.addHeader(
++            boost::beast::http::field::link,
++            "</redfish/v1/JsonSchemas/Manager/Manager.json>; rel=describedby");
++
+         std::optional<nlohmann::json> oem;
+         std::optional<nlohmann::json> links;
+         std::optional<std::string> datetime;
+@@ -2560,7 +2564,7 @@ inline void requestRoutesManager(App& app)
+         {
+             return;
+         }
+-
++        asyncResp->res.result(boost::beast::http::status::no_content);
+         if (oem)
+         {
+ #ifdef BMCWEB_ENABLE_REDFISH_OEM_MANAGER_FAN_DATA
+-- 
+2.9.5
+

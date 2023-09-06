@@ -1,0 +1,44 @@
+diff -Naur a/pwmtach.c b/pwmtach.c
+--- a/pwmtach.c	2022-08-31 11:19:46.896058098 -0400
++++ b/pwmtach.c	2022-08-31 11:26:48.402538195 -0400
+@@ -88,6 +88,9 @@
+ 		printf("%s: Error write dutycycle value %d to pwm %d\n",__FUNCTION__,dutycycle_value,ppwmtach_arg->pwmnumber);
+ 		retval = -1;
+ 	}
++	/* restore to dutycycle from dutycycle_value */
++	ppwmtach_arg->dutycycle = (dutycycle_value * 100)/255; 
++	
+ 	(void)sigwrap_close(fd);
+ 
+ 	return retval;
+@@ -113,7 +116,7 @@
+ static int GET_PWM_DUTYCYCLE ( pwmtach_ioctl_data  *ppwmtach_arg )
+ {
+ 	int retval = 0;
+-	int fd;
++    int fd, dutycycle;
+ 	char duty_num[5];
+ 
+ 	retval = pwmtach_directory_check();
+@@ -133,7 +136,8 @@
+ 		return fd;
+ 	}
+ 	read(fd, duty_num, 5);
+-	ppwmtach_arg->dutycycle = atoi(duty_num);
++    dutycycle = atoi(duty_num);
++	ppwmtach_arg->dutycycle = dutycycle * 100 / 255;
+ 	printf("%s:dutycycle value %d to pwm %d\n",__FUNCTION__,ppwmtach_arg->dutycycle,ppwmtach_arg->pwmnumber);
+ 	(void)sigwrap_close(fd);
+ 
+@@ -216,10 +220,10 @@
+ 	switch(command)
+ 	{
+ 		case SET_DUTY_CYCLE_BY_PWM_CHANNEL:
++		case SET_DUTY_CYCLE:
+ 			retval = SET_PWM_DUTYCYCLE(argp);
+ 			break;
+ 		case SET_DUTY_CYCLE_VALUE_BY_PWM_CHANNEL:
+-		case SET_DUTY_CYCLE:
+ 			retval = SET_PWM_DUTYCYCLE_VALUE(argp);
+ 			break;
+ 		case GET_TACH_VALUE_BY_TACH_CHANNEL:

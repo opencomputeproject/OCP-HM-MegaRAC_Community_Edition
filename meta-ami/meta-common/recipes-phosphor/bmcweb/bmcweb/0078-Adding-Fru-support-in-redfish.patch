@@ -1,0 +1,906 @@
+From 6f6dca8e221e79cacafc9a0f2a8b4f2013e58cf1 Mon Sep 17 00:00:00 2001
+From: vamsikrishnak <vamsikrishnak@ami.com>
+Date: Thu, 31 Aug 2023 00:18:24 +0530
+Subject: [PATCH] Adding Fru support in redfish
+
+Signed-off-by: vamsikrishnak <vamsikrishnak@ami.com>
+---
+ redfish-core/include/redfish.hpp                   |   4 +
+ .../include/registries/privilege_registry.hpp      |  16 ++
+ redfish-core/lib/chassis.hpp                       |   8 +-
+ redfish-core/lib/fru.hpp                           | 301 +++++++++++++++++++++
+ scripts/update_schemas.py                          |  18 ++
+ static/redfish/v1/$metadata/index.xml              |  14 +-
+ .../JsonSchemas/AMIChassisFRU/AMIChassisFRU.json   |  85 ++++++
+ .../v1/JsonSchemas/AMIChassisFRU/index.json        |  20 ++
+ .../v1/JsonSchemas/OemAMIChassis/index.json        |  41 +++
+ .../v1/schema/AMIChassisFRUCollection_v1.xml       |  72 +++++
+ static/redfish/v1/schema/AMIChassisFRU_v1.xml      | 127 +++++++++
+ static/redfish/v1/schema/OemAMIChassis_v1.xml      |  67 +++++
+ 12 files changed, 771 insertions(+), 2 deletions(-)
+ create mode 100644 redfish-core/lib/fru.hpp
+ create mode 100644 static/redfish/v1/JsonSchemas/AMIChassisFRU/AMIChassisFRU.json
+ create mode 100644 static/redfish/v1/JsonSchemas/AMIChassisFRU/index.json
+ create mode 100644 static/redfish/v1/JsonSchemas/OemAMIChassis/index.json
+ create mode 100644 static/redfish/v1/schema/AMIChassisFRUCollection_v1.xml
+ create mode 100644 static/redfish/v1/schema/AMIChassisFRU_v1.xml
+ create mode 100644 static/redfish/v1/schema/OemAMIChassis_v1.xml
+
+diff --git a/redfish-core/include/redfish.hpp b/redfish-core/include/redfish.hpp
+index e4594ac..ed4332e 100644
+--- a/redfish-core/include/redfish.hpp
++++ b/redfish-core/include/redfish.hpp
+@@ -24,6 +24,7 @@
+ #include "environment_metrics.hpp"
+ #include "ethernet.hpp"
+ #include "event_service.hpp"
++#include "fru.hpp"
+ #include "hypervisor_system.hpp"
+ #include "license_service.hpp"
+ #include "log_services.hpp"
+@@ -118,6 +119,9 @@ class RedfishService
+         requestRoutesStorage(app);
+         requestRoutesDrive(app);
+ 
++        requestRoutesFru(app);
++        requestRoutesFruCollection(app);
++
+         requestRoutesNvmeStorage(app);
+         requestRoutesNvmeDrive(app);
+ 
+diff --git a/redfish-core/include/registries/privilege_registry.hpp b/redfish-core/include/registries/privilege_registry.hpp
+index 9c5e426..02b562c 100644
+--- a/redfish-core/include/registries/privilege_registry.hpp
++++ b/redfish-core/include/registries/privilege_registry.hpp
+@@ -550,6 +550,22 @@ const static auto& putFanCollection = privilegeSetConfigureManager;
+ const static auto& deleteFanCollection = privilegeSetConfigureManager;
+ const static auto& postFanCollection = privilegeSetConfigureManager;
+ 
++//Fru
++const static auto& getFru = privilegeSetLogin;
++const static auto& headFru = privilegeSetLogin;
++const static auto& patchFru = privilegeSetConfigureManager;
++const static auto& putFru  = privilegeSetConfigureManager;
++const static auto& deleteFru = privilegeSetConfigureManager;
++const static auto& postFru = privilegeSetConfigureManager;
++
++// GraphicsController
++const static auto& getGraphicsController = privilegeSetLogin;
++const static auto& headGraphicsController = privilegeSetLogin;
++const static auto& patchGraphicsController = privilegeSetConfigureComponents;
++const static auto& putGraphicsController = privilegeSetConfigureComponents;
++const static auto& deleteGraphicsController = privilegeSetConfigureComponents;
++const static auto& postGraphicsController = privilegeSetConfigureComponents;
++
+ // GraphicsController
+ const static auto& getGraphicsController = privilegeSetLogin;
+ const static auto& headGraphicsController = privilegeSetLogin;
+diff --git a/redfish-core/lib/chassis.hpp b/redfish-core/lib/chassis.hpp
+index 7fef289..c1a50d3 100644
+--- a/redfish-core/lib/chassis.hpp
++++ b/redfish-core/lib/chassis.hpp
+@@ -440,7 +440,13 @@ inline void
+                                                  chassisId,
+                                                  "EnvironmentMetrics");
+ #endif */
+-                // Network Adapters
++                //FRU Device
++                asyncResp->res.jsonValue["Oem"]["AMI"]["FRU"]["@odata.id"]= "/redfish/v1/Chassis/" + chassisId + "/FRU";
++                asyncResp->res.jsonValue["Oem"]["AMI"]["@odata.type"]= "#OemAMIChassis.v1_0_0.OemAMIChassis";
++                asyncResp->res.jsonValue["Oem"]["AMI"]["@odata.id"]=
++                           "/redfish/v1/Chassis/"+ chassisId + "#/Oem/AMI";
++
++		// Network Adapters
+                 asyncResp->res.jsonValue["NetworkAdapters"] = {
+                     {"@odata.id", "/redfish/v1/Chassis/" +
+                     chassisId + "/NetworkAdapters"}};
+diff --git a/redfish-core/lib/fru.hpp b/redfish-core/lib/fru.hpp
+new file mode 100644
+index 0000000..d17d748
+--- /dev/null
++++ b/redfish-core/lib/fru.hpp
+@@ -0,0 +1,301 @@
++#pragma once
++
++#include "app.hpp"
++#include "query.hpp"
++#include "registries/privilege_registry.hpp"
++
++#include <memory>
++#include <optional>
++#include <string>
++
++namespace redfish
++{
++
++  using GetSubTreeType = std::vector<
++                std::pair<std::string,
++                std::vector<std::pair<std::string, std::vector<std::string>>>>>;
++
++inline void handleFruCollectionGet(App& app, const crow::Request& req,
++                                   const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                                   const std::string& chassisId)
++{
++                                if (!redfish::setUpRedfishRoute(app, req, asyncResp))
++                                {
++                                 return;
++                                }
++                                asyncResp->res.jsonValue["@odata.type"] = "#AMIChassisFRUCollection.AMIChassisFRUCollection";
++                                asyncResp->res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/" + chassisId + "/FRU";
++                                asyncResp->res.jsonValue["@odata.context"] =
++                                        "/redfish/v1/$metadata#FRUCollection.FRUCollection";
++                                asyncResp->res.jsonValue["Description"] = "Resource Collection of FRU instances";
++                                asyncResp->res.jsonValue["Name"] = "FRUCollection";
++
++                                crow::connections::systemBus->async_method_call(
++                                                [asyncResp,chassisId](
++                                                                const boost::system::error_code ec,
++                                                                const std::vector<std::pair<
++                                                                std::string,
++                                                                std::vector<std::pair<std::string, std::vector<std::string>>>>>
++                                                                &subtree) {
++                                                if (ec)
++                                                {
++                                                // do not add err msg in redfish response, becaues this is not
++                                                //     mandatory property
++                                                        BMCWEB_LOG_ERROR << "DBUS error: no matched iface " << ec << "\n";
++                                                        return;
++                                                }
++
++                                                nlohmann::json& entriesArray = asyncResp->res.jsonValue["Members"];
++
++                                                for (const auto& fruobject : subtree)
++                                                {
++
++                                                        std::string fru = fruobject.first;
++                                                        std::size_t lastPos = fru.rfind("/");
++
++                                                        if (lastPos == std::string::npos || lastPos + 1 >= fru.size())
++                                                        {
++                                                                BMCWEB_LOG_ERROR << "Invalid fru object path: " << fru;
++                                                                messages::internalError(asyncResp->res);
++                                                                return;
++                                                        }
++
++                                                        std::string fruName = fru.substr(lastPos + 1);
++                                                        entriesArray.push_back(
++                                                                {{"@odata.id",
++                                                                "/redfish/v1/Chassis/" + chassisId + "/" +
++                                                                "FRU" + "/" + fruName}});
++
++
++                                                }  // object path loop
++
++
++                                                asyncResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
++
++
++                                                },
++                                        "xyz.openbmc_project.ObjectMapper",
++                                        "/xyz/openbmc_project/object_mapper",
++                                        "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++                                        "/xyz/openbmc_project/FruDevice", 1,
++                                        std::array<const char *, 1>{"xyz.openbmc_project.FruDevice"});
++
++                                return;
++                        }
++
++inline void handleFruGet(App& app, const crow::Request& req,
++                                   const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
++                                   const std::string& chassisId,
++                                   const std::string& fruName)
++{
++    if (!redfish::setUpRedfishRoute(app, req, asyncResp))
++    {
++     return;
++    }
++
++    asyncResp->res.jsonValue["@odata.context"] =  "/redfish/v1/$metadata#FRU.FRU";
++    asyncResp->res.jsonValue["@odata.id"] = "/redfish/v1/Chassis/" + chassisId + "/FRU/" + fruName ;
++    asyncResp->res.jsonValue["@odata.type"] = "#AMIChassisFRU.v1_0_0.AMIChassisFRU";
++    asyncResp->res.jsonValue["Name"] = fruName ;
++
++    crow::connections::systemBus->async_method_call(
++          [asyncResp, fruName](const boost::system::error_code ec,
++                          const GetSubTreeType& subtree) {
++
++                BMCWEB_LOG_DEBUG << "respHandler1 enter";
++                if (ec)
++                {
++                        messages::internalError(asyncResp->res);
++                        BMCWEB_LOG_ERROR << "FRU getfruPaths resp_handler: "
++                        << "Dbus error " << ec;
++                        return;
++                }
++
++
++                GetSubTreeType::const_iterator it = std::find_if(
++                                subtree.begin(), subtree.end(),
++                                [fruName](
++                                        const std::pair<
++                                        std::string,
++                                        std::vector<std::pair<std::string,
++                                        std::vector<std::string>>>>&
++                                        object) {
++                                std::string_view fru = object.first;
++                                std::size_t lastPos = fru.rfind("/");
++                                if (lastPos == std::string::npos ||
++                                                lastPos + 1 >= fru.size())
++                                {
++                                        BMCWEB_LOG_ERROR << "Invalid fru path: "
++                                        << fru;
++                                        return false;
++                                }
++                                std::string_view name = fru.substr(lastPos + 1);
++
++                                return name == fruName;
++                                });
++
++
++                if (it == subtree.end())
++                {
++                        BMCWEB_LOG_ERROR << "Could not find object path for fru: "
++                                << fruName;
++                        messages::resourceNotFound(asyncResp->res, "fru",
++                                        fruName);
++                        return;
++                }
++
++                const std::string fruPath = (*it).first;
++
++                BMCWEB_LOG_DEBUG << "Found fru object path for fru"
++                        << fruName << "': " << fruPath;
++
++
++                crow::connections::systemBus->async_method_call(
++                                [asyncResp]( const boost::system::error_code error_code,
++                                        const PropertiesType &dbus_data) {
++
++                        if (error_code)
++                        {
++                                BMCWEB_LOG_ERROR << "D-Bus response error: " << error_code;
++                                messages::internalError(asyncResp->res);
++                                return;
++                        }
++
++                        std::vector<std::string> Fru_Objectdata;
++
++
++                        for ( const auto &property : dbus_data)
++                        {
++
++                                std::string res = "";
++                                if ((property.first == "BOARD_FRU_VERSION_ID") || (property.first == "PRODUCT_VERSION" ) )
++                                {
++                                const std::string *version = std::get_if<std::string>(&property.second);
++
++                                if (property.first == "BOARD_FRU_VERSION_ID")  {
++                                        res = "Board Version  : " + *version ;
++                                        Fru_Objectdata.emplace_back(res);
++                                }
++
++                                else {
++                                        res = "Product Version  : " + *version ;
++                                        Fru_Objectdata.emplace_back(res);
++                                }
++                        }
++
++                        else if ((property.first == "BOARD_MANUFACTURER") || (property.first == "PRODUCT_MANUFACTURER"))
++                        {
++                            const std::string *manufacturer = std::get_if<std::string>(&property.second);
++                            if (property.first == "BOARD_MANUFACTURER")
++                            {
++                                res = "Board Mfg  : " + *manufacturer ;
++                                Fru_Objectdata.emplace_back(res);
++                            }
++                            else {
++                                res = "Product Manufacturer  : " + *manufacturer ;
++                                Fru_Objectdata.emplace_back(res);
++                            }
++                        }
++                        else if ((property.first == "BOARD_PRODUCT_NAME") || (property.first == "PRODUCT_PRODUCT_NAME"))
++                        {
++                        const std::string *product_name = std::get_if<std::string>(&property.second);
++
++                        if (property.first == "BOARD_PRODUCT_NAME") {
++
++                                res = "Board Product  : " + *product_name ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                        else  {
++                                res = "Product Name  : " + *product_name ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                }
++
++                else if ((property.first == "BOARD_PART_NUMBER") || (property.first == "PRODUCT_PART_NUMBER"))
++                {
++                   const std::string *part_number = std::get_if<std::string>(&property.second);
++                if (property.first == "BOARD_PART_NUMBER") {
++                   res = "Board Part Number  : " + *part_number ;
++                   Fru_Objectdata.emplace_back(res);
++                 }
++                 else {
++                         res = "Product Part Number  : " + *part_number ;
++                         Fru_Objectdata.emplace_back(res);
++
++                        }
++                }
++
++                else if ((property.first == "BOARD_SERIAL_NUMBER") || (property.first == "PRODUCT_SERIAL_NUMBER"))
++                {
++                   const std::string *serial_number = std::get_if<std::string>(&property.second);
++                        if (property.first == "BOARD_SERIAL_NUMBER") {
++                                res = "Board Serial  : " + *serial_number ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                        else {
++                                res = "Product Serial  : " + *serial_number ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                }
++
++                else if ((property.first == "BOARD_LANGUAGE_CODE") || (property.first == "PRODUCT_LANGUAGE_CODE"))
++                {
++                   const std::string *language_code = std::get_if<std::string>(&property.second);
++                        if (property.first == "BOARD_LANGUAGE_CODE") {
++                                res = "Board language code  : " + *language_code ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                        else {
++                                res = "Product language code  : " + *language_code ;
++                                Fru_Objectdata.emplace_back(res);
++                        }
++                }
++                else if ( property.first == "BOARD_MANUFACTURE_DATE" )
++                {
++                        const std::string *mfg_date = std::get_if<std::string>(&property.second);
++                        res = "Board Mfg Date  : " + *mfg_date ;
++                        Fru_Objectdata.emplace_back(res);
++                }
++
++
++                        } // property loop end
++
++
++                        asyncResp->res.jsonValue["FRU Device Description"] = Fru_Objectdata;
++
++                        },
++                                "xyz.openbmc_project.FruDevice",
++                                fruPath,
++                                "org.freedesktop.DBus.Properties", "GetAll",
++                                                        "xyz.openbmc_project.FruDevice");
++
++
++                },
++                        "xyz.openbmc_project.ObjectMapper",
++                        "/xyz/openbmc_project/object_mapper",
++                        "xyz.openbmc_project.ObjectMapper", "GetSubTree",
++                        "/xyz/openbmc_project/FruDevice", 2,
++                        std::array<const char *, 1>{"xyz.openbmc_project.FruDevice"});
++
++                return;
++
++
++        }
++
++inline void requestRoutesFru(App& app)
++{
++        BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/FRU/<str>")
++        .privileges(redfish::privileges::getFru)
++        .methods(boost::beast::http::verb::get)(
++            std::bind_front(handleFruGet, std::ref(app)));
++}
++
++inline void requestRoutesFruCollection(App& app)
++{
++        BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/FRU")
++        .privileges(redfish::privileges::getFruCollection)
++        .methods(boost::beast::http::verb::get)(
++            std::bind_front(handleFruCollectionGet, std::ref(app)));
++}
++}
++
+diff --git a/scripts/update_schemas.py b/scripts/update_schemas.py
+index bb9612a..4562b45 100755
+--- a/scripts/update_schemas.py
++++ b/scripts/update_schemas.py
+@@ -392,6 +392,24 @@ with open(metadata_index_path, "w") as metadata_index:
+     )
+     metadata_index.write("    </edmx:Reference>\n")
+ 
++    metadata_index.write(
++        '    <edmx:Reference Uri="/redfish/v1/schema/OemAMIChassis_v1.xml">\n')
++    metadata_index.write('        <edmx:Include Namespace="OemAMIChassis"/>\n')
++    metadata_index.write('        <edmx:Include Namespace="OemAMIChassis.v1_0_0"/>\n')
++    metadata_index.write("    </edmx:Reference>\n")
++
++    metadata_index.write(
++        '    <edmx:Reference Uri="/redfish/v1/schema/AMIChassisFRUCollection_v1.xml">\n')
++    metadata_index.write('        <edmx:Include Namespace="AMIChassisFRUCollection"/>\n')
++    metadata_index.write('        <edmx:Include Namespace="AMIChassisFRUCollection.v1_0_0"/>\n')
++    metadata_index.write("    </edmx:Reference>\n")
++
++    metadata_index.write(
++        '    <edmx:Reference Uri="/redfish/v1/schema/AMIChassisFRU_v1.xml">\n')
++    metadata_index.write('        <edmx:Include Namespace="AMIChassisFRU"/>\n')
++    metadata_index.write('        <edmx:Include Namespace="AMIChassisFRU.v1_0_0"/>\n')
++    metadata_index.write("    </edmx:Reference>\n")
++
+     metadata_index.write("</edmx:Edmx>\n")
+ 
+ 
+diff --git a/static/redfish/v1/$metadata/index.xml b/static/redfish/v1/$metadata/index.xml
+index f7788e4..70c86f8 100644
+--- a/static/redfish/v1/$metadata/index.xml
++++ b/static/redfish/v1/$metadata/index.xml
+@@ -2965,5 +2965,17 @@
+     <edmx:Reference Uri="/redfish/v1/schema/AMIAtScaleDebug_v1.xml">
+         <edmx:Include Namespace="AMIAtScaleDebug"/>
+         <edmx:Include Namespace="AMIAtScaleDebug.v1_0_0"/>
+-   </edmx:Reference>
++    </edmx:Reference>
++    <edmx:Reference Uri="/redfish/v1/schema/OemAMIChassis_v1.xml">
++        <edmx:Include Namespace="OemAMIChassis"/>
++        <edmx:Include Namespace="OemAMIChassis.v1_0_0"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="/redfish/v1/schema/AMIChassisFRUCollection_v1.xml">
++        <edmx:Include Namespace="AMIChassisFRUCollection"/>
++        <edmx:Include Namespace="AMIChassisFRUCollection.v1_0_0"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="/redfish/v1/schema/AMIChassisFRU_v1.xml">
++        <edmx:Include Namespace="AMIChassisFRU"/>
++        <edmx:Include Namespace="AMIChassisFRU.v1_0_0"/>
++    </edmx:Reference>
+ </edmx:Edmx>
+diff --git a/static/redfish/v1/JsonSchemas/AMIChassisFRU/AMIChassisFRU.json b/static/redfish/v1/JsonSchemas/AMIChassisFRU/AMIChassisFRU.json
+new file mode 100644
+index 0000000..086b159
+--- /dev/null
++++ b/static/redfish/v1/JsonSchemas/AMIChassisFRU/AMIChassisFRU.json
+@@ -0,0 +1,85 @@
++{
++  "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_1_0.json",
++  "title": "#AMIChassisFRU.v1_0_0.AMIChassisFRU",
++  "$ref": "#/definitions/AMIChassisFRU",
++  "definitions": {
++    "AMIChassisPowerThermal": {
++      "type": "object",
++      "patternProperties": {
++        "^([a-zA-Z_][a-zA-Z0-9_]*)?@(odata|Redfish|Message|Privileges)\\.[a-zA-Z_][a-zA-Z0-9_.]+$": {
++          "type": [
++            "array",
++            "boolean",
++            "number",
++            "null",
++            "object",
++            "string"
++          ],
++          "description": "This property shall specify a valid odata or Redfish property."
++        }
++      },
++      "additionalProperties": false,
++      "properties": {
++                    "@odata.type": {
++        	      "$ref": "http://redfish.dmtf.org/schemas/v1/odata.4.0.0.json#/definitions/type"
++        	    },
++                    "Name":{
++                            "type": "string",
++                            "description": "This property shall specify the Name of a Chassis FRU device."
++                    },
++                    "BoardVersion":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Version number string of a Chassis FRU device."
++                    },
++                    "BoardLanguageCode":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Language Code of a Chassis FRU device."
++                    },
++                    "BoardMfg":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Manufacturer name of a Chassis FRU device."
++                    },
++                    "BoardMfgDate":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Manufacturer Date of a Chassis FRU device."
++                    },
++                    "BoardPartNumber":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Part Number of a Chassis FRU device."
++                    },
++                    "BoardProduct":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Product name of a Chassis FRU device."
++                    },
++                    "BoardSerialNumber":{
++                            "type": "string",
++                            "description": "This property shall specify the Board Serial Number of a Chassis FRU device."
++                    },
++                    "ProductLanguageCode":{
++                            "type": "string",
++                           "description": "This property shall specify the Product Language Code of a Chassis FRU device."
++                    },
++                    "ProductManufacturer":{
++                            "type": "string",
++                            "description": "This property shall specify the Product Manufacturer name of a Chassis FRU device."
++                    },
++                    "ProductPartNumber":{
++                            "type": "string",
++                            "description": "This property shall specify the Product Part Number of a Chassis FRU device."
++                    },
++                    "ProductName":{
++                            "type": "string",
++                            "description": "This property shall specify the Product Name of a Chassis FRU device."
++                    },
++                    "ProductSerialNumber":{
++                            "type": "string",
++                            "description": "This property shall specify the Product Serial Number of a Chassis FRU device."
++                    },
++                    "ProductVersion":{
++                            "type": "string",
++                            "description": "This property shall specify the Product Version of a Chassis FRU device."
++                    }
++      }
++    }
++  }
++}
+diff --git a/static/redfish/v1/JsonSchemas/AMIChassisFRU/index.json b/static/redfish/v1/JsonSchemas/AMIChassisFRU/index.json
+new file mode 100644
+index 0000000..4d93a19
+--- /dev/null
++++ b/static/redfish/v1/JsonSchemas/AMIChassisFRU/index.json
+@@ -0,0 +1,20 @@
++{
++    "@odata.context": "/redfish/v1/$metadata#JsonSchemaFile.JsonSchemaFile",
++    "@odata.id": "/redfish/v1/JsonSchemas/AMIChassisFRU",
++    "@odata.type": "#JsonSchemaFile.v1_0_2.JsonSchemaFile",
++    "Name": "Chassis FRU Schema File",
++    "Schema": "#AMIChassisFRU.AMIChassisFRU",
++    "Description": "Chassis FRU Schema File Location",
++    "Id": "AMIChassis",
++    "Languages": [
++        "en"
++    ],
++    "Languages@odata.count": 1,
++    "Location": [
++        {
++            "Language": "en",
++            "PublicationUri": "http://redfish.dmtf.org/schemas/v1/AMIChassisFRU.json"
++        }
++    ],
++    "Location@odata.count": 1
++}
+diff --git a/static/redfish/v1/JsonSchemas/OemAMIChassis/index.json b/static/redfish/v1/JsonSchemas/OemAMIChassis/index.json
+new file mode 100644
+index 0000000..0f3ac34
+--- /dev/null
++++ b/static/redfish/v1/JsonSchemas/OemAMIChassis/index.json
+@@ -0,0 +1,41 @@
++{
++    "$id": "http://redfish.dmtf.org/schemas/v1/OemAMIChassis.v1_0_0.json",
++    "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema-v1.json",
++    "copyright": "Copyright 2014-2019 DMTF. For the full DMTF copyright policy, see http://www.dmtf.org/about/policies/copyright",
++    "definitions": {
++        "OemAMIChassis": {
++            "additionalProperties": false,
++            "description": "AMI Oem Extension for Chassis",
++            "longDescription": "AMI Oem Extension for Chassis",
++            "patternProperties": {
++                "^([a-zA-Z_][a-zA-Z0-9_]*)?@(odata|Redfish|Message)\\.[a-zA-Z_][a-zA-Z0-9_]*$": {
++                    "description": "This property shall specify a valid odata or Redfish property.",
++                    "type": [
++                        "array",
++                        "boolean",
++                        "integer",
++                        "number",
++                        "null",
++                        "object",
++                        "string"
++                    ]
++                }
++            },
++            "properties": {
++		"@odata.context": {
++                    "$ref": "http://redfish.dmtf.org/schemas/v1/odata.4.0.0.json#/definitions/context"
++                },
++                "FRU": {
++                    "$ref": "http://redfish.dmtf.org/schemas/v1/AMIChassisFRUCollection.v1_0_0.json#/definitions/AMIChassisFRUCollection",
++                    "description": "The link to AMIChassisFRUCollection",
++                    "longDescription": "This property shall contain a link to a Resource of type Chassis FRU collection.",
++                    "readonly": true
++                }
++            },
++            "type": "object"
++        }
++    },
++    "owningEntity": "AMI",
++    "release": "1.0",
++    "title": "#OemAMIChassis.v1_0_0"
++}
+diff --git a/static/redfish/v1/schema/AMIChassisFRUCollection_v1.xml b/static/redfish/v1/schema/AMIChassisFRUCollection_v1.xml
+new file mode 100644
+index 0000000..0f94542
+--- /dev/null
++++ b/static/redfish/v1/schema/AMIChassisFRUCollection_v1.xml
+@@ -0,0 +1,72 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!---->
++<!--################################################################################       -->
++<!--# Redfish Schema:  AMIChassisFRUCollection                                                -->
++<!--#                                                                                      -->
++<!--# For a detailed change log, see the README file contained in the DSP8010 bundle,      -->
++<!--# available at http://www.dmtf.org/standards/redfish                                   -->
++<!--# Copyright 2014-2020 DMTF.                                                            -->
++<!--# For the full DMTF copyright policy, see http://www.dmtf.org/about/policies/copyright -->
++<!--################################################################################       -->
++<!---->
++<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
++
++  <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Core.V1.xml">
++    <edmx:Include Namespace="Org.OData.Core.V1" Alias="OData"/>
++  </edmx:Reference>
++  <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Capabilities.V1.xml">
++    <edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Capabilities"/>
++  </edmx:Reference>
++  <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/Resource_v1.xml">
++    <edmx:Include Namespace="Resource.v1_0_0"/>
++  </edmx:Reference>
++  <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/RedfishExtensions_v1.xml">
++    <edmx:Include Namespace="RedfishExtensions.v1_0_0" Alias="Redfish"/>
++  </edmx:Reference>
++  <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/AMIChassisFRU_v1.xml">
++    <edmx:Include Namespace="AMIChassisFRU"/>
++        <edmx:Include Namespace="AMIChassisFRU.v1_0_0"/>
++  </edmx:Reference>
++
++  <edmx:DataServices>
++
++    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="AMIChassisFRUCollection">
++      <Annotation Term="Redfish.OwningEntity" String="AMI"/>
++
++      <EntityType Name="AMIChassisFRUCollection" BaseType="Resource.v1_0_0.ResourceCollection">
++        <Annotation Term="OData.Description" String="The collection of AMIChassisFRU Resource instances."/>
++        <Annotation Term="OData.LongDescription" String="This Resource shall represent a Resource Collection of AMIChassisFRU instances for a Redfish implementation."/>
++        <Annotation Term="Capabilities.InsertRestrictions">
++          <Record>
++            <PropertyValue Property="Insertable" Bool="false"/>
++          </Record>
++        </Annotation>
++        <Annotation Term="Capabilities.UpdateRestrictions">
++          <Record>
++            <PropertyValue Property="Updatable" Bool="false"/>
++          </Record>
++        </Annotation>
++        <Annotation Term="Capabilities.DeleteRestrictions">
++          <Record>
++            <PropertyValue Property="Deletable" Bool="false"/>
++          </Record>
++        </Annotation>
++        <Annotation Term="Redfish.Uris">
++          <Collection>
++            <String>/redfish/v1/Chassis/{ChassisId}/FRU</String>
++          </Collection>
++        </Annotation>
++        <NavigationProperty Name="Members" Type="Collection(AMIChassisFRU.v1_0_0.AMIChassisFRU)">
++          <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++          <Annotation Term="OData.Description" String="The members of this collection."/>
++          <Annotation Term="OData.LongDescription" String="This property shall contain an array of links to the members of this collection."/>
++          <Annotation Term="OData.AutoExpandReferences"/>
++          <Annotation Term="Redfish.Required"/>
++        </NavigationProperty>
++      </EntityType>
++
++    </Schema>
++
++  </edmx:DataServices>
++</edmx:Edmx>
++
+diff --git a/static/redfish/v1/schema/AMIChassisFRU_v1.xml b/static/redfish/v1/schema/AMIChassisFRU_v1.xml
+new file mode 100644
+index 0000000..63eedab
+--- /dev/null
++++ b/static/redfish/v1/schema/AMIChassisFRU_v1.xml
+@@ -0,0 +1,127 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!---->
++<!--################################################################################       -->
++<!--# Redfish Schema:  AMIChassisFRU  v1.0.0                                              -->
++<!--#                                                                                      -->
++<!--# Copyright American Megatrends, Inc. (AMI).                                           -->
++<!--################################################################################       -->
++<!---->
++<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
++    <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Core.V1.xml">
++      <edmx:Include Namespace="Org.OData.Core.V1" Alias="OData"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Capabilities.V1.xml">
++      <edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Capabilities"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/Resource_v1.xml">
++      <edmx:Include Namespace="Resource"/>
++      <edmx:Include Namespace="Resource.v1_0_0"/>
++    </edmx:Reference>
++
++    <edmx:DataServices>
++       <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="AMIChassisFRU">
++         <EntityType Name="AMIChassisFRU" Bool="false">
++            <Annotation Term="OData.Description" String="This is the schema definition for the OEM section under Chassis FRU URI."/>
++            <Annotation Term="OData.LongDescription" String="This resource shall be used to represent the OEM attributes available under Chassis FRU URI."/>
++              <Record>
++                 <PropertyValue Property="Insertable" Bool="false"/>
++              </Record>
++            </Annotation>
++            <Annotation Term="Capabilities.UpdateRestrictions">
++              <Record>
++                <PropertyValue Property="Updatable" Bool="false"/>
++              </Record>
++            </Annotation>
++            <Annotation Term="Capabilities.DeleteRestrictions">
++              <Record>
++                <PropertyValue Property="Deletable" Bool="false"/>
++              </Record>
++            </Annotation>
++         </EntityType>
++       </Schema>
++
++       <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="AMIChassisFRU.v1_0_0">
++         <Annotation Term="Redfish.OwningEntity" String="AMI"/>
++         <EntityType Name="AMIChassisFRU" BaseType="AMIChassisFRU.AMIChassisFRU">
++           <Annotation Term="OData.Description" String="This property shall specify a valid odata or Redfish property."/>
++           <Annotation Term="OData.LongDescription" String="This property shall specify a valid odata or Redfish property."/>
++           <Property Name="Name" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Name string of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Name of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardVersion" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Version number string of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Version number string of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardVersion" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Version number string of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Version number string of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardLanguageCode" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Language Code of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Lanugaage Code string of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardMfg" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Manufacturer name of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Manufacturer name of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardMfgDate" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Manufacturer Date of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Manufacturer Date of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardPartNumber" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Part Number of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Part Number of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardProduct" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Product name of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Product name  of a Chassis FRU device."/>
++           </Property>
++           <Property Name="BoardSerialNumber" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Board Serial Number of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Serial Number  of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductLanguageCode" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Language Code of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Product Language Code of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductManufacturer" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Manufacturer name of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Product Manufacturer name  of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductPartNumber" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Part Number of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Product Part Number of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductName" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Name of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Product Name  of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductSerialNumber" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Serial Number of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Product Serial Number of a Chassis FRU device."/>
++           </Property>
++           <Property Name="ProductVersion" Type="Edm.String" Nullable="false">
++             <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
++             <Annotation Term="OData.Description" String="The Product Version of a Chassis FRU device."/>
++             <Annotation Term="OData.LongDescription" String="The value of this property shall specify the Board Product name  of a Chassis FRU device."/>
++           </Property>
++         </EntityType>
++       </Schema>
++    </edmx:DataServices>
++</edmx:Edmx>
++
+diff --git a/static/redfish/v1/schema/OemAMIChassis_v1.xml b/static/redfish/v1/schema/OemAMIChassis_v1.xml
+new file mode 100644
+index 0000000..808a40f
+--- /dev/null
++++ b/static/redfish/v1/schema/OemAMIChassis_v1.xml
+@@ -0,0 +1,67 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!---->
++<!--################################################################################       -->
++<!--# Redfish Schema:  OemAMIChassis  v1.0.0                                              -->
++<!--#                                                                                      -->
++<!--# Copyright American Megatrends, Inc. (AMI).                                           -->
++<!--################################################################################       -->
++<!---->
++<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
++
++    <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Core.V1.xml">
++      <edmx:Include Namespace="Org.OData.Core.V1" Alias="OData"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://docs.oasis-open.org/odata/odata/v4.0/errata03/csd01/complete/vocabularies/Org.OData.Capabilities.V1.xml">
++      <edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Capabilities"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/Resource_v1.xml">
++      <edmx:Include Namespace="Resource"/>
++      <edmx:Include Namespace="Resource.v1_0_0"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/AMIChassisFRUCollection_v1.xml">
++      <edmx:Include Namespace="AMIChassisFRUCollection"/>
++      <edmx:Include Namespace="AMIChassisFRUCollection.v1_0_0"/>
++    </edmx:Reference>
++    <edmx:Reference Uri="http://redfish.dmtf.org/schemas/v1/AMIChassisFRU_v1.xml">
++      <edmx:Include Namespace="AMIChassisFRU"/>
++      <edmx:Include Namespace="AMIChassisFRU.v1_0_0"/>
++    </edmx:Reference>
++
++    <edmx:DataServices>
++
++        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="OemAMIChassis">
++           <EntityType Name="OemAMIChassis" Bool="false">
++              <Annotation Term="OData.Description" String="This is the schema definition for the Oem.Ami properties in Chassis."/>
++              <Annotation Term="OData.LongDescription" String="This resource shall be used to represent Oem.Ami properties in Chassis."/>
++              <Annotation Term="Capabilities.InsertRestrictions">
++               <Record>
++                 <PropertyValue Property="Insertable" Bool="false"/>
++               </Record>
++              </Annotation>
++              <Annotation Term="Capabilities.UpdateRestrictions">
++               <Record>
++                 <PropertyValue Property="Updatable" Bool="false"/>
++               </Record>
++              </Annotation>
++              <Annotation Term="Capabilities.DeleteRestrictions">
++               <Record>
++                 <PropertyValue Property="Deletable" Bool="false"/>
++               </Record>
++              </Annotation>
++           </EntityType>
++        </Schema>
++
++        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="OemAMIChassis.v1_0_0">
++           <Annotation Term="Redfish.OwningEntity" String="AMI"/>
++           <EntityType Name="OemAMIChassis" BaseType="OemAMIChassis.OemAMIChassis">
++              <Annotation Term="OData.Description" String="This property shall specify a valid odata or Redfish property."/>
++              <Annotation Term="OData.LongDescription" String="This property shall specify a valid odata or Redfish property."/>
++              <NavigationProperty Name="FRU" Type="AMIChassisFRUCollection.AMIChassisFRUCollection" Nullable="false">
++                <Annotation Term="OData.Description" String="This allows to link the redfish chassis FRU device collection."/>
++              </NavigationProperty>
++           </EntityType>
++       </Schema>
++
++   </edmx:DataServices>
++</edmx:Edmx>
++
+-- 
+2.9.5
+

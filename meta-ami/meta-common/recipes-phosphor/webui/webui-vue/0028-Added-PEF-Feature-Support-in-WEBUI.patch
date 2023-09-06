@@ -1,0 +1,1114 @@
+From d2f4179269b0066f3128d0f103e88ea9cc1c4cbc Mon Sep 17 00:00:00 2001
+From: sivaprabug <sivaprabug@ami.com>
+Date: Thu, 3 Nov 2022 23:57:30 +0530
+Subject: [PATCH] Added PEF Feature Support in WEBUI
+
+Description:
+
+Added the following WEBUI Pages to support PEF Feature.
+	1. SMTP Settings
+	2. Event Filter
+	3. Alert Destination
+
+Signed-off-by: dineshkumar <dineshkumar@ami.com>
+---
+ .../AppNavigation/AppNavigationMixin.js       |  22 ++
+ src/env/components/AppNavigation/intel.js     |  22 ++
+ src/env/router/intel.js                       |  27 +++
+ src/locales/en-US.json                        |  46 +++-
+ src/router/routes.js                          |  27 +++
+ src/store/index.js                            |   6 +
+ src/store/modules/Pef/EventFilterStore.js     | 139 ++++++++++++
+ .../modules/Pef/alertDestinationStore.js      |  60 +++++
+ src/store/modules/Settings/SMTPStore.js       |  56 +++++
+ .../PEF/AlertDestination/alertDestination.vue | 190 ++++++++++++++++
+ src/views/PEF/AlertDestination/index.js       |   2 +
+ src/views/PEF/EventFilter/eventFilter.vue     |  99 +++++++++
+ src/views/PEF/EventFilter/index.js            |   2 +
+ src/views/Settings/SMTP/index.js              |   2 +
+ src/views/Settings/SMTP/smtpSettings.vue      | 209 ++++++++++++++++++
+ 15 files changed, 907 insertions(+), 2 deletions(-)
+ create mode 100644 src/store/modules/Pef/EventFilterStore.js
+ create mode 100644 src/store/modules/Pef/alertDestinationStore.js
+ create mode 100644 src/store/modules/Settings/SMTPStore.js
+ create mode 100644 src/views/PEF/AlertDestination/alertDestination.vue
+ create mode 100644 src/views/PEF/AlertDestination/index.js
+ create mode 100644 src/views/PEF/EventFilter/eventFilter.vue
+ create mode 100644 src/views/PEF/EventFilter/index.js
+ create mode 100644 src/views/Settings/SMTP/index.js
+ create mode 100644 src/views/Settings/SMTP/smtpSettings.vue
+
+diff --git a/src/components/AppNavigation/AppNavigationMixin.js b/src/components/AppNavigation/AppNavigationMixin.js
+index cf0ddfd..eb6b694 100644
+--- a/src/components/AppNavigation/AppNavigationMixin.js
++++ b/src/components/AppNavigation/AppNavigationMixin.js
+@@ -133,6 +133,28 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.powerRestorePolicy'),
+               route: '/settings/power-restore-policy',
+             },
++            {
++              id: 'smtp',
++              label: this.$('appNavigation.smtpSettings'),
++              route: '/settings/smtp',
++            },
++          ],
++        },
++        {
++          id: 'platform-event-filter',
++          label: this.$t('appNavigation.pef'),
++          icon: 'iconLogs',
++          children: [
++            {
++              id: 'event-filter',
++              label: this.$t('appNavigation.eventFilter'),
++              route: '/pef/eventFilter',
++            },
++            {
++              id: 'alert-destination',
++              label: this.$t('appNavigation.alertDestination'),
++              route: '/pef/alertDestination',
++            },
+           ],
+         },
+         {
+diff --git a/src/env/components/AppNavigation/intel.js b/src/env/components/AppNavigation/intel.js
+index 8434cb0..012a7c3 100644
+--- a/src/env/components/AppNavigation/intel.js
++++ b/src/env/components/AppNavigation/intel.js
+@@ -123,6 +123,28 @@ const AppNavigationMixin = {
+               label: this.$t('appNavigation.vlan'),
+               route: '/settings/vlan',
+             },
++            {
++              id: 'smtp',
++              label: this.$t('appNavigation.smtpSettings'),
++              route: '/settings/smtp',
++            },
++          ],
++        },
++        {
++          id: 'platform-event-filter',
++          label: this.$t('appNavigation.pef'),
++          icon: 'iconLogs',
++          children: [
++            {
++              id: 'event-filter',
++              label: this.$t('appNavigation.eventFilter'),
++              route: '/pef/eventFilter',
++            },
++            {
++              id: 'alert-destination',
++              label: this.$t('appNavigation.alertDestination'),
++              route: '/pef/alertDestination',
++            },
+           ],
+         },
+         {
+diff --git a/src/env/router/intel.js b/src/env/router/intel.js
+index fd67f6f..33449ed 100644
+--- a/src/env/router/intel.js
++++ b/src/env/router/intel.js
+@@ -13,6 +13,9 @@ import KvmConsole from '@/views/Operations/Kvm/KvmConsole';
+ import UserManagement from '@/views/SecurityAndAccess/UserManagement';
+ import Login from '@/views/Login';
+ import LoginLayout from '@/layouts/LoginLayout';
++import SmtpSettings from '@/views/Settings/SMTP';
++import EventFilter from '@/views/PEF/EventFilter';
++import AlertDestination from '@/views/PEF/AlertDestination';
+ import Network from '@/views/Settings/Network';
+ import Vlan from '@/views/Settings/Vlan';
+ import Overview from '@/views/Overview';
+@@ -206,6 +209,30 @@ const routes = [
+           title: i18n.t('appPageTitle.firmware'),
+         },
+       },
++      {
++        path: '/settings/smtp',
++        name: 'smtpSettings',
++        component: SmtpSettings,
++        meta: {
++          title: i18n.t('appPageTitle.smtpSettings'),
++        },
++      },
++      {
++        path: '/pef/eventFilter',
++        name: 'eventFilter',
++        component: EventFilter,
++        meta: {
++          title: i18n.t('appPageTitle.eventFilter'),
++        },
++      },
++      {
++        path: '/pef/alertDestination',
++        name: 'alertDestination',
++        component: AlertDestination,
++        meta: {
++          title: i18n.t('appPageTitle.alertDestination'),
++        },
++      },
+       {
+         path: '/settings/network',
+         name: 'network',
+diff --git a/src/locales/en-US.json b/src/locales/en-US.json
+index 65e86b6..875ca45 100644
+--- a/src/locales/en-US.json
++++ b/src/locales/en-US.json
+@@ -130,7 +130,11 @@
+     "virtualMedia": "@:appPageTitle.virtualMedia",
+     "power": "@:appPageTitle.power",
+     "keyClear": "@:appPageTitle.keyClear",
+-    "factoryDefault": "Factory Default"
++    "factoryDefault": "Factory Default",
++    "smtpSettings": "SMTP Settings",
++    "pef": "Platform Event Filter",
++    "eventFilter": "Event Filter",
++    "alertDestination": "Alert Destination"
+   },
+   "appPageTitle": {
+     "changePassword": "Change password",
+@@ -161,7 +165,10 @@
+     "certificates": "Certificates",
+     "virtualMedia": "Virtual media",
+     "keyClear": "Key clear",
+-    "FactoryDefault": "Factory Default"
++    "FactoryDefault": "Factory Default",
++    "smtpSettings": "SMTP Settings",
++    "eventFilter": "Event Filter",
++    "alertDestination": "Alert Destination"
+   },
+   "pageChangePassword": {
+     "changePassword": "Change password",
+@@ -810,6 +817,41 @@
+       "confirmMessage": "This feature may change the IP address of the device, making further access impossible. After confirming the device IP, you can log in with the new IP. Do you want to proceed?"
+     }
+   },
++  "pageSmtp": {
++    "pageDescription": "Configure BMC SMTP Settings",
++    "sectionTitle": "SMTP",
++    "smtpLabel": "SMTP Settings",
++    "formGroupLabel": "SMTP Configuration",
++    "labelServerAddress": "Server Address",
++    "labelSenderEmailAddress": "Sender Email Address",
++    "labelPort": "Port",
++    "toast": {
++      "successSMTPConfiguration": "Successfully updated SMTP Configuration",
++      "errorSMTPConfiguration": "Error updating SMTP Configuration"
++    }
++  },
++  "pageAlertDestination": {
++    "pageDescription": "Configure Alert Destinations",
++    "sectionTitle": "Alert Destination",
++    "alertDestinationLabel": "Configure Alert Destination details",
++    "sendEmailTo": "Send Email to:",
++    "sendTestAlert": "send Test Alert",
++    "toast": {
++      "successMsg": "Successfully updated Alert Destination",
++      "errorMsg": "Error in updating Alert Destination",
++      "successMsgTestAlert": "Test Alert send successfully",
++      "errorMsgAlert": "Error in sending test alerts"
++    }
++  },
++  "pageEventFilter": {
++    "pageDescription": "Select the Events that will trigger the alert",
++    "sectionTitle": "Event Filter",
++    "eventFilterLabel": "Configure Alert Destination details",
++    "toast": {
++      "successEventFilterMsg": "Event Filter configuration updated successfully",
++      "errorEventFilterMsg": "Error in Updating event filter configuration"
++    }
++  },
+   "pagePageNotFound": {
+     "description": "The requested resource could not be found."
+   },
+diff --git a/src/router/routes.js b/src/router/routes.js
+index 5b8ed38..e2e00d7 100644
+--- a/src/router/routes.js
++++ b/src/router/routes.js
+@@ -14,6 +14,9 @@ import Ldap from '@/views/SecurityAndAccess/Ldap';
+ import UserManagement from '@/views/SecurityAndAccess/UserManagement';
+ import Login from '@/views/Login';
+ import LoginLayout from '@/layouts/LoginLayout';
++import SmtpSettings from '@/views/Settings/SMTP';
++import EventFilter from '@/views/PEF/EventFilter';
++import AlertDestination from '@/views/PEF/AlertDestination';
+ import Network from '@/views/Settings/Network';
+ import Vlan from '@/views/Settings/Vlan';
+ import Overview from '@/views/Overview';
+@@ -225,6 +228,30 @@ const routes = [
+           title: i18n.t('appPageTitle.firmware'),
+         },
+       },
++      {
++        path: '/settings/smtp',
++        name: 'smtpSettings',
++        component: SmtpSettings,
++        meta: {
++          title: i18n.t('appPageTitle.smtpSettings'),
++        },
++      },
++      {
++        path: '/pef/eventFilter',
++        name: 'eventFilter',
++        component: EventFilter,
++        meta: {
++          title: i18n.t('appPageTitle.eventFilter'),
++        },
++      },
++      {
++        path: '/pef/alertDestination',
++        name: 'alertDestination',
++        component: AlertDestination,
++        meta: {
++          title: i18n.t('appPageTitle.alertDestination'),
++        },
++      },
+       {
+         path: '/settings/network',
+         name: 'network',
+diff --git a/src/store/index.js b/src/store/index.js
+index 147829f..194893a 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -14,6 +14,8 @@ import PowerControlStore from './modules/ResourceManagement/PowerControlStore';
+ import PowerPolicyStore from './modules/Settings/PowerPolicyStore';
+ import NetworkStore from './modules/Settings/NetworkStore';
+ import VlanStore from './modules/Settings/VlanStore';
++import SMTPStore from './modules/Settings/SMTPStore';
++import EventFilterStore from './modules/Pef/EventFilterStore';
+ import EventLogStore from './modules/Logs/EventLogStore';
+ import SensorsStore from './modules/HardwareStatus/SensorsStore';
+ import ServerLedStore from './modules/HardwareStatus/ServerLedStore';
+@@ -34,6 +36,7 @@ import WebSocketPlugin from './plugins/WebSocketPlugin';
+ import DateTimeStore from './modules/Settings/DateTimeStore';
+ import VirtualMediaStore from './modules/Operations/VirtualMediaStore';
+ import KvmStore from './modules/Operations/KvmStore';
++import AlertDestinationStore from './modules/Pef/alertDestinationStore';
+ 
+ Vue.use(Vuex);
+ 
+@@ -56,6 +59,9 @@ export default new Vuex.Store({
+     powerSupply: PowerSupplyStore,
+     network: NetworkStore,
+     vlan: VlanStore,
++    smtp: SMTPStore,
++    eventFilter: EventFilterStore,
++    alertDestination: AlertDestinationStore,
+     eventLog: EventLogStore,
+     sensors: SensorsStore,
+     serverLed: ServerLedStore,
+diff --git a/src/store/modules/Pef/EventFilterStore.js b/src/store/modules/Pef/EventFilterStore.js
+new file mode 100644
+index 0000000..9539226
+--- /dev/null
++++ b/src/store/modules/Pef/EventFilterStore.js
+@@ -0,0 +1,139 @@
++import api from '@/store/api';
++import i18n from '@/i18n';
++
++const EventFilterStore = {
++  namespaced: true,
++  state: {
++    alertData: [
++      {
++        value: 1,
++        eventName: 'Temperature Sensor Out of Range',
++        enableStatus: false,
++      },
++      {
++        value: 2,
++        eventName: 'Fan Failure',
++        enableStatus: false,
++      },
++      {
++        value: 3,
++        eventName: 'Power Supply Failure',
++        enableStatus: false,
++      },
++      {
++        value: 4,
++        eventName: 'BIOS: Post Error Code',
++        enableStatus: false,
++      },
++      {
++        value: 5,
++        eventName: 'Node Manager Exception',
++        enableStatus: false,
++      },
++      {
++        value: 6,
++        eventName: 'System Restart',
++        enableStatus: false,
++      },
++      {
++        value: 7,
++        eventName: 'Power Unit Redundancy Failure',
++        enableStatus: false,
++      },
++      {
++        value: 8,
++        eventName: 'Fan Redundancy Failure',
++        enableStatus: false,
++      },
++      {
++        value: 9,
++        eventName: 'Processor Therm Trip',
++        enableStatus: false,
++      },
++      {
++        value: 10,
++        eventName: 'Voltage Sensor Out of Range',
++        enableStatus: false,
++      },
++      {
++        value: 11,
++        eventName: 'Chassis Intrusion',
++        enableStatus: false,
++      },
++      {
++        value: 12,
++        eventName: 'Memory Error',
++        enableStatus: false,
++      },
++      {
++        value: 13,
++        eventName: 'FRB Failure',
++        enableStatus: false,
++      },
++      {
++        value: 14,
++        eventName: 'Watchdog Timer',
++        enableStatus: false,
++      },
++      {
++        value: 15,
++        eventName: 'Hard Drive Failure',
++        enableStatus: false,
++      },
++      {
++        value: 16,
++        eventName: 'Inlet Temperature Overheat Shutdown',
++        enableStatus: false,
++      },
++      {
++        value: 17,
++        eventName: 'Power Unit Status',
++        enableStatus: false,
++      },
++      {
++        value: 18,
++        eventName: 'Processor DIMM Therm Trip',
++        enableStatus: false,
++      },
++    ],
++  },
++  getters: {
++    getAlertData: (state) => state.alertData,
++  },
++  mutations: {
++    setAlertData: (state, eventFilterData) => {
++      let EnabledFilters = eventFilterData.FilterEnable;
++      for (var i = 0; i < EnabledFilters.length; i++) {
++        state.alertData[i].enableStatus = EnabledFilters[i] ? true : false;
++      }
++    },
++  },
++  actions: {
++    async getEventFilterData({ commit }) {
++      return await api
++        .get('/redfish/v1/PefService')
++        .then((response) => {
++          commit('setAlertData', response.data);
++        })
++        .catch((error) => console.log(error));
++    },
++    async setEventFilterData({ dispatch }, properties) {
++      let filterArray = new Array(18);
++      for (var i = 0; i < properties.length; i++) {
++        filterArray[i] = properties[i].enableStatus ? 1 : 0;
++      }
++      const data = {
++        FilterEnable: filterArray,
++      };
++      return await api
++        .patch('/redfish/v1/PefService', data)
++        .then(() => dispatch('getEventFilterData'))
++        .then(() => i18n.t('pageEventFilter.toast.successEventFilterMsg'))
++        .catch(() => {
++          throw new Error(i18n.t('pageEventFilter.toast.errorEventFilterMsg'));
++        });
++    },
++  },
++};
++
++export default EventFilterStore;
+diff --git a/src/store/modules/Pef/alertDestinationStore.js b/src/store/modules/Pef/alertDestinationStore.js
+new file mode 100644
+index 0000000..9c90c68
+--- /dev/null
++++ b/src/store/modules/Pef/alertDestinationStore.js
+@@ -0,0 +1,60 @@
++import api from '@/store/api';
++import i18n from '@/i18n';
++
++const AlertDestinationStore = {
++  namespaced: true,
++  state: {
++    emailAddress1: null,
++    emailAddress2: null,
++  },
++  getters: {
++    getEmailAddress1: (state) => state.emailAddress1,
++    getEmailAddress2: (state) => state.emailAddress2,
++  },
++  mutations: {
++    setAlertDestinationData: (state, alertDestinationData) => {
++      state.emailAddress1 = alertDestinationData[0]
++        ? alertDestinationData[0]
++        : '';
++      state.emailAddress2 = alertDestinationData[1]
++        ? alertDestinationData[1]
++        : '';
++    },
++  },
++  actions: {
++    async getAlertDestinationData({ commit }) {
++      return await api
++        .get('/redfish/v1/PefService')
++        .then((response) => {
++          commit('setAlertDestinationData', response.data.Recipient);
++        })
++        .catch((error) => console.log(error));
++    },
++    async setAlertDestinationData({ dispatch }, properties) {
++      const data = {
++        Recipient: properties,
++      };
++      return await api
++        .patch('/redfish/v1/PefService', data)
++        .then(() => dispatch('getAlertDestinationData'))
++        .then(() => i18n.t('pageAlertDestination.toast.successMsg'))
++        .catch(() => {
++          throw new Error(i18n.t('pageAlertDestination.toast.errorMsg'));
++        });
++    },
++    async sendTestAlert({ state }, properties) {
++      console.log('send Test Alert state', state);
++      return await api
++        .post(
++          '/redfish/v1/PefService/Actions/PefService.SendAlertMail',
++          properties
++        )
++        .then(() => i18n.t('pageAlertDestination.toast.successMsgTestAlert'))
++        .catch(() => {
++          throw new Error(i18n.t('pageAlertDestination.toast.errorMsgAlert'));
++        });
++    },
++  },
++};
++
++export default AlertDestinationStore;
+diff --git a/src/store/modules/Settings/SMTPStore.js b/src/store/modules/Settings/SMTPStore.js
+new file mode 100644
+index 0000000..563d3f7
+--- /dev/null
++++ b/src/store/modules/Settings/SMTPStore.js
+@@ -0,0 +1,56 @@
++import api from '@/store/api';
++import i18n from '@/i18n';
++
++const SmtpStore = {
++  namespaced: true,
++  state: {
++    smtpServiceEnabled: null,
++    smtpServerIP: null,
++    SMTPServerPort: null,
++    SenderEmailAddress: null,
++  },
++  getters: {
++    isSMTPEnabled: (state) => state.smtpServiceEnabled,
++    getSmtpServerIP: (state) => state.smtpServerIP,
++    getSmtpServerPort: (state) => state.SMTPServerPort,
++    getSmtpSenderEmailAddress: (state) => state.SenderEmailAddress,
++  },
++  mutations: {
++    setSmtpData: (state, smtpData) => {
++      console.log('smtpData', smtpData);
++      state.smtpServiceEnabled = smtpData.ServiceEnabled;
++      state.smtpServerIP = smtpData.ServerAddress;
++      state.SMTPServerPort = smtpData.Port;
++      state.SenderEmailAddress = smtpData.FromAddress;
++      console.log('state', state);
++    },
++  },
++  actions: {
++    async getSMTPdata({ commit }) {
++      return await api
++        .get('/redfish/v1/EventService')
++        .then((response) => {
++          console.log('data', response);
++          console.log('smtp data', response.data);
++          commit('setSmtpData', response.data.SMTP);
++        })
++        .catch((error) => console.log(error));
++    },
++    async setSMTPdata({ dispatch }, properties) {
++      const data = {
++        SMTP: properties,
++      };
++      console.log('patch data', data);
++      return await api
++        .patch('/redfish/v1/EventService', data)
++        .then(() => dispatch('getSMTPdata'))
++        .then(() => i18n.t('pageSmtp.toast.successSMTPConfiguration'))
++        .catch((error) => {
++          console.log(error);
++          throw new Error(i18n.t('pageSmtp.toast.errorSMTPConfiguration'));
++        });
++    },
++  },
++};
++
++export default SmtpStore;
+diff --git a/src/views/PEF/AlertDestination/alertDestination.vue b/src/views/PEF/AlertDestination/alertDestination.vue
+new file mode 100644
+index 0000000..fde032c
+--- /dev/null
++++ b/src/views/PEF/AlertDestination/alertDestination.vue
+@@ -0,0 +1,190 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pageAlertDestination.pageDescription')" />
++    <page-section :section-title="$t('pageAlertDestination.sectionTitle')">
++      <b-form novalidate @submit.prevent="handleSubmit">
++        <div class="form-background p-3">
++          <b-form-group
++            class="m-0"
++            :label="$t('pageAlertDestination.alertDestinationLabel')"
++            label-class="sr-only"
++            :disabled="loading"
++          >
++            <b-row>
++              <b-col md="9" lg="8" xl="9">
++                <b-row>
++                  <b-col sm="6" xl="4">
++                    <b-form-group
++                      :label="$t('pageAlertDestination.sendEmailTo')"
++                      label-for="email-address1"
++                    >
++                      <b-form-input
++                        id="email-address1"
++                        v-model="form.emailAddress1"
++                        data-test-id="alertDestination-input-emailAddress1"
++                        :state="getValidationState($v.form.emailAddress1)"
++                        @change="$v.form.emailAddress1.$touch()"
++                      />
++                      <b-form-invalid-feedback role="alert">
++                        <template v-if="!$v.form.emailAddress1.email">
++                          {{ $t('global.form.invalidFormat') }}
++                        </template>
++                      </b-form-invalid-feedback>
++                    </b-form-group>
++                  </b-col>
++                  <b-col sm="6" xl="4">
++                    <b-form-group
++                      :label="$t('pageAlertDestination.sendEmailTo')"
++                      label-for="server-address2"
++                    >
++                      <b-form-input
++                        id="server-address2"
++                        v-model="form.emailAddress2"
++                        data-test-id="alertDestination-input-emailAddress2"
++                        :state="getValidationState($v.form.emailAddress2)"
++                        @change="$v.form.emailAddress2.$touch()"
++                      />
++                      <b-form-invalid-feedback role="alert">
++                        <template v-if="!$v.form.emailAddress2.email">
++                          {{ $t('global.form.invalidFormat') }}
++                        </template>
++                      </b-form-invalid-feedback>
++                    </b-form-group>
++                  </b-col>
++                </b-row>
++              </b-col>
++            </b-row>
++          </b-form-group>
++        </div>
++        <b-row class="mt-4 mb-5">
++          <b-col sm="2" xl="2">
++            <b-btn
++              variant="primary"
++              type="submit"
++              data-test-id="alertDestination-button-saveSettings"
++              :disabled="loading"
++            >
++              {{ $t('global.action.saveSettings') }}
++            </b-btn>
++          </b-col>
++          <b-col sm="2" xl="2">
++            <b-btn
++              variant="primary"
++              data-test-id="alertDestination-button-sendTestAlert"
++              :disabled="loading"
++              @click="checkEmailAddress"
++            >
++              {{ $t('pageAlertDestination.sendTestAlert') }}
++            </b-btn>
++          </b-col>
++        </b-row>
++      </b-form>
++    </page-section>
++  </b-container>
++</template>
++
++<script>
++import { email } from 'vuelidate/lib/validators';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import VuelidateMixin from '@/components/Mixins/VuelidateMixin';
++import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
++import PageTitle from '@/components/Global/PageTitle';
++import PageSection from '@/components/Global/PageSection';
++
++export default {
++  name: 'AlertDestinationSettings',
++  components: {
++    PageTitle,
++    PageSection,
++  },
++  mixins: [BVToastMixin, VuelidateMixin, LoadingBarMixin],
++  data() {
++    return {
++      form: {
++        emailAddress1: '',
++        emailAddress2: '',
++      },
++      loading,
++    };
++  },
++  validations: {
++    form: {
++      emailAddress1: {
++        email,
++      },
++      emailAddress2: {
++        email,
++      },
++    },
++  },
++  created() {
++    this.startLoader();
++    this.$store
++      .dispatch('alertDestination/getAlertDestinationData')
++      .finally(() => {
++        this.endLoader();
++        this.updateAlertDestinationData();
++      });
++  },
++  methods: {
++    handleSubmit() {
++      this.$v.$touch();
++      if (this.$v.$invalid) return;
++      const data = [this.form.emailAddress1, this.form.emailAddress2];
++      this.startLoader();
++      this.$store
++        .dispatch('alertDestination/setAlertDestinationData', data)
++        .then((success) => {
++          this.successToast(success);
++        })
++        .catch(({ message }) => {
++          this.errorToast(message);
++        })
++        .finally(() => {
++          this.$v.form.$reset();
++          this.endLoader();
++        });
++    },
++    updateAlertDestinationData() {
++      this.form.emailAddress1 = this.$store.getters[
++        'alertDestination/getEmailAddress1'
++      ];
++      this.form.emailAddress2 = this.$store.getters[
++        'alertDestination/getEmailAddress2'
++      ];
++    },
++    checkEmailAddress() {
++      if (this.form.emailAddress1 == '' && this.form.emailAddress1 == '') {
++        this.errorToast('Configure send Email address to send Test mail.');
++        return;
++      }
++      if (this.form.emailAddress1) {
++        this.sendTestAlert(this.form.emailAddress1);
++      }
++      if (this.form.emailAddress2) {
++        this.sendTestAlert(this.form.emailAddress2);
++      }
++    },
++    sendTestAlert(recipient) {
++      this.startLoader();
++      const data = {
++        Recipient: recipient,
++        Subject: 'Sample Mail',
++        MailContent: 'Hi, This is just a sample mail!',
++      };
++      this.$store
++        .dispatch('alertDestination/sendTestAlert', data)
++        .then((success) => {
++          this.successToast(success);
++        })
++        .catch(({ message }) => {
++          this.errorToast(message);
++        })
++        .finally(() => {
++          this.$v.form.$reset();
++          this.endLoader();
++        });
++    },
++  },
++};
++</script>
+diff --git a/src/views/PEF/AlertDestination/index.js b/src/views/PEF/AlertDestination/index.js
+new file mode 100644
+index 0000000..f9446ce
+--- /dev/null
++++ b/src/views/PEF/AlertDestination/index.js
+@@ -0,0 +1,2 @@
++import alertDestination from './alertDestination.vue';
++export default alertDestination;
+diff --git a/src/views/PEF/EventFilter/eventFilter.vue b/src/views/PEF/EventFilter/eventFilter.vue
+new file mode 100644
+index 0000000..77509f9
+--- /dev/null
++++ b/src/views/PEF/EventFilter/eventFilter.vue
+@@ -0,0 +1,99 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pageEventFilter.pageDescription')" />
++    <page-section :section-title="$t('pageEventFilter.sectionTitle')">
++      <b-form novalidate @submit.prevent="handleSubmit">
++        <div class="form-background p-3">
++          <b-form-group
++            class="m-0"
++            :label="$t('pageEventFilter.sectionTitle')"
++            label-class="sr-only"
++            :disabled="loading"
++          >
++            <b-row>
++              <b-col md="9" lg="8" xl="9">
++                <b-row>
++                  <b-col
++                    v-for="(events, $index) in alertData"
++                    :key="$index"
++                    sm="6"
++                    xl="4"
++                  >
++                    <b-form-group :label="events.eventName">
++                      <b-form-checkbox
++                        v-model="events.enableStatus"
++                        data-test-id="alert-input-enable"
++                        switch
++                      >
++                        <span v-if="events.enableStatus">
++                          {{ $t('global.status.enabled') }}
++                        </span>
++                        <span v-else>{{ $t('global.status.disabled') }}</span>
++                      </b-form-checkbox>
++                    </b-form-group>
++                  </b-col>
++                </b-row>
++              </b-col>
++            </b-row>
++          </b-form-group>
++        </div>
++        <b-row class="mt-4 mb-5">
++          <b-col>
++            <b-btn
++              variant="primary"
++              type="submit"
++              data-test-id="eventFilter-button-saveSettings"
++              :disabled="loading"
++            >
++              {{ $t('global.action.saveSettings') }}
++            </b-btn>
++          </b-col>
++        </b-row>
++      </b-form>
++    </page-section>
++  </b-container>
++</template>
++
++<script>
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
++import PageTitle from '@/components/Global/PageTitle';
++import PageSection from '@/components/Global/PageSection';
++
++export default {
++  name: 'EventFilterSettings',
++  components: {
++    PageTitle,
++    PageSection,
++  },
++  mixins: [BVToastMixin, LoadingBarMixin],
++  data() {
++    return {
++      alertData: this.$store.getters['eventFilter/getAlertData'],
++      loading,
++    };
++  },
++  created() {
++    this.startLoader();
++    this.$store.dispatch('eventFilter/getEventFilterData').finally(() => {
++      this.endLoader();
++    });
++  },
++  methods: {
++    handleSubmit() {
++      this.startLoader();
++      this.$store
++        .dispatch('eventFilter/setEventFilterData', this.alertData)
++        .then((success) => {
++          this.successToast(success);
++        })
++        .catch(({ message }) => {
++          this.errorToast(message);
++        })
++        .finally(() => {
++          this.endLoader();
++        });
++    },
++  },
++};
++</script>
+diff --git a/src/views/PEF/EventFilter/index.js b/src/views/PEF/EventFilter/index.js
+new file mode 100644
+index 0000000..75610c3
+--- /dev/null
++++ b/src/views/PEF/EventFilter/index.js
+@@ -0,0 +1,2 @@
++import eventFilter from './eventFilter.vue';
++export default eventFilter;
+diff --git a/src/views/Settings/SMTP/index.js b/src/views/Settings/SMTP/index.js
+new file mode 100644
+index 0000000..6e32383
+--- /dev/null
++++ b/src/views/Settings/SMTP/index.js
+@@ -0,0 +1,2 @@
++import SmtpSettings from './smtpSettings.vue';
++export default SmtpSettings;
+diff --git a/src/views/Settings/SMTP/smtpSettings.vue b/src/views/Settings/SMTP/smtpSettings.vue
+new file mode 100644
+index 0000000..5783c40
+--- /dev/null
++++ b/src/views/Settings/SMTP/smtpSettings.vue
+@@ -0,0 +1,209 @@
++<template>
++  <b-container fluid="xl">
++    <page-title :description="$t('pageSmtp.pageDescription')" />
++    <page-section :section-title="$t('pageSmtp.sectionTitle')">
++      <b-form novalidate @submit.prevent="handleSubmit">
++        <div class="form-background p-3">
++          <b-form-group
++            class="m-0"
++            :label="$t('pageSmtp.smtpLabel')"
++            label-class="sr-only"
++            :disabled="loading"
++          >
++            <b-row>
++              <b-col md="9" lg="8" xl="9">
++                <b-row>
++                  <b-col sm="12" xl="12">
++                    <b-form-group
++                      :label="$t('pageSmtp.formGroupLabel')"
++                      label-for="enable-smtp-configuration"
++                    >
++                      <b-form-checkbox
++                        id="enable-smtp-configuration"
++                        v-model="form.enableConfiguration"
++                        data-test-id="smtp-input-enableConfiguration"
++                        switch
++                        @change="enableSMTPConfiguration"
++                      >
++                        <span v-if="form.enableConfiguration">
++                          {{ $t('global.status.enabled') }}
++                        </span>
++                        <span v-else>{{ $t('global.status.disabled') }}</span>
++                      </b-form-checkbox>
++                    </b-form-group>
++                  </b-col>
++                  <b-col sm="6" xl="4">
++                    <b-form-group
++                      :label="$t('pageSmtp.labelServerAddress')"
++                      label-for="server-address"
++                    >
++                      <b-form-input
++                        id="server-address"
++                        v-model="form.serverAddress"
++                        data-test-id="smtp-input-serverAddress"
++                        :disabled="!form.enableConfiguration"
++                        :state="getValidationState($v.form.serverAddress)"
++                        @change="$v.form.serverAddress.$touch()"
++                      />
++                      <b-form-invalid-feedback role="alert">
++                        <template v-if="!$v.form.serverAddress.required">
++                          {{ $t('global.form.fieldRequired') }}
++                        </template>
++                        <template v-if="!$v.form.serverAddress.ipAddress">
++                          {{ $t('global.form.invalidFormat') }}
++                        </template>
++                      </b-form-invalid-feedback>
++                    </b-form-group>
++                  </b-col>
++                  <b-col sm="6" xl="4">
++                    <b-form-group
++                      :label="$t('pageSmtp.labelPort')"
++                      label-for="port"
++                    >
++                      <b-form-input
++                        id="port"
++                        v-model="form.port"
++                        type="number"
++                        :disabled="!form.enableConfiguration"
++                        :state="getValidationState($v.form.port)"
++                        @change="$v.form.port.$touch()"
++                      />
++                      <b-form-invalid-feedback role="alert">
++                        {{ $t('global.form.fieldRequired') }}
++                      </b-form-invalid-feedback>
++                    </b-form-group>
++                  </b-col>
++                  <b-col sm="6" xl="4">
++                    <b-form-group
++                      :label="$t('pageSmtp.labelSenderEmailAddress')"
++                      label-for="smtp-sender-email-address"
++                    >
++                      <b-form-input
++                        id="smtp-sender-email-address"
++                        v-model="form.senderEmailAddress"
++                        data-test-id="smtp-input-senderEmailAddress"
++                        :disabled="!form.enableConfiguration"
++                        :state="getValidationState($v.form.senderEmailAddress)"
++                        @change="$v.form.senderEmailAddress.$touch()"
++                      />
++                      <b-form-invalid-feedback role="alert">
++                        <template v-if="!$v.form.senderEmailAddress.required">
++                          {{ $t('global.form.fieldRequired') }}
++                        </template>
++                        <template v-if="!$v.form.senderEmailAddress.email">
++                          {{ $t('global.form.invalidFormat') }}
++                        </template>
++                      </b-form-invalid-feedback>
++                    </b-form-group>
++                  </b-col>
++                </b-row>
++              </b-col>
++            </b-row>
++          </b-form-group>
++        </div>
++        <b-row class="mt-4 mb-5">
++          <b-col>
++            <b-btn
++              variant="primary"
++              type="submit"
++              data-test-id="smtp-button-saveSettings"
++              :disabled="loading"
++            >
++              {{ $t('global.action.saveSettings') }}
++            </b-btn>
++          </b-col>
++        </b-row>
++      </b-form>
++    </page-section>
++  </b-container>
++</template>
++
++<script>
++import { required, email, ipAddress } from 'vuelidate/lib/validators';
++import BVToastMixin from '@/components/Mixins/BVToastMixin';
++import VuelidateMixin from '@/components/Mixins/VuelidateMixin';
++import LoadingBarMixin, { loading } from '@/components/Mixins/LoadingBarMixin';
++import PageTitle from '@/components/Global/PageTitle';
++import PageSection from '@/components/Global/PageSection';
++
++export default {
++  name: 'SmtpSettings',
++  components: {
++    PageTitle,
++    PageSection,
++  },
++  mixins: [BVToastMixin, VuelidateMixin, LoadingBarMixin],
++  data() {
++    return {
++      form: {
++        serverAddress: '',
++        port: '',
++        senderEmailAddress: '',
++        enableConfiguration: '',
++      },
++      loading,
++    };
++  },
++  watch: {
++    isSMTPEnabled: function (value) {
++      this.form.enableConfiguration = value;
++    },
++  },
++  validations: {
++    form: {
++      serverAddress: {
++        required,
++        ipAddress,
++      },
++      port: { required },
++      senderEmailAddress: {
++        required,
++        email,
++      },
++    },
++  },
++  created() {
++    this.startLoader();
++    this.$store.dispatch('smtp/getSMTPdata').finally(() => {
++      this.endLoader();
++      this.updateSMTPData();
++    });
++  },
++  methods: {
++    handleSubmit() {
++      this.$v.$touch();
++      if (this.$v.$invalid) return;
++      const data = {
++        FromAddress: this.form.senderEmailAddress,
++        Port: parseInt(this.form.port),
++        ServerAddress: this.form.serverAddress,
++        ServiceEnabled: this.form.enableConfiguration,
++      };
++      this.startLoader();
++      this.$store
++        .dispatch('smtp/setSMTPdata', data)
++        .then((success) => {
++          this.successToast(success);
++        })
++        .catch(({ message }) => {
++          this.errorToast(message);
++        })
++        .finally(() => {
++          this.$v.form.$reset();
++          this.endLoader();
++        });
++    },
++    enableSMTPConfiguration() {
++      console.log('smtp configuration', this.form.enableConfiguration);
++    },
++    updateSMTPData() {
++      this.form.enableConfiguration = this.$store.getters['smtp/isSMTPEnabled'];
++      (this.form.serverAddress = this.$store.getters['smtp/getSmtpServerIP']),
++        (this.form.port = this.$store.getters['smtp/getSmtpServerPort']),
++        (this.form.senderEmailAddress = this.$store.getters[
++          'smtp/getSmtpSenderEmailAddress'
++        ]);
++    },
++  },
++};
++</script>
+-- 
+2.25.1
+

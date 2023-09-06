@@ -1,0 +1,42 @@
+diff -Naur a/transporthandler.cpp b/transporthandler.cpp
+--- a/transporthandler.cpp	2022-11-29 15:33:37.171640964 -0500
++++ b/transporthandler.cpp	2022-11-29 15:36:10.283717710 -0500
+@@ -235,18 +235,22 @@
+         if (requestedDhcp == EthernetInterface::DHCPConf::v6)
+         {
+             if ((currentDhcp == EthernetInterface::DHCPConf::v4) ||
++                (currentDhcp == EthernetInterface::DHCPConf::v4v6stateless) ||
+                 (currentDhcp == EthernetInterface::DHCPConf::both))
+                 nextDhcp = EthernetInterface::DHCPConf::both;
+             else if ((currentDhcp == EthernetInterface::DHCPConf::v6) ||
++                     (currentDhcp == EthernetInterface::DHCPConf::v6stateless) ||
+                      (currentDhcp == EthernetInterface::DHCPConf::none))
+                 nextDhcp = EthernetInterface::DHCPConf::v6;
+         }
+         else if (requestedDhcp == EthernetInterface::DHCPConf::none)
+         {
+             if ((currentDhcp == EthernetInterface::DHCPConf::v4) ||
++                (currentDhcp == EthernetInterface::DHCPConf::v4v6stateless) ||
+                 (currentDhcp == EthernetInterface::DHCPConf::both))
+                 nextDhcp = EthernetInterface::DHCPConf::v4;
+             else if ((currentDhcp == EthernetInterface::DHCPConf::v6) ||
++                     (currentDhcp == EthernetInterface::DHCPConf::v6stateless) ||
+                      (currentDhcp == EthernetInterface::DHCPConf::none))
+                 nextDhcp = EthernetInterface::DHCPConf::none;
+         }
+@@ -1274,7 +1278,6 @@
+                 }
+                 try
+                 {
+-                    channelCall<setIPv6AcceptRA>(channel, false);
+                     channelCall<reconfigureIfAddr6>(channel, set, ip, prefix);
+                 }
+                 catch (const sdbusplus::exception_t& e)
+@@ -1296,7 +1299,6 @@
+                 channelCall<deconfigureIfAddr6>(channel, set);
+                 channelCall<setDHCPv6Property>(
+                     channel, EthernetInterface::DHCPConf::v6, true);
+-                channelCall<setIPv6AcceptRA>(channel, true);
+             }
+             return responseSuccess();
+         }

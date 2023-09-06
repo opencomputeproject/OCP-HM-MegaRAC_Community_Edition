@@ -1,0 +1,26 @@
+From d0d1e15b8b81b5b5d711978825036b9b63457e31 Mon Sep 17 00:00:00 2001
+From: "sandeepap@ami.com" <sandeepap@ami.com>
+Date: Mon, 5 Jun 2023 12:03:57 +0530
+Subject: [PATCH] Fixes ethernetInternet DHCP property patch support
+
+Signed-off-by: sandeepap@ami.com <sandeepap@ami.com>
+---
+ redfish-core/lib/ethernet.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/ethernet.hpp b/redfish-core/lib/ethernet.hpp
+index 932b59fe..0e72ab4d 100644
+--- a/redfish-core/lib/ethernet.hpp
++++ b/redfish-core/lib/ethernet.hpp
+@@ -378,7 +378,7 @@ inline bool extractEthernetInterfaceData(
+                 }
+             }
+ 
+-            if (objpath.first == "/xyz/openbmc_project/network/config/dhcp")
++            if (objpath.first == "/xyz/openbmc_project/network/dhcp")
+             {
+                 if (ifacePair.first ==
+                     "xyz.openbmc_project.Network.DHCPConfiguration")
+-- 
+2.17.1
+

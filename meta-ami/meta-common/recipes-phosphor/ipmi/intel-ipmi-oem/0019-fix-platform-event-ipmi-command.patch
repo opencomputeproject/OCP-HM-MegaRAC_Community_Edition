@@ -1,0 +1,90 @@
+From 71e7fed510f14bac5e43f759b817cf80e26f3513 Mon Sep 17 00:00:00 2001
+From: thrishalig <thrishalig@ami.com>
+Date: Thu, 8 Dec 2022 22:49:16 +0530
+Subject: [PATCH] Fix for Platform Event IPMI command is giving expected
+ response, but the event messages are  not reflected in SEL List
+
+Issue URL
+
+https://git.ami.com/megarac/osp-team/oe2.3/-/issues/1235
+
+Tested:
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.99.119 -I lanplus -U root -P 0penBmc -C 17 sel list
+SEL has no entries
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.99.119 -I lanplus -U root -P 0penBmc -C 17 raw 0x04 0x02 0x04 0x04 0x1c 0x01 0x01 0xff>
+
+msgubuntu@Dell-server-3:~$ ipmitool -H 10.0.99.119 -I lanplus -U root -P 0penBmc -C 17 sel list
+   1 | 12/07/2022 | 15:20:58 | Fan #0x1c | Lower Non-critical going high | Asserted
+
+Signed-off-by: thrishalig <thrishalig@ami.com>
+---
+ src/sensorcommands.cpp | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/src/sensorcommands.cpp b/src/sensorcommands.cpp
+index 47672ad..c5e9ff2 100644
+--- a/src/sensorcommands.cpp
++++ b/src/sensorcommands.cpp
+@@ -591,6 +591,9 @@ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+     std::optional<uint8_t> eventData3 = 0;
+     uint16_t generatorID = 0;
+     ipmi::ChannelInfo chInfo;
++    std::string sensorPath;
++    bool assert = false;
++
+ 
+     if (ipmi::getChannelInfo(ctx->channel, chInfo) != ipmi::ccSuccess)
+     {
+@@ -616,6 +619,10 @@ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+                       | (0x0 << 10)        // Reserved
+                       | (0x0 << 8)         // 0x0 for sys-soft ID
+                       | sysgeneratorID;
++
++	 assert = eventType & directionMask ? false : true;
++        sensorPath = getPathFromSensorNumber(sensorNum);
++
+     }
+     else
+     {
+@@ -627,6 +634,10 @@ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+                       | (0x0 << 10)             // Reserved
+                       | ((ctx->lun & 0x3) << 8) // Lun
+                       | (ctx->rqSA << 1);
++
++	 assert = eventType & directionMask ? false : true;
++        sensorPath = getPathFromSensorNumber(sensorNum);
++
+     }
+ 
+     if (!p.fullyUnpacked())
+@@ -644,6 +655,26 @@ ipmi::RspType<> ipmiSenPlatformEvent(ipmi::Context::ptr ctx,
+         return ipmi::responseInvalidFieldRequest();
+     }
+ 
++    //adding event message to SEL
++    std::vector<uint8_t> eventData{eventData1, eventData2.value_or(0xFF),eventData3.value_or(0xFF)};
++    std::shared_ptr<sdbusplus::asio::connection> bus = getSdBus();
++    std::string service =
++        ipmi::getService(*bus, ipmiSELAddInterface, ipmiSELPath);
++    sdbusplus::message_t writeSEL = bus->new_method_call(
++        service.c_str(), ipmiSELPath, ipmiSELAddInterface, "IpmiSelAdd");
++    writeSEL.append(ipmiSELAddMessage,sensorPath,eventData,assert ,generatorID);
++       try
++       {
++            bus->call(writeSEL);
++       }
++       catch (const sdbusplus::exception_t& e)
++       {
++            phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
++
++            return ipmi::responseUnspecifiedError();
++       }
++
++
+     // Send this request to the Redfish hooks to log it as a Redfish message
+     // instead.  There is no need to add it to the SEL, so just return success.
+     intel_oem::ipmi::sel::checkRedfishHooks(
+-- 
+2.25.1
+

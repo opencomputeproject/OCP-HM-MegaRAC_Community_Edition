@@ -1,0 +1,71 @@
+From 90191cb631b403d8e2567bdf6ddc55d143f9d7e8 Mon Sep 17 00:00:00 2001
+From: Sivaprabu Ganesan <sivaprabug@ami.com>
+Date: Tue, 2 May 2023 16:58:17 +0530
+Subject: [PATCH] Webui remove built on OpenBMC Logo
+
+Signed-off-by: Sivaprabu Ganesan <sivaprabug@ami.com>
+---
+ public/index.html                      | 2 +-
+ src/components/AppHeader/AppHeader.vue | 2 +-
+ src/layouts/LoginLayout.vue            | 2 +-
+ src/views/Login/Login.vue              | 6 ------
+ 4 files changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/public/index.html b/public/index.html
+index c355ece..8f53200 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -6,7 +6,7 @@
+     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+     <meta name="viewport" content="width=device-width,initial-scale=1.0">
+     <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+-    <title>OpenBMC Web UI</title>
++    <title>MegaRAC Onetree</title>
+   </head>
+   <body>
+     <noscript>
+diff --git a/src/components/AppHeader/AppHeader.vue b/src/components/AppHeader/AppHeader.vue
+index 6a8575e..b06d895 100644
+--- a/src/components/AppHeader/AppHeader.vue
++++ b/src/components/AppHeader/AppHeader.vue
+@@ -143,7 +143,7 @@ export default {
+   data() {
+     return {
+       isNavigationOpen: false,
+-      altLogo: process.env.VUE_APP_COMPANY_NAME || 'Built on OpenBMC',
++      altLogo: process.env.VUE_APP_COMPANY_NAME || 'AMI',
+     };
+   },
+   computed: {
+diff --git a/src/layouts/LoginLayout.vue b/src/layouts/LoginLayout.vue
+index 475a3bc..1412f80 100644
+--- a/src/layouts/LoginLayout.vue
++++ b/src/layouts/LoginLayout.vue
+@@ -9,7 +9,7 @@ export default {
+   name: 'LoginLayout',
+   data() {
+     return {
+-      altLogo: process.env.VUE_APP_COMPANY_NAME || 'OpenBMC',
++      altLogo: process.env.VUE_APP_COMPANY_NAME || 'AMI',
+       customizableGuiName: process.env.VUE_APP_GUI_NAME || '',
+     };
+   },
+diff --git a/src/views/Login/Login.vue b/src/views/Login/Login.vue
+index 53bafbf..4d9fd31 100644
+--- a/src/views/Login/Login.vue
++++ b/src/views/Login/Login.vue
+@@ -1,11 +1,5 @@
+ <template>
+   <div class="login-container">
+-    <img
+-      height="90px"
+-      class="img-bmc"
+-      src="@/assets/images/built-on-openbmc-logo.svg"
+-      alt="Built on OpenBMC"
+-    />
+     <div class="py-5">
+       <b-card class="card-cont my-5">
+         <b-container
+-- 
+2.25.1
+

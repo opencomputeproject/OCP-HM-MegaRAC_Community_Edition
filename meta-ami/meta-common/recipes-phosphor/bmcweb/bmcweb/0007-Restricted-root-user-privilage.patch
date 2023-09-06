@@ -1,0 +1,47 @@
+From b47af2508d19d0befa37aafe42b11cc1c10cd8f6 Mon Sep 17 00:00:00 2001
+From: Pranoy Goru <gorumanip@ami.com>
+Date: Tue, 18 Oct 2022 21:07:13 +0530
+Subject: [PATCH] Restricted-root-user-privilage
+
+---
+ redfish-core/lib/account_service.hpp | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/redfish-core/lib/account_service.hpp b/redfish-core/lib/account_service.hpp
+index 6b1d7b52..f2f338ca 100644
+--- a/redfish-core/lib/account_service.hpp
++++ b/redfish-core/lib/account_service.hpp
+@@ -1174,7 +1174,18 @@ inline void updateUserProperties(std::shared_ptr<bmcweb::AsyncResp> asyncResp,
+                 dbus::utility::DbusVariantType{*enabled});
+         }
+ 
+-        if (roleId)
++	if((username == "root") && roleId)
++	{
++	      BMCWEB_LOG_ERROR << "Not able to change privilage level for root user";
++              messages::accessDenied(
++                                asyncResp->res,
++                                crow::utility::urlFromPieces(
++                                    "redfish", "v1", "AccountService",
++				    "Accounts", username));
++
++	      return;
++	}
++	else if (roleId)
+         {
+             std::string priv = getPrivilegeFromRoleId(*roleId);
+             if (priv.empty())
+@@ -1852,6 +1863,13 @@ inline void
+     tempObjPath /= username;
+     const std::string userPath(tempObjPath);
+ 
++    if (username == "root")
++    {
++       BMCWEB_LOG_DEBUG << "Not able to delete root user\n" ; 
++       messages::resourceCannotBeDeleted(asyncResp->res);
++       return;
++    }
++
+     crow::connections::systemBus->async_method_call(
+         [asyncResp, username](const boost::system::error_code ec) {
+         if (ec)
