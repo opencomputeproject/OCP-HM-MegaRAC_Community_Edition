@@ -1,41 +1,72 @@
-From da26c7d53d88bd95e3242dae45903c1d74945f0d Mon Sep 17 00:00:00 2001
+From 33c404e343312e9881e2d53602e563239f2dd8d4 Mon Sep 17 00:00:00 2001
 From: Dillibabu <dillibabug@ami.com>
-Date: Wed, 24 May 2023 14:26:04 +0530
-Subject: [PATCH] AST2600 EVB Power Control
+Date: Fri, 15 Sep 2023 18:49:45 +0530
+Subject: [PATCH] Signed-off-by: Dillibabu <dillibabug@ami.com>
 
+Modified source according to AST2600 EVB
 ---
- src/power_control.cpp | 21 ++++++++++++---------
- 1 file changed, 12 insertions(+), 9 deletions(-)
+ config/power-config-host0.json | 12 ------------
+ src/power_control.cpp          | 15 ++++++++++-----
+ 2 files changed, 10 insertions(+), 17 deletions(-)
 
+diff --git a/config/power-config-host0.json b/config/power-config-host0.json
+index 83e1059..83bb850 100644
+--- a/config/power-config-host0.json
++++ b/config/power-config-host0.json
+@@ -1,11 +1,5 @@
+ {
+     "gpio_configs": [
+-        {
+-            "Name": "IdButton",
+-            "LineName": "ID_BUTTON",
+-            "Type": "GPIO",
+-            "Polarity": "ActiveLow"
+-        },
+         {
+             "Name": "NMIButton",
+             "LineName": "NMI_BUTTON",
+@@ -60,12 +54,6 @@
+             "Type": "GPIO",
+             "Polarity": "ActiveLow"
+         },
+-        {
+-            "Name": "SioPowerGood",
+-            "LineName": "SIO_POWER_GOOD",
+-            "Type": "GPIO",
+-            "Polarity": "ActiveHigh"
+-        },
+         {
+             "Name": "SIOS5",
+             "LineName": "SIO_S5",
 diff --git a/src/power_control.cpp b/src/power_control.cpp
-index adf98ab..770aaca 100644
+index fa4ccd5..9e0e45b 100644
 --- a/src/power_control.cpp
 +++ b/src/power_control.cpp
-@@ -2850,8 +2850,8 @@ int main(int argc, char* argv[])
+@@ -2866,8 +2866,9 @@ int main(int argc, char* argv[])
                  // if power button is masked, ignore this
                  if (!powerButtonMask)
                  {
 -                    sendPowerControlEvent(Event::powerOnRequest);
--                    addRestartCause(RestartCause::command);
 +                    powerOn();
-+		     addRestartCause(RestartCause::command);
+                     addRestartCause(RestartCause::command);
++
                  }
                  else
                  {
-@@ -2866,8 +2866,10 @@ int main(int argc, char* argv[])
+@@ -2882,8 +2883,11 @@ int main(int argc, char* argv[])
                  // if power button is masked, ignore this
                  if (!powerButtonMask)
                  {
 -                    sendPowerControlEvent(Event::powerCycleRequest);
--                    addRestartCause(RestartCause::command);
 +                    setPowerState(PowerState::gracefulTransitionToCycleOff);
 +                    gracefulPowerOffTimerStart();
 +                    gracefulPowerOff();
-+		     addRestartCause(RestartCause::command);
+                     addRestartCause(RestartCause::command);
++
                  }
                  else
                  {
-@@ -2883,8 +2885,7 @@ int main(int argc, char* argv[])
+@@ -2899,8 +2903,7 @@ int main(int argc, char* argv[])
                  // if reset button is masked, ignore this
                  if (!resetButtonMask)
                  {
@@ -45,7 +76,7 @@ index adf98ab..770aaca 100644
                  }
                  else
                  {
-@@ -2900,7 +2901,9 @@ int main(int argc, char* argv[])
+@@ -2916,7 +2919,9 @@ int main(int argc, char* argv[])
                  // if reset button is masked, ignore this
                  if (!resetButtonMask)
                  {
@@ -56,14 +87,6 @@ index adf98ab..770aaca 100644
                      addRestartCause(RestartCause::command);
                  }
                  else
-@@ -2942,8 +2945,8 @@ int main(int argc, char* argv[])
-                 // if power button is masked, ignore this
-                 if (!powerButtonMask)
-                 {
--                    sendPowerControlEvent(Event::powerOffRequest);
--                    addRestartCause(RestartCause::command);
-+                    gracefulPowerOff();
-+		     addRestartCause(RestartCause::command);
-                 }
-                 else
-                 {
+-- 
+2.25.1
+
