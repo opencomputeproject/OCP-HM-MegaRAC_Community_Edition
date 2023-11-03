@@ -18,14 +18,23 @@ def irun_git(d, oeroot, git_cmd, **kwargs):
 def repo_status(d, f, repo, tagargs):
     import subprocess
 
+    gen = d.getVar('PRODUCT_GENERATION_TAG', True)
+    if gen is None:
+        gen = 'unknown'
+
     cmd_list = [['HEAD', 'rev-parse HEAD'],
-                ['TAG', 'describe {} --dirty --long'.format(tagargs)],
+               ['TAG', 'describe --dirty --long --abbrev=6 ' + '--match ' + r'{}-[0-9]*.[0-9]* {}'.format(gen, tagargs)],
                 ['STATUS', 'status -sb']]
 
     f.write(('\n# REPOSITORY: {} '.format(os.path.basename(repo))).ljust(80, '+') + '\n')
     for item in cmd_list:
         f.write('# {}: '.format(item[0]))
         sb = irun_git(d, repo, item[1])
+        if sb.startswith('fatal:'):
+            sb_hash = irun_git(d, repo, 'rev-parse HEAD')
+            sb_major_revision = sb_minor_revision = sb_minor_spare = 0
+            sb = '{}-{}.{}-{}-g{}'.format(gen,sb_major_revision,
+                    sb_minor_revision,sb_minor_spare,sb_hash[0:6])
         if sb:
             sb_lines = sb.split('\n')
             if len(sb_lines) == 1:
@@ -43,12 +52,17 @@ python() {
 
     corebase = d.getVar('COREBASE', True)
     mibase = os.path.join(corebase, 'meta-ami')
-    obmc_vers = irun_git(d, corebase, 'describe --dirty --long')
-    if obmc_vers is None:
-        raise bb.build.FuncFailed("Missing version tag for openbmc-openbmc")
-    d.setVar('OPENBMC_VERSION', obmc_vers)
 
     obmc_hash = irun_git(d, corebase, 'rev-parse HEAD')
+    obmc_vers = irun_git(d, corebase,
+                        'describe --dirty --long --abbrev=6 ' +
+                        '--match ' + r'{}-[0-9]*.[0-9]*'.format(gen))
+    if obmc_vers.startswith('fatal:'):
+        bb.warn("Missing version tag for openbmc-openbmc. The tag starts with ", gen)
+        obmc_major_revision = obmc_minor_revision = obmc_minor_spare = 0
+        obmc_vers = '{}-{}.{}-{}-g{}'.format(gen,obmc_major_revision,
+                    obmc_minor_revision,obmc_minor_spare,obmc_hash[0:6])
+    d.setVar('OPENBMC_VERSION', obmc_vers)
     meta_vers = irun_git(d, mibase,
                          'describe --long --abbrev=6 ' +
                          '--match ' + r'{}-[0-9]*.[0-9]*'.format(gen))

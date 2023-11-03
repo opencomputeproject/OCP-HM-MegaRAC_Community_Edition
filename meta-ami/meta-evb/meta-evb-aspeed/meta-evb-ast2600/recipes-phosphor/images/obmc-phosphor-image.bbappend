@@ -45,4 +45,6 @@ OBMC_IMAGE_EXTRA_INSTALL:append = " \
                                   phosphor-host-postd \
                                   phosphor-post-code-manager \
                                   entity-manager \
+                                  default-fru \
+                                  dbus-sensors\
                                  "
