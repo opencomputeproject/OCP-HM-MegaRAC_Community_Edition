@@ -1,11 +1,15 @@
 SUMMARY = "PEF and alert management application"
 
-SRC_URI = "git://git@git.ami.com/core/ami-bmc/one-tree/core/platform-event-filter.git;protocol=ssh;branch=main"
-SRCREV = "0f822234e28b3fe6fde4eaa49c935312ed8a843b"
+SRC_URI += "file://src \
+	    file://include \
+	    file://pef_configurations \
+	    file://service_files \
+	    file://CMakeLists.txt \
+	   "
+
 SRC_URI += "file://pef-alert-manager.json"
 
-S = "${WORKDIR}/git"
-PV = "1.0+git${SRCPV}"
+S = "${WORKDIR}"
 
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
