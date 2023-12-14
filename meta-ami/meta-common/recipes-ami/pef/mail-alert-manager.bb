@@ -1,12 +1,15 @@
 SUMMARY = "mail alert management application"
 
-SRC_URI = "git://git@git.ami.com/core/ami-bmc/one-tree/core/email-alert-manager.git;protocol=ssh;branch=main"
-SRCREV = "41c115bad928edea0493a5f604c547e19a9d903d"
+SRC_URI += "file://src \
+	    file://include \
+	    file://service_files \
+	    file://conf \
+	    file://CMakeLists.txt \
+	   "
 
 SRC_URI += "file://smtp-config.json"
 
-S = "${WORKDIR}/git"
-PV = "1.0+git${SRCPV}"
+S = "${WORKDIR}"
 
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"

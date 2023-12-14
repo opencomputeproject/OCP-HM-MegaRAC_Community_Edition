@@ -1,8 +1,6 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 
-SRC_URI += "git://git.ami.com/core/ami-bmc/one-tree/core/phosphor-dbus-interfaces.git;branch=main;protocol=https;name=override;"
-SRCREV_FORMAT = "override"
-SRCREV_override = "84b66bfacbdbf3ad5946c9e1b6024306554dce04"
+SRCREV = "b9f7c1de73ad44c4c6ced7dab8b2a402468cec5d"
 
 SRC_URI += "file://0001-ARP-Control-property.patch\
 	    file://0003-ARP-VLAN-YAML.patch \
@@ -14,4 +12,3 @@ SRC_URI += "file://0001-ARP-Control-property.patch\
             file://0010-Add-DBus-Property-IPv4-IPv6-Enabled-Disabled-And-Error-Handling.patch \
             file://0010-Added-TimeOut-for-managers.patch \
 	    "
-EXTRA_OEMESON += "-Ddata_com_intel=true"
